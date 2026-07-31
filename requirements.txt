@@ -34,8 +34,7 @@ msgpack==1.2.1
 openpyxl==3.1.5
 packaging==26.2
 pillow==12.2.0
-psycopg-binary==3.2.4
-psycopg2-binary==2.9.12
+psycopg[binary]>=3.2.10
 pubcontrol==3.5.0
 pycparser==3.0
 pydyf==0.12.1
