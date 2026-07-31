@@ -1,0 +1,123 @@
+<!-- templates/contacts/partials/contact_detail_modal.html -->
+
+<div class="modal-content">
+    <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-person-circle me-2"></i>{{ contact.name }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+        <div class="row g-3">
+            
+            <!-- Personal Info -->
+            <div class="col-md-6">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <h6 class="fw-bold text-primary">
+                            <i class="bi bi-info-circle me-2"></i>Personal Information
+                        </h6>
+                        <table class="table table-sm mb-0">
+                            <tr>
+                                <td class="text-muted" style="width:40%">Name</td>
+                                <td class="fw-bold">{{ contact.name }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Type</td>
+                                <td><span class="badge bg-primary">{{ contact.get_contact_type_display }}</span></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Phone</td>
+                                <td>{{ contact.phone|default:"—" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Email</td>
+                                <td>{{ contact.email|default:"—" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">GSTIN</td>
+                                <td>{{ contact.gstin|default:"—" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">State</td>
+                                <td>{{ contact.state|default:"—" }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Address</td>
+                                <td>{{ contact.address|default:"—" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Stats -->
+            <div class="col-md-6">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <h6 class="fw-bold text-success">
+                            <i class="bi bi-graph-up me-2"></i>Summary
+                        </h6>
+                        <table class="table table-sm mb-0">
+                            <tr>
+                                <td class="text-muted">Opening Balance</td>
+                                <td class="fw-bold">₹{{ contact.opening_balance|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Total Invoices</td>
+                                <td class="fw-bold">{{ invoice_count }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Total Repairs</td>
+                                <td class="fw-bold">{{ repair_count }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Total Payments</td>
+                                <td class="fw-bold text-success">₹{{ total_payments|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Total Due</td>
+                                <td class="fw-bold text-danger">₹{{ total_due|floatformat:2 }}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Member Since</td>
+                                <td>{{ contact.created_at|date:"d M Y" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes -->
+        {% if contact.notes %}
+            <div class="mt-3">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <h6 class="fw-bold text-warning">
+                            <i class="bi bi-sticky me-2"></i>Notes
+                        </h6>
+                        <p class="mb-0">{{ contact.notes }}</p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-warning"
+            hx-get="{% url 'accounting:contact_update' contact.pk %}"
+            hx-target="#mainModalContent">
+            <i class="bi bi-pencil"></i> Edit
+        </button>
+        <a href="{% url 'accounting:customer_statement' contact.pk %}" class="btn btn-primary">
+            <i class="bi bi-file-text"></i> Statement
+        </a>
+        <a href="{% url 'accounting:repair_create_for_contact' contact.pk %}" class="btn btn-success"
+           hx-get="{% url 'accounting:repair_create_for_contact' contact.pk %}"
+           hx-target="#mainModalContent"
+           hx-trigger="click">
+            <i class="bi bi-tools"></i> New Repair
+        </a>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    </div>
+</div>

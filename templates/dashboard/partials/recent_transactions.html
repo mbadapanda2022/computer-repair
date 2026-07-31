@@ -1,0 +1,87 @@
+{% load math_filters %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center fw-semibold">
+        <span><i class="bi bi-clock-history me-2 text-primary"></i>Recent Activity</span>
+        <button class="btn btn-sm btn-outline-secondary" 
+                hx-get="{% url 'accounting:recent_transactions' %}" 
+                hx-target="#recent-transactions-container"
+                hx-swap="innerHTML">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <ul class="list-group list-group-flush">
+            {% for invoice in recent_invoices %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-receipt text-primary me-2"></i>
+                    <strong>{{ invoice.invoice_number }}</strong>
+                    <span class="text-muted ms-2">- {{ invoice.customer.name }}</span>
+                </div>
+                <div>
+                    <span class="badge 
+                        {% if invoice.payment_status == 'paid' %}bg-success
+                        {% elif invoice.payment_status == 'partial' %}bg-warning
+                        {% else %}bg-danger{% endif %} me-2">
+                        {{ invoice.get_payment_status_display }}
+                    </span>
+                    <span class="fw-bold">₹{{ invoice.grand_total|floatformat:2 }}</span>
+                    <small class="text-muted ms-2">{{ invoice.date|date:"d M" }}</small>
+                </div>
+            </li>
+            {% empty %}
+            <li class="list-group-item text-center text-muted py-3">No recent invoices</li>
+            {% endfor %}
+            
+            {% for repair in recent_repairs %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-tools text-warning me-2"></i>
+                    <strong>{{ repair.job_number }}</strong>
+                    <span class="text-muted ms-2">- {{ repair.customer.name }}</span>
+                    <span class="text-muted ms-2">({{ repair.device_model }})</span>
+                </div>
+                <div>
+                    <span class="badge 
+                        {% if repair.status == 'delivered' %}bg-success
+                        {% elif repair.status == 'pending' %}bg-secondary
+                        {% elif repair.status == 'diagnosis' %}bg-info
+                        {% elif repair.status == 'repairing' %}bg-warning
+                        {% elif repair.status == 'ready' %}bg-primary
+                        {% else %}bg-danger{% endif %} me-2">
+                        {{ repair.get_status_display }}
+                    </span>
+                    <small class="text-muted">{{ repair.date_in|date:"d M" }}</small>
+                </div>
+            </li>
+            {% empty %}
+            <li class="list-group-item text-center text-muted py-3">No recent repairs</li>
+            {% endfor %}
+            
+            {% for payment in recent_payments %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi bi-credit-card text-success me-2"></i>
+                    <strong>{{ payment.get_direction_display }}</strong>
+                    <span class="text-muted ms-2">- {{ payment.contact.name }}</span>
+                    <span class="text-muted ms-2">({{ payment.get_method_display }})</span>
+                </div>
+                <div>
+                    <span class="fw-bold 
+                        {% if payment.direction == 'received' %}text-success{% else %}text-danger{% endif %}">
+                        {% if payment.direction == 'received' %}+{% else %}-{% endif %}
+                        ₹{{ payment.amount|floatformat:2 }}
+                    </span>
+                    <small class="text-muted ms-2">{{ payment.date|date:"d M" }}</small>
+                </div>
+            </li>
+            {% empty %}
+            <li class="list-group-item text-center text-muted py-3">No recent payments</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="card-footer bg-white text-muted small">
+        <i class="bi bi-info-circle"></i> Showing latest 10 transactions in each category
+    </div>
+</div>

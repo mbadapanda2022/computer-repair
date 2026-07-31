@@ -1,0 +1,87 @@
+{% load static %}
+
+<form method="post" 
+      hx-post="{% url 'accounting:repair_create_for_contact' contact.pk %}" 
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      id="repairForm">
+    {% csrf_token %}
+    
+    <div class="modal-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+        <h5 class="modal-title text-white">
+            <i class="bi bi-tools me-2"></i> 
+            New Repair for {{ contact.name }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+    
+    <div class="modal-body">
+        <!-- Customer (Locked) -->
+        <div class="alert alert-success mb-3">
+            <i class="bi bi-person-check me-2"></i>
+            <strong>Customer:</strong> {{ contact.name }} 
+            <span class="badge bg-light text-dark ms-2">{{ contact.get_contact_type_display }}</span>
+            {% if contact.phone %}<span class="ms-3"><i class="bi bi-phone"></i> {{ contact.phone }}</span>{% endif %}
+            <input type="hidden" name="customer" value="{{ contact.pk }}">
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_device_model" class="form-label fw-semibold">Device Model *</label>
+                <input type="text" name="device_model" id="id_device_model" 
+                       class="form-control" value="{{ form.device_model.value|default:'' }}" required>
+            </div>
+            <div class="col-md-6">
+                <label for="id_serial_number" class="form-label fw-semibold">Serial Number</label>
+                <input type="text" name="serial_number" id="id_serial_number" 
+                       class="form-control" value="{{ form.serial_number.value|default:'' }}">
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-2">
+            <div class="col-12">
+                <label for="id_issue_description" class="form-label fw-semibold">Issue Description *</label>
+                <textarea name="issue_description" id="id_issue_description" rows="3" 
+                          class="form-control" required>{{ form.issue_description.value|default:'' }}</textarea>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_accessories" class="form-label fw-semibold">Accessories</label>
+                <textarea name="accessories" id="id_accessories" rows="2" 
+                          class="form-control">{{ form.accessories.value|default:'' }}</textarea>
+            </div>
+            <div class="col-md-6">
+                <label for="id_device_condition" class="form-label fw-semibold">Device Condition</label>
+                <textarea name="device_condition" id="id_device_condition" rows="2" 
+                          class="form-control">{{ form.device_condition.value|default:'' }}</textarea>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-2">
+            <div class="col-md-4">
+                <label for="id_estimated_cost" class="form-label fw-semibold">Estimated Cost</label>
+                <input type="number" name="estimated_cost" id="id_estimated_cost" step="0.01" 
+                       class="form-control" value="{{ form.estimated_cost.value|default:'' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge</label>
+                <input type="number" name="labour_charge" id="id_labour_charge" step="0.01" 
+                       class="form-control" value="{{ form.labour_charge.value|default:'0' }}">
+            </div>
+            <div class="col-md-4">
+                <label for="id_received_by" class="form-label fw-semibold">Received By</label>
+                <input type="text" name="received_by" id="id_received_by" 
+                       class="form-control" value="{{ form.received_by.value|default:request.user.get_full_name }}">
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-circle"></i> Create Repair
+        </button>
+    </div>
+</form>

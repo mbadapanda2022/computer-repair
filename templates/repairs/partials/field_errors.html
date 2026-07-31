@@ -1,0 +1,7 @@
+<div id="field-{{ field.name }}">
+    <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.errors %}
+    <div class="invalid-feedback d-block">{{ field.errors|striptags }}</div>
+    {% endif %}
+</div>

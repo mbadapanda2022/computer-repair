@@ -1,0 +1,138 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- ===== PRIMARY META TAGS ===== -->
+    <title>{% block title %}{{ meta.title|default:"A1 Computer Solutions" }}{% endblock %}</title>
+    <meta name="description" content="{{ meta.description|default:'Expert computer repair, laptop repair, printer repair, data recovery and LED TV repair in Keonjhar.' }}">
+    <meta name="keywords" content="{{ meta.keywords|default:'laptop repair, printer repair, computer service, data recovery, LED TV repair, chip-level repair' }}">
+    <link rel="canonical" href="{{ meta.og_url|default:request.build_absolute_uri }}">
+
+    <!-- ===== ROBOTS ===== -->
+    <meta name="robots" content="index, follow">
+
+    <!-- ===== OPEN GRAPH (Facebook, WhatsApp, LinkedIn) ===== -->
+    <meta property="og:title" content="{{ meta.title|default:company.name }}">
+    <meta property="og:description" content="{{ meta.description|default:company.about_text }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ meta.og_url|default:request.build_absolute_uri }}">
+    {% if meta.og_image %}
+        <meta property="og:image" content="{{ meta.og_image }}">
+    {% elif company.logo %}
+        <meta property="og:image" content="{{ company.logo.url }}">
+    {% else %}
+        <meta property="og:image" content="{% static 'images/og-default.jpg' %}">
+    {% endif %}
+    <meta property="og:site_name" content="{{ company.name|default:'A1 Computer Solutions' }}">
+
+    <!-- ===== TWITTER CARDS ===== -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ meta.title|default:company.name }}">
+    <meta name="twitter:description" content="{{ meta.description|default:company.about_text }}">
+    {% if meta.og_image %}
+        <meta name="twitter:image" content="{{ meta.og_image }}">
+    {% elif company.logo %}
+        <meta name="twitter:image" content="{{ company.logo.url }}">
+    {% endif %}
+
+    <!-- ===== JSON-LD STRUCTURED DATA (LocalBusiness) ===== -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "LocalBusiness",
+        "name": "{{ company.name|default:'A1 Computer Solutions' }}",
+        "description": "{{ meta.description|default:company.about_text|escapejs }}",
+        "image": "{% if company.logo %}{{ company.logo.url }}{% endif %}",
+        "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "{{ company.address|default:'' }}",
+            "addressLocality": "Keonjhar",
+            "addressRegion": "Odisha",
+            "postalCode": "758001",
+            "addressCountry": "IN"
+        },
+        "telephone": "{{ company.phone|default:'' }}",
+        "email": "{{ company.email|default:'' }}",
+        "url": "{{ meta.og_url|default:request.build_absolute_uri }}",
+        "openingHours": "{{ company.working_hours|default:'Mo-Sa 10:00-20:00' }}",
+        "priceRange": "₹₹"
+    }
+    </script>
+
+    <!-- ===== FAVICON & FONTS ===== -->
+    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.png' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- ===== STYLESHEETS ===== -->
+    <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'bootstrap-icons/bootstrap-icons.css' %}">
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Global Progress Bar -->
+    {% comment %} <div id="htmx-progress-bar"></div> {% endcomment %}
+
+    <!-- Header -->
+    <header>{% include 'landing/_header.html' %}</header>
+
+    <!-- Main Content -->
+    <main>{% block content %}{% endblock %}</main>
+
+    <!-- Footer -->
+    <footer>{% include 'landing/_footer.html' %}</footer>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1060;"></div>
+
+    <!-- Modal -->
+    <div class="modal fade" id="mainModal" tabindex="-1" aria-labelledby="mainModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" id="mainModalContent"></div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'htmx/htmx.min.js' %}"></script>
+    <script src="{% static 'js/app.js' %}"></script>
+
+    <!-- Global HTMX CSRF Configuration & Messages to Toast Handler -->
+    <script>
+        // Set CSRF token on every HTMX request
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+        });
+
+        // Convert Django Messages to Bootstrap Toasts
+        document.addEventListener('DOMContentLoaded', function() {
+            {% if messages %}
+                {% for message in messages %}
+                    (function() {
+                        var level = '{{ message.tags }}';
+                        if (level === 'error') level = 'danger';
+                        var msg = '{{ message|escapejs }}';
+                        setTimeout(function() {
+                            if (typeof window.showToast === 'function') {
+                                window.showToast(level, msg);
+                            }
+                        }, 100);
+                    })();
+                {% endfor %}
+            {% endif %}
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
+
+
+

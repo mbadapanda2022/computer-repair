@@ -1,0 +1,252 @@
+<!-- templates/contacts/repair_form_from_contact.html -->
+<!-- Customer pre-filled and locked -->
+
+{% load static %}
+
+<form method="post" 
+      hx-post="{% url 'accounting:repair_create_for_contact' contact.pk %}" 
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    <!-- No hx-on::after-request needed; HX-Redirect will handle navigation -->
+
+    {% csrf_token %}
+
+    <!-- ===== MODAL HEADER ===== -->
+    <div class="modal-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+        <h5 class="modal-title text-white">
+            <i class="bi bi-tools me-2"></i> 
+            New Repair for {{ contact.name }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <!-- ===== MODAL BODY ===== -->
+    <div class="modal-body">
+        <!-- Customer (Locked) -->
+        <div class="alert alert-success mb-3">
+            <i class="bi bi-person-check me-2"></i>
+            <strong>Customer:</strong> {{ contact.name }} 
+            <span class="badge bg-light text-dark ms-2">{{ contact.get_contact_type_display }}</span>
+            {% if contact.phone %}<span class="ms-3"><i class="bi bi-phone"></i> {{ contact.phone }}</span>{% endif %}
+            <input type="hidden" name="customer" value="{{ contact.pk }}">
+        </div>
+
+        <!-- ====== SECTION 1: Device ====== -->
+        <h6 class="text-primary border-bottom pb-2 mb-3"><i class="bi bi-laptop"></i> Device Details</h6>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.device_model.id_for_label }}" class="form-label fw-bold">Device Model *</label>
+                    {{ form.device_model }}
+                    <div id="field-device_model" class="invalid-feedback d-block">
+                        {{ form.device_model.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.serial_number.id_for_label }}" class="form-label fw-bold">Serial Number</label>
+                    {{ form.serial_number }}
+                    <div id="field-serial_number" class="invalid-feedback d-block">
+                        {{ form.serial_number.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.date_in.id_for_label }}" class="form-label fw-bold">Date In *</label>
+                    {{ form.date_in }}
+                    <div id="field-date_in" class="invalid-feedback d-block">
+                        {{ form.date_in.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.status.id_for_label }}" class="form-label fw-bold">Status</label>
+                    {{ form.status }}
+                    <div id="field-status" class="invalid-feedback d-block">
+                        {{ form.status.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== SECTION 2: Issue & Accessories ====== -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-file-earmark-text"></i> Issue & Accessories</h6>
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="mb-3">
+                    <label for="{{ form.issue_description.id_for_label }}" class="form-label fw-bold">Issue Description *</label>
+                    {{ form.issue_description }}
+                    <div id="field-issue_description" class="invalid-feedback d-block">
+                        {{ form.issue_description.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.accessories.id_for_label }}" class="form-label fw-bold">Accessories</label>
+                    {{ form.accessories }}
+                    <div id="field-accessories" class="invalid-feedback d-block">
+                        {{ form.accessories.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.device_condition.id_for_label }}" class="form-label fw-bold">Device Condition</label>
+                    {{ form.device_condition }}
+                    <div id="field-device_condition" class="invalid-feedback d-block">
+                        {{ form.device_condition.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== SECTION 3: Diagnosis & Action ====== -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-clipboard-check"></i> Diagnosis & Action (Optional)</h6>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.diagnosis_report.id_for_label }}" class="form-label fw-bold">Diagnosis Report</label>
+                    {{ form.diagnosis_report }}
+                    <div id="field-diagnosis_report" class="invalid-feedback d-block">
+                        {{ form.diagnosis_report.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="{{ form.action_taken.id_for_label }}" class="form-label fw-bold">Action Taken</label>
+                    {{ form.action_taken }}
+                    <div id="field-action_taken" class="invalid-feedback d-block">
+                        {{ form.action_taken.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== SECTION 4: Financials ====== -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-currency-rupee"></i> Financials</h6>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.estimated_cost.id_for_label }}" class="form-label fw-bold">Estimated Cost</label>
+                    {{ form.estimated_cost }}
+                    <div id="field-estimated_cost" class="invalid-feedback d-block">
+                        {{ form.estimated_cost.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.labour_charge.id_for_label }}" class="form-label fw-bold">Labour Charge</label>
+                    {{ form.labour_charge }}
+                    <div id="field-labour_charge" class="invalid-feedback d-block">
+                        {{ form.labour_charge.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.received_by.id_for_label }}" class="form-label fw-bold">Received By</label>
+                    {{ form.received_by }}
+                    <div id="field-received_by" class="invalid-feedback d-block">
+                        {{ form.received_by.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== SECTION 5: Personnel & Dates ====== -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-calendar-event"></i> Personnel & Delivery</h6>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.delivered_by.id_for_label }}" class="form-label fw-bold">Delivered By</label>
+                    {{ form.delivered_by }}
+                    <div id="field-delivered_by" class="invalid-feedback d-block">
+                        {{ form.delivered_by.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.delivery_date.id_for_label }}" class="form-label fw-bold">Delivery Date</label>
+                    {{ form.delivery_date }}
+                    <div id="field-delivery_date" class="invalid-feedback d-block">
+                        {{ form.delivery_date.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delivery Recipient Details -->
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.delivered_to_name.id_for_label }}" class="form-label fw-bold">Delivered To (Recipient)</label>
+                    <input type="text" name="delivered_to_name" id="id_delivered_to_name" 
+                        class="form-control" 
+                        value="{{ form.delivered_to_name.value|default:'' }}" 
+                        placeholder="e.g., Rajesh (Driver)">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.delivered_to_phone.id_for_label }}" class="form-label fw-bold">Recipient Phone</label>
+                    <input type="text" name="delivered_to_phone" id="id_delivered_to_phone" 
+                        class="form-control" 
+                        value="{{ form.delivered_to_phone.value|default:'' }}" 
+                        placeholder="e.g., 9876543210">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label for="{{ form.delivered_to_designation.id_for_label }}" class="form-label fw-bold">Designation</label>
+                    <input type="text" name="delivered_to_designation" id="id_delivered_to_designation" 
+                        class="form-control" 
+                        value="{{ form.delivered_to_designation.value|default:'' }}" 
+                        placeholder="e.g., Driver, Office Staff">
+                </div>
+            </div>
+        </div>
+        <div class="row g-3">
+            <div class="col-12">
+                <div class="mb-3">
+                    <label for="{{ form.delivery_remarks.id_for_label }}" class="form-label fw-bold">Delivery Remarks</label>
+                    <textarea name="delivery_remarks" id="id_delivery_remarks" rows="2" 
+                            class="form-control" 
+                            placeholder="Any special remarks...">{{ form.delivery_remarks.value|default:'' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== SECTION 6: Notes ====== -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-card-text"></i> Notes</h6>
+        <div class="row">
+            <div class="col-12">
+                <div class="mb-3">
+                    <label for="{{ form.notes.id_for_label }}" class="form-label fw-bold">Notes</label>
+                    {{ form.notes }}
+                    <div id="field-notes" class="invalid-feedback d-block">
+                        {{ form.notes.errors|striptags }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL FOOTER ===== -->
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle"></i> Cancel
+        </button>
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-circle"></i> Create Repair
+        </button>
+    </div>
+</form>
+

@@ -1,0 +1,265 @@
+{% extends "base_customer.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-speedometer2 text-primary me-2"></i>My Dashboard
+            </h3>
+            <p class="text-muted small mt-1">
+                Welcome back, <strong>{{ customer.name }}</strong>
+                {% if unread_count > 0 %}
+                    <span class="badge bg-danger ms-2">{{ unread_count }} unread notifications</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-primary" 
+                    hx-get="{% url 'customer:refresh_dashboard_stats' %}" 
+                    hx-target="#dashboard-stats-container"
+                    hx-swap="innerHTML"
+                    hx-indicator="#refresh-spinner">
+                <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div id="dashboard-stats-container">
+        {% include "customer/partials/dashboard_stats.html" %}
+    </div>
+
+    <!-- Charts -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-graph-up me-2 text-primary"></i>Invoice & Payment Trend
+                </div>
+                <div class="card-body">
+                    <canvas id="invoiceChart" height="280"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-pie-chart me-2 text-success"></i>Invoice Status
+                </div>
+                <div class="card-body">
+                    <canvas id="statusChart" height="280"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-tools me-2 text-warning"></i>Repair Status
+                </div>
+                <div class="card-body">
+                    <canvas id="repairStatusChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-clock-history me-2 text-info"></i>Recent Activity
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for invoice in recent_invoices|slice:":3" %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-receipt text-primary me-2"></i>
+                                <a href="{% url 'customer:customer_invoice_detail' invoice.id %}" class="text-decoration-none">
+                                    {{ invoice.invoice_number }}
+                                </a>
+                            </div>
+                            <div>
+                                <span class="badge {% if invoice.payment_status == 'paid' %}bg-success{% else %}bg-warning{% endif %}">
+                                    {{ invoice.get_payment_status_display }}
+                                </span>
+                                <span class="fw-bold ms-2">₹{{ invoice.grand_total|floatformat:2 }}</span>
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted py-2">No recent invoices</li>
+                        {% endfor %}
+                        
+                        {% for repair in recent_repairs|slice:":3" %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-tools text-warning me-2"></i>
+                                <a href="{% url 'customer:customer_repair_detail' repair.id %}" class="text-decoration-none">
+                                    {{ repair.job_number }}
+                                </a>
+                                <span class="text-muted ms-1">{{ repair.device_model }}</span>
+                            </div>
+                            <div>
+                                <span class="badge 
+                                    {% if repair.status == 'delivered' %}bg-success
+                                    {% elif repair.status == 'pending' %}bg-secondary
+                                    {% elif repair.status == 'diagnosis' %}bg-info
+                                    {% elif repair.status == 'repairing' %}bg-warning
+                                    {% elif repair.status == 'ready' %}bg-primary
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ repair.get_status_display }}
+                                </span>
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted py-2">No recent repairs</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold">
+            <i class="bi bi-lightning me-2 text-warning"></i>Quick Actions
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-outline-warning w-100">
+                        <i class="bi bi-tools me-1"></i> New Repair
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'customer:customer_invoices' %}" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-receipt me-1"></i> View Invoices
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'customer:customer_payments' %}" class="btn btn-outline-success w-100">
+                        <i class="bi bi-credit-card me-1"></i> Payment History
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'customer:customer_statement' %}" class="btn btn-outline-info w-100">
+                        <i class="bi bi-file-text me-1"></i> My Statement
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch("{% url 'customer:customer_dashboard_stats_json' %}")
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error(data.error);
+                    return;
+                }
+
+                // Invoice & Payment Chart
+                const ctx1 = document.getElementById('invoiceChart').getContext('2d');
+                new Chart(ctx1, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Invoices',
+                                data: data.invoices,
+                                borderColor: '#0d6efd',
+                                backgroundColor: 'rgba(13,110,253,0.1)',
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Payments',
+                                data: data.payments,
+                                borderColor: '#28a745',
+                                backgroundColor: 'rgba(40,167,69,0.1)',
+                                fill: true,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { position: 'top' } },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } }
+                            }
+                        }
+                    }
+                });
+
+                // Invoice Status Chart
+                if (data.status_labels.length > 0) {
+                    const ctx2 = document.getElementById('statusChart').getContext('2d');
+                    const colors = ['#28a745', '#ffc107', '#dc3545'];
+                    new Chart(ctx2, {
+                        type: 'doughnut',
+                        data: {
+                            labels: data.status_labels,
+                            datasets: [{
+                                data: data.status_data,
+                                backgroundColor: colors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: { font: { size: 10 } }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Repair Status Chart
+                if (data.repair_status_labels.length > 0) {
+                    const ctx3 = document.getElementById('repairStatusChart').getContext('2d');
+                    const colors = ['#ffc107', '#17a2b8', '#007bff', '#28a745', '#dc3545', '#6c757d'];
+                    new Chart(ctx3, {
+                        type: 'bar',
+                        data: {
+                            labels: data.repair_status_labels,
+                            datasets: [{
+                                label: 'Repair Jobs',
+                                data: data.repair_status_data,
+                                backgroundColor: colors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { stepSize: 1 }
+                                }
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error('Error loading chart data:', error));
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3>{{ account.name }}</h3>
+        <p class="text-muted">{{ account.bank_name }} - {{ account.account_number|default:"UPI/Wallet" }}</p>
+    </div>
+    <div>
+        <button class="btn btn-success" 
+            hx-get="{% url 'accounting:bank_transaction_add' account.pk %}" 
+            hx-target="#mainModalContent" 
+            hx-trigger="click">
+            <i class="bi bi-plus-circle"></i> Add Transaction
+        </button>
+        <a href="{% url 'accounting:bank_account_list' %}" class="btn btn-secondary">Back</a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <small class="text-muted">Opening Balance</small>
+                <h5>₹{{ opening_balance|floatformat:2 }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <small class="text-muted">Closing Balance</small>
+                <h5 class="{% if closing_balance < 0 %}text-danger{% else %}text-success{% endif %}">
+                    ₹{{ closing_balance|floatformat:2 }}
+                </h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white border-bottom d-flex justify-content-between">
+        <span class="fw-semibold">Statement</span>
+        <form method="get" class="d-flex gap-2">
+            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th class="text-end">Deposit</th>
+                        <th class="text-end">Withdrawal</th>
+                        <th class="text-end">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in statement_lines %}
+                    <tr>
+                        <td>{{ line.date|date:"d-m-Y" }}</td>
+                        <td>{{ line.description }}{% if line.reference %} <small class="text-muted">({{ line.reference }})</small>{% endif %}</td>
+                        <td class="text-end text-success">{% if line.deposit > 0 %}₹{{ line.deposit|floatformat:2 }}{% else %}-{% endif %}</td>
+                        <td class="text-end text-danger">{% if line.withdrawal > 0 %}₹{{ line.withdrawal|floatformat:2 }}{% else %}-{% endif %}</td>
+                        <td class="text-end fw-bold">₹{{ line.balance|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="text-center">No transactions found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

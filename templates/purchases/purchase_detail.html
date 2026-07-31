@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-cart text-primary me-2"></i>Purchase #{{ purchase.purchase_number }}</h3>
+        <div>
+            <a href="{% url 'accounting:purchase_update' purchase.pk %}" class="btn btn-warning">
+                <i class="bi bi-pen"></i> Edit
+            </a>
+            <a href="{% url 'accounting:purchase_print' purchase.pk %}" class="btn btn-info" target="_blank">
+                <i class="bi bi-printer"></i> Print
+            </a>
+            <a href="{% url 'accounting:purchase_list' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left: Purchase Info -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">Purchase Details</div>
+                <div class="card-body">
+                    <p><strong>Date:</strong> {{ purchase.date|date:"d M Y" }}</p>
+                    <p><strong>Vendor:</strong> {{ purchase.vendor.name }}</p>
+                    <p><strong>GST Type:</strong> {{ purchase.get_gst_type_display }}</p>
+                    <p><strong>Status:</strong> 
+                        {% if purchase.paid %}
+                            <span class="badge bg-success">Paid</span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark">Unpaid</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>Notes:</strong> {{ purchase.notes|default:"—" }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right: Totals -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">Financial Summary</div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr><td>Subtotal</td><td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td></tr>
+                        <tr><td>Tax Amount</td><td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td></tr>
+                        <tr class="fw-bold"><td>Grand Total</td><td class="text-end fs-5">₹{{ purchase.grand_total|floatformat:2 }}</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-light fw-bold">Purchase Items</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th class="text-center">Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Tax %</th>
+                            <th class="text-end">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in purchase.items.all %}
+                        <tr>
+                            <td>{{ item.product.name }}</td>
+                            <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No items found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="4" class="text-end">Total</th>
+                            <th class="text-end fw-bold">₹{{ purchase.grand_total|floatformat:2 }}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

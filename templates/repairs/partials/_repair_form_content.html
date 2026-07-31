@@ -1,0 +1,245 @@
+<!-- templates/repairs/partials/_repair_form_content.html-->
+{% load static %}
+
+<div class="{% if is_htmx %}container-fluid{% else %}container py-4{% endif %}">
+    <div class="row justify-content-center">
+        <div class="col-{% if is_htmx %}12{% else %}xl-10{% endif %}">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-tools me-2"></i>
+                        {% if job %}Edit{% else %}New{% endif %} Repair Job
+                    </h5>
+                    {% if not is_htmx %}
+                        <a href="{% url 'accounting:repair_list' %}" class="btn btn-light btn-sm">
+                            <i class="bi bi-arrow-left"></i> Back
+                        </a>
+                    {% else %}
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    {% endif %}
+                </div>
+
+                <div class="card-body">
+                    <form method="post" 
+                          hx-post="{% if job %}{% url 'accounting:repair_update' job.pk %}{% else %}{% url 'accounting:repair_create' %}{% endif %}" 
+                          hx-target="#mainModalContent" 
+                          hx-swap="innerHTML"
+                          id="repairForm"
+                          novalidate>
+                        {% csrf_token %}
+
+                        <!-- Non-field errors -->
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <!-- Customer -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="id_customer" class="form-label fw-semibold">Customer *</label>
+                                <select name="customer" id="id_customer" class="form-select"
+                                        hx-get="{% url 'accounting:validate_repair_field' %}" 
+                                        hx-trigger="change" 
+                                        hx-target="#field-customer" 
+                                        hx-swap="outerHTML"
+                                        hx-include="#id_customer, #id_repair_id">
+                                    <option value="">---------</option>
+                                    {% for customer in form.fields.customer.queryset %}
+                                        <option value="{{ customer.id }}" {% if form.customer.value == customer.id %}selected{% endif %}>
+                                            {{ customer.name }} ({{ customer.phone|default:"No phone" }})
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <div id="field-customer" class="invalid-feedback d-block">
+                                    {{ form.customer.errors|join:", " }}
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="id_date_in" class="form-label fw-semibold">Date In *</label>
+                                <input type="date" name="date_in" id="id_date_in" 
+                                       class="form-control" 
+                                       value="{{ form.date_in.value|default:''|date:'Y-m-d' }}">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="id_status" class="form-label fw-semibold">Status</label>
+                                <select name="status" id="id_status" class="form-select">
+                                    {% for value, label in form.fields.status.choices %}
+                                        <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Device Details -->
+                        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-laptop"></i> Device Details</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="id_device_model" class="form-label fw-semibold">Device Model *</label>
+                                <input type="text" name="device_model" id="id_device_model" 
+                                       class="form-control" 
+                                       value="{{ form.device_model.value|default:'' }}"
+                                       hx-get="{% url 'accounting:validate_repair_field' %}" 
+                                       hx-trigger="blur change" 
+                                       hx-target="#field-device_model" 
+                                       hx-swap="outerHTML"
+                                       hx-include="#id_device_model, #id_repair_id">
+                                <div id="field-device_model" class="invalid-feedback d-block">
+                                    {{ form.device_model.errors|join:", " }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_serial_number" class="form-label fw-semibold">Serial Number</label>
+                                <input type="text" name="serial_number" id="id_serial_number" 
+                                       class="form-control" 
+                                       value="{{ form.serial_number.value|default:'' }}">
+                            </div>
+                        </div>
+
+                        <!-- Issue Description -->
+                        <div class="row g-3 mt-2">
+                            <div class="col-12">
+                                <label for="id_issue_description" class="form-label fw-semibold">Issue Description *</label>
+                                <textarea name="issue_description" id="id_issue_description" rows="3" 
+                                          class="form-control">{{ form.issue_description.value|default:'' }}</textarea>
+                                <div id="field-issue_description" class="invalid-feedback d-block">
+                                    {{ form.issue_description.errors|join:", " }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Accessories & Condition -->
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-6">
+                                <label for="id_accessories" class="form-label fw-semibold">Accessories</label>
+                                <textarea name="accessories" id="id_accessories" rows="2" 
+                                          class="form-control">{{ form.accessories.value|default:'' }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_device_condition" class="form-label fw-semibold">Device Condition</label>
+                                <textarea name="device_condition" id="id_device_condition" rows="2" 
+                                          class="form-control">{{ form.device_condition.value|default:'' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Diagnosis & Action -->
+                        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-clipboard-check"></i> Diagnosis & Action</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="id_diagnosis_report" class="form-label fw-semibold">Diagnosis Report</label>
+                                <textarea name="diagnosis_report" id="id_diagnosis_report" rows="3" 
+                                          class="form-control">{{ form.diagnosis_report.value|default:'' }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_action_taken" class="form-label fw-semibold">Action Taken</label>
+                                <textarea name="action_taken" id="id_action_taken" rows="3" 
+                                          class="form-control">{{ form.action_taken.value|default:'' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Financials -->
+                        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-currency-rupee"></i> Financials</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="id_estimated_cost" class="form-label fw-semibold">Estimated Cost</label>
+                                <input type="number" name="estimated_cost" id="id_estimated_cost" step="0.01" 
+                                       class="form-control" value="{{ form.estimated_cost.value|default:'' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge</label>
+                                <input type="number" name="labour_charge" id="id_labour_charge" step="0.01" 
+                                       class="form-control" value="{{ form.labour_charge.value|default:'0' }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_received_by" class="form-label fw-semibold">Received By</label>
+                                <input type="text" name="received_by" id="id_received_by" 
+                                       class="form-control" value="{{ form.received_by.value|default:request.user.get_full_name }}">
+                            </div>
+                        </div>
+
+                        <!-- Personnel & Delivery -->
+                        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4"><i class="bi bi-calendar-event"></i> Personnel & Delivery</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="id_delivered_by" class="form-label fw-semibold">Delivered By</label>
+                                <input type="text" name="delivered_by" id="id_delivered_by" 
+                                    class="form-control" 
+                                    value="{{ form.delivered_by.value|default:'' }}" 
+                                    placeholder="Staff who delivered">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_delivery_date" class="form-label fw-semibold">Delivery Date</label>
+                                <input type="date" name="delivery_date" id="id_delivery_date" 
+                                    class="form-control" 
+                                    value="{{ form.delivery_date.value|default:''|date:'Y-m-d' }}">
+                                <small class="text-muted">Leave blank to auto-set today when delivered</small>
+                            </div>
+                        </div>
+
+                        <!-- Delivery Recipient Details -->
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-4">
+                                <label for="id_delivered_to_name" class="form-label fw-semibold">Delivered To (Recipient)</label>
+                                <input type="text" name="delivered_to_name" id="id_delivered_to_name" 
+                                    class="form-control" 
+                                    value="{{ form.delivered_to_name.value|default:'' }}" 
+                                    placeholder="e.g., Rajesh (Driver)">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_delivered_to_phone" class="form-label fw-semibold">Recipient Phone</label>
+                                <input type="text" name="delivered_to_phone" id="id_delivered_to_phone" 
+                                    class="form-control" 
+                                    value="{{ form.delivered_to_phone.value|default:'' }}" 
+                                    placeholder="e.g., 9876543210">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_delivered_to_designation" class="form-label fw-semibold">Designation</label>
+                                <input type="text" name="delivered_to_designation" id="id_delivered_to_designation" 
+                                    class="form-control" 
+                                    value="{{ form.delivered_to_designation.value|default:'' }}" 
+                                    placeholder="e.g., Driver, Office Staff">
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-2">
+                            <div class="col-12">
+                                <label for="id_delivery_remarks" class="form-label fw-semibold">Delivery Remarks</label>
+                                <textarea name="delivery_remarks" id="id_delivery_remarks" rows="2" 
+                                        class="form-control" 
+                                        placeholder="Any special remarks during delivery...">{{ form.delivery_remarks.value|default:'' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="row g-3 mt-2">
+                            <div class="col-12">
+                                <label for="id_notes" class="form-label fw-semibold">Notes</label>
+                                <textarea name="notes" id="id_notes" rows="2" 
+                                          class="form-control">{{ form.notes.value|default:'' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Hidden field for validation -->
+                        <input type="hidden" name="repair_id" id="id_repair_id" value="{{ job.pk|default:'' }}">
+
+                        <!-- Form Buttons -->
+                        <div class="mt-4 d-flex justify-content-end gap-2">
+                            {% if is_htmx %}
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            {% else %}
+                                <a href="{% url 'accounting:repair_list' %}" class="btn btn-secondary">Cancel</a>
+                            {% endif %}
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle"></i>
+                                {% if job %}Update{% else %}Create{% endif %} Repair
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

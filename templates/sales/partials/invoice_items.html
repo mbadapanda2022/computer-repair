@@ -1,0 +1,141 @@
+{% load math_filters %}
+
+<!-- ===== ADD ITEM FORM (Inline) ===== -->
+<div class="row g-2 mb-3 align-items-end p-2 bg-light rounded-3" id="add-item-row">
+    <div class="col-md-4">
+        <label class="form-label small fw-semibold">Product</label>
+        <div class="position-relative">
+            <input type="text" id="product-search" name="q" class="form-control form-control-sm" 
+                   placeholder="Search product..."
+                   hx-get="{% url 'accounting:product_search' %}" 
+                   hx-trigger="keyup changed delay:300ms" 
+                   hx-target="#product-suggestions" 
+                   hx-swap="innerHTML"
+                   autocomplete="off">
+            <div id="product-suggestions" class="position-absolute w-100" 
+                 style="z-index: 1050; display: block;"></div>
+            <input type="hidden" id="selected-product-id">
+        </div>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small fw-semibold">Qty</label>
+        <input type="number" id="item-quantity" class="form-control form-control-sm" value="1" min="0.01" step="any">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small fw-semibold">Unit Price</label>
+        <input type="number" id="item-price" class="form-control form-control-sm" step="0.01" placeholder="0.00">
+    </div>
+    <div class="col-md-2">
+        <label class="form-label small fw-semibold">Tax (%)</label>
+        <input type="number" id="item-tax" class="form-control form-control-sm" step="0.01" value="18" placeholder="0">
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary btn-sm w-100" type="button" id="add-item-btn">
+            <i class="bi bi-plus-circle"></i> Add
+        </button>
+    </div>
+</div>
+
+<!-- ===== ITEMS TABLE ===== -->
+<div class="table-responsive">
+    <table class="table table-sm table-bordered table-hover">
+        <thead class="table-light">
+            <tr>
+                <th>Product</th>
+                <th class="text-center">Qty</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Tax %</th>
+                <th class="text-end">Line Total</th>
+                <th class="text-center" style="width: 60px;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.product_name }}</td>
+                <td class="text-center">{{ item.quantity }}</td>
+                <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-danger" 
+                            hx-post="{% url 'accounting:remove_invoice_item' forloop.counter0 %}" 
+                            hx-target="#invoice-items-container"
+                            hx-swap="outerHTML">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center text-muted py-3">
+                    <i class="bi bi-info-circle me-1"></i> No items added yet. Search and add products above.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% if items %}
+        <tfoot class="table-light fw-bold">
+            <tr>
+                <th colspan="4" class="text-end">Total</th>
+                <th class="text-end">₹{{ items_total|floatformat:2 }}</th>
+                <th></th>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+</div>
+
+<!-- ===== JS for Add Item ===== -->
+<script>
+    (function() {
+        const addBtn = document.getElementById('add-item-btn');
+        if (!addBtn) return;
+
+        const productId = document.getElementById('selected-product-id');
+        const qty = document.getElementById('item-quantity');
+        const price = document.getElementById('item-price');
+        const tax = document.getElementById('item-tax');
+        const searchInput = document.getElementById('product-search');
+
+        addBtn.addEventListener('click', function() {
+            const pid = productId.value;
+            if (!pid) {
+                alert('Please select a product from the suggestions.');
+                return;
+            }
+            const qtyVal = qty.value || 1;
+            const priceVal = price.value || 0;
+            const taxVal = tax.value || 18;
+
+            htmx.ajax('POST', "{% url 'accounting:add_invoice_item' %}", {
+                target: '#invoice-items-container',
+                swap: 'outerHTML',
+                values: {
+                    product: pid,
+                    quantity: qtyVal,
+                    unit_price: priceVal,
+                    tax_rate: taxVal
+                }
+            });
+        });
+
+        document.addEventListener('click', function(e) {
+            const suggestion = e.target.closest('.product-suggestion');
+            if (!suggestion) return;
+
+            const id = suggestion.dataset.id;
+            const name = suggestion.dataset.name;
+            const sPrice = suggestion.dataset.price;
+            const taxRate = suggestion.dataset.tax;
+
+            if (id) {
+                productId.value = id;
+                searchInput.value = name;
+                if (price && sPrice) price.value = sPrice;
+                if (tax && taxRate) tax.value = taxRate;
+                document.getElementById('product-suggestions').innerHTML = '';
+            }
+        });
+    })();
+</script>

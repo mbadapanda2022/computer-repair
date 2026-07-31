@@ -1,0 +1,132 @@
+{% load static %}
+<form method="post" 
+    {% if contact %} hx-post="{% url 'accounting:contact_update' contact.pk %}" 
+    {% else %} hx-post="{% url 'accounting:contact_create' %}" 
+    {% endif %}
+    hx-target="#contacts-table-container"
+    hx-swap="innerHTML"
+    id="contactForm"
+    novalidate>
+    {% csrf_token %}
+    
+    <div class="modal-header">
+        <h5 class="modal-title">{% if contact %}Edit Contact{% else %}New Contact{% endif %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    
+    <div class="modal-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_contact_type" class="form-label">Contact Type</label>
+                <select name="contact_type" id="id_contact_type" class="form-select">
+                    <option value="customer" {% if form.contact_type.value == "customer" %}selected{% endif %}>Customer</option>
+                    <option value="vendor" {% if form.contact_type.value == "vendor" %}selected{% endif %}>Vendor</option>
+                    <option value="both" {% if form.contact_type.value == "both" %}selected{% endif %}>Both</option>
+                </select>
+                <div id="field-contact_type" class="invalid-feedback"></div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_name" class="form-label">Name *</label>
+                <input type="text" name="name" id="id_name" class="form-control" value="{{ form.name.value|default:'' }}">
+                <div id="field-name" class="invalid-feedback"></div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_company_name" class="form-label">Company</label>
+                <input type="text" name="company_name" id="id_company_name" class="form-control" value="{{ form.company_name.value|default:'' }}">
+                <div id="field-company_name" class="invalid-feedback"></div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_phone" class="form-label">Phone</label>
+                <input type="text" name="phone" id="id_phone" class="form-control" value="{{ form.phone.value|default:'' }}">
+                <div id="field-phone" class="invalid-feedback"></div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_email" class="form-label">Email</label>
+                <input type="email" name="email" id="id_email" class="form-control" value="{{ form.email.value|default:'' }}">
+                <div id="field-email" class="invalid-feedback"></div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_gstin" class="form-label">GSTIN</label>
+                <input type="text" name="gstin" id="id_gstin" class="form-control" value="{{ form.gstin.value|default:'' }}">
+                <div id="field-gstin" class="invalid-feedback"></div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_state" class="form-label">State</label>
+                <input type="text" name="state" id="id_state" class="form-control" value="{{ form.state.value|default:'' }}">
+                <div id="field-state" class="invalid-feedback"></div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_opening_balance" class="form-label">Opening Balance</label>
+                <input type="number" name="opening_balance" id="id_opening_balance" class="form-control" step="0.01" value="{{ form.opening_balance.value|default:'0' }}">
+                <div id="field-opening_balance" class="invalid-feedback"></div>
+            </div>
+        </div>
+        
+        <!-- Address -->
+        <div class="mt-3">
+            <label for="id_address" class="form-label">Address</label>
+            <textarea name="address" id="id_address" class="form-control" rows="2">{{ form.address.value|default:'' }}</textarea>
+            <div id="field-address" class="invalid-feedback"></div>
+        </div>
+        
+        <!-- Notes -->
+        <div class="mt-3">
+            <label for="id_notes" class="form-label">Notes</label>
+            <textarea name="notes" id="id_notes" class="form-control" rows="2">{{ form.notes.value|default:'' }}</textarea>
+            <div id="field-notes" class="invalid-feedback"></div>
+        </div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Contact</button>
+    </div>
+</form>
+
+<script>
+(function() {
+    const form = document.getElementById('contactForm');
+    if (!form) return;
+
+    // Remove required attributes to avoid browser validation
+    form.querySelectorAll('[required]').forEach(el => el.removeAttribute('required'));
+
+    // Prevent default form submission (let HTMX handle)
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+    });
+
+    // Real-time validation on blur for all fields except contact_type
+    const fields = form.querySelectorAll('input, select, textarea');
+    fields.forEach(field => {
+        if (field.name === 'contact_type') return; // skip
+
+        field.addEventListener('blur', function() {
+            const fieldName = this.name;
+            const value = this.value;
+            const contactId = '{{ contact.pk|default:"" }}';
+
+            htmx.ajax('GET', '{% url "accounting:validate_contact_field" %}', {
+                target: '#field-' + fieldName,
+                swap: 'innerHTML',
+                values: { field: fieldName, [fieldName]: value, contact_id: contactId }
+            });
+        });
+    });
+
+    // After HTMX swap, listen for closeModal event
+    document.addEventListener('closeModal', function() {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('mainModal'));
+        if (modal) modal.hide();
+    });
+})();
+</script>

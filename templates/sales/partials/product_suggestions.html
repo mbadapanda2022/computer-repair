@@ -1,0 +1,22 @@
+{% if products %}
+    <div class="list-group mt-1 shadow-sm" style="max-height: 200px; overflow-y: auto;">
+        {% for product in products %}
+            <button type="button" class="list-group-item list-group-item-action product-suggestion py-1" 
+                    data-id="{{ product.id }}" 
+                    data-name="{{ product.name }}"
+                    data-price="{{ product.selling_price }}"
+                    data-tax="{{ product.tax_rate }}"
+                    onmousedown="event.preventDefault();">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>{{ product.name }}</strong>
+                    <small class="text-muted">₹{{ product.selling_price|floatformat:2 }}</small>
+                </div>
+                <small class="text-muted">HSN: {{ product.hsn_code|default:"N/A" }} | Stock: {{ product.current_stock|floatformat:0 }}</small>
+            </button>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-muted small mt-1 p-2">
+        <i class="bi bi-info-circle"></i> No products found.
+    </div>
+{% endif %}

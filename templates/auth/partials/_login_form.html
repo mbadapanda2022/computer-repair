@@ -1,0 +1,69 @@
+{% load static %}
+<form method="post" 
+      hx-post="{% url 'accounting:login' %}" 
+      hx-target="this" 
+      hx-swap="outerHTML"
+      hx-indicator="#login-spinner">
+    {% csrf_token %}
+    
+    <!-- ✅ Non-field errors (Invalid username/password) -->
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2">
+            {% for error in form.non_field_errors %}
+                <div>{{ error }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Username Field -->
+    <div class="mb-3">
+        <label for="id_username" class="form-label fw-semibold">Email or Mobile Number</label>
+        <input type="text" name="username" 
+               class="form-control {% if form.username.errors %}is-invalid{% endif %}"
+               id="id_username" 
+               placeholder="Email or 10-digit Mobile"
+               hx-get="{% url 'accounting:validate_login_field' %}" 
+               hx-trigger="blur change" 
+               hx-target="#field-username" 
+               hx-swap="outerHTML"
+               hx-include="[name='username']"
+               value="{{ form.username.value|default:'' }}">
+        <div id="field-username">
+            {% if form.username.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.username.errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Password Field (NO HTMX validation for security) -->
+    <div class="mb-3">
+        <label for="id_password" class="form-label fw-semibold">Password</label>
+        <input type="password" name="password" 
+               class="form-control {% if form.password.errors %}is-invalid{% endif %}"
+               id="id_password" 
+               placeholder="Enter password"
+               required>
+        <div id="field-password">
+            {% if form.password.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.password.errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold" id="login-btn">
+        <span id="login-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        <span id="login-text">Login</span>
+    </button>
+    
+    <div class="text-center mt-3">
+        <a href="{% url 'accounting:password_reset_otp' %}" class="text-decoration-none">Forgot Password?</a>
+    </div>
+</form>

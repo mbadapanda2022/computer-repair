@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-bar-chart-line text-primary me-2"></i>Sales Report
+            </h3>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="?{{ request.GET.urlencode }}&excel=1" class="btn btn-success">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </a>
+            <a href="?{{ request.GET.urlencode }}&print=1" class="btn btn-secondary" target="_blank">
+                <i class="bi bi-printer"></i> Print
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-receipt fs-4 text-primary"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Total Invoices</small>
+                        <h5 class="mb-0 fw-bold">{{ total_count }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-currency-rupee fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Total Sales</small>
+                        <h5 class="mb-0 fw-bold">₹{{ total_grand|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-percent fs-4 text-warning"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Total Tax</small>
+                        <h5 class="mb-0 fw-bold">₹{{ total_tax|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-tag fs-4 text-danger"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Total Discount</small>
+                        <h5 class="mb-0 fw-bold">₹{{ total_discount|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form id="report-filter-form" class="row g-3">
+                <div class="col-md-3">
+                    <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                           hx-get="{% url 'accounting:sales_report' %}" 
+                           hx-trigger="change" 
+                           hx-target="#report-table-container"
+                           hx-include="#report-filter-form"
+                           hx-push-url="true">
+                </div>
+                <div class="col-md-3">
+                    <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                           hx-get="{% url 'accounting:sales_report' %}" 
+                           hx-trigger="change" 
+                           hx-target="#report-table-container"
+                           hx-include="#report-filter-form"
+                           hx-push-url="true">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" name="customer"
+                            hx-get="{% url 'accounting:sales_report' %}" 
+                            hx-trigger="change" 
+                            hx-target="#report-table-container"
+                            hx-include="#report-filter-form"
+                            hx-push-url="true">
+                        <option value="">All Customers</option>
+                        {% for c in customers %}
+                            <option value="{{ c.id }}" {% if customer_id == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-secondary w-100" 
+                            hx-get="{% url 'accounting:sales_report' %}" 
+                            hx-target="#report-table-container"
+                            hx-include="#report-filter-form"
+                            hx-vals='{"reset": "true"}'
+                            hx-push-url="true">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div id="report-table-container">
+        {% include "reports/partials/sales_report_table.html" %}
+    </div>
+</div>
+{% endblock %}

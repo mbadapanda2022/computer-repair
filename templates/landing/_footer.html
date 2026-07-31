@@ -1,0 +1,105 @@
+<!-- templates/landing/_footer.html -->
+{% load static %}
+<footer class="bg-dark text-white pt-5 pb-3">
+    <div class="container">
+        <div class="row g-4">
+            <!-- Column 1: Company Info & Social Links -->
+            <div class="col-lg-4">
+                <h5>
+                    {% if company.logo %}
+                        <img src="{{ company.logo.url }}" alt="{{ company.name }}" height="30" class="me-2">
+                    {% else %}
+                        <i class="bi bi-laptop text-primary"></i>
+                    {% endif %}
+                    {{ company.name|default:"A1 Computer Solutions" }}
+                </h5>
+                <p class="text-warning">{{ company.about_text|default:"Your trusted repair partner since 2015. We combine technical expertise with genuine care for your devices." }}</p>
+                
+                <!-- Social Links + Google Review -->
+                <div class="d-flex gap-3 mt-3 flex-wrap align-items-center">
+                    <!-- Facebook -->
+                    {% if company.facebook_url %}
+                        <a href="{{ company.facebook_url }}" target="_blank" class="text-white-50" title="Facebook"><i class="bi bi-facebook fs-4"></i></a>
+                    {% endif %}
+                    <!-- Instagram -->
+                    {% if company.instagram_url %}
+                        <a href="{{ company.instagram_url }}" target="_blank" class="text-white-50" title="Instagram"><i class="bi bi-instagram fs-4"></i></a>
+                    {% endif %}
+                    <!-- YouTube -->
+                    {% if company.youtube_url %}
+                        <a href="{{ company.youtube_url }}" target="_blank" class="text-white-50" title="YouTube"><i class="bi bi-youtube fs-4"></i></a>
+                    {% endif %}
+                    <!-- WhatsApp -->
+                    {% if company.whatsapp_number %}
+                        <a href="https://wa.me/{{ company.whatsapp_number|cut:'+' }}" target="_blank" class="text-white-50" title="WhatsApp"><i class="bi bi-whatsapp fs-4"></i></a>
+                    {% endif %}
+                    
+                    <!-- Google Review Link (Icon) -->
+                    {% if company.google_review_link %}
+                        <a href="{{ company.google_review_link }}" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           class="text-white-50" 
+                           title="Google पर Review दें">
+                            <i class="bi bi-google fs-4"></i>
+                        </a>
+                    {% endif %}
+                </div>
+
+                <!-- Google Review Button (Text) - optional extra CTA -->
+                {% if company.google_review_link %}
+                    <div class="mt-2">
+                        <a href="{{ company.google_review_link }}" 
+                           target="_blank" 
+                           rel="noopener noreferrer" 
+                           class="btn btn-outline-light btn-sm">
+                            <i class="bi bi-google me-1"></i> Rate us on Google
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Column 2: Quick Links -->
+            <div class="col-lg-2">
+                <h6>Quick Links</h6>
+                <ul class="list-unstyled">
+                    <li><a href="#services" class="text-white-50 text-decoration-none">Services</a></li>
+                    <li><a href="#why-us" class="text-white-50 text-decoration-none">Why Us</a></li>
+                    <li><a href="#faq" class="text-white-50 text-decoration-none">FAQ</a></li>
+                    <li><a href="#contact" class="text-white-50 text-decoration-none">Contact</a></li>
+                </ul>
+            </div>
+
+            <!-- Column 3: Support -->
+            <div class="col-lg-3">
+                <h6>Support</h6>
+                <ul class="list-unstyled">
+                    <li><a href="{% url 'privacy_policy' %}" class="text-white-50 text-decoration-none">Privacy Policy</a></li>
+                    <li><a href="#" class="text-white-50 text-decoration-none">Terms of Service</a></li>
+                    <li><a href="#" class="text-white-50 text-decoration-none">Return Policy</a></li>
+                </ul>
+            </div>
+
+            <!-- Column 4: Contact Details -->
+            <div class="col-lg-3">
+                <h6>Contact</h6>
+                <address class="text-white-50">
+                    <i class="bi bi-geo-alt"></i> {{ company.address|default:"Pattanayak Complex, Sirajuddin Squire, Keonjhar-758001, Odisha" }}<br>
+                    <i class="bi bi-telephone"></i> <a href="tel:{{ company.phone }}" class="text-white-50">{{ company.phone|default:"+91-7008601963" }}</a><br>
+                    <a href="https://wa.me/{{ company.whatsapp_number|cut:'+'|default:'889574541' }}" target="_blank" class="text-white-50"><i class="bi bi-whatsapp"></i> {{ company.whatsapp_number|default:"+91-889574541" }}</a><br>
+                    <i class="bi bi-envelope"></i> <a href="mailto:{{ company.email }}" class="text-white-50">{{ company.email|default:"info@a1computersolutions.com" }}</a><br>
+                    <i class="bi bi-clock"></i> {{ company.working_hours|default:"Mon–Sat: 10:00 AM – 8:00 PM" }}<br>
+                    {% if company.gstin %}
+                        <i class="bi bi-credit-card"></i> GST: {{ company.gstin }}
+                    {% endif %}
+                </address>
+            </div>
+        </div>
+
+        <!-- Copyright -->
+        <div class="text-center border-top border-secondary pt-3 mt-3">
+            &copy; {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.
+        </div>
+    </div>
+</footer>
+

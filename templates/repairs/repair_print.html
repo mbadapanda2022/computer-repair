@@ -1,0 +1,220 @@
+<!-- templates/repairs/repair_print.html -->
+{% load static %}
+{% load math_filters %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repair #{{ job.job_number }}</title>
+    <style>
+        /* ===== PRINT STYLES ===== */
+        @media print {
+            body { font-size: 12pt; margin: 1.5cm; }
+            .no-print { display: none !important; }
+            .table { width: 100%; border-collapse: collapse; }
+            .table th, .table td { border: 1px solid #999; padding: 5px 8px; }
+            .table th { background: #e9ecef !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 10pt; }
+            .text-end { text-align: right; }
+            .text-center { text-align: center; }
+            .fw-bold { font-weight: bold; }
+            .badge { padding: 1px 6px; border-radius: 3px; font-size: 9pt; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .badge-pending { background: #6c757d !important; }
+            .badge-diagnosis { background: #0dcaf0 !important; color: #000 !important; }
+            .badge-repairing { background: #ffc107 !important; color: #000 !important; }
+            .badge-ready { background: #0d6efd !important; }
+            .badge-delivered { background: #198754 !important; }
+            .badge-cancelled { background: #dc3545 !important; }
+            .status-pending { color: #6c757d; }
+            .status-diagnosis { color: #0dcaf0; }
+            .status-repairing { color: #ffc107; }
+            .status-ready { color: #0d6efd; }
+            .status-delivered { color: #198754; }
+            .status-cancelled { color: #dc3545; }
+        }
+
+        /* ===== SCREEN STYLES ===== */
+        body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h2 { margin: 5px 0; color: #1a1a2e; }
+        .header p { margin: 3px 0; color: #6c757d; font-size: 10pt; }
+        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 15px; margin-top: 20px; font-size: 10pt; color: #6c757d; }
+        .table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+        .table th, .table td { border: 1px solid #ddd; padding: 6px 10px; }
+        .table th { background: #e9ecef; font-weight: 600; text-align: left; }
+        .table tr:nth-child(even) { background: #f8f9fa; }
+        .table tr:hover { background: #e3f2fd; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: bold; }
+        .badge { padding: 2px 8px; border-radius: 4px; font-size: 9pt; color: #fff; }
+        .badge-pending { background: #6c757d; }
+        .badge-diagnosis { background: #0dcaf0; color: #000; }
+        .badge-repairing { background: #ffc107; color: #000; }
+        .badge-ready { background: #0d6efd; }
+        .badge-delivered { background: #198754; }
+        .badge-cancelled { background: #dc3545; }
+        .no-print { margin-top: 20px; text-align: center; }
+        .btn { padding: 8px 24px; border: none; border-radius: 6px; font-size: 12pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 5px; }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-primary:hover { background: #0b5ed7; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .btn-secondary:hover { background: #5a6268; }
+        .company-logo { max-height: 60px; margin-bottom: 5px; }
+        .summary-row td { background: #f8f9fa; font-weight: bold; border-top: 2px solid #333; }
+    </style>
+</head>
+<body>
+
+    <!-- ===== HEADER ===== -->
+    <div class="header">
+        {% if logo_exists %}
+            <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
+        {% endif %}
+        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <p>
+            {{ company.address|default:"" }}<br>
+            {% if company.phone %}Phone: {{ company.phone }} | {% endif %}
+            {% if company.email %}Email: {{ company.email }} | {% endif %}
+            {% if company.gstin %}GST: {{ company.gstin }}{% endif %}
+        </p>
+    </div>
+
+    <!-- ===== TITLE ===== -->
+    <h3 style="text-align:center; margin-bottom:10px;">
+        <i class="bi bi-tools"></i> Repair Job #{{ job.job_number }}
+    </h3>
+
+    <!-- Job Details Table -->
+    <table class="table">
+        <tr>
+            <td style="width:50%;"><strong>Date In:</strong> {{ job.date_in|date:"d M Y" }}</td>
+            <td style="width:50%;">
+                <strong>Customer:</strong> {{ job.customer.name }}
+                {% if job.customer.phone %}
+                <strong>Phone:</strong> {{ job.customer.phone }}
+                {% endif %}
+                {% if job.customer.address %}
+                <strong>Address:</strong> {{ job.customer.address }}
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <td><strong>Device:</strong> {{ job.device_model }}</td>
+            <td><strong>Serial #:</strong> {{ job.serial_number|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Status:</strong> 
+                <span class="badge badge-{{ job.status }}">
+                    {{ job.get_status_display }}
+                </span>
+            </td>
+            <td><strong>Received By:</strong> {{ job.received_by|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Delivered By:</strong> {{ job.delivered_by|default:"—" }}</td>
+            <td><strong>Delivery Date:</strong> {{ job.delivery_date|date:"d M Y"|default:"—" }}</td>
+        </tr>
+        <!-- Delivery Recipient Fields -->
+        <tr>
+            <td><strong>Delivered To:</strong> {{ job.delivered_to_name|default:"—" }}</td>
+            <td><strong>Recipient Phone:</strong> {{ job.delivered_to_phone|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td><strong>Designation:</strong> {{ job.delivered_to_designation|default:"—" }}</td>
+            <td><strong>Delivery Remarks:</strong> {{ job.delivery_remarks|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td colspan="2"><strong>Issue:</strong> {{ job.issue_description }}</td>
+        </tr>
+        <tr>
+            <td colspan="2"><strong>Diagnosis:</strong> {{ job.diagnosis_report|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td colspan="2"><strong>Action Taken:</strong> {{ job.action_taken|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td colspan="2"><strong>Notes:</strong> {{ job.notes|default:"—" }}</td>
+        </tr>
+        {% if job.estimated_cost %}
+        <tr>
+            <td colspan="2"><strong>Estimated Cost:</strong> ₹{{ job.estimated_cost|floatformat:2 }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <!-- ===== PARTS USED ===== -->
+    <h4 style="margin-top:20px;">Parts Used</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th class="text-center">Qty</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Line Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for part in parts %}
+            <tr>
+                <td>{{ part.product.name }}</td>
+                <td class="text-center">{{ part.quantity }}</td>
+                <td class="text-end">₹{{ part.unit_price|floatformat:2 }}</td>
+                <td class="text-end">₹{{ part.line_total|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted">No parts used.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="3" class="text-end">Parts Total</th>
+                <th class="text-end fw-bold">₹{{ parts|sum_line_totals|floatformat:2 }}</th>
+            </tr>
+            <tr>
+                <th colspan="3" class="text-end">Labour Charge</th>
+                <th class="text-end fw-bold">₹{{ job.labour_charge|floatformat:2 }}</th>
+            </tr>
+            <tr class="summary-row">
+                <th colspan="3" class="text-end fw-bold">Final Amount</th>
+                <th class="text-end fw-bold" style="color: #198754; font-size: 14pt;">₹{{ job.final_amount|floatformat:2 }}</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- ===== INVOICE LINK (if exists) ===== -->
+    {% if invoice %}
+    <p><strong>Invoice:</strong> <a href="{% url 'accounting:invoice_detail' invoice.pk %}" target="_blank">{{ invoice.invoice_number }}</a></p>
+    {% endif %}
+
+    <!-- ===== FOOTER ===== -->
+    <div class="footer">
+        <p>Thank you for choosing {{ company.name|default:"us" }}!</p>
+        <p>This is a computer-generated document. No signature required.</p>
+    </div>
+
+    <!-- ===== ACTION BUTTONS (Screen Only) ===== -->
+    <div class="no-print">
+        <hr>
+        <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <button onclick="window.print()" class="btn btn-primary">
+                🖨️ Print / Download PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-secondary">
+                ❌ Close
+            </button>
+            <a href="{% url 'accounting:repair_detail' job.pk %}" class="btn btn-secondary">
+                ⬅️ Back to Detail
+            </a>
+        </div>
+        <p style="text-align:center; margin-top:10px; font-size:9pt; color:#999;">
+            💡 Tip: Use <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) to print directly.
+        </p>
+    </div>
+
+</body>
+</html>
+

@@ -1,0 +1,29 @@
+<div class="modal-header">
+    <h5 class="modal-title fw-bold text-success">
+        <i class="bi bi-check-circle-fill me-2"></i>Product Added!
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body text-center py-4">
+    <i class="bi bi-box-seam display-1 text-success mb-3" style="font-size:4rem;"></i>
+    <h4 class="fw-bold">{{ product.name }}</h4>
+    <p class="text-muted">
+        <span class="badge bg-secondary">{{ product.get_unit_display }}</span>
+        <span class="badge bg-success">₹{{ product.selling_price|floatformat:2 }}</span>
+    </p>
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> Product has been created successfully!
+    </div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+        <i class="bi bi-x-circle"></i> Close
+    </button>
+    <button type="button" class="btn btn-primary" 
+            hx-get="{% url 'accounting:product_quick_add' %}" 
+            hx-target="#quickAddModalContent"
+            hx-swap="innerHTML"
+            data-bs-dismiss="modal">
+        <i class="bi bi-plus-circle"></i> Add Another
+    </button>
+</div>

@@ -1,0 +1,54 @@
+{% load static %}
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-center p-2 border-bottom bg-light">
+    <span class="fw-bold"><i class="bi bi-bell"></i> Notifications</span>
+    {% if unread_count > 0 %}
+    <button class="btn btn-sm btn-link text-decoration-none p-0" 
+            hx-post="{% url 'customer:customer_notification_mark_all_read' %}" 
+            hx-target="#notification-dropdown" 
+            hx-swap="innerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        Mark all read
+    </button>
+    {% endif %}
+</div>
+
+<!-- Notification List -->
+{% if notifications %}
+    {% for notif in notifications %}
+    <a href="{{ notif.link|default:'#' }}" 
+       class="dropdown-item {% if not notif.is_read %}bg-light{% endif %}" 
+       style="white-space: normal; border-bottom: 1px solid #eee;"
+       onclick="event.stopPropagation();">
+        <div>
+            <div class="fw-{% if not notif.is_read %}bold{% else %}normal{% endif %}">
+                {% if notif.notification_type == 'success' %}
+                    <i class="bi bi-check-circle-fill text-success"></i>
+                {% elif notif.notification_type == 'warning' %}
+                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                {% elif notif.notification_type == 'error' %}
+                    <i class="bi bi-x-circle-fill text-danger"></i>
+                {% else %}
+                    <i class="bi bi-info-circle-fill text-primary"></i>
+                {% endif %}
+                {{ notif.title }}
+            </div>
+            <small class="text-muted">{{ notif.message|truncatechars:60 }}</small><br>
+            <small class="text-muted" style="font-size: 10px;">{{ notif.created_at|timesince }} ago</small>
+        </div>
+    </a>
+    {% endfor %}
+{% else %}
+    <div class="text-center py-3 text-muted">
+        <i class="bi bi-inbox fs-3 d-block mb-1"></i>
+        <small>No new notifications</small>
+    </div>
+{% endif %}
+
+<!-- Footer -->
+<div class="text-center border-top p-1">
+    <a href="{% url 'customer:customer_notifications' %}" class="text-decoration-none small">
+        <i class="bi bi-arrow-right-circle"></i> View all
+    </a>
+</div>

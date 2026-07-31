@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Contact Messages{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>
+            <i class="bi bi-envelope"></i> Messages
+            <span class="badge bg-secondary" id="total-count">{{ contact_messages|length }}</span>
+        </h2>
+    </div>
+
+    <!-- Filter Bar (HTMX) -->
+    <div class="row g-2 mb-3" id="filter-bar">
+        <div class="col-md-4">
+            <input type="text" name="search" id="searchInput" class="form-control" 
+                   placeholder="Search by name, email, subject..."
+                   value="{{ search_query }}"
+                   hx-get="{% url 'accounting:message_list' %}"
+                   hx-trigger="keyup changed delay:500ms"
+                   hx-target="#messages-table"
+                   hx-swap="innerHTML"
+                   hx-include="#searchInput, #statusFilter">
+        </div>
+        <div class="col-md-3">
+            <select name="status" id="statusFilter" class="form-select"
+                    hx-get="{% url 'accounting:message_list' %}"
+                    hx-trigger="change"
+                    hx-target="#messages-table"
+                    hx-swap="innerHTML"
+                    hx-include="#searchInput, #statusFilter">
+                <option value="" {% if not status_filter %}selected{% endif %}>All Status</option>
+                <option value="new" {% if status_filter == 'new' %}selected{% endif %}>New</option>
+                <option value="read" {% if status_filter == 'read' %}selected{% endif %}>Read</option>
+                <option value="replied" {% if status_filter == 'replied' %}selected{% endif %}>Replied</option>
+                <option value="spam" {% if status_filter == 'spam' %}selected{% endif %}>Spam</option>
+            </select>
+        </div>
+        <div class="col-md-5 text-end">
+            <button class="btn btn-outline-secondary btn-sm" 
+                    hx-get="{% url 'accounting:message_list' %}"
+                    hx-target="#messages-table"
+                    hx-swap="innerHTML"
+                    hx-include="#searchInput, #statusFilter">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div id="messages-table">
+        {% include 'messages/_list_content.html' %}
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="messageDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" id="messageDetailContent"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'messageDetailContent') {
+            const modal = new bootstrap.Modal(document.getElementById('messageDetailModal'));
+            modal.show();
+        }
+    });
+</script>
+{% endblock %}

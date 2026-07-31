@@ -1,0 +1,86 @@
+{% extends "base_customer.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-xl-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-pen me-2"></i>Edit Repair #{{ repair.job_number }}</h5>
+                    <a href="{% url 'customer:customer_repair_detail' repair.pk %}" class="btn btn-light btn-sm">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form method="post" 
+                          hx-post="{% url 'customer:customer_repair_update' repair.pk %}" 
+                          hx-target="#mainModalContent" 
+                          hx-swap="innerHTML"
+                          id="repairEditForm"
+                          novalidate>
+                        {% csrf_token %}
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}
+                                    {{ error }}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="id_device_model" class="form-label fw-semibold">Device Model *</label>
+                                <input type="text" name="device_model" id="id_device_model" 
+                                       class="form-control" 
+                                       value="{{ form.device_model.value|default:'' }}">
+                                <div id="field-device_model" class="invalid-feedback d-block">
+                                    {{ form.device_model.errors|join:", " }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_serial_number" class="form-label fw-semibold">Serial Number</label>
+                                <input type="text" name="serial_number" id="id_serial_number" 
+                                       class="form-control" 
+                                       value="{{ form.serial_number.value|default:'' }}">
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-2">
+                            <div class="col-12">
+                                <label for="id_issue_description" class="form-label fw-semibold">Issue Description *</label>
+                                <textarea name="issue_description" id="id_issue_description" rows="4" 
+                                          class="form-control">{{ form.issue_description.value|default:'' }}</textarea>
+                                <div id="field-issue_description" class="invalid-feedback d-block">
+                                    {{ form.issue_description.errors|join:", " }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-6">
+                                <label for="id_accessories" class="form-label fw-semibold">Accessories</label>
+                                <textarea name="accessories" id="id_accessories" rows="2" 
+                                          class="form-control">{{ form.accessories.value|default:'' }}</textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="id_device_condition" class="form-label fw-semibold">Device Condition</label>
+                                <textarea name="device_condition" id="id_device_condition" rows="2" 
+                                          class="form-control">{{ form.device_condition.value|default:'' }}</textarea>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 d-flex justify-content-end gap-2">
+                            <a href="{% url 'customer:customer_repair_detail' repair.pk %}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-check-circle"></i> Update Repair
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base_customer.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-receipt text-primary me-2"></i>My Invoices
+            </h3>
+            <p class="text-muted small mt-1">View all your invoices and payment status</p>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div id="invoice-list-container">
+        {% include "customer/partials/invoice_list_table.html" %}
+    </div>
+</div>
+{% endblock %}

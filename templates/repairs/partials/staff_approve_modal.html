@@ -1,0 +1,44 @@
+{% load static %}
+<form method="post" 
+      hx-post="{% url 'accounting:staff_approve_estimate' repair.pk %}" 
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML">
+    {% csrf_token %}
+    
+    <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-check-circle text-success me-2"></i>Approve Estimate</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    
+    <div class="modal-body">
+        <div class="alert alert-info">
+            <strong>Repair:</strong> {{ repair.job_number }}<br>
+            <strong>Device:</strong> {{ repair.device_model }}<br>
+            <strong>Estimated Cost:</strong> ₹{{ repair.estimated_cost|floatformat:2 }}
+        </div>
+        
+        <div class="mb-3">
+            <label for="id_source" class="form-label fw-semibold">Approval Source *</label>
+            <select name="source" id="id_source" class="form-select" required>
+                <option value="staff_phone">Staff (Phone Call)</option>
+                <option value="staff_inperson">Staff (In-Person)</option>
+                <option value="staff_whatsapp">Staff (WhatsApp)</option>
+                <option value="portal">Customer Portal</option>
+            </select>
+        </div>
+        
+        <div class="mb-3">
+            <label for="id_remarks" class="form-label fw-semibold">Remarks (Optional)</label>
+            <textarea name="remarks" id="id_remarks" rows="2" 
+                      class="form-control" 
+                      placeholder="e.g., Customer called and agreed to proceed"></textarea>
+        </div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-circle"></i> Approve Estimate
+        </button>
+    </div>
+</form>

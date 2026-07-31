@@ -1,0 +1,235 @@
+{% load static %}
+
+<form method="post" 
+      id="quickAddForm"
+      hx-post="{% url 'accounting:product_quick_add' %}" 
+      hx-target="#quickAddModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-indicator="#quick-add-spinner"
+      novalidate>
+    
+    {% csrf_token %}
+    
+    <div class="modal-header">
+        <h5 class="modal-title fw-bold">
+            <i class="bi bi-plus-circle text-primary me-2"></i>Quick Add Product
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    
+    <div class="modal-body">
+        <!-- Non-field errors -->
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+                {% for error in form.non_field_errors %}
+                    <span><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</span>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <!-- Product Name -->
+        <div class="mb-3" id="field-name">
+            <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold">
+                Product Name <span class="text-danger">*</span>
+            </label>
+            {{ form.name }}
+            {% if form.name.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.name.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- HSN Code -->
+        <div class="mb-3" id="field-hsn_code">
+            <label for="{{ form.hsn_code.id_for_label }}" class="form-label fw-semibold">HSN/SAC Code</label>
+            {{ form.hsn_code }}
+            <small class="text-muted">For GST purposes</small>
+            {% if form.hsn_code.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.hsn_code.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Category -->
+        <div class="mb-3" id="field-category">
+            <label for="{{ form.category.id_for_label }}" class="form-label fw-semibold">Category</label>
+            {{ form.category }}
+            <small class="text-muted">
+                <a href="#" 
+                   hx-get="{% url 'accounting:add_category_inline' %}" 
+                   hx-target="#field-category"
+                   hx-swap="afterend"
+                   class="text-decoration-none">
+                    <i class="bi bi-plus-circle"></i> Add new category
+                </a>
+            </small>
+            {% if form.category.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.category.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Unit -->
+        <div class="mb-3" id="field-unit">
+            <label for="{{ form.unit.id_for_label }}" class="form-label fw-semibold">Unit</label>
+            {{ form.unit }}
+            {% if form.unit.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.unit.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Purchase & Selling Price -->
+        <div class="row g-3">
+            <div class="col-md-6" id="field-purchase_price">
+                <div class="mb-3">
+                    <label for="{{ form.purchase_price.id_for_label }}" class="form-label fw-semibold">Purchase Price (₹)</label>
+                    {{ form.purchase_price }}
+                    {% if form.purchase_price.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.purchase_price.errors %}
+                                <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-6" id="field-selling_price">
+                <div class="mb-3">
+                    <label for="{{ form.selling_price.id_for_label }}" class="form-label fw-semibold">Selling Price (₹)</label>
+                    {{ form.selling_price }}
+                    {% if form.selling_price.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.selling_price.errors %}
+                                <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stock & Threshold -->
+        <div class="row g-3">
+            <div class="col-md-6" id="field-current_stock">
+                <div class="mb-3">
+                    <label for="{{ form.current_stock.id_for_label }}" class="form-label fw-semibold">Current Stock</label>
+                    {{ form.current_stock }}
+                    {% if form.current_stock.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.current_stock.errors %}
+                                <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-6" id="field-low_stock_threshold">
+                <div class="mb-3">
+                    <label for="{{ form.low_stock_threshold.id_for_label }}" class="form-label fw-semibold">Low Stock Alert</label>
+                    {{ form.low_stock_threshold }}
+                    <small class="text-muted">When stock falls below this</small>
+                    {% if form.low_stock_threshold.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.low_stock_threshold.errors %}
+                                <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tax Rate -->
+        <div class="mb-3" id="field-tax_rate">
+            <label for="{{ form.tax_rate.id_for_label }}" class="form-label fw-semibold">Tax Rate (%)</label>
+            {{ form.tax_rate }}
+            <small class="text-muted">Default: 18%</small>
+            {% if form.tax_rate.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.tax_rate.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Checkboxes -->
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="form-check">
+                    {{ form.is_service }}
+                    <label class="form-check-label" for="{{ form.is_service.id_for_label }}">
+                        Service Item <span class="text-muted small">(No stock tracking)</span>
+                    </label>
+                    {% if form.is_service.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.is_service.errors %}
+                                <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-check">
+                    {{ form.is_active }}
+                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                        Active <span class="text-muted small">(Available for sale)</span>
+                    </label>
+                    {% if form.is_active.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.is_active.errors %}
+                                <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle"></i> Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" id="quick-add-submit">
+            <span id="quick-add-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+            <i class="bi bi-plus-circle me-1"></i> Add Product
+        </button>
+    </div>
+</form>
+
+<!-- HTMX Spinner Toggle -->
+<script>
+    document.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
+            const spinner = document.getElementById('quick-add-spinner');
+            const btnText = document.querySelector('#quick-add-submit');
+            if (spinner) spinner.classList.remove('d-none');
+            if (btnText) btnText.disabled = true;
+        }
+    });
+
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
+            const spinner = document.getElementById('quick-add-spinner');
+            const btnText = document.querySelector('#quick-add-submit');
+            if (spinner) spinner.classList.add('d-none');
+            if (btnText) btnText.disabled = false;
+        }
+    });
+</script>

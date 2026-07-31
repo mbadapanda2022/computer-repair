@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3><i class="bi bi-receipt text-primary me-2"></i>Invoice #{{ invoice.invoice_number }}</h3>
+        <div>
+            <button class="btn btn-success" 
+                    hx-get="{% url 'accounting:add_payment' invoice.pk %}" 
+                    hx-target="#mainModalContent" 
+                    hx-trigger="click">
+                <i class="bi bi-credit-card"></i> Record Payment
+            </button>
+            <a href="{% url 'accounting:invoice_update' invoice.pk %}" class="btn btn-warning">
+                <i class="bi bi-pen"></i> Edit
+            </a>
+            <a href="{% url 'accounting:invoice_print' invoice.pk %}" class="btn btn-info" target="_blank">
+                <i class="bi bi-printer"></i> Print
+            </a>
+            <a href="{% url 'accounting:invoice_list' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Left: Invoice Info -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">Invoice Details</div>
+                <div class="card-body">
+                    <p><strong>Date:</strong> {{ invoice.date|date:"d M Y" }}</p>
+                    <p><strong>Due Date:</strong> {{ invoice.due_date|date:"d M Y"|default:"—" }}</p>
+                    <p><strong>Customer:</strong> {{ invoice.customer.name }}</p>
+                    <p><strong>GST Type:</strong> {{ invoice.get_gst_type_display }}</p>
+                    <p><strong>Status:</strong> 
+                        {% if invoice.payment_status == 'paid' %}
+                            <span class="badge bg-success">Paid</span>
+                        {% elif invoice.payment_status == 'partial' %}
+                            <span class="badge bg-warning text-dark">Partial</span>
+                        {% else %}
+                            <span class="badge bg-danger">Unpaid</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>Notes:</strong> {{ invoice.notes|default:"—" }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right: Financials -->
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light fw-bold">Financial Summary</div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr><td>Subtotal</td><td class="text-end">₹{{ invoice.subtotal|floatformat:2 }}</td></tr>
+                        <tr><td>Discount</td><td class="text-end text-danger">-₹{{ invoice.discount_amount|floatformat:2 }}</td></tr>
+                        <tr><td>Tax Amount</td><td class="text-end">₹{{ invoice.tax_amount|floatformat:2 }}</td></tr>
+                        <tr class="fw-bold"><td>Grand Total</td><td class="text-end fs-5">₹{{ invoice.grand_total|floatformat:2 }}</td></tr>
+                        <tr><td>Paid Amount</td><td class="text-end text-success">₹{{ invoice.paid_amount|floatformat:2 }}</td></tr>
+                        <tr class="fw-bold"><td>Balance Due</td><td class="text-end text-danger">₹{{ invoice.balance_due|floatformat:2 }}</td></tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-light fw-bold">Invoice Items</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Product</th>
+                            <th class="text-center">Qty</th>
+                            <th class="text-end">Unit Price</th>
+                            <th class="text-end">Tax %</th>
+                            <th class="text-end">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in invoice.items.all %}
+                        <tr>
+                            <td>{{ item.product.name }}</td>
+                            <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center text-muted">No items found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payments History -->
+    <div class="card shadow-sm mt-4">
+        <div class="card-header bg-light fw-bold">Payment History</div>
+        <div class="card-body p-0">
+            <div id="payment-list-container">
+                {% include "sales/partials/payment_list.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

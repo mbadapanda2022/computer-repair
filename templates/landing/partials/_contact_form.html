@@ -1,0 +1,93 @@
+<form method="post" 
+      id="contactForm"
+      hx-post="{% url 'contact_message' %}" 
+      hx-target="#contactFormContainer" 
+      hx-swap="outerHTML"
+      hx-indicator="#contact-spinner">
+    {% csrf_token %}
+    
+    <!-- 🍯 HONEYPOT FIELD -->
+    {{ form.website }}
+
+    <div class="mb-3">
+        <label for="id_name" class="form-label">Your Name</label>
+        <input type="text" name="name" id="id_name" 
+               class="form-control {% if form.name.errors %}is-invalid{% endif %}"
+               hx-get="{% url 'validate_contact_field' %}" 
+               hx-trigger="blur, change" 
+               hx-target="#field-name" 
+               hx-swap="outerHTML"
+               hx-include="#id_name"
+               value="{{ form.name.value|default:'' }}">
+        <div id="field-name">
+            {% include 'landing/partials/_field_errors.html' with field='name' errors=form.name.errors %}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="id_email" class="form-label">Email</label>
+        <input type="email" name="email" id="id_email" 
+               class="form-control {% if form.email.errors %}is-invalid{% endif %}"
+               hx-get="{% url 'validate_contact_field' %}" 
+               hx-trigger="blur, change" 
+               hx-target="#field-email" 
+               hx-swap="outerHTML"
+               hx-include="#id_email"
+               value="{{ form.email.value|default:'' }}">
+        <div id="field-email">
+            {% include 'landing/partials/_field_errors.html' with field='email' errors=form.email.errors %}
+        </div>
+    </div>
+
+    <!-- PHONE FIELD (Optional) -->
+    <div class="mb-3">
+        <label for="id_phone" class="form-label">Phone (Optional)</label>
+        <input type="tel" name="phone" id="id_phone" 
+               class="form-control {% if form.phone.errors %}is-invalid{% endif %}"
+               hx-get="{% url 'validate_contact_field' %}" 
+               hx-trigger="blur, change" 
+               hx-target="#field-phone" 
+               hx-swap="outerHTML"
+               hx-include="#id_phone"
+               value="{{ form.phone.value|default:'' }}"
+               placeholder="10-digit mobile number">
+        <div id="field-phone">
+            {% include 'landing/partials/_field_errors.html' with field='phone' errors=form.phone.errors %}
+        </div>
+        <small class="text-muted">Optional, but helps us reach you faster.</small>
+    </div>
+
+    <div class="mb-3">
+        <label for="id_subject" class="form-label">Subject</label>
+        <input type="text" name="subject" id="id_subject" 
+               class="form-control {% if form.subject.errors %}is-invalid{% endif %}"
+               hx-get="{% url 'validate_contact_field' %}" 
+               hx-trigger="blur, change" 
+               hx-target="#field-subject" 
+               hx-swap="outerHTML"
+               hx-include="#id_subject"
+               value="{{ form.subject.value|default:'' }}">
+        <div id="field-subject">
+            {% include 'landing/partials/_field_errors.html' with field='subject' errors=form.subject.errors %}
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label for="id_message" class="form-label">Message</label>
+        <textarea name="message" id="id_message" rows="4" 
+                  class="form-control {% if form.message.errors %}is-invalid{% endif %}"
+                  hx-get="{% url 'validate_contact_field' %}" 
+                  hx-trigger="blur, change" 
+                  hx-target="#field-message" 
+                  hx-swap="outerHTML"
+                  hx-include="#id_message">{{ form.message.value|default:'' }}</textarea>
+        <div id="field-message">
+            {% include 'landing/partials/_field_errors.html' with field='message' errors=form.message.errors %}
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary w-100" id="contact-btn">
+        <span id="contact-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+        <span id="contact-text">Send Message</span>
+    </button>
+</form>

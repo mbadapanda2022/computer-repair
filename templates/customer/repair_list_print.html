@@ -1,0 +1,98 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>My Repairs</title>
+    <style>
+        @media print { body { font-size: 10pt; margin: 1.5cm; } .no-print { display: none !important; } }
+        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 20px; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h2 { margin: 5px 0; }
+        .filters-box { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; font-size: 10pt; }
+        .table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+        .table th, .table td { border: 1px solid #ddd; padding: 5px 8px; }
+        .table th { background: #e9ecef; font-weight: 600; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: bold; }
+        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
+        .no-print { margin-top: 20px; text-align: center; }
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 8pt; color: #fff; }
+        .badge-pending { background: #6c757d; }
+        .badge-diagnosis { background: #0dcaf0; color: #000; }
+        .badge-repairing { background: #ffc107; color: #000; }
+        .badge-ready { background: #0d6efd; }
+        .badge-delivered { background: #198754; }
+        .badge-cancelled { background: #dc3545; }
+        .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <p>Repair List – {{ customer.name }}</p>
+    </div>
+
+    <div class="filters-box">
+        <strong>Filters:</strong>
+        {% if status_filter %}<span>Status: {{ status_filter|title }}</span>{% endif %}
+        {% if search %}<span>Search: {{ search }}</span>{% endif %}
+        {% if date_from %}<span>From: {{ date_from }}</span>{% endif %}
+        {% if date_to %}<span>To: {{ date_to }}</span>{% endif %}
+        {% if not status_filter and not search and not date_from and not date_to %}<span>All Records</span>{% endif %}
+        <br><small>Generated: {% now "d M Y, h:i A" %} | Total: {{ total_count }}</small>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Job #</th>
+                <th>Date</th>
+                <th>Device</th>
+                <th>Status</th>
+                <th class="text-center">Handover Date</th>
+                <th class="text-end">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for repair in repairs %}
+            <tr>
+                <td>{{ repair.job_number }}</td>
+                <td>{{ repair.date_in|date:"d M Y" }}</td>
+                <td>{{ repair.device_model }}</td>
+                <td><span class="badge badge-{{ repair.status }}">{{ repair.get_status_display }}</span></td>
+                <td class="text-center">
+                    {% if repair.delivery_date %}
+                        {{ repair.delivery_date|date:"d M Y" }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
+                <td class="text-end">₹{{ repair.final_amount|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center">No repair jobs found.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="4" class="text-end">Total</th>
+                <th class="text-end fw-bold">₹{{ total_count|default:0|floatformat:2 }}</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="footer">
+        <p>This is a computer-generated document. No signature required.</p>
+    </div>
+
+    <div class="no-print">
+        <hr>
+        <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+        <button onclick="window.close()" class="btn btn-secondary">❌ Close</button>
+    </div>
+</body>
+</html>

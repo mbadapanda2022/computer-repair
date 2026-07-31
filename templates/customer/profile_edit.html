@@ -1,0 +1,106 @@
+{% load static %}
+
+<form method="post" 
+      hx-post="{% url 'customer:customer_profile_update' %}" 
+      hx-target="#profile-container"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-indicator="#profile-spinner">
+    
+    {% csrf_token %}
+    
+    <div class="card border-0 shadow-sm">
+        <div class="card-body">
+            <h5 class="fw-semibold mb-3">
+                <i class="bi bi-pencil me-2 text-primary"></i>Edit Profile
+            </h5>
+            
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger py-2">
+                    {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+                </div>
+            {% endif %}
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Full Name</label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                            <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Phone</label>
+                        {{ form.phone }}
+                        {% if form.phone.errors %}
+                            <div class="invalid-feedback d-block">{{ form.phone.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-12">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Address</label>
+                        {{ form.address }}
+                        {% if form.address.errors %}
+                            <div class="invalid-feedback d-block">{{ form.address.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">State</label>
+                        {{ form.state }}
+                        {% if form.state.errors %}
+                            <div class="invalid-feedback d-block">{{ form.state.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">GSTIN</label>
+                        {{ form.gstin }}
+                        {% if form.gstin.errors %}
+                            <div class="invalid-feedback d-block">{{ form.gstin.errors.0 }}</div>
+                        {% endif %}
+                        <small class="text-muted">Optional</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer bg-white d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <span id="profile-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <i class="bi bi-check-circle me-1"></i> Save Changes
+            </button>
+            <button type="button" class="btn btn-secondary" 
+                    hx-get="{% url 'customer:customer_profile' %}" 
+                    hx-target="#profile-container"
+                    hx-swap="innerHTML">
+                Cancel
+            </button>
+        </div>
+    </div>
+</form>
+
+<script>
+    document.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#profile-container')) {
+            const spinner = document.getElementById('profile-spinner');
+            if (spinner) spinner.classList.remove('d-none');
+        }
+    });
+    
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#profile-container')) {
+            const spinner = document.getElementById('profile-spinner');
+            if (spinner) spinner.classList.add('d-none');
+        }
+    });
+</script>

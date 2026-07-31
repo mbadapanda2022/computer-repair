@@ -1,0 +1,34 @@
+{% extends 'base_public.html' %}
+{% load static %}
+{% block title %}Cookie Policy – A1 Computer Solutions{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="display-5 fw-bold">Cookie Policy</h1>
+            <p class="text-muted">Last updated: {% now "d M Y" %}</p>
+            <hr>
+            <p>
+                This website uses cookies to enhance your browsing experience, analyse traffic, and personalise content.
+            </p>
+            <h4 class="mt-4">What Are Cookies?</h4>
+            <p>Cookies are small text files stored on your device when you visit a website. They help us remember your preferences and improve our services.</p>
+            <h4 class="mt-4">Types of Cookies We Use</h4>
+            <ul>
+                <li><strong>Essential Cookies:</strong> Necessary for the basic functioning of the site (e.g., session management, CSRF protection).</li>
+                <li><strong>Analytics Cookies:</strong> To understand how visitors interact with our site (e.g., Google Analytics).</li>
+                <li><strong>Preference Cookies:</strong> To remember your settings and preferences.</li>
+            </ul>
+            <h4 class="mt-4">Managing Cookies</h4>
+            <p>
+                You can control or delete cookies through your browser settings. However, disabling certain cookies may affect the functionality of our website.
+            </p>
+            <p class="mt-4">
+                For more information, please <a href="{% url 'privacy_policy' %}">see our Privacy Policy</a> or contact us.
+            </p>
+            <hr>
+            <p class="text-muted small">&copy; {% now "Y" %} A1 Computer Solutions. All rights reserved.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

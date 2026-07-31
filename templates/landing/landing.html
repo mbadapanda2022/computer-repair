@@ -1,0 +1,330 @@
+<!-- templates/landing/landing.html -->
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}{{ meta.title|default:"A1 Computer Solutions – Laptop & Printer Repair" }}{% endblock %}
+
+{% block content %}
+
+<!-- ===== HERO SECTION ===== -->
+<section class="hero-gradient py-5">
+    <div class="container py-4">
+        <div class="row align-items-center">
+            <div class="col-lg-6 text-white">
+                <h1 class="display-3 fw-bold mb-3">
+                    {{ company.tagline|default:"Trusted Computer & Laptop Repair" }}
+                </h1>
+                <p class="lead mb-4">
+                    {{ company.about_text|default:"Expert chip-level repair, sales, and service for all brands. Quick turnaround & guaranteed quality." }}
+                </p>
+                <div class="d-flex flex-wrap gap-3">
+                    <a href="#contact" class="btn btn-light btn-lg px-5">Get a Quote</a>
+                    <a href="#services" class="btn btn-outline-light btn-lg px-5">Our Services</a>
+                </div>
+                <div class="mt-4 d-flex gap-4 text-white-50">
+                    <span><i class="bi bi-check-circle-fill text-success"></i> 19+ Years</span>
+                    <span><i class="bi bi-check-circle-fill text-success"></i> 9000+ Repairs</span>
+                    <span><i class="bi bi-check-circle-fill text-success"></i> 99% Satisfaction</span>
+                </div>
+            </div>
+            <div class="col-lg-6 text-center mt-4 mt-lg-0">
+                {% if company.hero_image %}
+                    <img src="{{ company.hero_image.url }}" alt="Hero" class="img-fluid rounded-4 shadow-lg" style="max-height:400px; object-fit:cover;">
+                {% else %}
+                    <img src="https://picsum.photos/seed/repair/600/400" alt="Repair" class="img-fluid rounded-4 shadow-lg" style="max-height:400px; object-fit:cover;">
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== SERVICES SECTION (Dynamic Carousel) ===== -->
+<section id="services" class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="section-title fw-bold">Our Services</h2>
+            <p class="text-muted">Comprehensive solutions for all your tech needs</p>
+        </div>
+
+        {% if services %}
+            <div id="servicesCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="9000">
+                <!-- Indicators -->
+                <div class="carousel-indicators">
+                    {% for service in services %}
+                        <button type="button" data-bs-target="#servicesCarousel" 
+                                data-bs-slide-to="{{ forloop.counter0 }}" 
+                                class="{% if forloop.first %}active{% endif %}"
+                                aria-label="Slide {{ forloop.counter }}"></button>
+                    {% endfor %}
+                </div>
+
+                <!-- Carousel Inner -->
+                <div class="carousel-inner">
+                    {% for service in services %}
+                        <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                            <div class="row justify-content-center">
+                                <div class="col-md-8 col-lg-6">
+                                    <div class="card text-center p-5 shadow-lg border-0 rounded-4">
+                                        <div class="service-icon display-1 text-primary mb-4">
+                                            {% if service.image %}
+                                                <img src="{{ service.image.url }}" alt="{{ service.title }}" style="height:80px; width:auto;">
+                                            {% elif service.icon %}
+                                                <i class="bi {{ service.icon }}"></i>
+                                            {% else %}
+                                                <i class="bi bi-box"></i>
+                                            {% endif %}
+                                        </div>
+                                        <h5 class="card-title fw-bold">{{ service.title }}</h5>
+                                        <p class="card-text text-muted">{{ service.description }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Controls -->
+                <button class="carousel-control-prev" type="button" data-bs-target="#servicesCarousel" data-bs-slide="prev">
+                    <span class="carousel-control-prev-icon bg-primary rounded-circle p-3" aria-hidden="true"></span>
+                    <span class="visually-hidden">Previous</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#servicesCarousel" data-bs-slide="next">
+                    <span class="carousel-control-next-icon bg-primary rounded-circle p-3" aria-hidden="true"></span>
+                    <span class="visually-hidden">Next</span>
+                </button>
+            </div>
+        {% else %}
+            <div class="text-center text-muted">
+                <i class="bi bi-plus-circle fs-1"></i>
+                <p>No services added yet. Add some from the admin panel.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- ===== STATS SECTION ===== -->
+<section class="bg-light py-5">
+    <div class="container">
+        <div class="row g-4 text-center">
+            <div class="col-6 col-md-3">
+                <div class="stat-number">19+</div>
+                <p class="text-muted">Years Experience</p>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-number">9000+</div>
+                <p class="text-muted">Repairs Done</p>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-number">99%</div>
+                <p class="text-muted">Satisfaction Rate</p>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-number">4.9★</div>
+                <p class="text-muted">Average Rating</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== WHY US ===== -->
+<section id="why-us" class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="section-title fw-bold">Why Choose Us</h2>
+            <p class="text-muted">What makes us your trusted repair partner</p>
+        </div>
+        <div class="row g-4">
+            <div class="col-md-3 text-center">
+                <i class="bi bi-clock-history display-4 text-primary"></i>
+                <h5>10+ Years Experience</h5>
+                <p class="text-muted">Trusted by hundreds of customers.</p>
+            </div>
+            <div class="col-md-3 text-center">
+                <i class="bi bi-shield-check display-4 text-success"></i>
+                <h5>100% Guarantee</h5>
+                <p class="text-muted">Free rework if issue persists.</p>
+            </div>
+            <div class="col-md-3 text-center">
+                <i class="bi bi-truck display-4 text-info"></i>
+                <h5>Pickup &amp; Delivery</h5>
+                <p class="text-muted">Convenient doorstep service.</p>
+            </div>
+            <div class="col-md-3 text-center">
+                <i class="bi bi-people display-4 text-warning"></i>
+                <h5>Expert Technicians</h5>
+                <p class="text-muted">Certified professionals.</p>
+            </div>
+            <div class="col-md-3 text-center">
+                <i class="bi bi-award display-4 text-danger"></i>
+                <h5>Quality Parts</h5>
+                <p class="text-muted">Original or high-grade spare parts.</p>
+            </div>
+            <div class="col-md-3 text-center">
+                <i class="bi bi-currency-rupee display-4 text-success"></i>
+                <h5>Affordable Pricing</h5>
+                <p class="text-muted">Transparent pricing with no hidden costs.</p>
+            </div>
+            <div class="col-md-3 text-center">
+                <i class="bi bi-clock display-4 text-info"></i>
+                <h5>Quick Turnaround</h5>
+                <p class="text-muted">Most repairs completed in 2–3 days.</p>
+            </div>
+            <div class="col-md-3 text-center">
+                <i class="bi bi-geo-alt display-4 text-primary"></i>
+                <h5>Convenient Location</h5>
+                <p class="text-muted">Easily accessible shop in the city.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== TESTIMONIALS ===== -->
+<section class="bg-light py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="section-title fw-bold">What Our Customers Say</h2>
+            <p class="text-muted">Real feedback from real people</p>
+        </div>
+        {% if testimonials %}
+            <div class="row g-4">
+                {% for testimonial in testimonials %}
+                    <div class="col-md-4">
+                        <div class="card h-100 p-4 testimonial-card shadow-sm">
+                            <div class="d-flex align-items-center mb-3">
+                                {% if testimonial.customer_photo %}
+                                    <img src="{{ testimonial.customer_photo.url }}" class="rounded-circle me-3" width="50" height="50" style="object-fit:cover;" alt="{{ testimonial.customer_name }}">
+                                {% else %}
+                                    <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width:50px; height:50px; font-size:1.2rem;">
+                                        {{ testimonial.customer_name|first|upper }}
+                                    </div>
+                                {% endif %}
+                                <div>
+                                    <h6 class="mb-0">{{ testimonial.customer_name }}</h6>
+                                    <small class="text-muted">
+                                        {% if testimonial.designation %}{{ testimonial.designation }}{% endif %}
+                                        {% if testimonial.company_name %} – {{ testimonial.company_name }}{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                            <p class="card-text">"{{ testimonial.review_text }}"</p>
+                            <div class="text-warning">
+                                {% for i in "12345"|slice:":testimonial.rating" %}★{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center text-muted">
+                <i class="bi bi-chat-dots fs-1"></i>
+                <p>No testimonials yet. Add some from the admin panel.</p>
+            </div>
+        {% endif %}
+
+        <!-- Google Review CTA after Testimonials -->
+        <div class="text-center mt-5">
+            <p class="text-muted">Happy with our service? Share your experience! ❤️</p>
+            {% if company.google_review_link %}
+                <a href="{{ company.google_review_link }}" 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   class="btn btn-danger btn-lg px-5">
+                    <i class="bi bi-google me-2"></i> Rate us on Google
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- ===== FAQ ===== -->
+<section id="faq" class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="section-title fw-bold">Frequently Asked Questions</h2>
+            <p class="text-muted">Answers to common queries</p>
+        </div>
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                {% if faqs %}
+                    <div class="accordion" id="faqAccordion">
+                        {% for faq in faqs %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" 
+                                            type="button" 
+                                            data-bs-toggle="collapse" 
+                                            data-bs-target="#faq{{ faq.id }}">
+                                        {{ faq.question }}
+                                    </button>
+                                </h2>
+                                <div id="faq{{ faq.id }}" 
+                                     class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" 
+                                     data-bs-parent="#faqAccordion">
+                                    <div class="accordion-body">
+                                        {{ faq.answer|linebreaks }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info text-center">
+                        <i class="bi bi-info-circle"></i> No FAQs added yet. Please add some from the admin panel.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== CONTACT ===== -->
+<section id="contact" class="py-5 bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="section-title fw-bold">Get in Touch</h2>
+            <p class="text-muted">We’re here to help – drop us a message or visit us</p>
+        </div>
+        <div class="row g-4 align-items-stretch">
+            <!-- Left Column: Contact Form -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body p-4 p-md-5">
+                        <h5 class="card-title mb-4"><i class="bi bi-envelope text-primary"></i> Send us a quick message</h5>
+                        <div id="contactFormContainer">
+                            {% include 'landing/partials/_contact_form.html' %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Right Column: Google Map -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-body p-0 overflow-hidden rounded-3">
+                        {% if company.google_map_embed %}
+                            {{ company.google_map_embed|safe }}
+                        {% else %}
+                            <div class="d-flex align-items-center justify-content-center bg-secondary text-white h-100" style="min-height: 400px;">
+                                <p class="text-center"><i class="bi bi-map fs-1 d-block"></i> Add Google Map in Admin</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Google Review CTA after Contact Form -->
+        <div class="text-center mt-5">
+            {% if company.google_review_link %}
+                <a href="{{ company.google_review_link }}" 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   class="btn btn-outline-danger btn-lg px-5">
+                    <i class="bi bi-google me-2"></i> Rate us on Google
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+{% endblock %}
+

@@ -1,0 +1,54 @@
+<!-- templates/settings/restore.html -->
+<form method="post" enctype="multipart/form-data" 
+      hx-post="{% url 'accounting:restore_database' %}" 
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+    {% csrf_token %}
+    
+    <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-upload"></i> Restore Database</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    
+    <div class="modal-body">
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> 
+            <strong>Warning:</strong> Restoring will overwrite your current database. 
+            A backup of the current database will be created automatically.
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label fw-bold">Database file (.sqlite3)</label>
+            <input type="file" name="db_file" class="form-control" accept=".sqlite3,.db" required>
+            <small class="text-muted">Maximum file size: 100MB</small>
+        </div>
+        
+        <div id="restore-errors" class="text-danger"></div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-upload"></i> Restore Database
+        </button>
+    </div>
+</form>
+
+<script>
+    // Auto-close modal on success
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.id === 'mainModalContent') {
+            const trigger = evt.detail.xhr?.getResponseHeader('HX-Trigger');
+            if (trigger) {
+                try {
+                    const data = JSON.parse(trigger);
+                    if (data.closeModal) {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('mainModal'));
+                        if (modal) modal.hide();
+                    }
+                } catch(e) {}
+            }
+        }
+    });
+</script>

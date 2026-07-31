@@ -1,0 +1,39 @@
+# computer_repair/urls.py 
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from accounting.views import landing_views
+
+handler404 = 'accounting.views.error_handlers.custom_404'
+handler500 = 'accounting.views.error_handlers.custom_500'
+handler403 = 'accounting.views.error_handlers.custom_403'
+handler400 = 'accounting.views.error_handlers.custom_400'
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+
+    # 2. Public Landing Pages 
+    path('', landing_views.landing, name='home'),
+    path('contact-message/', landing_views.contact_message, name='contact_message'),
+    path('validate-contact-field/', landing_views.validate_contact_field, name='validate_contact_field'),
+    path('privacy-policy/', landing_views.privacy_policy, name='privacy_policy'),
+    path('cookie-policy/', landing_views.cookie_policy, name='cookie_policy'),
+
+    # 3. Customer URLs 
+    path('customer/', include(('accounting.customer_urls', 'customer'))),
+
+    # 4. Events (SSE) – SPECIFIC PREFIX 
+    path('events/', include('django_eventstream.urls')),
+
+    # 5. Staff URLs 
+    path('', include(('accounting.urls', 'accounting'))),
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    
+    
+
+    

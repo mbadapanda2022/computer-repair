@@ -1,0 +1,147 @@
+{% extends "admin/index.html" %}
+{% load static %}
+
+{% block content %}
+<div id="content-main">
+    <!-- Stats Cards -->
+    <div class="dashboard-stats">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-people"></i></div>
+            <div class="stat-content">
+                <h3>{{ total_contacts|default:0 }}</h3>
+                <span>Contacts</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-receipt"></i></div>
+            <div class="stat-content">
+                <h3>{{ total_invoices|default:0 }}</h3>
+                <span>Invoices</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-tools"></i></div>
+            <div class="stat-content">
+                <h3>{{ total_repairs|default:0 }}</h3>
+                <span>Repairs</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-clock-history"></i></div>
+            <div class="stat-content">
+                <h3>{{ pending_repairs|default:0 }}</h3>
+                <span>Pending Repairs</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-currency-rupee"></i></div>
+            <div class="stat-content">
+                <h3>₹{{ total_sales|floatformat:0|default:0 }}</h3>
+                <span>Total Sales</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-currency-rupee"></i></div>
+            <div class="stat-content">
+                <h3>₹{{ total_purchases|floatformat:0|default:0 }}</h3>
+                <span>Total Purchases</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sales Chart -->
+    <div class="dashboard-chart">
+        <h2><i class="bi bi-graph-up-arrow"></i> Sales Trend (Last 30 Days)</h2>
+        <canvas id="salesChart" height="100"></canvas>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="dashboard-actions">
+        <h2><i class="bi bi-lightning"></i> Quick Actions</h2>
+        <div class="action-buttons">
+            <a href="{% url 'admin:accounting_invoice_add' %}" class="action-btn"><i class="bi bi-plus-circle"></i> New Invoice</a>
+            <a href="{% url 'admin:accounting_repairjob_add' %}" class="action-btn"><i class="bi bi-plus-circle"></i> New Repair</a>
+            <a href="{% url 'admin:accounting_contact_add' %}" class="action-btn"><i class="bi bi-plus-circle"></i> New Contact</a>
+            <a href="{% url 'admin:accounting_product_add' %}" class="action-btn"><i class="bi bi-plus-circle"></i> New Product</a>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="dashboard-recent">
+        <div class="recent-box">
+            <h3><i class="bi bi-envelope"></i> Recent Messages</h3>
+            <ul>
+                {% for msg in recent_messages %}
+                    <li><a href="{% url 'admin:accounting_contactmessage_change' msg.id %}">
+                        <strong>{{ msg.name }}</strong> – {{ msg.subject|truncatechars:30 }}
+                        <span class="badge">{{ msg.created_at|date:"d M" }}</span>
+                    </a></li>
+                {% empty %}
+                    <li>No messages yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="recent-box">
+            <h3><i class="bi bi-receipt"></i> Recent Invoices</h3>
+            <ul>
+                {% for inv in recent_invoices %}
+                    <li><a href="{% url 'admin:accounting_invoice_change' inv.id %}">
+                        <strong>{{ inv.invoice_number }}</strong> – {{ inv.customer.name }}
+                        <span class="badge">{{ inv.grand_total }}</span>
+                    </a></li>
+                {% empty %}
+                    <li>No invoices yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="recent-box">
+            <h3><i class="bi bi-tools"></i> Recent Repairs</h3>
+            <ul>
+                {% for rep in recent_repairs %}
+                    <li><a href="{% url 'admin:accounting_repairjob_change' rep.id %}">
+                        <strong>{{ rep.job_number }}</strong> – {{ rep.device_model }}
+                        <span class="badge">{{ rep.status }}</span>
+                    </a></li>
+                {% empty %}
+                    <li>No repairs yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Default admin app list (below) -->
+    {{ block.super }}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('salesChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [{
+                label: 'Sales (₹)',
+                data: {{ chart_values|safe }},
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                tension: 0.3,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: true }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

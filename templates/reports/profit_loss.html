@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-graph-up-arrow text-primary me-2"></i>Profit & Loss
+            </h3>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="?{{ request.GET.urlencode }}&excel=1" class="btn btn-success">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </a>
+            <a href="?{{ request.GET.urlencode }}&print=1" class="btn btn-secondary" target="_blank">
+                <i class="bi bi-printer"></i> Print
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form class="row g-3">
+                <div class="col-md-3">
+                    <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                           onchange="this.form.submit()">
+                </div>
+                <div class="col-md-3">
+                    <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                           onchange="this.form.submit()">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-secondary w-100" type="reset" onclick="window.location.href='{% url 'accounting:profit_loss' %}'">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Income Section -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold">Income</div>
+        <div class="card-body">
+            <table class="table table-sm">
+                <tr>
+                    <td>Sales Revenue</td>
+                    <td class="text-end">₹{{ sales_total|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td>Repair Income (Labour)</td>
+                    <td class="text-end">₹{{ repair_income|floatformat:2 }}</td>
+                </tr>
+                <tr class="table-light fw-bold">
+                    <td>Total Income</td>
+                    <td class="text-end">₹{{ total_income|floatformat:2 }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Expenses Section -->
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold">Expenses</div>
+        <div class="card-body">
+            <table class="table table-sm">
+                <tr>
+                    <td>Cost of Goods Sold (Purchases)</td>
+                    <td class="text-end">₹{{ purchase_total|floatformat:2 }}</td>
+                </tr>
+                <tr class="table-light fw-bold">
+                    <td>Total Expenses</td>
+                    <td class="text-end">₹{{ total_expenses|floatformat:2 }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Summary Section -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold">Summary</div>
+        <div class="card-body">
+            <table class="table table-sm">
+                <tr>
+                    <td>Gross Profit (Sales - COGS)</td>
+                    <td class="text-end fw-bold {% if gross_profit > 0 %}text-success{% else %}text-danger{% endif %}">
+                        ₹{{ gross_profit|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr>
+                    <td>Net Profit (Gross + Repair Income)</td>
+                    <td class="text-end fw-bold {% if net_profit > 0 %}text-success{% else %}text-danger{% endif %}">
+                        ₹{{ net_profit|floatformat:2 }}
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

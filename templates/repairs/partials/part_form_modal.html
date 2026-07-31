@@ -1,0 +1,76 @@
+<form method="post" 
+      hx-post="{% url 'accounting:add_repair_part' job.pk %}" 
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      id="partForm">
+    {% csrf_token %}
+    
+    <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add Part to Repair</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    
+    <div class="modal-body">
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            </div>
+        {% endif %}
+        
+        <div class="mb-3">
+            <label for="id_product" class="form-label fw-semibold">Product *</label>
+            <select name="product" id="id_product" class="form-select" required>
+                <option value="">---------</option>
+                {% for product in form.fields.product.queryset %}
+                    <option value="{{ product.id }}" {% if form.product.value == product.id %}selected{% endif %}>
+                        {{ product.name }} (Stock: {{ product.current_stock|floatformat:0 }} | ₹{{ product.selling_price|floatformat:2 }})
+                    </option>
+                {% endfor %}
+            </select>
+            <div id="field-product" class="invalid-feedback d-block">
+                {{ form.product.errors|join:", " }}
+            </div>
+        </div>
+        
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_quantity" class="form-label fw-semibold">Quantity *</label>
+                <input type="number" name="quantity" id="id_quantity" step="1" min="1" 
+                       class="form-control {% if form.quantity.errors %}is-invalid{% endif %}" 
+                       value="{{ form.quantity.value|default:'1' }}" required>
+                <div id="field-quantity" class="invalid-feedback d-block">
+                    {{ form.quantity.errors|join:", " }}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_unit_price" class="form-label fw-semibold">Unit Price (₹) *</label>
+                <input type="number" name="unit_price" id="id_unit_price" step="0.01" 
+                       class="form-control {% if form.unit_price.errors %}is-invalid{% endif %}" 
+                       value="{{ form.unit_price.value|default:'' }}" required>
+                <div id="field-unit_price" class="invalid-feedback d-block">
+                    {{ form.unit_price.errors|join:", " }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle"></i> Add Part
+        </button>
+    </div>
+</form>
+
+<script>
+    // Auto-fill unit price when product changes
+    document.getElementById('id_product').addEventListener('change', function() {
+        const selected = this.options[this.selectedIndex];
+        if (selected.value) {
+            const price = selected.text.match(/₹([\d.]+)/);
+            if (price) {
+                document.getElementById('id_unit_price').value = price[1];
+            }
+        }
+    });
+</script>

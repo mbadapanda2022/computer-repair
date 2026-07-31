@@ -1,0 +1,22 @@
+<div class="modal-header bg-danger text-white">
+    <h5 class="modal-title text-white"><i class="bi bi-exclamation-triangle me-2"></i>Confirm Delete</h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+</div>
+<div class="modal-body">
+    <p>Are you sure you want to delete repair job <strong>{{ repair.job_number }}</strong>?</p>
+    <p class="text-muted">Device: {{ repair.device_model }}</p>
+    <p class="text-danger"><strong>This action cannot be undone.</strong></p>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <form method="post" 
+          hx-post="{% url 'customer:customer_repair_delete' repair.pk %}" 
+          hx-target="#repair-list-container"
+          hx-swap="innerHTML"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-trash"></i> Yes, Delete
+        </button>
+    </form>
+</div>

@@ -1,0 +1,755 @@
+{% extends "base_customer.html" %}
+{% load static math_filters %}
+
+{% block extra_head %}
+<style>
+    /* ============================================================ */
+    /* CUSTOM STYLES FOR INVOICE DETAIL PAGE                        */
+    /* ============================================================ */
+    
+    .invoice-header {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .invoice-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 300px;
+        height: 300px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
+    }
+    
+    .invoice-header::after {
+        content: '';
+        position: absolute;
+        bottom: -30%;
+        left: -10%;
+        width: 200px;
+        height: 200px;
+        background: rgba(255,255,255,0.03);
+        border-radius: 50%;
+    }
+    
+    .invoice-header .invoice-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+    
+    .invoice-header .invoice-meta {
+        opacity: 0.85;
+        font-size: 0.9rem;
+    }
+    
+    .invoice-header .status-badge-large {
+        padding: 0.5rem 1.5rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        background: rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        border: none;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    
+    .stat-card .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    
+    .stat-card .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .stat-card .stat-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-top: 0.25rem;
+    }
+    
+    .detail-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        transition: all 0.3s ease;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+    
+    .detail-card:hover {
+        box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+    }
+    
+    .detail-card .card-header {
+        background: white;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        padding: 1rem 1.5rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .detail-card .card-header .header-icon {
+        color: #0d6efd;
+    }
+    
+    .detail-card .card-body {
+        padding: 1.5rem;
+    }
+    
+    .info-row {
+        display: flex;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    
+    .info-row:last-child {
+        border-bottom: none;
+    }
+    
+    .info-row .info-label {
+        width: 40%;
+        color: #6c757d;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    
+    .info-row .info-value {
+        width: 60%;
+        font-weight: 500;
+    }
+    
+    .info-row .info-value .badge {
+        font-size: 0.8rem;
+        padding: 0.35rem 0.8rem;
+    }
+    
+    /* Amount Cards */
+    .amount-card {
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(0,0,0,0.06);
+    }
+    
+    .amount-card:hover {
+        transform: scale(1.02);
+    }
+    
+    .amount-card .amount {
+        font-size: 1.4rem;
+        font-weight: 700;
+    }
+    
+    .amount-card .label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        font-weight: 600;
+    }
+    
+    .amount-card.primary {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        color: white;
+        border: none;
+    }
+    
+    .amount-card.primary .label {
+        color: rgba(255,255,255,0.8);
+    }
+    
+    .amount-card.success {
+        background: #d4edda;
+        border-color: #28a745;
+    }
+    
+    .amount-card.success .amount {
+        color: #155724;
+    }
+    
+    .amount-card.danger {
+        background: #f8d7da;
+        border-color: #dc3545;
+    }
+    
+    .amount-card.danger .amount {
+        color: #721c24;
+    }
+    
+    /* Items Table */
+    .items-table thead th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        border-bottom: 2px solid #e9ecef;
+    }
+    
+    .items-table tbody tr {
+        transition: all 0.2s ease;
+    }
+    
+    .items-table tbody tr:hover {
+        background: rgba(13, 110, 253, 0.04);
+    }
+    
+    .items-table tfoot {
+        border-top: 2px solid #e9ecef;
+    }
+    
+    /* GST Breakup */
+    .gst-box {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-top: 0.5rem;
+    }
+    
+    .gst-box .gst-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+        font-size: 0.9rem;
+    }
+    
+    /* Action Buttons */
+    .action-btn {
+        border-radius: 50px;
+        padding: 0.5rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Dark Mode Overrides */
+    [data-bs-theme="dark"] .invoice-header {
+        background: linear-gradient(135deg, #1a3a6e 0%, #0d1f3c 100%);
+    }
+    
+    [data-bs-theme="dark"] .stat-card {
+        background: #2c3034;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+    
+    [data-bs-theme="dark"] .detail-card {
+        background: #2c3034;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+    }
+    
+    [data-bs-theme="dark"] .detail-card .card-header {
+        background: #2c3034;
+        border-bottom-color: rgba(255,255,255,0.08);
+    }
+    
+    [data-bs-theme="dark"] .info-row {
+        border-bottom-color: rgba(255,255,255,0.06);
+    }
+    
+    [data-bs-theme="dark"] .amount-card.success {
+        background: #1e3a2a;
+        border-color: #28a745;
+    }
+    
+    [data-bs-theme="dark"] .amount-card.success .amount {
+        color: #7bdc9e;
+    }
+    
+    [data-bs-theme="dark"] .amount-card.danger {
+        background: #3d1a1a;
+        border-color: #dc3545;
+    }
+    
+    [data-bs-theme="dark"] .amount-card.danger .amount {
+        color: #f5a5a5;
+    }
+    
+    [data-bs-theme="dark"] .gst-box {
+        background: #2c3034;
+    }
+    
+    [data-bs-theme="dark"] .items-table thead th {
+        color: #adb5bd;
+        border-bottom-color: rgba(255,255,255,0.08);
+    }
+    
+    [data-bs-theme="dark"] .items-table tbody tr:hover {
+        background: rgba(255,255,255,0.04);
+    }
+    
+    [data-bs-theme="dark"] .items-table tfoot {
+        border-top-color: rgba(255,255,255,0.08);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .invoice-header {
+            padding: 1.25rem;
+        }
+        .invoice-header .invoice-number {
+            font-size: 1.1rem;
+        }
+        .info-row {
+            flex-direction: column;
+            padding: 0.75rem 0;
+        }
+        .info-row .info-label,
+        .info-row .info-value {
+            width: 100%;
+        }
+        .info-row .info-label {
+            margin-bottom: 0.25rem;
+        }
+        .amount-card .amount {
+            font-size: 1.1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- ============================================================ -->
+    <!-- HERO HEADER                                                  -->
+    <!-- ============================================================ -->
+    <div class="invoice-header mb-4">
+        <div class="row align-items-center position-relative" style="z-index: 1;">
+            <div class="col-md-7">
+                <div class="d-flex align-items-center gap-3 mb-2">
+                    <span class="status-badge-large">
+                        <i class="bi 
+                            {% if invoice.payment_status == 'paid' %}bi-check-circle-fill
+                            {% elif invoice.payment_status == 'partial' %}bi-hourglass-split
+                            {% else %}bi-x-circle-fill{% endif %} me-2">
+                        </i>
+                        {{ invoice.get_payment_status_display }}
+                    </span>
+                    <span class="invoice-number">{{ invoice.invoice_number }}</span>
+                </div>
+                <h2 class="fw-bold mb-1">{{ invoice.customer.name }}</h2>
+                <p class="invoice-meta mb-0">
+                    <i class="bi bi-calendar3 me-1"></i> {{ invoice.date|date:"d M Y" }}
+                    {% if invoice.due_date %}
+                    | <i class="bi bi-calendar-exclamation me-1"></i> Due: {{ invoice.due_date|date:"d M Y" }}
+                    {% endif %}
+                    {% if repair_job %}
+                    | <i class="bi bi-tools me-1"></i> Repair: {{ repair_job.job_number }}
+                    {% endif %}
+                </p>
+            </div>
+            <div class="col-md-5 text-md-end mt-3 mt-md-0">
+                <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+                    <a href="{% url 'customer:customer_invoice_print' invoice.pk %}" class="btn btn-light action-btn" target="_blank">
+                        <i class="bi bi-printer"></i> Print
+                    </a>
+                    <a href="{% url 'customer:customer_invoices' %}" class="btn btn-light action-btn">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- STATS CARDS (Quick Overview)                                 -->
+    <!-- ============================================================ -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(13,110,253,0.12); color: #0d6efd;">
+                        <i class="bi bi-currency-rupee"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Grand Total</div>
+                        <div class="stat-value" style="color: #0d6efd;">₹{{ invoice.grand_total|floatformat:2 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(40,167,69,0.12); color: #28a745;">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Paid</div>
+                        <div class="stat-value" style="color: #28a745;">₹{{ invoice.paid_amount|floatformat:2 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(220,53,69,0.12); color: #dc3545;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Balance Due</div>
+                        <div class="stat-value" style="color: #dc3545;">₹{{ invoice.balance_due|floatformat:2 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(23,162,184,0.12); color: #17a2b8;">
+                        <i class="bi bi-list-ul"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Items</div>
+                        <div class="stat-value" style="color: #17a2b8;">{{ invoice.items.count }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MAIN CONTENT (Two Columns)                                   -->
+    <!-- ============================================================ -->
+    <div class="row g-4">
+
+        <!-- ===================== LEFT COLUMN ===================== -->
+        <div class="col-lg-7">
+
+            <!-- Invoice Details Card -->
+            <div class="detail-card">
+                <div class="card-header">
+                    <span class="header-icon"><i class="bi bi-info-circle"></i></span>
+                    Invoice Details
+                </div>
+                <div class="card-body">
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-hash me-2"></i>Invoice #</span>
+                        <span class="info-value">{{ invoice.invoice_number }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-calendar3 me-2"></i>Date</span>
+                        <span class="info-value">{{ invoice.date|date:"d M Y" }}</span>
+                    </div>
+                    {% if invoice.due_date %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-calendar-exclamation me-2"></i>Due Date</span>
+                        <span class="info-value">{{ invoice.due_date|date:"d M Y" }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-person me-2"></i>Customer</span>
+                        <span class="info-value">{{ invoice.customer.name }}</span>
+                    </div>
+                    {% if invoice.customer.phone %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-phone me-2"></i>Phone</span>
+                        <span class="info-value">{{ invoice.customer.phone }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-tag me-2"></i>GST Type</span>
+                        <span class="info-value">
+                            <span class="badge bg-secondary">{{ invoice.get_gst_type_display }}</span>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-credit-card me-2"></i>Payment Status</span>
+                        <span class="info-value">
+                            <span class="badge 
+                                {% if invoice.payment_status == 'paid' %}bg-success
+                                {% elif invoice.payment_status == 'partial' %}bg-warning text-dark
+                                {% else %}bg-danger{% endif %}">
+                                {{ invoice.get_payment_status_display }}
+                            </span>
+                        </span>
+                    </div>
+                    {% if invoice.notes %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-sticky-fill me-2"></i>Notes</span>
+                        <span class="info-value">{{ invoice.notes }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- ============================================================ -->
+                    <!-- REPAIR JOB CONTEXT (If invoice is linked to repair)         -->
+                    <!-- ============================================================ -->
+                    {% if repair_job %}
+                    <div class="mt-3 pt-3 border-top">
+                        <h6 class="fw-semibold mb-2">
+                            <i class="bi bi-tools text-warning me-2"></i>Repair Details
+                        </h6>
+                        <div class="info-row">
+                            <span class="info-label">Repair #</span>
+                            <span class="info-value">
+                                <a href="{% url 'customer:customer_repair_detail' repair_job.pk %}" class="text-decoration-none">
+                                    {{ repair_job.job_number }}
+                                </a>
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Device</span>
+                            <span class="info-value">{{ repair_job.device_model }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Issue</span>
+                            <span class="info-value">{{ repair_job.issue_description }}</span>
+                        </div>
+                        {% if repair_job.diagnosis_report %}
+                        <div class="info-row">
+                            <span class="info-label">Diagnosis</span>
+                            <span class="info-value">{{ repair_job.diagnosis_report }}</span>
+                        </div>
+                        {% endif %}
+                        {% if repair_job.action_taken %}
+                        <div class="info-row">
+                            <span class="info-label">Action Taken</span>
+                            <span class="info-value">{{ repair_job.action_taken }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="info-row">
+                            <span class="info-label">Repair Status</span>
+                            <span class="info-value">
+                                <span class="badge 
+                                    {% if repair_job.status == 'delivered' %}bg-success
+                                    {% elif repair_job.status == 'cancelled' %}bg-danger
+                                    {% elif repair_job.status == 'ready' %}bg-primary
+                                    {% elif repair_job.status == 'repairing' %}bg-warning text-dark
+                                    {% elif repair_job.status == 'diagnosis' %}bg-info text-dark
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ repair_job.get_status_display }}
+                                </span>
+                            </span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Items Table -->
+            <div class="detail-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        <span class="header-icon"><i class="bi bi-list-ul"></i></span>
+                        Items
+                        <span class="badge bg-secondary ms-2">{{ invoice.items.count }}</span>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 items-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:35%;">Product</th>
+                                    <th class="text-center" style="width:12%;">Qty</th>
+                                    <th class="text-end" style="width:18%;">Unit Price</th>
+                                    <th class="text-end" style="width:15%;">Tax</th>
+                                    <th class="text-end" style="width:20%;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in invoice.items.all %}
+                                <tr>
+                                    <td>
+                                        <div class="fw-medium">{{ item.product.name }}</div>
+                                        {% if item.description %}
+                                            <small class="text-muted">{{ item.description }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                                    <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                                    <td class="text-end">
+                                        {% if item.tax_rate > 0 %}
+                                            <span class="badge bg-light text-dark">{{ item.tax_rate }}%</span>
+                                            <br><small class="text-muted">₹{{ item.tax_amount|floatformat:2 }}</small>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-bold" style="color: #0d6efd;">₹{{ item.line_total|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">
+                                        <i class="bi bi-box display-6 d-block mb-2" style="opacity:0.3;"></i>
+                                        No items in this invoice.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="fw-bold text-end">Subtotal</td>
+                                    <td colspan="2" class="text-end fw-bold">₹{{ invoice.subtotal|floatformat:2 }}</td>
+                                </tr>
+                                {% if invoice.discount_amount > 0 %}
+                                <tr>
+                                    <td colspan="3" class="fw-bold text-end text-danger">Discount</td>
+                                    <td colspan="2" class="text-end fw-bold text-danger">-₹{{ invoice.discount_amount|floatformat:2 }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td colspan="3" class="fw-bold text-end">Tax</td>
+                                    <td colspan="2" class="text-end fw-bold">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+                                </tr>
+                                <tr style="border-top: 2px solid #0d6efd;">
+                                    <td colspan="3" class="fw-bold text-end" style="color: #0d6efd;">Grand Total</td>
+                                    <td colspan="2" class="text-end fw-bold" style="font-size: 1.1rem; color: #0d6efd;">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===================== RIGHT COLUMN ===================== -->
+        <div class="col-lg-5">
+
+            <!-- Financial Summary Card -->
+            <div class="detail-card">
+                <div class="card-header">
+                    <span class="header-icon" style="color: #28a745;"><i class="bi bi-currency-rupee"></i></span>
+                    Financial Summary
+                </div>
+                <div class="card-body">
+                    <!-- Amount Cards -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <div class="amount-card primary">
+                                <div class="label">Grand Total</div>
+                                <div class="amount">₹{{ invoice.grand_total|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="amount-card success">
+                                <div class="label">Paid</div>
+                                <div class="amount">₹{{ invoice.paid_amount|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="amount-card {% if invoice.balance_due > 0 %}danger{% else %}success{% endif %}">
+                                <div class="label">Balance Due</div>
+                                <div class="amount">₹{{ invoice.balance_due|floatformat:2 }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GST Breakup -->
+                    {% if invoice.gst_type != 'non_gst' and invoice.tax_amount > 0 %}
+                    <hr>
+                    <h6 class="fw-semibold mb-2"><i class="bi bi-percent me-2"></i>GST Breakup</h6>
+                    <div class="gst-box">
+                        <div class="gst-row">
+                            <span>Subtotal</span>
+                            <span>₹{{ invoice.subtotal|floatformat:2 }}</span>
+                        </div>
+                        <div class="gst-row">
+                            <span>Discount</span>
+                            <span>-₹{{ invoice.discount_amount|floatformat:2 }}</span>
+                        </div>
+                        {% if invoice.gst_type == 'intrastate' %}
+                            {% with cgst=invoice.tax_amount|divide:2 sgst=invoice.tax_amount|divide:2 %}
+                            <div class="gst-row">
+                                <span>CGST ({{ invoice.default_tax_rate|default:9|floatformat:1 }}%)</span>
+                                <span>₹{{ cgst|floatformat:2 }}</span>
+                            </div>
+                            <div class="gst-row">
+                                <span>SGST ({{ invoice.default_tax_rate|default:9|floatformat:1 }}%)</span>
+                                <span>₹{{ sgst|floatformat:2 }}</span>
+                            </div>
+                            {% endwith %}
+                        {% elif invoice.gst_type == 'interstate' %}
+                            <div class="gst-row">
+                                <span>IGST ({{ invoice.default_tax_rate|default:18|floatformat:1 }}%)</span>
+                                <span>₹{{ invoice.tax_amount|floatformat:2 }}</span>
+                            </div>
+                        {% else %}
+                            <div class="gst-row">
+                                <span>Total Tax</span>
+                                <span>₹{{ invoice.tax_amount|floatformat:2 }}</span>
+                            </div>
+                        {% endif %}
+                        <div class="gst-row fw-bold" style="border-top:1px solid #dee2e6; padding-top:0.5rem; margin-top:0.25rem;">
+                            <span>Grand Total</span>
+                            <span>₹{{ invoice.grand_total|floatformat:2 }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Actions Card -->
+            <div class="detail-card">
+                <div class="card-header">
+                    <span class="header-icon" style="color: #ffc107;"><i class="bi bi-lightning"></i></span>
+                    Quick Actions
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'customer:customer_invoice_print' invoice.pk %}" class="btn btn-outline-primary action-btn" target="_blank">
+                            <i class="bi bi-printer"></i> Print Invoice
+                        </a>
+                        <a href="{% url 'customer:customer_statement' %}" class="btn btn-outline-secondary action-btn">
+                            <i class="bi bi-file-text"></i> View My Statement
+                        </a>
+                        {% if repair_job %}
+                            <a href="{% url 'customer:customer_repair_detail' repair_job.pk %}" class="btn btn-outline-warning action-btn">
+                                <i class="bi bi-tools"></i> View Repair Details
+                            </a>
+                        {% endif %}
+                        {% if invoice.payment_status != 'paid' %}
+                            <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-outline-warning action-btn">
+                                <i class="bi bi-plus-circle"></i> New Repair Request
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

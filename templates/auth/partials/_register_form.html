@@ -1,0 +1,187 @@
+{% load static %}
+<form method="post" 
+      hx-post="{% url 'accounting:register' %}" 
+      hx-target="this" 
+      hx-swap="outerHTML"
+      hx-indicator="#register-spinner">
+    {% csrf_token %}
+
+    <!-- ============================================================ -->
+    <!-- 🍯 HONEYPOT FIELD – Hidden from real users (Bots trap)        -->
+    <!-- ============================================================ -->
+    {{ form.website }}
+
+    <!-- ===== USERNAME ===== -->
+    <div class="mb-3">
+        <label for="id_username" class="form-label fw-semibold">Username</label>
+        <input type="text" name="username" 
+               class="form-control {% if form.username.errors %}is-invalid{% endif %}"
+               id="id_username" 
+               placeholder="Choose a username"
+               hx-get="{% url 'accounting:validate_register_field' %}?field=username" 
+               hx-trigger="blur, keyup changed delay:500ms" 
+               hx-target="#username-errors" 
+               hx-swap="innerHTML"
+               hx-include="[name='username']"
+               value="{{ form.username.value|default:'' }}">
+        <div id="username-errors" class="mt-1">
+            {% if form.username.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for err in form.username.errors %}
+                        <span>{{ err }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ===== FULL NAME ===== -->
+    <div class="mb-3">
+        <label for="id_full_name" class="form-label fw-semibold">Full Name</label>
+        <input type="text" name="full_name" 
+               class="form-control {% if form.full_name.errors %}is-invalid{% endif %}"
+               id="id_full_name" 
+               placeholder="Your full name"
+               hx-get="{% url 'accounting:validate_register_field' %}?field=full_name" 
+               hx-trigger="blur, keyup changed delay:500ms" 
+               hx-target="#full_name-errors" 
+               hx-swap="innerHTML"
+               hx-include="[name='full_name']"
+               value="{{ form.full_name.value|default:'' }}">
+        <div id="full_name-errors" class="mt-1">
+            {% if form.full_name.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for err in form.full_name.errors %}
+                        <span>{{ err }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ===== EMAIL ===== -->
+    <div class="mb-3">
+        <label for="id_email" class="form-label fw-semibold">Email</label>
+        <input type="email" name="email" 
+               class="form-control {% if form.email.errors %}is-invalid{% endif %}"
+               id="id_email" 
+               placeholder="Email Address"
+               hx-get="{% url 'accounting:validate_register_field' %}?field=email" 
+               hx-trigger="blur, keyup changed delay:500ms" 
+               hx-target="#email-errors" 
+               hx-swap="innerHTML"
+               hx-include="[name='email']"
+               value="{{ form.email.value|default:'' }}">
+        <div id="email-errors" class="mt-1">
+            {% if form.email.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for err in form.email.errors %}
+                        <span>{{ err }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ===== PHONE ===== -->
+    <div class="mb-3">
+        <label for="id_phone" class="form-label fw-semibold">Phone</label>
+        <input type="tel" name="phone" 
+               class="form-control {% if form.phone.errors %}is-invalid{% endif %}"
+               id="id_phone" 
+               placeholder="10-digit Mobile Number"
+               hx-get="{% url 'accounting:validate_register_field' %}?field=phone" 
+               hx-trigger="blur, keyup changed delay:500ms" 
+               hx-target="#phone-errors" 
+               hx-swap="innerHTML"
+               hx-include="[name='phone']"
+               value="{{ form.phone.value|default:'' }}">
+        <div id="phone-errors" class="mt-1">
+            {% if form.phone.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for err in form.phone.errors %}
+                        <span>{{ err }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ===== PASSWORD 1 ===== -->
+    <div class="mb-3">
+        <label for="id_password1" class="form-label fw-semibold">Password</label>
+        <div class="input-group">
+            <input type="password" name="password1" 
+                   class="form-control {% if form.password1.errors %}is-invalid{% endif %}"
+                   id="id_password1" 
+                   placeholder="Min 8 characters" 
+                   required>
+            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('id_password1', 'eye-icon-1')">
+                <i class="bi bi-eye-slash" id="eye-icon-1"></i>
+            </button>
+        </div>
+        <div id="password1-errors" class="mt-1">
+            {% if form.password1.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for err in form.password1.errors %}
+                        <span>{{ err }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ===== PASSWORD 2 ===== -->
+    <div class="mb-3">
+        <label for="id_password2" class="form-label fw-semibold">Confirm Password</label>
+        <div class="input-group">
+            <input type="password" name="password2" 
+                   class="form-control {% if form.password2.errors %}is-invalid{% endif %}"
+                   id="id_password2" 
+                   placeholder="Re-enter password" 
+                   required>
+            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('id_password2', 'eye-icon-2')">
+                <i class="bi bi-eye-slash" id="eye-icon-2"></i>
+            </button>
+        </div>
+        <div id="password2-errors" class="mt-1">
+            {% if form.password2.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for err in form.password2.errors %}
+                        <span>{{ err }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Non-field errors -->
+    {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2">
+            {% for err in form.non_field_errors %}
+                <span>{{ err }}</span>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold mt-2" id="register-btn">
+        <span id="register-spinner" class="spinner-border spinner-border-sm htmx-indicator d-none" role="status" aria-hidden="true"></span>
+        <span id="register-text">Register</span>
+    </button>
+</form>
+
+<script>
+function togglePasswordVisibility(fieldId, iconId) {
+    const input = document.getElementById(fieldId);
+    const icon = document.getElementById(iconId);
+    if (input.type === "password") {
+        input.type = "text";
+        icon.classList.remove("bi-eye-slash");
+        icon.classList.add("bi-eye");
+    } else {
+        input.type = "password";
+        icon.classList.remove("bi-eye");
+        icon.classList.add("bi-eye-slash");
+    }
+}
+</script>

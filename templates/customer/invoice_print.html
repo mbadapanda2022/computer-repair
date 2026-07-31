@@ -1,0 +1,609 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{ invoice.invoice_number }} – {{ company.name|default:"A1 Computer Solutions" }}</title>
+    <style>
+        /* ============================================================
+           PAGE SETUP — Remove browser header/footer
+           ============================================================ */
+        @page {
+            margin: 0.6cm 0.8cm;
+            size: A4;
+        }
+        
+        /* ============================================================
+           PRINT STYLES
+           ============================================================ */
+        @media print {
+            body { 
+                font-size: 9pt; 
+                background: #fff; 
+                color: #333;
+                line-height: 1.3;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print { 
+                display: none !important; 
+            }
+            .page-break {
+                page-break-after: always;
+            }
+            .header, .footer, .totals-box {
+                page-break-inside: avoid;
+            }
+            /* Hide browser default header/footer */
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+        }
+        
+        /* ============================================================
+           SCREEN STYLES
+           ============================================================ */
+        body { 
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif; 
+            color: #333; 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            padding: 15px; 
+            background: #fff; 
+        }
+        
+        /* ============================================================
+           HEADER — Logo + Company Name Side by Side
+           ============================================================ */
+        .header { 
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header .company-logo { 
+            max-height: 45px; 
+            width: auto;
+            display: block;
+        }
+        .header .company-name { 
+            font-size: 16pt; 
+            font-weight: 700; 
+            color: #1a1a2e; 
+            margin: 0;
+        }
+        .header .company-details { 
+            font-size: 7.5pt; 
+            color: #6c757d; 
+            text-align: right;
+            line-height: 1.3;
+            margin: 0;
+        }
+        
+        /* ============================================================
+           TITLE
+           ============================================================ */
+        .page-title { 
+            text-align: center; 
+            font-size: 13pt; 
+            font-weight: 700; 
+            color: #0d6efd; 
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
+        /* ============================================================
+           INFO GRID — Compact
+           ============================================================ */
+        .info-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr 1fr; 
+            gap: 4px 15px; 
+            margin-bottom: 8px; 
+            background: #f8f9fa; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+        }
+        .info-grid .info-item { 
+            display: flex; 
+            align-items: baseline;
+            gap: 4px;
+        }
+        .info-grid .info-item .label { 
+            font-size: 7pt; 
+            color: #6c757d; 
+            text-transform: uppercase; 
+            letter-spacing: 0.3px; 
+            font-weight: 600;
+            min-width: 50px;
+        }
+        .info-grid .info-item .value { 
+            font-size: 9pt; 
+            font-weight: 500; 
+        }
+        .info-grid .info-item .value .badge-print {
+            font-size: 7.5pt;
+            padding: 1px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            border: 1px solid #ddd;
+        }
+        .badge-print.paid { background: #d4edda; color: #155724; border-color: #28a745; }
+        .badge-print.partial { background: #fff3cd; color: #856404; border-color: #ffc107; }
+        .badge-print.unpaid { background: #f8d7da; color: #721c24; border-color: #dc3545; }
+        
+        .info-full {
+            grid-column: 1 / -1;
+        }
+        
+        /* ============================================================
+           REPAIR CONTEXT SECTION (If linked to repair)
+           ============================================================ */
+        .repair-section {
+            background: #f0f7ff;
+            border-left: 3px solid #0d6efd;
+            padding: 8px 12px;
+            margin: 6px 0 10px 0;
+            border-radius: 4px;
+        }
+        .repair-section .repair-title {
+            font-weight: 600;
+            font-size: 9pt;
+            color: #0d6efd;
+            margin-bottom: 4px;
+        }
+        .repair-section .repair-row {
+            display: grid;
+            grid-template-columns: 100px 1fr;
+            gap: 6px;
+            padding: 2px 0;
+            font-size: 8.5pt;
+        }
+        .repair-section .repair-row .rlabel {
+            color: #6c757d;
+            font-weight: 500;
+        }
+        .repair-section .repair-row .rvalue {
+            font-weight: 500;
+        }
+        .repair-section .repair-row .rvalue .badge-print {
+            font-size: 7pt;
+            padding: 1px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            border: 1px solid #ddd;
+        }
+        .badge-print.pending { background: #e9ecef; color: #495057; border-color: #ced4da; }
+        .badge-print.diagnosis { background: #cce5ff; color: #004085; border-color: #b8daff; }
+        .badge-print.repairing { background: #fff3cd; color: #856404; border-color: #ffc107; }
+        .badge-print.ready { background: #cce5ff; color: #004085; border-color: #b8daff; }
+        .badge-print.delivered { background: #d4edda; color: #155724; border-color: #28a745; }
+        .badge-print.cancelled { background: #f8d7da; color: #721c24; border-color: #dc3545; }
+        
+        /* ============================================================
+           TABLE — Compact
+           ============================================================ */
+        .table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 8.5pt; 
+            margin: 6px 0;
+        }
+        .table th, .table td { 
+            border: 1px solid #dee2e6; 
+            padding: 3px 6px; 
+        }
+        .table th { 
+            background: #e9ecef; 
+            font-weight: 600; 
+            text-align: left;
+            font-size: 7.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .table .text-end { text-align: right; }
+        .table .text-center { text-align: center; }
+        .table .fw-bold { font-weight: 700; }
+        .table .total-row td {
+            font-weight: 700;
+            border-top: 2px solid #0d6efd;
+        }
+        .table .grand-total td {
+            font-weight: 700;
+            font-size: 10pt;
+            background: #e9ecef;
+            border-top: 2px solid #0d6efd;
+        }
+        .table .grand-total .amount {
+            color: #0d6efd;
+        }
+        
+        /* ============================================================
+           GST BREAKUP — Compact
+           ============================================================ */
+        .gst-box {
+            display: flex;
+            justify-content: flex-end;
+            gap: 20px;
+            padding: 4px 12px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin: 4px 0;
+            font-size: 8.5pt;
+        }
+        .gst-box .gst-item {
+            display: flex;
+            gap: 6px;
+        }
+        .gst-box .gst-item .label {
+            color: #6c757d;
+        }
+        .gst-box .gst-item .value {
+            font-weight: 500;
+        }
+        
+        /* ============================================================
+           NO ITEMS MESSAGE
+           ============================================================ */
+        .no-items {
+            text-align: center;
+            color: #6c757d;
+            font-size: 8.5pt;
+            padding: 6px;
+        }
+        
+        /* ============================================================
+           FOOTER — Compact
+           ============================================================ */
+        .footer { 
+            text-align: center; 
+            border-top: 1px solid #dee2e6; 
+            padding-top: 6px; 
+            margin-top: 8px; 
+            font-size: 7pt; 
+            color: #6c757d; 
+        }
+        .footer .signature { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-top: 10px; 
+            padding-top: 8px;
+        }
+        .footer .signature .sig-block { 
+            text-align: center; 
+            font-size: 7.5pt;
+        }
+        .footer .signature .sig-line { 
+            width: 150px; 
+            border-top: 1px solid #333; 
+            margin: 2px auto 0;
+        }
+        
+        /* ============================================================
+           BUTTONS (Screen Only)
+           ============================================================ */
+        .no-print { 
+            margin-top: 15px; 
+            text-align: center; 
+        }
+        .btn { 
+            padding: 6px 16px; 
+            border: none; 
+            border-radius: 4px; 
+            font-size: 10pt; 
+            cursor: pointer; 
+            text-decoration: none; 
+            display: inline-block; 
+            margin: 0 4px; 
+            font-weight: 500;
+        }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .btn-success { background: #28a745; color: #fff; }
+        
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .header-left {
+                flex-direction: column;
+                align-items: center;
+            }
+            .header .company-details {
+                text-align: center;
+            }
+            .info-grid { 
+                grid-template-columns: 1fr; 
+                gap: 2px;
+            }
+            .info-grid .info-item {
+                flex-wrap: wrap;
+            }
+            .repair-section .repair-row {
+                grid-template-columns: 1fr;
+                gap: 2px;
+            }
+            .gst-box {
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 2px;
+            }
+            .footer .signature { 
+                flex-direction: column; 
+                align-items: center; 
+                gap: 10px;
+            }
+            .footer .signature .sig-line { 
+                width: 120px; 
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================ -->
+    <!-- HEADER — Logo + Company Name Side by Side                    -->
+    <!-- ============================================================ -->
+    <div class="header">
+        <div class="header-left">
+            {% if logo_exists %}
+                <img src="{{ company.logo.url }}" alt="Logo" class="company-logo">
+            {% endif %}
+            <div>
+                <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+                <div style="font-size:7.5pt; color:#6c757d; margin-top:1px;">
+                    {% if company.phone %}{{ company.phone }}{% endif %}
+                    {% if company.email %}{% if company.phone %} | {% endif %}{{ company.email }}{% endif %}
+                    {% if company.gstin %}{% if company.email or company.phone %} | {% endif %}GST: {{ company.gstin }}{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="company-details">
+            {{ company.address|default:"" }}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TITLE                                                         -->
+    <!-- ============================================================ -->
+    <div class="page-title">
+        Invoice #{{ invoice.invoice_number }}
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- INFO GRID — Compact                                          -->
+    <!-- ============================================================ -->
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="label">Date</span>
+            <span class="value">{{ invoice.date|date:"d M Y" }}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Due Date</span>
+            <span class="value">{{ invoice.due_date|date:"d M Y"|default:"—" }}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Status</span>
+            <span class="value">
+                <span class="badge-print {{ invoice.payment_status }}">
+                    {{ invoice.get_payment_status_display }}
+                </span>
+            </span>
+        </div>
+        <div class="info-item info-full">
+            <span class="label">Customer</span>
+            <span class="value">{{ invoice.customer.name }}</span>
+        </div>
+        {% if invoice.customer.phone %}
+        <div class="info-item">
+            <span class="label">Phone</span>
+            <span class="value">{{ invoice.customer.phone }}</span>
+        </div>
+        {% endif %}
+        <div class="info-item">
+            <span class="label">GST Type</span>
+            <span class="value">{{ invoice.get_gst_type_display }}</span>
+        </div>
+        {% if invoice.notes %}
+        <div class="info-item info-full">
+            <span class="label">Notes</span>
+            <span class="value">{{ invoice.notes }}</span>
+        </div>
+        {% endif %}
+        {% if repair_job %}
+        <div class="info-item info-full" style="margin-top:2px;">
+            <span class="label">Repair #</span>
+            <span class="value">{{ repair_job.job_number }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- REPAIR CONTEXT (If invoice is linked to repair)              -->
+    <!-- ============================================================ -->
+    {% if repair_job %}
+    <div class="repair-section">
+        <div class="repair-title"><i class="bi bi-tools"></i> Repair Details</div>
+        <div class="repair-row">
+            <span class="rlabel">Device</span>
+            <span class="rvalue">{{ repair_job.device_model }}</span>
+        </div>
+        <div class="repair-row">
+            <span class="rlabel">Issue</span>
+            <span class="rvalue">{{ repair_job.issue_description }}</span>
+        </div>
+        {% if repair_job.diagnosis_report %}
+        <div class="repair-row">
+            <span class="rlabel">Diagnosis</span>
+            <span class="rvalue">{{ repair_job.diagnosis_report }}</span>
+        </div>
+        {% endif %}
+        {% if repair_job.action_taken %}
+        <div class="repair-row">
+            <span class="rlabel">Action Taken</span>
+            <span class="rvalue">{{ repair_job.action_taken }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- ITEMS TABLE — Compact                                        -->
+    <!-- ============================================================ -->
+    {% if invoice.items.all %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width:5%;">#</th>
+                <th style="width:40%;">Product</th>
+                <th class="text-center" style="width:12%;">Qty</th>
+                <th class="text-end" style="width:16%;">Unit Price</th>
+                <th class="text-end" style="width:12%;">Tax</th>
+                <th class="text-end" style="width:15%;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in invoice.items.all %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    {{ item.product.name }}
+                    {% if item.description %}
+                        <br><span style="font-size:7pt; color:#6c757d;">{{ item.description }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                <td class="text-end">
+                    {% if item.tax_rate > 0 %}
+                        <span style="font-size:7pt;">{{ item.tax_rate }}%</span>
+                        <br><span style="font-size:7pt; color:#6c757d;">₹{{ item.tax_amount|floatformat:2 }}</span>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            <!-- Totals -->
+            <tr class="total-row">
+                <td colspan="4" class="text-end fw-bold">Subtotal</td>
+                <td colspan="2" class="text-end">₹{{ invoice.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% if invoice.discount_amount > 0 %}
+            <tr class="total-row">
+                <td colspan="4" class="text-end fw-bold text-danger">Discount</td>
+                <td colspan="2" class="text-end text-danger">-₹{{ invoice.discount_amount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            <tr class="total-row">
+                <td colspan="4" class="text-end fw-bold">Tax</td>
+                <td colspan="2" class="text-end">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+            </tr>
+            <tr class="grand-total">
+                <td colspan="4" class="text-end fw-bold" style="font-size:10pt;">Grand Total</td>
+                <td colspan="2" class="text-end amount" style="font-size:12pt; font-weight:700;">
+                    ₹{{ invoice.grand_total|floatformat:2 }}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    {% else %}
+    <div class="no-items">
+        <i class="bi bi-box"></i> No items in this invoice.
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- GST BREAKUP (if applicable)                                  -->
+    <!-- ============================================================ -->
+    {% if invoice.gst_type != 'non_gst' and invoice.tax_amount > 0 %}
+    <div class="gst-box">
+        {% if invoice.gst_type == 'intrastate' %}
+            <div class="gst-item">
+                <span class="label">CGST (9%)</span>
+                <span class="value">₹{{ gst_breakup.cgst|floatformat:2 }}</span>
+            </div>
+            <div class="gst-item">
+                <span class="label">SGST (9%)</span>
+                <span class="value">₹{{ gst_breakup.sgst|floatformat:2 }}</span>
+            </div>
+        {% elif invoice.gst_type == 'interstate' %}
+            <div class="gst-item">
+                <span class="label">IGST (18%)</span>
+                <span class="value">₹{{ gst_breakup.igst|floatformat:2 }}</span>
+            </div>
+        {% else %}
+            <div class="gst-item">
+                <span class="label">Total Tax</span>
+                <span class="value">₹{{ invoice.tax_amount|floatformat:2 }}</span>
+            </div>
+        {% endif %}
+        <div class="gst-item fw-bold">
+            <span class="label">Grand Total</span>
+            <span class="value">₹{{ invoice.grand_total|floatformat:2 }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- FOOTER — Compact                                             -->
+    <!-- ============================================================ -->
+    <div class="footer">
+        <p style="margin:2px 0;">
+            This is a computer-generated invoice.
+            <span style="margin:0 6px;">|</span>
+            © {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}
+            <span style="margin:0 6px;">|</span>
+            Generated: {% now "d M Y, h:i A" %}
+        </p>
+        
+        <!-- Signature Area -->
+        <div class="signature">
+            <div class="sig-block">
+                <div>Customer Signature</div>
+                <div class="sig-line"></div>
+                <div style="font-size:6.5pt; color:#6c757d;">Date: ________</div>
+            </div>
+            <div class="sig-block">
+                <div>Authorized Signature</div>
+                <div class="sig-line"></div>
+                <div style="font-size:6.5pt; color:#6c757d;">Date: ________</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ACTION BUTTONS (Screen Only)                                 -->
+    <!-- ============================================================ -->
+    <div class="no-print">
+        <hr>
+        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            <button onclick="window.print()" class="btn btn-primary">
+                🖨️ Print / PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-secondary">
+                ✕ Close
+            </button>
+            <a href="{% url 'customer:customer_invoice_detail' invoice.pk %}" class="btn btn-success">
+                ← Back to Invoice
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>

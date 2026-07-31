@@ -1,0 +1,35 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'admin/css/custom_admin.css' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block branding %}
+    <div id="site-name">
+        <a href="{% url 'admin:index' %}">
+            <i class="bi bi-laptop" style="font-size:1.5rem; margin-right:8px;"></i>
+            {{ site_header|default:_('Django administration') }}
+        </a>
+    </div>
+    {% if user.is_authenticated %}
+        <div class="admin-user-info">
+            <i class="bi bi-person-circle"></i> 
+            <span>{{ user.get_full_name|default:user.username }}</span>
+            <a href="{% url 'admin:logout' %}" class="logout-link"><i class="bi bi-box-arrow-right"></i></a>
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block extrajs %}
+    {{ block.super }}
+    <script src="{% static 'admin/js/custom_admin.js' %}"></script>
+{% endblock %}

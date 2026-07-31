@@ -1,0 +1,30 @@
+{% load math_filters %}
+
+<div class="table-responsive">
+    <table class="table table-sm table-hover">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>Reference</th>
+                <th>Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for move in movements %}
+            <tr>
+                <td>{{ move.date|date:"d M Y H:i" }}</td>
+                <td><span class="badge bg-secondary">{{ move.get_movement_type_display }}</span></td>
+                <td class="{% if move.quantity > 0 %}text-success{% else %}text-danger{% endif %}">
+                    {{ move.quantity|floatformat:0 }}
+                </td>
+                <td>{{ move.reference|default:"—" }}</td>
+                <td>{{ move.notes|default:"—" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted">No stock history.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

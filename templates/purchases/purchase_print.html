@@ -1,0 +1,107 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Purchase #{{ purchase.purchase_number }}</title>
+    <style>
+        @media print {
+            body { font-size: 12pt; margin: 1.5cm; }
+            .no-print { display: none !important; }
+            .table { width: 100%; border-collapse: collapse; }
+            .table th, .table td { border: 1px solid #000; padding: 5px; }
+            .text-end { text-align: right; }
+            .text-center { text-align: center; }
+            .fw-bold { font-weight: bold; }
+            .badge { background: #000; color: #fff; padding: 2px 6px; }
+        }
+        body { font-family: 'Inter', sans-serif; color: #333; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 10pt; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { border: 1px solid #ddd; padding: 6px 10px; }
+        .table th { background: #f5f5f5; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: bold; }
+        .summary { margin-top: 20px; }
+        .badge { background: #28a745; color: #fff; padding: 2px 8px; border-radius: 4px; }
+        .badge-warning { background: #ffc107; color: #000; }
+        .no-print { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% if logo_exists %}
+            <img src="{{ company.logo.url }}" alt="Logo" height="60"><br>
+        {% endif %}
+        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <p>{{ company.address|default:"" }}<br>
+        Phone: {{ company.phone|default:"" }} | GST: {{ company.gstin|default:"N/A" }}</p>
+    </div>
+
+    <h3>Purchase Invoice #{{ purchase.purchase_number }}</h3>
+    <table class="table">
+        <tr>
+            <td><strong>Date:</strong> {{ purchase.date|date:"d M Y" }}</td>
+            <td><strong>Vendor:</strong> {{ purchase.vendor.name }}</td>
+        </tr>
+        <tr>
+            <td><strong>GST Type:</strong> {{ purchase.get_gst_type_display }}</td>
+            <td><strong>Status:</strong> {% if purchase.paid %}Paid{% else %}Unpaid{% endif %}</td>
+        </tr>
+        <tr><td colspan="2"><strong>Notes:</strong> {{ purchase.notes|default:"—" }}</td></tr>
+    </table>
+
+    <h4>Items</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th class="text-center">Qty</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Tax %</th>
+                <th class="text-end">Line Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in purchase.items.all %}
+            <tr>
+                <td>{{ item.product.name }}</td>
+                <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                <td class="text-end">₹{{ item.line_total|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center">No items.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="4" class="text-end">Subtotal</th>
+                <th class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</th>
+            </tr>
+            <tr>
+                <th colspan="4" class="text-end">Tax Amount</th>
+                <th class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</th>
+            </tr>
+            <tr>
+                <th colspan="4" class="text-end fw-bold">Grand Total</th>
+                <th class="text-end fw-bold">₹{{ purchase.grand_total|floatformat:2 }}</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <p class="mt-3"><strong>Amount in Words:</strong> {{ purchase.grand_total|floatformat:2 }}</p>
+
+    <div class="footer">
+        <p>Thank you for your business!</p>
+        <p>This is a computer-generated invoice. No signature required.</p>
+    </div>
+
+    <div class="no-print text-center mt-4">
+        <button onclick="window.print()" class="btn btn-primary">🖨️ Print</button>
+        <button onclick="window.close()" class="btn btn-secondary">Close</button>
+    </div>
+</body>
+</html>

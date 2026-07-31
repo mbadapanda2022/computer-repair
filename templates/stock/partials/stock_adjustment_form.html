@@ -1,0 +1,87 @@
+{% load static %}
+<form method="post" 
+      hx-post="{% url 'accounting:stock_adjustment_add' %}" 
+      hx-target="#mainModalContent" 
+      hx-swap="innerHTML"
+      id="stockForm"
+      novalidate>
+    {% csrf_token %}
+    
+    <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>New Stock Adjustment</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    
+    <div class="modal-body">
+        <!-- Non-field errors -->
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <div class="mb-3">
+            <label for="id_product" class="form-label fw-semibold">Product *</label>
+            <select name="product" id="id_product" class="form-select" required>
+                <option value="">---------</option>
+                {% for product in form.fields.product.queryset %}
+                    <option value="{{ product.id }}" {% if form.product.value == product.id %}selected{% endif %}>
+                        {{ product.name }} (Current Stock: {{ product.current_stock|floatformat:0 }})
+                    </option>
+                {% endfor %}
+            </select>
+            <div class="invalid-feedback">{{ form.product.errors|join:", " }}</div>
+        </div>
+        
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_movement_type" class="form-label fw-semibold">Movement Type *</label>
+                <select name="movement_type" id="id_movement_type" class="form-select" required>
+                    {% for value, label in form.fields.movement_type.choices %}
+                        <option value="{{ value }}" {% if form.movement_type.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="invalid-feedback">{{ form.movement_type.errors|join:", " }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_quantity" class="form-label fw-semibold">Quantity *</label>
+                <input type="number" name="quantity" id="id_quantity" step="any" 
+                       class="form-control" value="{{ form.quantity.value|default:'0' }}" required>
+                <small class="text-muted">Use positive for addition, negative for removal</small>
+                <div class="invalid-feedback">{{ form.quantity.errors|join:", " }}</div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_reference" class="form-label fw-semibold">Reference</label>
+                <input type="text" name="reference" id="id_reference" 
+                       class="form-control" value="{{ form.reference.value|default:'' }}" placeholder="e.g., ADJ-001">
+                <div class="invalid-feedback">{{ form.reference.errors|join:", " }}</div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_date" class="form-label fw-semibold">Date *</label>
+                <input type="datetime-local" name="date" id="id_date" 
+                       class="form-control" value="{{ form.date.value|default:''|date:'Y-m-d\TH:i' }}" required>
+                <div class="invalid-feedback">{{ form.date.errors|join:", " }}</div>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <label for="id_notes" class="form-label fw-semibold">Notes / Reason *</label>
+            <textarea name="notes" id="id_notes" rows="2" 
+                      class="form-control" required>{{ form.notes.value|default:'' }}</textarea>
+            <small class="text-muted">Please provide reason for adjustment (e.g., Damaged, Physical count, Sample)</small>
+            <div class="invalid-feedback">{{ form.notes.errors|join:", " }}</div>
+        </div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle"></i> Save Adjustment
+        </button>
+    </div>
+</form>

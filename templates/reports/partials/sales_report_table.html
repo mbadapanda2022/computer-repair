@@ -1,0 +1,126 @@
+{% load math_filters %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Invoice #</th>
+                        <th>Customer</th>
+                        <th class="text-end">Subtotal (₹)</th>
+                        <th class="text-end">Discount (₹)</th>
+                        <th class="text-end">Tax (₹)</th>
+                        <th class="text-end">Grand Total (₹)</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inv in invoices %}
+                    <tr>
+                        <td>{{ inv.date|date:"d M Y" }}</td>
+                        <td>
+                            <a href="{% url 'accounting:invoice_detail' inv.id %}" target="_blank">
+                                {{ inv.invoice_number }}
+                            </a>
+                        </td>
+                        <td>{{ inv.customer.name }}</td>
+                        <td class="text-end">₹{{ inv.subtotal|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ inv.discount_amount|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ inv.tax_amount|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ inv.grand_total|floatformat:2 }}</td>
+                        <td>
+                            <span class="badge 
+                                {% if inv.payment_status == 'paid' %}bg-success
+                                {% elif inv.payment_status == 'partial' %}bg-warning
+                                {% else %}bg-danger{% endif %}">
+                                {{ inv.get_payment_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-muted">
+                            <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                            No sales found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- COMPLETE PAGINATION                                          -->
+    <!-- ============================================================ -->
+    {% if page_obj and page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0">
+        <nav aria-label="Sales report pagination">
+            <ul class="pagination justify-content-center mb-0">
+                
+                <!-- First Page -->
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:sales_report' %}?page=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}" 
+                       hx-target="#report-table-container"
+                       hx-push-url="true">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                
+                <!-- Previous Page -->
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:sales_report' %}?page={{ page_obj.previous_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}" 
+                       hx-target="#report-table-container"
+                       hx-push-url="true">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <!-- Current Page Indicator -->
+                <li class="page-item active">
+                    <span class="page-link">
+                        {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+                    </span>
+                </li>
+
+                <!-- Next Page -->
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:sales_report' %}?page={{ page_obj.next_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}" 
+                       hx-target="#report-table-container"
+                       hx-push-url="true">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                
+                <!-- Last Page -->
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:sales_report' %}?page={{ page_obj.paginator.num_pages }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}" 
+                       hx-target="#report-table-container"
+                       hx-push-url="true">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+    <!-- Footer Info -->
+    <div class="card-footer bg-white text-muted small border-0">
+        <i class="bi bi-info-circle"></i> 
+        Showing {{ invoices|length }} of {{ page_obj.paginator.count }} entries.
+        {% if page_obj %}
+            <span class="float-end">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% endif %}
+    </div>
+</div>

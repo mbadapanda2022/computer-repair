@@ -1,0 +1,8 @@
+<!-- templates/notifications/partials/badge.html-->
+{% if count > 0 %}
+    {{ count }}
+    <span class="visually-hidden">unread notifications</span>
+{% else %}
+    <span class="visually-hidden">No unread notifications</span>
+{% endif %}
+

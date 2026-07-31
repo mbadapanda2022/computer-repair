@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-journal-bookmark-fill text-primary me-2"></i>Journal Entries
+            </h3>
+            <p class="text-muted small mt-1">Manage all journal transactions</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" 
+                    hx-get="{% url 'accounting:journal_create' %}" 
+                    hx-target="#mainModalContent" 
+                    hx-trigger="click">
+                <i class="bi bi-plus-circle"></i> New Journal
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form id="journal-filter-form" class="row g-3">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Search..." 
+                               name="search" value="{{ search }}"
+                               hx-get="{% url 'accounting:journal_list' %}" 
+                               hx-trigger="keyup changed delay:300ms" 
+                               hx-target="#journal-table-container"
+                               hx-include="#journal-filter-form"
+                               hx-push-url="true">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="entry_type" 
+                            hx-get="{% url 'accounting:journal_list' %}" 
+                            hx-trigger="change" 
+                            hx-target="#journal-table-container"
+                            hx-include="#journal-filter-form"
+                            hx-push-url="true">
+                        <option value="">All Types</option>
+                        <option value="discount" {% if entry_type_filter == 'discount' %}selected{% endif %}>Discount</option>
+                        <option value="advance_received" {% if entry_type_filter == 'advance_received' %}selected{% endif %}>Advance Received</option>
+                        <option value="advance_paid" {% if entry_type_filter == 'advance_paid' %}selected{% endif %}>Advance Paid</option>
+                        <option value="payment" {% if entry_type_filter == 'payment' %}selected{% endif %}>Payment (Vendor)</option>
+                        <option value="receipt" {% if entry_type_filter == 'receipt' %}selected{% endif %}>Receipt (Customer)</option>
+                        <option value="general" {% if entry_type_filter == 'general' %}selected{% endif %}>General</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                           hx-get="{% url 'accounting:journal_list' %}" 
+                           hx-trigger="change" 
+                           hx-target="#journal-table-container"
+                           hx-include="#journal-filter-form"
+                           hx-push-url="true">
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                           hx-get="{% url 'accounting:journal_list' %}" 
+                           hx-trigger="change" 
+                           hx-target="#journal-table-container"
+                           hx-include="#journal-filter-form"
+                           hx-push-url="true">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-secondary w-100" 
+                            hx-get="{% url 'accounting:journal_list' %}" 
+                            hx-target="#journal-table-container"
+                            hx-include="#journal-filter-form"
+                            hx-vals='{"reset": "true"}'
+                            hx-push-url="true">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div id="journal-table-container">
+        {% include "journal/partials/journal_table.html" %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+<div class="text-center py-4">
+    <div class="mb-3">
+        <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+    </div>
+    <h5 class="fw-bold">Product Created Successfully!</h5>
+    <p class="text-muted">
+        <strong>{{ product.name }}</strong> (₹{{ product.purchase_price|floatformat:2 }}) has been added to inventory.
+    </p>
+    <div class="spinner-border text-primary mt-3" role="status">
+        <span class="visually-hidden">Closing...</span>
+    </div>
+    <p class="small text-muted mt-2">Closing modal in a moment...</p>
+</div>
+
+<script>
+    (function() {
+        // Trigger productCreated event with product details
+        document.dispatchEvent(new CustomEvent('productCreated', {
+            detail: {
+                id: {{ product.id }},
+                name: '{{ product.name|escapejs }}',
+                price: '{{ product.purchase_price|floatformat:2 }}',
+                tax: '{{ product.tax_rate|floatformat:2 }}'
+            }
+        }));
+
+        // Close the modal after 1 second
+        setTimeout(function() {
+            document.dispatchEvent(new CustomEvent('closeModal'));
+        }, 1000);
+    })();
+</script>

@@ -1,0 +1,35 @@
+{% load math_filters %}
+
+{% if products %}
+    <div class="list-group mt-1 shadow-sm" style="max-height: 200px; overflow-y: auto;">
+        {% for product in products %}
+            <button type="button" class="list-group-item list-group-item-action product-suggestion py-1" 
+                    data-id="{{ product.id }}" 
+                    data-name="{{ product.name }}"
+                    data-price="{{ product.purchase_price }}"
+                    data-sellprice="{{ product.auto_price }}"
+                    data-stock="{{ product.current_stock }}"
+                    onmousedown="event.preventDefault();">
+                <div class="d-flex justify-content-between align-items-center">
+                    <strong>{{ product.name }}</strong>
+                    <span class="badge bg-secondary">Stock: {{ product.current_stock|floatformat:0 }}</span>
+                </div>
+                <small class="text-muted">
+                    HSN: {{ product.hsn_code|default:"N/A" }} | 
+                    Purchase: ₹{{ product.purchase_price|floatformat:2 }} | 
+                    Auto Price: ₹{{ product.auto_price|floatformat:2 }}
+                </small>
+            </button>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="text-muted small mt-1 p-2">
+        <i class="bi bi-info-circle"></i> No products found. 
+        <button type="button" class="btn btn-link btn-sm p-0" 
+                hx-get="{% url 'accounting:product_quick_add' %}" 
+                hx-target="#quickAddModalContent"
+                hx-trigger="click">
+            <i class="bi bi-plus-circle"></i> Add New Product
+        </button>
+    </div>
+{% endif %}

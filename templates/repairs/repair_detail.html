@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    
+    <!-- ============================================================ -->
+    <!-- HEADER WITH ACTION BUTTONS                                   -->
+    <!-- ============================================================ -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="bg-primary bg-opacity-10 p-3 rounded-3">
+                    <i class="bi bi-tools fs-2 text-primary"></i>
+                </div>
+                <div>
+                    <h3 class="fw-bold mb-0">{{ job.job_number }}</h3>
+                    <p class="text-muted small mb-0">
+                        <i class="bi bi-calendar3 me-1"></i> 
+                        Created: {{ job.date_in|date:"d M Y" }}
+                        {% if job.delivery_date %}
+                        | <i class="bi bi-check-circle text-success me-1"></i> 
+                        Delivered: {{ job.delivery_date|date:"d M Y" }}
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap mt-2 mt-md-0">
+            
+            <!-- Staff Approve Estimate Button -->
+            {% if job.estimate_status == 'pending' and job.estimated_cost %}
+                <button class="btn btn-success" 
+                        hx-get="{% url 'accounting:staff_approve_estimate' job.pk %}" 
+                        hx-target="#mainModalContent" 
+                        hx-trigger="click">
+                    <i class="bi bi-check-circle"></i> Approve Estimate
+                </button>
+            {% endif %}
+            
+            <!-- Create Invoice Button -->
+            {% if not job.invoice and job.status in 'ready,delivered' %}
+                <a href="{% url 'accounting:create_invoice_from_repair' job.pk %}" class="btn btn-success">
+                    <i class="bi bi-receipt"></i> Create Invoice
+                </a>
+            {% endif %}
+            
+            <!-- View Invoice Button -->
+            {% if job.invoice %}
+                <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}" class="btn btn-outline-primary">
+                    <i class="bi bi-receipt"></i> View Invoice
+                </a>
+            {% endif %}
+            
+            <!-- Edit Button -->
+            <a href="{% url 'accounting:repair_update' job.pk %}" class="btn btn-warning">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+            
+            <!-- Print Button -->
+            <a href="{% url 'accounting:repair_print' job.pk %}" class="btn btn-info text-white" target="_blank">
+                <i class="bi bi-printer"></i> Print
+            </a>
+            
+            <!-- Back Button -->
+            <a href="{% url 'accounting:repair_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- STATUS BANNER                                               -->
+    <!-- ============================================================ -->
+    <div class="alert 
+        {% if job.status == 'delivered' %}alert-success
+        {% elif job.status == 'cancelled' %}alert-danger
+        {% elif job.status == 'ready' %}alert-primary
+        {% elif job.status == 'repairing' %}alert-warning
+        {% elif job.status == 'diagnosis' %}alert-info
+        {% else %}alert-secondary{% endif %} 
+        d-flex align-items-center gap-3 mb-4">
+        <i class="bi 
+            {% if job.status == 'delivered' %}bi-check-circle-fill fs-3
+            {% elif job.status == 'cancelled' %}bi-x-circle-fill fs-3
+            {% elif job.status == 'ready' %}bi-check-circle fs-3
+            {% elif job.status == 'repairing' %}bi-arrow-repeat fs-3
+            {% elif job.status == 'diagnosis' %}bi-search fs-3
+            {% else %}bi-clock fs-3{% endif %}">
+        </i>
+        <div>
+            <strong class="fs-5">{{ job.get_status_display }}</strong>
+            <span class="text-muted ms-2">| {{ job.job_number }}</span>
+            <br>
+            <small>{{ job.customer.name }} • {{ job.device_model }}</small>
+        </div>
+        <div class="ms-auto">
+            <span class="badge fs-6 
+                {% if job.estimate_status == 'pending' %}bg-warning text-dark
+                {% elif job.estimate_status == 'approved' %}bg-success
+                {% elif job.estimate_status == 'rejected' %}bg-danger
+                {% elif job.estimate_status == 'on_hold' %}bg-secondary
+                {% else %}bg-secondary{% endif %}">
+                <i class="bi 
+                    {% if job.estimate_status == 'pending' %}bi-hourglass-split
+                    {% elif job.estimate_status == 'approved' %}bi-check-circle
+                    {% elif job.estimate_status == 'rejected' %}bi-x-circle
+                    {% elif job.estimate_status == 'on_hold' %}bi-pause-circle
+                    {% else %}bi-dash-circle{% endif %} me-1">
+                </i>
+                {{ job.get_estimate_status_display|default:"No Estimate" }}
+            </span>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- MAIN CONTENT ROW                                            -->
+    <!-- ============================================================ -->
+    <div class="row g-4">
+        
+        <!-- ===================== LEFT COLUMN ===================== -->
+        <div class="col-xl-7 col-lg-7">
+            
+            <!-- Customer & Device Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-person-circle text-primary me-2"></i>Customer & Device
+                    </h5>
+                    <a href="{% url 'accounting:contact_detail_modal' job.customer.pk %}" 
+                       class="btn btn-sm btn-outline-primary"
+                       hx-get="{% url 'accounting:contact_detail_modal' job.customer.pk %}"
+                       hx-target="#mainModalContent"
+                       hx-trigger="click">
+                        <i class="bi bi-eye"></i> View Customer
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-3">
+                                <i class="bi bi-person fs-3 text-primary"></i>
+                                <div>
+                                    <div class="fw-bold">{{ job.customer.name }}</div>
+                                    <small class="text-muted">
+                                        {% if job.customer.phone %}<i class="bi bi-phone me-1"></i>{{ job.customer.phone }}{% endif %}
+                                        {% if job.customer.email %}<br><i class="bi bi-envelope me-1"></i>{{ job.customer.email }}{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-3">
+                                <i class="bi bi-laptop fs-3 text-warning"></i>
+                                <div>
+                                    <div class="fw-bold">{{ job.device_model }}</div>
+                                    <small class="text-muted">
+                                        {% if job.serial_number %}
+                                            <i class="bi bi-upc-scan me-1"></i>SN: {{ job.serial_number }}
+                                        {% else %}
+                                            <span class="text-muted">No serial number</span>
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Description Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-file-text text-primary me-2"></i>Job Description
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 h-100">
+                                <small class="text-muted d-block mb-1">Issue Description</small>
+                                <p class="mb-0">{{ job.issue_description|default:"—" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 h-100">
+                                <small class="text-muted d-block mb-1">Diagnosis Report</small>
+                                <p class="mb-0">{{ job.diagnosis_report|default:"Not diagnosed yet" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded-3">
+                                <small class="text-muted d-block mb-1">Action Taken</small>
+                                <p class="mb-0">{{ job.action_taken|default:"No action recorded yet" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded-3">
+                                <small class="text-muted d-block mb-1">Accessories & Condition</small>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <strong>Accessories:</strong> {{ job.accessories|default:"—" }}
+                                    </div>
+                                    <div class="col-6">
+                                        <strong>Device Condition:</strong> {{ job.device_condition|default:"—" }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Delivery Details Card -->
+            {% if job.delivered_to_name or job.delivery_date or job.delivered_by %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-truck text-success me-2"></i>Delivery Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <small class="text-muted d-block mb-1">Delivered To</small>
+                                <div class="fw-bold">{{ job.delivered_to_name|default:"—" }}</div>
+                                <small class="text-muted">{{ job.delivered_to_designation|default:"" }}</small>
+                                {% if job.delivered_to_phone %}
+                                    <br><small><i class="bi bi-phone me-1"></i>{{ job.delivered_to_phone }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <small class="text-muted d-block mb-1">Delivery Details</small>
+                                <strong>Delivered By:</strong> {{ job.delivered_by|default:"—" }}<br>
+                                <strong>Delivery Date:</strong> {{ job.delivery_date|date:"d M Y"|default:"—" }}<br>
+                                {% if job.delivery_remarks %}
+                                    <strong>Remarks:</strong> {{ job.delivery_remarks }}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Notes Card -->
+            {% if job.notes %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-sticky-fill text-warning me-2"></i>Notes
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ job.notes }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ===================== RIGHT COLUMN ===================== -->
+        <div class="col-xl-5 col-lg-5">
+            
+            <!-- Financial Summary Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-currency-rupee text-success me-2"></i>Financial Summary
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3 text-center">
+                                <small class="text-muted d-block">Labour Charge</small>
+                                <span class="fw-bold fs-5">₹{{ job.labour_charge|floatformat:2 }}</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-3 bg-light rounded-3 text-center">
+                                <small class="text-muted d-block">Parts Total</small>
+                                <span class="fw-bold fs-5">₹{{ parts_total|floatformat:2 }}</span>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="p-3 bg-primary text-white rounded-3 text-center">
+                                <small class="d-block opacity-75">Final Amount</small>
+                                <span class="fw-bold fs-3">₹{{ job.final_amount|floatformat:2 }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Estimated Cost (if exists) -->
+                    {% if job.estimated_cost %}
+                        <hr>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Estimated Cost</span>
+                            <span class="fw-bold">₹{{ job.estimated_cost|floatformat:2 }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Status</span>
+                            <span class="badge 
+                                {% if job.estimate_status == 'pending' %}bg-warning text-dark
+                                {% elif job.estimate_status == 'approved' %}bg-success
+                                {% elif job.estimate_status == 'rejected' %}bg-danger
+                                {% elif job.estimate_status == 'on_hold' %}bg-secondary
+                                {% endif %}">
+                                {{ job.get_estimate_status_display }}
+                            </span>
+                        </div>
+                        {% if job.estimate_approved_at %}
+                            <div class="mt-2 p-2 bg-light rounded-3">
+                                <small class="text-muted d-block">Approved At: {{ job.estimate_approved_at|date:"d M Y H:i" }}</small>
+                                <small class="text-muted d-block">Approved By: {{ job.estimate_approved_by.get_full_name|default:job.estimate_approved_by.username }}</small>
+                                {% if job.approval_source %}
+                                    <small class="text-muted d-block">Source: {{ job.get_approval_source_display }}</small>
+                                {% endif %}
+                                {% if job.approval_remarks %}
+                                    <small class="text-muted d-block">Remarks: {{ job.approval_remarks }}</small>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Status Update Card -->
+            <div class="card border-0 shadow-sm mb-4" id="status-update-card">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-arrow-repeat text-primary me-2"></i>Update Status
+                    </h5>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            hx-get="{% url 'accounting:update_repair_status' job.pk %}" 
+                            hx-target="#status-row-container"
+                            hx-swap="innerHTML">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+                <div class="card-body" id="status-row-container">
+                    {% include "repairs/partials/status_row.html" %}
+                </div>
+            </div>
+
+            <!-- Quick Info Card -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-info-circle text-info me-2"></i>Quick Info
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Received By</small>
+                            <span class="fw-bold">{{ job.received_by|default:"—" }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Delivered By</small>
+                            <span class="fw-bold">{{ job.delivered_by|default:"—" }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Date In</small>
+                            <span class="fw-bold">{{ job.date_in|date:"d M Y" }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Delivery Date</small>
+                            <span class="fw-bold">{{ job.delivery_date|date:"d M Y"|default:"—" }}</span>
+                        </div>
+                        <div class="col-12">
+                            <hr>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="{% url 'accounting:customer_statement' job.customer.pk %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-file-text"></i> Statement
+                                </a>
+                                <a href="{% url 'accounting:customer_statement_whatsapp' job.customer.pk %}" 
+                                   class="btn btn-sm btn-outline-success" target="_blank">
+                                    <i class="bi bi-whatsapp"></i> WhatsApp
+                                </a>
+                                <a href="{% url 'accounting:repair_create_for_contact' job.customer.pk %}" 
+                                   class="btn btn-sm btn-outline-warning"
+                                   hx-get="{% url 'accounting:repair_create_for_contact' job.customer.pk %}"
+                                   hx-target="#mainModalContent"
+                                   hx-trigger="click">
+                                    <i class="bi bi-plus"></i> New Repair
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PARTS SECTION                                               -->
+    <!-- ============================================================ -->
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0">
+                <i class="bi bi-list-ul text-primary me-2"></i>Parts Used
+                <span class="badge bg-secondary ms-2">{{ parts|length }}</span>
+            </h5>
+            <button class="btn btn-sm btn-primary" 
+                    hx-get="{% url 'accounting:add_repair_part' job.pk %}" 
+                    hx-target="#mainModalContent" 
+                    hx-trigger="click">
+                <i class="bi bi-plus-circle"></i> Add Part
+            </button>
+        </div>
+        <div class="card-body p-0" id="parts-container">
+            {% include "repairs/partials/parts_with_totals.html" %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+<div class="modal-header">
+    <h5 class="modal-title">Message from {{ message.name }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+<div class="modal-body">
+    <p><strong>Email:</strong> {{ message.email }}</p>
+    <p><strong>Subject:</strong> {{ message.subject }}</p>
+    <p><strong>Status:</strong> 
+        <span class="badge 
+            {% if message.status == 'new' %}bg-warning text-dark
+            {% elif message.status == 'read' %}bg-info text-dark
+            {% elif message.status == 'replied' %}bg-success
+            {% elif message.status == 'spam' %}bg-danger
+            {% endif %}">
+            {{ message.get_status_display }}
+        </span>
+    </p>
+    <p><strong>Received:</strong> {{ message.created_at|date:"d M Y, H:i" }}</p>
+    <hr>
+    <p><strong>Message:</strong></p>
+    <div class="p-3 bg-light rounded">{{ message.message|linebreaks }}</div>
+    {% if message.replied_at %}
+        <p class="mt-2"><small>Replied on: {{ message.replied_at|date:"d M Y, H:i" }}</small></p>
+    {% endif %}
+</div>
+<div class="modal-footer">
+    <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+    <button class="btn btn-outline-info" 
+            hx-post="{% url 'accounting:message_mark_status' message.id %}"
+            hx-vals='{"status": "read"}'
+            hx-target="#message-row-{{ message.id }}"
+            hx-swap="outerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
+            data-bs-dismiss="modal">Mark Read</button>
+    <button class="btn btn-outline-success" 
+            hx-post="{% url 'accounting:message_mark_status' message.id %}"
+            hx-vals='{"status": "replied"}'
+            hx-target="#message-row-{{ message.id }}"
+            hx-swap="outerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
+            data-bs-dismiss="modal">Mark Replied</button>
+    <button class="btn btn-danger" 
+            hx-post="{% url 'accounting:message_delete' message.id %}"
+            hx-target="#message-row-{{ message.id }}"
+            hx-swap="outerHTML"
+            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
+            hx-confirm="Delete this message?"
+            data-bs-dismiss="modal">Delete</button>
+</div>

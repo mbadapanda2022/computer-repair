@@ -1,0 +1,518 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repair Job {{ repair.job_number }} – {{ company.name|default:"A1 Computer Solutions" }}</title>
+    <style>
+        /* ============================================================
+           PAGE SETUP — Remove browser header/footer
+           ============================================================ */
+        @page {
+            margin: 0.6cm 0.8cm;
+            size: A4;
+        }
+        
+        /* ============================================================
+           PRINT STYLES
+           ============================================================ */
+        @media print {
+            body { 
+                font-size: 9pt; 
+                background: #fff; 
+                color: #333;
+                line-height: 1.3;
+                margin: 0;
+                padding: 0;
+            }
+            .no-print { 
+                display: none !important; 
+            }
+            .page-break {
+                page-break-after: always;
+            }
+            .header, .footer, .totals-box {
+                page-break-inside: avoid;
+            }
+            /* Hide browser default header/footer */
+            html, body {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+        }
+        
+        /* ============================================================
+           SCREEN STYLES
+           ============================================================ */
+        body { 
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif; 
+            color: #333; 
+            max-width: 1100px; 
+            margin: 0 auto; 
+            padding: 15px; 
+            background: #fff; 
+        }
+        
+        /* ============================================================
+           HEADER — Logo + Company Name Side by Side
+           ============================================================ */
+        .header { 
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+        }
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header .company-logo { 
+            max-height: 45px; 
+            width: auto;
+            display: block;
+        }
+        .header .company-name { 
+            font-size: 16pt; 
+            font-weight: 700; 
+            color: #1a1a2e; 
+            margin: 0;
+        }
+        .header .company-details { 
+            font-size: 7.5pt; 
+            color: #6c757d; 
+            text-align: right;
+            line-height: 1.3;
+            margin: 0;
+        }
+        .header .company-details .divider {
+            margin: 0 4px;
+            color: #adb5bd;
+        }
+        
+        /* ============================================================
+           TITLE
+           ============================================================ */
+        .page-title { 
+            text-align: center; 
+            font-size: 13pt; 
+            font-weight: 700; 
+            color: #0d6efd; 
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
+        /* ============================================================
+           INFO GRID — Compact
+           ============================================================ */
+        .info-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 4px 15px; 
+            margin-bottom: 8px; 
+            background: #f8f9fa; 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+        }
+        .info-grid .info-item { 
+            display: flex; 
+            align-items: baseline;
+            gap: 4px;
+        }
+        .info-grid .info-item .label { 
+            font-size: 7pt; 
+            color: #6c757d; 
+            text-transform: uppercase; 
+            letter-spacing: 0.3px; 
+            font-weight: 600;
+            min-width: 60px;
+        }
+        .info-grid .info-item .value { 
+            font-size: 9pt; 
+            font-weight: 500; 
+        }
+        .info-grid .info-item .value .badge-print {
+            font-size: 7.5pt;
+            padding: 1px 8px;
+            border-radius: 3px;
+            font-weight: 600;
+            border: 1px solid #ddd;
+        }
+        .badge-print.pending { background: #e9ecef; color: #495057; }
+        .badge-print.diagnosis { background: #cce5ff; color: #004085; }
+        .badge-print.repairing { background: #fff3cd; color: #856404; }
+        .badge-print.ready { background: #cce5ff; color: #004085; }
+        .badge-print.delivered { background: #d4edda; color: #155724; }
+        .badge-print.cancelled { background: #f8d7da; color: #721c24; }
+        .badge-print.approved { background: #d4edda; color: #155724; }
+        .badge-print.rejected { background: #f8d7da; color: #721c24; }
+        .badge-print.on-hold { background: #e2e3e5; color: #383d41; }
+        .badge-print.pending-status { background: #fff3cd; color: #856404; }
+        
+        .info-full {
+            grid-column: 1 / -1;
+        }
+        
+        /* ============================================================
+           TABLE — Compact
+           ============================================================ */
+        .table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 8.5pt; 
+            margin: 6px 0;
+        }
+        .table th, .table td { 
+            border: 1px solid #dee2e6; 
+            padding: 3px 6px; 
+        }
+        .table th { 
+            background: #e9ecef; 
+            font-weight: 600; 
+            text-align: left;
+            font-size: 7.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .table .text-end { text-align: right; }
+        .table .text-center { text-align: center; }
+        .table .fw-bold { font-weight: 700; }
+        .table .total-row td {
+            font-weight: 700;
+            border-top: 2px solid #0d6efd;
+        }
+        .table .grand-total td {
+            font-weight: 700;
+            font-size: 10pt;
+            background: #e9ecef;
+            border-top: 2px solid #0d6efd;
+        }
+        .table .grand-total .amount {
+            color: #0d6efd;
+        }
+        
+        /* ============================================================
+           ESTIMATE STATUS — Compact
+           ============================================================ */
+        .estimate-status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 3px 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin: 4px 0;
+            font-size: 8.5pt;
+        }
+        .estimate-status-bar .label {
+            font-weight: 500;
+            color: #6c757d;
+        }
+        
+        /* ============================================================
+           FOOTER — Compact
+           ============================================================ */
+        .footer { 
+            text-align: center; 
+            border-top: 1px solid #dee2e6; 
+            padding-top: 6px; 
+            margin-top: 8px; 
+            font-size: 7pt; 
+            color: #6c757d; 
+        }
+        .footer .signature { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-top: 10px; 
+            padding-top: 8px;
+        }
+        .footer .signature .sig-block { 
+            text-align: center; 
+            font-size: 7.5pt;
+        }
+        .footer .signature .sig-line { 
+            width: 150px; 
+            border-top: 1px solid #333; 
+            margin: 2px auto 0;
+        }
+        
+        /* ============================================================
+           NO PARTS MESSAGE
+           ============================================================ */
+        .no-parts {
+            text-align: center;
+            color: #6c757d;
+            font-size: 8.5pt;
+            padding: 6px;
+        }
+        
+        /* ============================================================
+           BUTTONS (Screen Only)
+           ============================================================ */
+        .no-print { 
+            margin-top: 15px; 
+            text-align: center; 
+        }
+        .btn { 
+            padding: 6px 16px; 
+            border: none; 
+            border-radius: 4px; 
+            font-size: 10pt; 
+            cursor: pointer; 
+            text-decoration: none; 
+            display: inline-block; 
+            margin: 0 4px; 
+            font-weight: 500;
+        }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .btn-success { background: #28a745; color: #fff; }
+        
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+            .header-left {
+                flex-direction: column;
+                align-items: center;
+            }
+            .header .company-details {
+                text-align: center;
+            }
+            .info-grid { 
+                grid-template-columns: 1fr; 
+                gap: 2px;
+            }
+            .info-grid .info-item {
+                flex-wrap: wrap;
+            }
+            .footer .signature { 
+                flex-direction: column; 
+                align-items: center; 
+                gap: 10px;
+            }
+            .footer .signature .sig-line { 
+                width: 120px; 
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================ -->
+    <!-- HEADER — Logo + Company Name Side by Side                    -->
+    <!-- ============================================================ -->
+    <div class="header">
+        <div class="header-left">
+            {% if logo_exists %}
+                <img src="{{ company.logo.url }}" alt="Logo" class="company-logo">
+            {% endif %}
+            <div>
+                <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+                <div style="font-size:7.5pt; color:#6c757d; margin-top:1px;">
+                    {% if company.phone %}{{ company.phone }}{% endif %}
+                    {% if company.email %}{% if company.phone %} | {% endif %}{{ company.email }}{% endif %}
+                    {% if company.gstin %}{% if company.email or company.phone %} | {% endif %}GST: {{ company.gstin }}{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="company-details">
+            {{ company.address|default:"" }}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- TITLE                                                         -->
+    <!-- ============================================================ -->
+    <div class="page-title">
+        Repair Job #{{ repair.job_number }}
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- INFO GRID — Compact                                          -->
+    <!-- ============================================================ -->
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="label">Customer</span>
+            <span class="value">{{ customer.name }}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Device</span>
+            <span class="value">
+                {{ repair.device_model }}
+                {% if repair.serial_number %}
+                    <span style="font-size:7.5pt; color:#6c757d;">(SN: {{ repair.serial_number }})</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="label">Date In</span>
+            <span class="value">{{ repair.date_in|date:"d M Y" }}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Status</span>
+            <span class="value">
+                <span class="badge-print {{ repair.status }}">
+                    {{ repair.get_status_display }}
+                </span>
+            </span>
+        </div>
+        <div class="info-item info-full">
+            <span class="label">Issue</span>
+            <span class="value">{{ repair.issue_description }}</span>
+        </div>
+        {% if repair.diagnosis_report %}
+        <div class="info-item info-full">
+            <span class="label">Diagnosis</span>
+            <span class="value">{{ repair.diagnosis_report }}</span>
+        </div>
+        {% endif %}
+        {% if repair.action_taken %}
+        <div class="info-item info-full">
+            <span class="label">Action</span>
+            <span class="value">{{ repair.action_taken }}</span>
+        </div>
+        {% endif %}
+        {% if repair.notes %}
+        <div class="info-item info-full">
+            <span class="label">Notes</span>
+            <span class="value">{{ repair.notes }}</span>
+        </div>
+        {% endif %}
+        {% if repair.invoice %}
+        <div class="info-item info-full">
+            <span class="label">Invoice</span>
+            <span class="value">{{ repair.invoice.invoice_number }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PARTS TABLE — Compact                                        -->
+    <!-- ============================================================ -->
+    {% if parts %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width:5%;">#</th>
+                <th style="width:50%;">Product</th>
+                <th class="text-center" style="width:12%;">Qty</th>
+                <th class="text-end" style="width:18%;">Unit Price</th>
+                <th class="text-end" style="width:15%;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for part in parts %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    {{ part.product.name }}
+                    {% if part.product.hsn_code %}
+                        <span style="font-size:7pt; color:#6c757d;">(HSN: {{ part.product.hsn_code }})</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">{{ part.quantity }}</td>
+                <td class="text-end">₹{{ part.unit_price|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ part.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            <!-- Totals -->
+            <tr class="total-row">
+                <td colspan="3" class="text-end fw-bold">Labour</td>
+                <td colspan="2" class="text-end">₹{{ repair.labour_charge|floatformat:2 }}</td>
+            </tr>
+            <tr class="total-row">
+                <td colspan="3" class="text-end fw-bold">Parts Total</td>
+                <td colspan="2" class="text-end">₹{{ parts_total|floatformat:2 }}</td>
+            </tr>
+            <tr class="grand-total">
+                <td colspan="3" class="text-end fw-bold" style="font-size:10pt;">Final Amount</td>
+                <td colspan="2" class="text-end amount" style="font-size:12pt; font-weight:700;">
+                    ₹{{ repair.final_amount|floatformat:2 }}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    {% else %}
+    <div class="no-parts">
+        <i class="bi bi-box"></i> No parts used in this repair.
+    </div>
+    <table class="table" style="margin-top:4px;">
+        <tbody>
+            <tr class="grand-total">
+                <td colspan="3" class="text-end fw-bold" style="font-size:10pt;">Final Amount (Labour Only)</td>
+                <td colspan="2" class="text-end amount" style="font-size:12pt; font-weight:700;">
+                    ₹{{ repair.final_amount|floatformat:2 }}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- ESTIMATE STATUS (if applicable)                              -->
+    <!-- ============================================================ -->
+    {% if repair.estimated_cost and repair.estimated_cost > 0 %}
+    <div class="estimate-status-bar">
+        <span class="label">Estimate Status</span>
+        <span class="badge-print {{ repair.estimate_status }}">
+            {{ repair.get_estimate_status_display }}
+        </span>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- FOOTER — Compact                                             -->
+    <!-- ============================================================ -->
+    <div class="footer">
+        <p style="margin:2px 0;">
+            This is a computer-generated document. No signature required.
+            <span style="margin:0 6px;">|</span>
+            © {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}
+            <span style="margin:0 6px;">|</span>
+            Generated: {% now "d M Y, h:i A" %}
+        </p>
+        
+        <!-- Signature Area -->
+        <div class="signature">
+            <div class="sig-block">
+                <div>Customer Signature</div>
+                <div class="sig-line"></div>
+                <div style="font-size:6.5pt; color:#6c757d;">Date: ________</div>
+            </div>
+            <div class="sig-block">
+                <div>Authorized Signature</div>
+                <div class="sig-line"></div>
+                <div style="font-size:6.5pt; color:#6c757d;">Date: ________</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- ACTION BUTTONS (Screen Only)                                 -->
+    <!-- ============================================================ -->
+    <div class="no-print">
+        <hr>
+        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            <button onclick="window.print()" class="btn btn-primary">
+                🖨️ Print / PDF
+            </button>
+            <button onclick="window.close()" class="btn btn-secondary">
+                ✕ Close
+            </button>
+            <a href="{% url 'customer:customer_repair_detail' repair.pk %}" class="btn btn-success">
+                ← Back to Repair
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>

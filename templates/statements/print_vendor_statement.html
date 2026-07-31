@@ -1,0 +1,116 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vendor Statement – {{ contact.name }}</title>
+    <style>
+        /* Same as customer print – reuse styles */
+        @media print { body { font-size: 10pt; margin: 1.5cm; } .no-print { display: none !important; } }
+        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 20px; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .header h2 { margin: 5px 0; color: #1a1a2e; }
+        .header p { margin: 3px 0; color: #6c757d; font-size: 10pt; }
+        .filters-box { background: #f8f9fa; padding: 10px 15px; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 15px; font-size: 10pt; }
+        .table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+        .table th, .table td { border: 1px solid #ddd; padding: 5px 8px; }
+        .table th { background: #e9ecef; font-weight: 600; }
+        .table tr:nth-child(even) { background: #f8f9fa; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: bold; }
+        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 15px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
+        .summary-row td { background: #e9ecef !important; font-weight: bold; border-top: 2px solid #333; }
+        .company-logo { max-height: 60px; margin-bottom: 5px; }
+        .no-print { margin-top: 20px; text-align: center; }
+        .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        {% if logo_exists %}
+            <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
+        {% endif %}
+        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <p>
+            {{ company.address|default:"" }}<br>
+            {% if company.phone %}Phone: {{ company.phone }} | {% endif %}
+            {% if company.email %}Email: {{ company.email }} | {% endif %}
+            {% if company.gstin %}GST: {{ company.gstin }}{% endif %}
+        </p>
+    </div>
+
+    <h3 style="text-align:center;">Vendor Statement</h3>
+    <p style="text-align:center; font-weight:bold;">{{ contact.name }}</p>
+
+    <!-- FILTERS -->
+    <div class="filters-box">
+        <strong>Filters:</strong>
+        {% if date_from %}<span>From: {{ date_from }}</span>{% endif %}
+        {% if date_to %}<span>To: {{ date_to }}</span>{% endif %}
+        {% if not date_from and not date_to %}<span>All Records</span>{% endif %}
+        <br><small>Generated: {% now "d M Y, h:i A" %}</small>
+    </div>
+
+    <!-- TABLE -->
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Reference</th>
+                <th>Description</th>
+                <th class="text-end">Debit (₹)</th>
+                <th class="text-end">Credit (₹)</th>
+                <th class="text-end">Balance (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="fw-bold">
+                <td colspan="6">Opening Balance</td>
+                <td class="text-end">{{ opening_balance|floatformat:2 }}</td>
+            </tr>
+            {% for line in statement_lines %}
+            <tr>
+                <td>{{ line.date|date:"d M Y" }}</td>
+                <td>{{ line.type }}</td>
+                <td>{{ line.reference|default:"—" }}</td>
+                <td>{{ line.description }}</td>
+                <td class="text-end">{% if line.debit > 0 %}₹{{ line.debit|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="text-end">{% if line.credit > 0 %}₹{{ line.credit|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="text-end fw-bold">₹{{ line.balance|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center">No transactions found.</td></tr>
+            {% endfor %}
+            {% if statement_lines %}
+            <tr class="summary-row">
+                <td colspan="4" class="text-end">Totals</td>
+                <td class="text-end">₹{{ total_debit|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_credit|floatformat:2 }}</td>
+                <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <p>This is a computer-generated statement. No signature required.</p>
+        <p>© {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.</p>
+    </div>
+
+    <div class="no-print">
+        <hr>
+        <div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+            <button onclick="window.close()" class="btn btn-secondary">❌ Close</button>
+            <a href="{% url 'accounting:vendor_statement' contact.id %}" class="btn btn-secondary">⬅️ Back</a>
+        </div>
+    </div>
+</body>
+</html>
+

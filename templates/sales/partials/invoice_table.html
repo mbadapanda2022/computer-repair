@@ -1,0 +1,137 @@
+{% load math_filters %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Invoice #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th class="text-end">Amount</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for invoice in invoices %}
+                    <tr>
+                        <td><strong>{{ invoice.invoice_number }}</strong></td>
+                        <td>{{ invoice.date|date:"d M Y" }}</td>
+                        <td>{{ invoice.customer.name }}</td>
+                        <td class="text-end fw-bold">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                        <td>
+                            {% if invoice.payment_status == 'paid' %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Paid</span>
+                            {% elif invoice.payment_status == 'partial' %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Partial</span>
+                            {% else %}
+                                <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Unpaid</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                        type="button" data-bs-toggle="dropdown" 
+                                        data-bs-auto-close="outside">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:invoice_detail' invoice.pk %}">
+                                            <i class="bi bi-eye me-2 text-primary"></i>View
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:invoice_update' invoice.pk %}">
+                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:invoice_print' invoice.pk %}" target="_blank">
+                                            <i class="bi bi-printer me-2 text-info"></i>Print
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item text-danger" 
+                                                hx-delete="{% url 'accounting:invoice_delete' invoice.pk %}" 
+                                                hx-target="#invoice-table-container"
+                                                hx-confirm="Delete this invoice? This will reverse stock.">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <i class="bi bi-inbox display-6 d-block mb-3 text-muted"></i>
+                            <h5 class="text-muted">No invoices found</h5>
+                            <p class="text-muted">Try adjusting your filters or create a new invoice.</p>
+                            <a href="{% url 'accounting:invoice_create' %}" class="btn btn-primary mt-2">
+                                <i class="bi bi-plus-circle"></i> New Invoice
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="3" class="text-end">Total</th>
+                        <th class="text-end fw-bold">₹{{ total_sales|floatformat:2 }}</th>
+                        <th colspan="2"></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0">
+        <nav aria-label="Invoice pagination">
+            <ul class="pagination justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:invoice_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#invoice-table-container">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#invoice-table-container">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#invoice-table-container">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#invoice-table-container">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>

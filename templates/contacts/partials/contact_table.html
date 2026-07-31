@@ -1,0 +1,152 @@
+{% load static %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Balance</th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for contact in contacts %}
+            <tr>
+                <td>
+                    <strong>{{ contact.name }}</strong>
+                    {% if contact.company_name %}
+                        <br><small class="text-muted">{{ contact.company_name }}</small>
+                    {% endif %}
+                </td>
+                <td><span class="badge bg-secondary">{{ contact.get_contact_type_display }}</span></td>
+                <td>{{ contact.phone|default:"—" }}</td>
+                <td>{{ contact.email|default:"—" }}</td>
+                <td>
+                    {% if contact.current_balance > 0 %}
+                        <span class="text-success">₹{{ contact.current_balance|floatformat:2 }}</span>
+                    {% elif contact.current_balance < 0 %}
+                        <span class="text-danger">₹{{ contact.current_balance|floatformat:2 }}</span>
+                    {% else %}
+                        ₹0.00
+                    {% endif %}
+                </td>
+                <td>
+                    <!-- Dropdown Actions -->
+                    <div class="dropdown text-center">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                            <!-- Statement -->
+                            <li>
+                                {% if contact.contact_type == 'customer' or contact.contact_type == 'both' %}
+                                    <a class="dropdown-item" href="{% url 'accounting:customer_statement' contact.id %}" target="_blank">
+                                        <i class="bi bi-file-text"></i> Statement
+                                    </a>
+                                {% else %}
+                                    <a class="dropdown-item" href="{% url 'accounting:vendor_statement' contact.id %}" target="_blank">
+                                        <i class="bi bi-file-text"></i> Statement
+                                    </a>
+                                {% endif %}
+                            </li>
+                            <!-- Quick Repair -->
+                            <li>
+                                <button class="dropdown-item" 
+                                    hx-get="{% url 'accounting:repair_create_for_contact' contact.pk %}" 
+                                    hx-target="#mainModalContent">
+                                    <i class="bi bi-tools"></i> New Repair
+                                </button>
+                            </li>
+                            <!-- Quick Journal -->
+                            <li>
+                                <a class="dropdown-item" href="{% url 'accounting:journal_create_for_contact' contact.pk %}">
+                                    <i class="bi bi-journal-text"></i> New Journal
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <!-- Edit -->
+                            <li>
+                                <button class="dropdown-item" 
+                                    hx-get="{% url 'accounting:contact_update' contact.pk %}" 
+                                    hx-target="#mainModalContent">
+                                    <i class="bi bi-pen"></i> Edit
+                                </button>
+                            </li>
+                            <!-- Delete -->
+                            <li>
+                                <button class="dropdown-item text-danger" 
+                                    hx-delete="{% url 'accounting:contact_delete' contact.pk %}" 
+                                    hx-target="#contacts-table-container" 
+                                    hx-confirm="Delete this contact? This action cannot be undone.">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox fs-2 d-block"></i>
+                    No contacts found. Try adjusting your search or <a href="{% url 'accounting:contact_create' %}" class="text-primary">add a new contact</a>.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<nav aria-label="Contacts pagination">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" 
+               hx-get="{% url 'accounting:contact_list' %}" 
+               hx-target="#contacts-table-container"
+               hx-include="[name='search'],[name='contact_type']"
+               hx-vals='{"page": "{{ page_obj.previous_page_number }}"}'>
+                Previous
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">Previous</span></li>
+        {% endif %}
+
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+                <li class="page-item">
+                    <a class="page-link" 
+                       hx-get="{% url 'accounting:contact_list' %}" 
+                       hx-target="#contacts-table-container"
+                       hx-include="[name='search'],[name='contact_type']"
+                       hx-vals='{"page": "{{ num }}"}'>
+                        {{ num }}
+                    </a>
+                </li>
+            {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" 
+               hx-get="{% url 'accounting:contact_list' %}" 
+               hx-target="#contacts-table-container"
+               hx-include="[name='search'],[name='contact_type']"
+               hx-vals='{"page": "{{ page_obj.next_page_number }}"}'>
+                Next
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">Next</span></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}

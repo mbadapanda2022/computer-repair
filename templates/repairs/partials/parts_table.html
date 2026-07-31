@@ -1,0 +1,27 @@
+{% if parts %}
+    <table class="table table-sm">
+        <thead>
+            <tr><th>Part</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for part in parts %}
+            <tr>
+                <td>{{ part.product.name }}</td>
+                <td>{{ part.quantity }}</td>
+                <td>₹{{ part.unit_price }}</td>
+                <td>₹{{ part.line_total }}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-danger"
+                            hx-post="{% url 'accounting:remove_repair_part' part.pk %}"
+                            hx-target="#parts-container"
+                            hx-swap="innerHTML">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
+    <p class="text-muted">No parts used.</p>
+{% endif %}

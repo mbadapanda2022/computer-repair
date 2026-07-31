@@ -1,0 +1,31 @@
+{% extends "reports/print_report.html" %}
+{% load math_filters %}
+
+{% block report_content %}
+<div class="row">
+    <div class="col-md-6">
+        <table class="table">
+            <thead><tr><th colspan="2" class="text-center">Assets</th></tr></thead>
+            <tbody>
+                <tr><td>Cash</td><td class="text-end">₹{{ cash_balance|floatformat:2 }}</td></tr>
+                <tr><td>Bank Accounts</td><td class="text-end">₹{{ bank_balance|floatformat:2 }}</td></tr>
+                <tr><td>Accounts Receivable</td><td class="text-end">₹{{ ar_total|floatformat:2 }}</td></tr>
+                <tr><td>Inventory</td><td class="text-end">₹{{ inventory_value|floatformat:2 }}</td></tr>
+                <tr class="fw-bold"><td>Total Assets</td><td class="text-end">₹{{ total_assets|floatformat:2 }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <table class="table">
+            <thead><tr><th colspan="2" class="text-center">Liabilities & Equity</th></tr></thead>
+            <tbody>
+                <tr><td>Accounts Payable</td><td class="text-end">₹{{ ap_total|floatformat:2 }}</td></tr>
+                <tr class="fw-bold"><td>Total Liabilities</td><td class="text-end">₹{{ total_liabilities|floatformat:2 }}</td></tr>
+                <tr><td>Net Profit</td><td class="text-end">₹{{ net_profit|floatformat:2 }}</td></tr>
+                <tr class="fw-bold"><td>Total Equity</td><td class="text-end">₹{{ total_equity|floatformat:2 }}</td></tr>
+                <tr class="fw-bold"><td>Total Liabilities + Equity</td><td class="text-end">₹{{ total_liabilities_equity|floatformat:2 }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

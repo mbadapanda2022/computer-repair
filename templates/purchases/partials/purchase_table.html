@@ -1,0 +1,140 @@
+{% load math_filters %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Purchase #</th>
+                        <th>Date</th>
+                        <th>Vendor</th>
+                        <th class="text-end">Subtotal</th>
+                        <th class="text-end">Tax</th>
+                        <th class="text-end">Grand Total</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for purchase in purchases %}
+                    <tr>
+                        <td><strong>{{ purchase.purchase_number }}</strong></td>
+                        <td>{{ purchase.date|date:"d M Y" }}</td>
+                        <td>{{ purchase.vendor.name }}</td>
+                        <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ purchase.grand_total|floatformat:2 }}</td>
+                        <td>
+                            {% if purchase.paid %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Paid</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Unpaid</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                        type="button" data-bs-toggle="dropdown" 
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:purchase_update' purchase.pk %}">
+                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:purchase_detail' purchase.pk %}">
+                                            <i class="bi bi-eye me-2 text-primary"></i>Detail
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:purchase_print' purchase.pk %}" target="_blank">
+                                            <i class="bi bi-printer me-2 text-info"></i>Print
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item text-danger" 
+                                                hx-delete="{% url 'accounting:purchase_delete' purchase.pk %}" 
+                                                hx-target="#purchase-table-container"
+                                                hx-confirm="Delete this purchase? This will reverse stock movements.">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <i class="bi bi-inbox display-6 d-block mb-3 text-muted"></i>
+                            <h5 class="text-muted">No purchases found</h5>
+                            <p class="text-muted">Try adjusting your filters or create a new purchase.</p>
+                            <a href="{% url 'accounting:purchase_create' %}" class="btn btn-primary mt-2">
+                                <i class="bi bi-plus-circle"></i> New Purchase
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="5" class="text-end">Total</th>
+                        <th class="text-end fw-bold">₹{{ total_amount|floatformat:2 }}</th>
+                        <th colspan="2"></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===== PAGINATION ===== -->
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0">
+        <nav aria-label="Purchase pagination">
+            <ul class="pagination justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:purchase_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if paid %}&paid={{ paid }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#purchase-table-container">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:purchase_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if paid %}&paid={{ paid }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#purchase-table-container">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:purchase_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if paid %}&paid={{ paid }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#purchase-table-container">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:purchase_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if paid %}&paid={{ paid }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-target="#purchase-table-container">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>

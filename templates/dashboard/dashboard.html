@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard
+            </h3>
+            <p class="text-muted small mt-1">
+                {% now "l, d M Y" %}
+                {% if unread_notifications > 0 %}
+                    <span class="badge bg-danger ms-2">{{ unread_notifications }} unread notifications</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-primary" 
+                    hx-get="{% url 'accounting:refresh_stats' %}" 
+                    hx-target="#stats-container"
+                    hx-swap="innerHTML"
+                    hx-indicator="#refresh-spinner">
+                <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <a href="{% url 'accounting:dashboard_export' %}" class="btn btn-success">
+                <i class="bi bi-file-earmark-excel"></i> Export
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div id="stats-container">
+        {% include "dashboard/partials/stats_cards.html" %}
+    </div>
+
+    <!-- Charts -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-graph-up me-2 text-primary"></i>Sales & Purchase Trend
+                </div>
+                <div class="card-body">
+                    <canvas id="salesChart" height="280"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-pie-chart me-2 text-success"></i>Top Products
+                </div>
+                <div class="card-body">
+                    <canvas id="productsChart" height="280"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-credit-card me-2 text-info"></i>Payment Methods
+                </div>
+                <div class="card-body">
+                    <canvas id="paymentChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-tools me-2 text-warning"></i>Repair Status Distribution
+                </div>
+                <div class="card-body">
+                    <canvas id="repairStatusChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Transactions -->
+    <div id="recent-transactions-container">
+        {% include "dashboard/partials/recent_transactions.html" %}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card border-0 shadow-sm mt-3">
+        <div class="card-header bg-white fw-semibold">
+            <i class="bi bi-lightning me-2 text-warning"></i>Quick Actions
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'accounting:invoice_create' %}" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-receipt me-1"></i> New Invoice
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'accounting:purchase_create' %}" class="btn btn-outline-success w-100">
+                        <i class="bi bi-cart me-1"></i> New Purchase
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'accounting:repair_create' %}" class="btn btn-outline-warning w-100">
+                        <i class="bi bi-tools me-1"></i> New Repair
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <button class="btn btn-outline-info w-100"
+                        hx-get="{% url 'accounting:payment_create' %}"
+                        hx-target="#mainModalContent"
+                        hx-trigger="click">
+                        <i class="bi bi-credit-card me-1"></i> New Payment
+                    </button>
+                </div>
+                
+                <div class="col-md-3 col-sm-6">
+                    <button class="btn btn-outline-secondary w-100" 
+                        hx-get="{% url 'accounting:contact_create' %}" 
+                        hx-target="#mainModalContent" 
+                        hx-trigger="click">
+                        <i class="bi bi-plus-circle me-1"></i> Add Contact
+                    </button>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <button hx-get="{% url 'accounting:product_create' %}" 
+                        hx-target="#mainModalContent"
+                        hx-trigger="click"
+                        class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-box me-1"></i> Add Product
+                    </button>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'accounting:journal_create' %}" class="btn btn-outline-secondary w-100"
+                       hx-get="{% url 'accounting:journal_create' %}"
+                       hx-target="#mainModalContent"
+                       hx-trigger="click">
+                        <i class="bi bi-journal-text me-1"></i> New Journal
+                    </a>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <a href="{% url 'accounting:stock_adjustment_add' %}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-pencil-square me-1"></i> Stock Adjust
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ============================================================
+    // CHARTS
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fetch chart data
+        fetch("{% url 'accounting:dashboard_stats' %}")
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error(data.error);
+                    return;
+                }
+
+                // --- Sales & Purchase Chart ---
+                const ctx1 = document.getElementById('salesChart').getContext('2d');
+                new Chart(ctx1, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Sales',
+                                data: data.sales,
+                                borderColor: '#0d6efd',
+                                backgroundColor: 'rgba(13,110,253,0.1)',
+                                fill: true,
+                                tension: 0.4
+                            },
+                            {
+                                label: 'Purchases',
+                                data: data.purchases,
+                                borderColor: '#dc3545',
+                                backgroundColor: 'rgba(220,53,69,0.1)',
+                                fill: true,
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { position: 'top' }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) { return '₹' + value.toLocaleString(); }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // --- Top Products Chart ---
+                if (data.top_products_labels.length > 0) {
+                    const ctx2 = document.getElementById('productsChart').getContext('2d');
+                    const colors = ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545'];
+                    new Chart(ctx2, {
+                        type: 'doughnut',
+                        data: {
+                            labels: data.top_products_labels,
+                            datasets: [{
+                                data: data.top_products_data,
+                                backgroundColor: colors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: { font: { size: 10 } }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // --- Payment Methods Chart ---
+                if (data.payment_labels.length > 0) {
+                    const ctx3 = document.getElementById('paymentChart').getContext('2d');
+                    const colors = ['#28a745', '#0d6efd', '#ffc107'];
+                    new Chart(ctx3, {
+                        type: 'doughnut',
+                        data: {
+                            labels: data.payment_labels,
+                            datasets: [{
+                                data: data.payment_data,
+                                backgroundColor: colors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: { font: { size: 10 } }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // --- Repair Status Chart ---
+                if (data.status_labels.length > 0) {
+                    const ctx4 = document.getElementById('repairStatusChart').getContext('2d');
+                    const colors = ['#ffc107', '#17a2b8', '#007bff', '#28a745', '#dc3545', '#6c757d'];
+                    new Chart(ctx4, {
+                        type: 'bar',
+                        data: {
+                            labels: data.status_labels,
+                            datasets: [{
+                                label: 'Repair Jobs',
+                                data: data.status_data,
+                                backgroundColor: colors,
+                                borderWidth: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { stepSize: 1 }
+                                }
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error('Error loading chart data:', error));
+    });
+</script>
+{% endblock %}

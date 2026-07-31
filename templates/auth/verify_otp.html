@@ -1,0 +1,369 @@
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}Verify OTP – A1 Computer Solutions{% endblock %}
+
+{% block extra_head %}
+<style>
+    .otp-card {
+        border-radius: 16px;
+        border: none;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        transition: transform 0.3s ease;
+    }
+    .otp-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 15px 40px rgba(0,0,0,0.12);
+    }
+    .otp-input {
+        letter-spacing: 12px;
+        font-size: 1.75rem;
+        font-weight: 700;
+        text-align: center;
+        padding: 0.75rem;
+        border-radius: 12px;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s;
+    }
+    .otp-input:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.25rem rgba(13,110,253,0.25);
+        outline: none;
+    }
+    .otp-icon {
+        font-size: 3.5rem;
+        color: #0d6efd;
+        opacity: 0.8;
+    }
+    .resend-btn {
+        color: #0d6efd;
+        text-decoration: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        background: none;
+        border: none;
+        padding: 0;
+    }
+    .resend-btn:hover {
+        color: #0a58ca;
+        text-decoration: underline;
+    }
+    .resend-btn:disabled {
+        color: #6c757d;
+        cursor: not-allowed;
+        text-decoration: none;
+    }
+    .timer-text {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+    .resend-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .toast-container {
+        z-index: 1060 !important;
+    }
+    [data-bs-theme="dark"] .otp-card {
+        background-color: #2c3034;
+    }
+    [data-bs-theme="dark"] .otp-input {
+        background-color: #3a3f44;
+        border-color: #4a4f54;
+        color: #e9ecef;
+    }
+    [data-bs-theme="dark"] .otp-input:focus {
+        border-color: #6ea8fe;
+        box-shadow: 0 0 0 0.25rem rgba(110,168,254,0.25);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card otp-card shadow">
+                <div class="card-body p-4 p-md-5 text-center">
+
+                    <!-- Icon -->
+                    <div class="mb-3">
+                        <i class="bi bi-envelope-check otp-icon"></i>
+                    </div>
+
+                    <!-- Title -->
+                    <h4 class="fw-bold mb-2">Verify Your Email</h4>
+                    <p class="text-muted small mb-3">
+                        We've sent a 6-digit OTP to 
+                        <strong class="text-primary">{{ email|default:"your email" }}</strong>
+                    </p>
+
+                    <!-- Timer & Resend -->
+                    <div class="resend-container mb-3">
+                        <span class="timer-text" id="timer-display">
+                            <i class="bi bi-clock me-1"></i> 
+                            <span id="timer-seconds">60</span>s
+                        </span>
+                        <span class="text-muted small mx-1">|</span>
+                        <button id="resend-btn" 
+                                class="resend-btn" 
+                                disabled
+                                onclick="resendOTP()">
+                            <i class="bi bi-arrow-clockwise me-1"></i> Resend OTP
+                        </button>
+                    </div>
+
+                    <!-- OTP Form -->
+                    <form id="otp-form" 
+                          method="post" 
+                          action="{% url 'accounting:verify_otp' %}"
+                          hx-post="{% url 'accounting:verify_otp' %}"
+                          hx-target="body"
+                          hx-swap="outerHTML"
+                          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                        {% csrf_token %}
+                        <div id="otp-form-container">
+                            <div class="mb-3">
+                                <input type="text" 
+                                       name="otp" 
+                                       class="form-control otp-input" 
+                                       id="otp-input"
+                                       placeholder="• • • • • •" 
+                                       maxlength="6" 
+                                       minlength="6"
+                                       pattern="[0-9]{6}"
+                                       inputmode="numeric"
+                                       autocomplete="one-time-code"
+                                       required
+                                       autofocus>
+                                <div id="otp-error" class="invalid-feedback d-none"></div>
+                            </div>
+
+                            <!-- Non-field errors -->
+                            {% if form.non_field_errors %}
+                                <div class="alert alert-danger py-2 small">
+                                    {{ form.non_field_errors.0 }}
+                                </div>
+                            {% endif %}
+
+                            <button type="submit" 
+                                    id="verify-btn"
+                                    class="btn btn-primary w-100 py-2 fw-semibold"
+                                    style="border-radius: 50px;">
+                                <span id="otp-text">
+                                    <i class="bi bi-check-circle me-1"></i> Verify OTP
+                                </span>
+                                <span id="otp-spinner" 
+                                      class="spinner-border spinner-border-sm d-none" 
+                                      role="status">
+                                    <span class="visually-hidden">Verifying...</span>
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <!-- Help Links -->
+                    <p class="mb-0 small text-muted">
+                        <i class="bi bi-info-circle me-1"></i>
+                        OTP expires in 10 minutes. Check your spam folder if not received.
+                    </p>
+                    <p class="mb-0 small text-muted mt-1">
+                        <a href="{% url 'accounting:login' %}" class="text-decoration-none">
+                            <i class="bi bi-arrow-left me-1"></i> Back to Login
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1060;"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ============================================================
+    // OTP INPUT: Auto-focus & Auto-submit on 6 digits
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const otpInput = document.getElementById('otp-input');
+        const otpForm = document.getElementById('otp-form');
+        
+        if (otpInput) {
+            // Auto-submit when 6 digits entered
+            otpInput.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '');
+                if (this.value.length === 6) {
+                    const errorDiv = document.getElementById('otp-error');
+                    if (errorDiv) {
+                        errorDiv.classList.add('d-none');
+                    }
+                    // Optional: auto-submit
+                    // otpForm.submit();
+                }
+            });
+
+            // Remove invalid class on new input
+            otpInput.addEventListener('focus', function() {
+                this.classList.remove('is-invalid');
+                const errorDiv = document.getElementById('otp-error');
+                if (errorDiv) {
+                    errorDiv.classList.add('d-none');
+                }
+            });
+        }
+    });
+
+    // ============================================================
+    // TIMER (60 seconds) + RESEND OTP
+    // ============================================================
+    let timer = 60;
+    let timerInterval = null;
+    const resendBtn = document.getElementById('resend-btn');
+    const timerDisplay = document.getElementById('timer-seconds');
+
+    function startTimer() {
+        timer = 60;
+        if (resendBtn) {
+            resendBtn.disabled = true;
+        }
+        if (timerDisplay) {
+            timerDisplay.textContent = timer;
+        }
+        
+        if (timerInterval) {
+            clearInterval(timerInterval);
+        }
+        
+        timerInterval = setInterval(function() {
+            timer -= 1;
+            if (timerDisplay) {
+                timerDisplay.textContent = timer;
+            }
+            if (timer <= 0) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                if (resendBtn) {
+                    resendBtn.disabled = false;
+                    resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend OTP';
+                }
+            }
+        }, 1000);
+    }
+
+    function resendOTP() {
+        if (resendBtn && resendBtn.disabled) {
+            return;
+        }
+        
+        // Disable button and show loading
+        if (resendBtn) {
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Sending...';
+        }
+        
+        // Make AJAX request to resend OTP
+        fetch("{% url 'accounting:resend_otp' %}", {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (response.redirected) {
+                window.location.href = response.url;
+                return;
+            }
+            return response.json().catch(() => ({}));
+        })
+        .then(data => {
+            // Start timer again
+            startTimer();
+            // Show toast
+            if (window.showToast) {
+                window.showToast('success', 'New OTP sent to your email.', 'OTP Resent');
+            }
+        })
+        .catch(error => {
+            console.error('Resend error:', error);
+            if (window.showToast) {
+                window.showToast('error', 'Failed to resend OTP. Please try again.', 'Error');
+            }
+            if (resendBtn) {
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend OTP';
+            }
+        });
+    }
+
+    // Start timer on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        startTimer();
+    });
+
+    // ============================================================
+    // HTMX: Show/Hide Spinner
+    // ============================================================
+    document.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#otp-form')) {
+            const spinner = document.getElementById('otp-spinner');
+            const text = document.getElementById('otp-text');
+            if (spinner) {
+                spinner.classList.remove('d-none');
+            }
+            if (text) {
+                text.style.opacity = '0.7';
+            }
+        }
+    });
+
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#otp-form')) {
+            const spinner = document.getElementById('otp-spinner');
+            const text = document.getElementById('otp-text');
+            if (spinner) {
+                spinner.classList.add('d-none');
+            }
+            if (text) {
+                text.style.opacity = '1';
+            }
+        }
+    });
+
+    // ============================================================
+    // Handle OTP Errors from HTMX Response
+    // ============================================================
+    document.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target && evt.detail.target.id === 'otp-form-container') {
+            // Check if form has errors
+            const errorAlert = evt.detail.target.querySelector('.alert-danger');
+            if (errorAlert) {
+                // If there's an error, keep timer running (don't reset)
+                // Just show the error
+                if (window.showToast) {
+                    const errorMsg = errorAlert.textContent.trim();
+                    if (errorMsg) {
+                        window.showToast('danger', errorMsg, 'Verification Failed');
+                    }
+                }
+                // Re-enable resend button if timer is done
+                if (timer <= 0 && resendBtn) {
+                    resendBtn.disabled = false;
+                    resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend OTP';
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

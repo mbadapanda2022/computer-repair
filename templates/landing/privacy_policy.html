@@ -1,0 +1,237 @@
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}Privacy Policy – A1 Computer Solutions{% endblock %}
+
+{% block extra_head %}
+<style>
+    .privacy-section {
+        margin-bottom: 2.5rem;
+    }
+    .privacy-section h4 {
+        color: #0d6efd;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+    .privacy-section p, .privacy-section li {
+        color: #444;
+        line-height: 1.8;
+    }
+    .privacy-section ul {
+        padding-left: 1.5rem;
+    }
+    .privacy-section ul li {
+        margin-bottom: 0.5rem;
+    }
+    .last-updated {
+        color: #6c757d;
+        font-style: italic;
+    }
+    .policy-card {
+        border: none;
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.08);
+        border-radius: 0.75rem;
+    }
+    .policy-card .card-body {
+        padding: 2.5rem;
+    }
+    @media (max-width: 768px) {
+        .policy-card .card-body {
+            padding: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card policy-card">
+                <div class="card-body">
+                    <!-- Header -->
+                    <div class="text-center mb-5">
+                        <h1 class="display-5 fw-bold">Privacy Policy</h1>
+                        <p class="last-updated">Last updated: {% now "d M Y" %}</p>
+                        <hr class="w-25 mx-auto my-3">
+                        <p class="lead text-muted">
+                            Your privacy matters to us. This policy explains how we collect, use, and protect your personal information when you use our services.
+                        </p>
+                    </div>
+
+                    <!-- 1. Introduction -->
+                    <div class="privacy-section">
+                        <h4>1. Introduction</h4>
+                        <p>
+                            Welcome to <strong>A1 Computer Solutions</strong> (“we”, “our”, “us”). We are committed to protecting your personal data and respecting your privacy. This Privacy Policy applies to our website, services, and any communications you have with us.
+                        </p>
+                        <p>
+                            By using our website or services, you agree to the collection and use of information in accordance with this policy. If you do not agree, please do not use our services.
+                        </p>
+                    </div>
+
+                    <!-- 2. Information We Collect -->
+                    <div class="privacy-section">
+                        <h4>2. Information We Collect</h4>
+                        <p>We may collect the following types of information:</p>
+                        <ul>
+                            <li><strong>Personal Identification Information:</strong> Name, email address, phone number, postal address, and company details.</li>
+                            <li><strong>Device and Service Information:</strong> Device model, serial number, repair history, and service records when you bring in a device for repair.</li>
+                            <li><strong>Usage Data:</strong> How you interact with our website (pages visited, time spent, clicks) via cookies and similar technologies.</li>
+                            <li><strong>Payment Information:</strong> When you make a transaction, we collect payment details (processed securely through third‑party payment gateways – we do not store full payment information).</li>
+                            <li><strong>Communication Data:</strong> Any information you provide when you contact us via email, phone, or our contact forms.</li>
+                        </ul>
+                    </div>
+
+                    <!-- 3. How We Use Your Information -->
+                    <div class="privacy-section">
+                        <h4>3. How We Use Your Information</h4>
+                        <p>We use your information for the following purposes:</p>
+                        <ul>
+                            <li><strong>To provide and maintain our services:</strong> Processing repairs, sales, and customer support.</li>
+                            <li><strong>To communicate with you:</strong> Sending service updates, invoices, appointment reminders, and responding to inquiries.</li>
+                            <li><strong>To improve our services:</strong> Analysing usage trends to enhance our website and customer experience.</li>
+                            <li><strong>To comply with legal obligations:</strong> Maintaining records for tax, warranty, and regulatory purposes.</li>
+                            <li><strong>To send promotional content:</strong> Only if you have explicitly opted in to receive marketing emails (you can unsubscribe at any time).</li>
+                        </ul>
+                    </div>
+
+                    <!-- 4. Legal Basis for Processing -->
+                    <div class="privacy-section">
+                        <h4>4. Legal Basis for Processing</h4>
+                        <p>
+                            We process your personal data under the following legal bases:
+                        </p>
+                        <ul>
+                            <li><strong>Contractual necessity:</strong> To fulfil our obligations when you request our services (e.g., repair, purchase).</li>
+                            <li><strong>Legitimate interests:</strong> To improve our services, protect our business, and communicate with you effectively.</li>
+                            <li><strong>Consent:</strong> Where you have given explicit consent for marketing or optional data collection.</li>
+                            <li><strong>Legal compliance:</strong> To comply with applicable laws and regulations.</li>
+                        </ul>
+                    </div>
+
+                    <!-- 5. Data Sharing & Third Parties -->
+                    <div class="privacy-section">
+                        <h4>5. Data Sharing & Third Parties</h4>
+                        <p>
+                            We do not sell, rent, or trade your personal information. However, we may share your data with:
+                        </p>
+                        <ul>
+                            <li><strong>Service providers:</strong> Payment processors, shipping partners, and IT service providers who assist us in delivering our services (they are contractually bound to protect your data).</li>
+                            <li><strong>Law enforcement or regulators:</strong> If required by law or to protect the rights, property, or safety of our business, customers, or others.</li>
+                            <li><strong>Business transfers:</strong> In the event of a merger, acquisition, or sale of assets, your data may be transferred to the new owner.</li>
+                        </ul>
+                    </div>
+
+                    <!-- 6. Cookies and Tracking Technologies -->
+                    <div class="privacy-section">
+                        <h4>6. Cookies and Tracking Technologies</h4>
+                        <p>
+                            Our website uses cookies to enhance your experience, analyse site traffic, and personalise content. You can control cookie preferences through your browser settings. For more details, please refer to our <a href="{% url 'cookie_policy' %}" class="text-decoration-none">Cookie Policy</a>.
+                        </p>
+                    </div>
+
+                    <!-- 7. Data Security -->
+                    <div class="privacy-section">
+                        <h4>7. Data Security</h4>
+                        <p>
+                            We implement appropriate technical and organisational measures to protect your personal data against unauthorised access, alteration, disclosure, or destruction. These include:
+                        </p>
+                        <ul>
+                            <li>Encryption of data during transmission (SSL/TLS).</li>
+                            <li>Access controls to limit who can view your data.</li>
+                            <li>Regular security audits and vulnerability assessments.</li>
+                            <li>Secure storage of physical records (e.g., repair tickets).</li>
+                        </ul>
+                        <p>
+                            While we strive to protect your data, no method of transmission over the internet is 100% secure. We encourage you to take precautions when sharing sensitive information.
+                        </p>
+                    </div>
+
+                    <!-- 8. Data Retention -->
+                    <div class="privacy-section">
+                        <h4>8. Data Retention</h4>
+                        <p>
+                            We retain your personal data only for as long as necessary to fulfil the purposes outlined in this policy, unless a longer retention period is required by law (e.g., for tax, warranty, or legal claims). Typically, we retain customer records for up to 7 years, as per statutory requirements.
+                        </p>
+                    </div>
+
+                    <!-- 9. Your Rights -->
+                    <div class="privacy-section">
+                        <h4>9. Your Rights</h4>
+                        <p>
+                            Depending on your location, you may have the following rights regarding your personal data:
+                        </p>
+                        <ul>
+                            <li><strong>Access:</strong> Request a copy of the data we hold about you.</li>
+                            <li><strong>Rectification:</strong> Correct inaccurate or incomplete data.</li>
+                            <li><strong>Erasure:</strong> Request deletion of your data (subject to legal obligations).</li>
+                            <li><strong>Restriction:</strong> Limit how we use your data.</li>
+                            <li><strong>Data Portability:</strong> Receive your data in a structured, machine‑readable format.</li>
+                            <li><strong>Objection:</strong> Object to processing based on legitimate interests.</li>
+                            <li><strong>Withdraw Consent:</strong> If we rely on consent, you can withdraw it at any time.</li>
+                        </ul>
+                        <p>
+                            To exercise these rights, please contact us using the details below.
+                        </p>
+                    </div>
+
+                    <!-- 10. Children's Privacy -->
+                    <div class="privacy-section">
+                        <h4>10. Children's Privacy</h4>
+                        <p>
+                            Our services are not directed at children under the age of 16. We do not knowingly collect personal data from children. If you believe a child has provided us with personal information, please contact us so we can delete it.
+                        </p>
+                    </div>
+
+                    <!-- 11. Third‑Party Links -->
+                    <div class="privacy-section">
+                        <h4>11. Third‑Party Links</h4>
+                        <p>
+                            Our website may contain links to third‑party websites (e.g., payment gateways, social media). We are not responsible for the privacy practices or content of those sites. We encourage you to review their privacy policies before providing any personal information.
+                        </p>
+                    </div>
+
+                    <!-- 12. International Transfers -->
+                    <div class="privacy-section">
+                        <h4>12. International Transfers</h4>
+                        <p>
+                            Your data may be stored or processed in countries outside your own. In such cases, we ensure that appropriate safeguards (e.g., standard contractual clauses) are in place to protect your data.
+                        </p>
+                    </div>
+
+                    <!-- 13. Changes to This Policy -->
+                    <div class="privacy-section">
+                        <h4>13. Changes to This Policy</h4>
+                        <p>
+                            We may update this Privacy Policy from time to time. Any changes will be posted on this page with an updated “Last updated” date. We encourage you to review this policy periodically.
+                        </p>
+                    </div>
+
+                    <!-- 14. Contact Us -->
+                    <div class="privacy-section">
+                        <h4>14. Contact Us</h4>
+                        <p>
+                            If you have any questions, concerns, or requests regarding this Privacy Policy or your personal data, please reach out to us:
+                        </p>
+                        <address class="mt-3 p-3 bg-light rounded">
+                            <strong>A1 Computer Solutions</strong><br>
+                            <i class="bi bi-geo-alt"></i> [Your Address Line 1, City, State, PIN]<br>
+                            <i class="bi bi-envelope"></i> <a href="mailto:privacy@a1computersolutions.com">privacy@a1computersolutions.com</a><br>
+                            <i class="bi bi-phone"></i> <a href="tel:+919876543210">+91 98765 43210</a>
+                        </address>
+                        <p class="mt-3 small text-muted">
+                            We aim to respond to all queries within 15 business days.
+                        </p>
+                    </div>
+
+                    <!-- Footer note -->
+                    <div class="text-center text-muted small mt-5 border-top pt-3">
+                        &copy; {% now "Y" %} A1 Computer Solutions. All rights reserved.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

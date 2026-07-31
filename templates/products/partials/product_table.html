@@ -1,0 +1,170 @@
+{% load static %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>HSN</th>
+                        <th>Price (Purchase/Sell)</th>
+                        <th>Stock</th>
+                        <th>Tax (%)</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr>
+                        <td>
+                            <strong>{{ product.name }}</strong>
+                            {% if product.is_service %}
+                                <span class="badge bg-info ms-1">Service</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ product.category.name|default:"—" }}</td>
+                        <td><code>{{ product.hsn_code|default:"—" }}</code></td>
+                        <td>
+                            <small class="text-muted">₹{{ product.purchase_price|floatformat:2 }}</small>
+                            <span class="text-muted">/</span>
+                            <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
+                        </td>
+                        <td>
+                            {% if product.is_service %}
+                                <span class="text-muted">—</span>
+                            {% else %}
+                                {% if product.current_stock <= product.low_stock_threshold %}
+                                    <span class="badge bg-danger text-white">
+                                        <i class="bi bi-exclamation-circle"></i> {{ product.current_stock|floatformat:0 }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success">{{ product.current_stock|floatformat:0 }}</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        <td>{{ product.tax_rate|floatformat:2 }}%</td>
+                        <td>
+                            {% if product.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
+                                        type="button" data-bs-toggle="dropdown" 
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
+                                    <!-- Edit -->
+                                    <li>
+                                        <button class="dropdown-item" 
+                                                hx-get="{% url 'accounting:product_update' product.pk %}" 
+                                                hx-target="#mainModalContent" 
+                                                hx-trigger="click">
+                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                        </button>
+                                    </li>
+                                    <!-- Detail -->
+                                    <li>
+                                        <button class="dropdown-item" 
+                                                hx-get="{% url 'accounting:product_detail_modal' product.pk %}" 
+                                                hx-target="#mainModalContent" 
+                                                hx-trigger="click">
+                                            <i class="bi bi-eye me-2 text-primary"></i>Detail
+                                        </button>
+                                    </li>
+                                    <!-- Stock History -->
+                                    <li>
+                                        <button class="dropdown-item" 
+                                                hx-get="{% url 'accounting:product_stock_history' product.pk %}" 
+                                                hx-target="#mainModalContent" 
+                                                hx-trigger="click">
+                                            <i class="bi bi-clock-history me-2 text-info"></i>Stock History
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <!-- Delete -->
+                                    <li>
+                                        <button class="dropdown-item text-danger" 
+                                                hx-delete="{% url 'accounting:product_delete' product.pk %}" 
+                                                hx-target="#product-table-container"
+                                                hx-confirm="Delete this product? This cannot be undone if it has transactions.">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <i class="bi bi-inbox display-6 d-block mb-3 text-muted"></i>
+                            <h5 class="text-muted">No products found</h5>
+                            <p class="text-muted">Try adjusting your filters or add a new product.</p>
+                            <button class="btn btn-primary mt-2" 
+                                    hx-get="{% url 'accounting:product_create' %}" 
+                                    hx-target="#mainModalContent" 
+                                    hx-trigger="click">
+                                <i class="bi bi-plus-circle"></i> New Product
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ===== PAGINATION ===== -->
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0">
+        <nav aria-label="Product pagination">
+            <ul class="pagination justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:product_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-target="#product-table-container">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-target="#product-table-container">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-target="#product-table-container">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#" 
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-target="#product-table-container">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>

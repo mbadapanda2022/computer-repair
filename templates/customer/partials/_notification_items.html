@@ -1,0 +1,121 @@
+{% load static math_filters %}
+
+{% if page_obj %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+                {% for notif in page_obj %}
+                <div class="list-group-item {% if not notif.is_read %}bg-light{% endif %}" 
+                     data-notification-id="{{ notif.id }}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center mb-1">
+                                <h6 class="mb-0 {% if not notif.is_read %}fw-bold{% endif %}">
+                                    {% if notif.notification_type == 'success' %}
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                    {% elif notif.notification_type == 'warning' %}
+                                        <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                    {% elif notif.notification_type == 'error' %}
+                                        <i class="bi bi-x-circle-fill text-danger"></i>
+                                    {% else %}
+                                        <i class="bi bi-info-circle-fill text-primary"></i>
+                                    {% endif %}
+                                    <a href="{{ notif.link|default:'#' }}" 
+                                       class="text-decoration-none text-dark">
+                                        {{ notif.title }}
+                                    </a>
+                                </h6>
+                                {% if not notif.is_read %}
+                                <span class="badge bg-primary ms-2">New</span>
+                                {% endif %}
+                            </div>
+                            <p class="mb-1 text-muted small">{{ notif.message }}</p>
+                            <div class="d-flex align-items-center gap-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock"></i> {{ notif.created_at|date:"d M Y, h:i A" }}
+                                </small>
+                                <small class="text-muted">
+                                    <i class="bi bi-clock-history"></i> {{ notif.created_at|timesince }} ago
+                                </small>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-1 ms-3">
+                            {% if not notif.is_read %}
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    hx-post="{% url 'customer:customer_notification_mark_read' notif.pk %}" 
+                                    hx-target="#notification-list-container"
+                                    hx-swap="outerHTML"
+                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                    title="Mark as read">
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-danger" 
+                                    hx-delete="{% url 'customer:customer_notification_delete' notif.pk %}" 
+                                    hx-target="#notification-list-container"
+                                    hx-swap="outerHTML"
+                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                    hx-confirm="Delete this notification?"
+                                    title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" 
+                   hx-get="{% url 'customer:customer_notifications' %}?page=1"
+                   hx-target="#notification-list-container">
+                    &laquo; First
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" 
+                   hx-get="{% url 'customer:customer_notifications' %}?page={{ page_obj.previous_page_number }}"
+                   hx-target="#notification-list-container">
+                    Previous
+                </a>
+            </li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link">{{ page_obj.number }}</span>
+            </li>
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" 
+                   hx-get="{% url 'customer:customer_notifications' %}?page={{ page_obj.next_page_number }}"
+                   hx-target="#notification-list-container">
+                    Next
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" 
+                   hx-get="{% url 'customer:customer_notifications' %}?page={{ page_obj.paginator.num_pages }}"
+                   hx-target="#notification-list-container">
+                    Last &raquo;
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+{% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+        <h5>No notifications yet</h5>
+        <p class="text-muted">When you receive notifications, they'll appear here.</p>
+    </div>
+{% endif %}

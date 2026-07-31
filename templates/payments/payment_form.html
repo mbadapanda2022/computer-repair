@@ -1,0 +1,195 @@
+{% load static %}
+<form method="post" 
+      hx-post="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}" 
+      hx-target="#payment-table-container" 
+      hx-swap="innerHTML"
+      id="paymentForm"
+      novalidate>
+    {% csrf_token %}
+    
+    <div class="modal-header">
+        <h5 class="modal-title">
+            {% if payment %}Edit{% else %}New{% endif %} Payment
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    
+    <div class="modal-body">
+        <!-- Non-field errors -->
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <div class="row g-3">
+            <!-- Direction -->
+            <div class="col-md-4">
+                <label for="id_direction" class="form-label fw-semibold">Direction</label>
+                <select name="direction" id="id_direction" class="form-select" required>
+                    {% for value, label in form.direction.field.choices %}
+                        <option value="{{ value }}" {% if form.direction.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="invalid-feedback">{{ form.direction.errors|join:", " }}</div>
+            </div>
+            
+            <!-- Contact Search (Autocomplete) -->
+            <div class="col-md-8">
+                <label for="contact-search" class="form-label fw-semibold">Contact</label>
+                <div class="position-relative">
+                    <input type="text" name="q" id="contact-search" 
+                        class="form-control {% if form.contact.errors %}is-invalid{% endif %}" 
+                        placeholder="Type name or phone..." 
+                        value="{{ form.contact_search.value|default:'' }}"
+                        hx-get="{% url 'accounting:contact_search' %}" 
+                        hx-trigger="keyup changed delay:300ms" 
+                        hx-target="#contact-suggestions" 
+                        hx-swap="innerHTML"
+                        autocomplete="off">
+                    <input type="hidden" name="contact" id="id_contact" 
+                        value="{{ form.contact.value|default:'' }}">
+                    <div id="contact-suggestions" class="position-absolute w-100" 
+                        style="z-index: 1050; display: block;"></div>
+                </div>
+                <div id="contact-error" class="invalid-feedback">
+                    {{ form.contact.errors|join:", " }}
+                </div>
+                <div id="selected-contact-display" class="mt-1 small text-muted">
+
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-1">
+            <div class="col-md-4">
+                <label for="id_amount" class="form-label fw-semibold">Amount (₹)</label>
+                <input type="number" name="amount" id="id_amount" 
+                       class="form-control {% if form.amount.errors %}is-invalid{% endif %}" 
+                       step="0.01" value="{{ form.amount.value|default:'' }}" required>
+                <div class="invalid-feedback">{{ form.amount.errors|join:", " }}</div>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="id_date" class="form-label fw-semibold">Date</label>
+                <input type="date" name="date" id="id_date" 
+                       class="form-control {% if form.date.errors %}is-invalid{% endif %}" 
+                       value="{{ form.date.value|default:''|date:'Y-m-d' }}" required>
+                <div class="invalid-feedback">{{ form.date.errors|join:", " }}</div>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="id_method" class="form-label fw-semibold">Method</label>
+                <select name="method" id="id_method" class="form-select" required>
+                    {% for value, label in form.method.field.choices %}
+                        <option value="{{ value }}" {% if form.method.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <div class="invalid-feedback">{{ form.method.errors|join:", " }}</div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-1">
+            <div class="col-md-6">
+                <label for="id_bank_account" class="form-label fw-semibold">Bank / Cash Account</label>
+                <select name="bank_account" id="id_bank_account" class="form-select">
+                    <option value="">---------</option>
+                    {% for account in form.fields.bank_account.queryset %}
+                        <option value="{{ account.id }}" {% if form.bank_account.value == account.id %}selected{% endif %}>
+                            {{ account.name }} ({{ account.get_account_type_display }})
+                        </option>
+                    {% endfor %}
+                </select>
+                <div class="invalid-feedback">{{ form.bank_account.errors|join:", " }}</div>
+            </div>
+            
+            <div class="col-md-6">
+                <label for="id_upi_ref" class="form-label fw-semibold">UPI Reference (if any)</label>
+                <input type="text" name="upi_ref" id="id_upi_ref" 
+                       class="form-control {% if form.upi_ref.errors %}is-invalid{% endif %}" 
+                       value="{{ form.upi_ref.value|default:'' }}" placeholder="e.g., UPI123456789">
+                <div class="invalid-feedback">{{ form.upi_ref.errors|join:", " }}</div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-1">
+            <div class="col-md-6">
+                <label for="id_reference" class="form-label fw-semibold">Reference #</label>
+                <input type="text" name="reference" id="id_reference" 
+                       class="form-control {% if form.reference.errors %}is-invalid{% endif %}" 
+                       value="{{ form.reference.value|default:'' }}" placeholder="Cheque #, Payment ID">
+                <div class="invalid-feedback">{{ form.reference.errors|join:", " }}</div>
+            </div>
+            
+            <div class="col-md-6">
+                <label for="id_invoices" class="form-label fw-semibold">Link to Invoices</label>
+                <select name="invoices" id="id_invoices" class="form-select" multiple size="3">
+                    {% for invoice in form.fields.invoices.queryset %}
+                        <option value="{{ invoice.id }}" {% if invoice.id in form.invoices.value %}selected{% endif %}>
+                            {{ invoice.invoice_number }} - ₹{{ invoice.grand_total|floatformat:2 }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <div class="invalid-feedback">{{ form.invoices.errors|join:", " }}</div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-1">
+            <div class="col-12">
+                <label for="id_description" class="form-label fw-semibold">Description</label>
+                <textarea name="description" id="id_description" rows="2" 
+                          class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                          placeholder="Optional notes">{{ form.description.value|default:'' }}</textarea>
+                <div class="invalid-feedback">{{ form.description.errors|join:", " }}</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">
+            {% if payment %}Update{% else %}Create{% endif %} Payment
+        </button>
+    </div>
+</form>
+
+<script>
+    (function() {
+        const searchInput = document.getElementById('contact-search');
+        const hiddenContact = document.getElementById('id_contact');
+        const suggestionsDiv = document.getElementById('contact-suggestions');
+        const directionSelect = document.getElementById('id_direction');
+        const displayDiv = document.getElementById('selected-contact-display');
+
+        // Handle suggestion click
+        document.addEventListener('click', function(e) {
+            const item = e.target.closest('.contact-suggestion');
+            if (!item) return;
+            
+            const id = item.dataset.id;
+            const name = item.dataset.name;
+            const phone = item.dataset.phone;
+            const type = item.dataset.type;
+            
+            hiddenContact.value = id;
+            searchInput.value = name + ' (' + (phone || 'No phone') + ')';
+            suggestionsDiv.innerHTML = '';
+            displayDiv.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> Selected: <strong>' + 
+                                   name + '</strong> (' + (phone || 'No phone') + ')';
+            
+            if (type === 'customer' || type === 'both') {
+                directionSelect.value = 'received';
+            } else if (type === 'vendor') {
+                directionSelect.value = 'paid';
+            }
+        });
+
+        searchInput.addEventListener('blur', function() {
+            setTimeout(() => {
+                suggestionsDiv.innerHTML = '';
+            }, 200);
+        });
+    })();
+</script>

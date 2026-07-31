@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-building text-primary me-2"></i>Balance Sheet
+            </h3>
+            <small class="text-muted">As on {{ as_on|date:"d M Y" }}</small>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="?{{ request.GET.urlencode }}&excel=1" class="btn btn-success">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </a>
+            <a href="?{{ request.GET.urlencode }}&print=1" class="btn btn-secondary" target="_blank">
+                <i class="bi bi-printer"></i> Print
+            </a>
+        </div>
+    </div>
+
+    <!-- As on filter -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form class="row g-3">
+                <div class="col-md-3">
+                    <input type="date" class="form-control" name="as_on" value="{{ as_on|date:'Y-m-d' }}"
+                           onchange="this.form.submit()">
+                </div>
+                <div class="col-md-2">
+                    <a href="{% url 'accounting:balance_sheet' %}" class="btn btn-secondary w-100">
+                        <i class="bi bi-arrow-counterclockwise"></i> Today
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Assets -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-bank text-primary me-2"></i>Assets
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td>Cash</td>
+                            <td class="text-end">₹{{ cash_balance|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Bank Accounts</td>
+                            <td class="text-end">₹{{ bank_balance|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Accounts Receivable</td>
+                            <td class="text-end">₹{{ ar_total|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Inventory</td>
+                            <td class="text-end">₹{{ inventory_value|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-light fw-bold">
+                            <td>Total Assets</td>
+                            <td class="text-end">₹{{ total_assets|floatformat:2 }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Liabilities + Equity -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-credit-card text-danger me-2"></i>Liabilities & Equity
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td>Accounts Payable</td>
+                            <td class="text-end">₹{{ ap_total|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-light fw-bold">
+                            <td>Total Liabilities</td>
+                            <td class="text-end">₹{{ total_liabilities|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Net Profit</td>
+                            <td class="text-end">₹{{ net_profit|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-light fw-bold">
+                            <td>Total Equity</td>
+                            <td class="text-end">₹{{ total_equity|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-light fw-bold">
+                            <td>Total Liabilities + Equity</td>
+                            <td class="text-end">₹{{ total_liabilities_equity|floatformat:2 }}</td>
+                        </tr>
+                        {% if difference == 0 %}
+                        <tr class="table-success">
+                            <td colspan="2" class="text-center">✅ Balance Sheet is Balanced</td>
+                        </tr>
+                        {% else %}
+                        <tr class="table-danger">
+                            <td colspan="2" class="text-center">❌ Difference: ₹{{ difference|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

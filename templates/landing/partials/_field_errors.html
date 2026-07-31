@@ -1,0 +1,11 @@
+<!-- templates/landing/partials/_field_errors.html -->
+<div id="field-{{ field }}" class="field-wrapper">
+    {% if errors %}
+        <div class="invalid-feedback d-block">
+            {% for error in errors %}
+                <span>{{ error }}</span>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
+
