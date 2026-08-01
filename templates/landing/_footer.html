@@ -6,8 +6,8 @@
             <!-- Column 1: Company Info & Social Links -->
             <div class="col-lg-4">
                 <h5>
-                    {% if company.logo %}
-                        <img src="{{ company.logo.url }}" alt="{{ company.name }}" height="30" class="me-2">
+                    {% if logo_url %}
+                        <img src="{{ logo_url }}" alt="{{ company.name }}" height="30" class="me-2">
                     {% else %}
                         <i class="bi bi-laptop text-primary"></i>
                     {% endif %}
@@ -102,4 +102,6 @@
         </div>
     </div>
 </footer>
+
+
 
