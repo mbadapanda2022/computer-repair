@@ -97,7 +97,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'computer_repair.wsgi.application'
-# ASGI_APPLICATION = 'computer_repair.asgi.application'
+# ASGI_APPLICATION = 'computer_repair.asgi.application'  # ← ASGI बंद है
 
 # =============================================
 # CHANNELS & EVENTSTREAM
@@ -112,7 +112,7 @@ EVENTSTREAM_MAX_CONNECTIONS = 100
 EVENTSTREAM_STORAGE_CLASS = 'django_eventstream.storage.MemoryStorage'
 
 # =============================================
-# DATABASE
+# DATABASE (Production: PostgreSQL via DATABASE_URL, Development: SQLite)
 # =============================================
 import dj_database_url
 
@@ -123,19 +123,6 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
-
-
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.sqlite3'),
-#         'NAME': os.getenv('DB_NAME', BASE_DIR / 'db.sqlite3'),
-#         'USER': os.getenv('DB_USER', ''),
-#         'PASSWORD': os.getenv('DB_PASSWORD', ''),
-#         'HOST': os.getenv('DB_HOST', ''),
-#         'PORT': os.getenv('DB_PORT', ''),
-#     }
-# }
 
 # =============================================
 # PASSWORD VALIDATION
@@ -162,9 +149,6 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
 # =============================================
 # CLOUDINARY STORAGE (Production Media Files)
 # =============================================
@@ -178,7 +162,12 @@ if not DEBUG:
         api_key=os.getenv('CLOUDINARY_API_KEY'),
         api_secret=os.getenv('CLOUDINARY_API_SECRET'),
     )
+    
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    MEDIA_URL = f'https://res.cloudinary.com/{os.getenv("CLOUDINARY_CLOUD_NAME")}/image/upload/'
+else:
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
 
 # =============================================
 # AUTHENTICATION
