@@ -97,7 +97,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'computer_repair.wsgi.application'
-ASGI_APPLICATION = 'computer_repair.asgi.application'
+# ASGI_APPLICATION = 'computer_repair.asgi.application'
 
 # =============================================
 # CHANNELS & EVENTSTREAM
@@ -229,7 +229,6 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
     SECURE_SSL_REDIRECT = True
     
-    # ✅ यह नई लाइन जोड़ें - Render पर Redirect Loop ठीक करने के लिए
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     
     SECURE_BROWSER_XSS_FILTER = True
