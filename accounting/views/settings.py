@@ -217,3 +217,7 @@ def restore_database(request):
 
     # Any other method (should not happen)
     return HttpResponse("Method not allowed", status=405)
+
+
+
+        

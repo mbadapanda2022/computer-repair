@@ -138,3 +138,5 @@ def privacy_policy(request):
 
 def cookie_policy(request):
     return render(request, 'landing/cookie_policy.html')
+
+
