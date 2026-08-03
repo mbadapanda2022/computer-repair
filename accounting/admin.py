@@ -15,7 +15,7 @@ from .models import (
     Purchase, PurchaseItem, RepairJob, RepairPart,
     Payment, StockMovement, Transaction,
     Notification, NotificationPreference, ContactMessage, 
-    FAQ, Testimonial, Service, EmailOTP  # 🔥 OTP Model Import करें
+    FAQ, Testimonial, Service, EmailOTP  
 )
 from .views.sales import create_or_update_invoice_ledger
 
