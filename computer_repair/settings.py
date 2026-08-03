@@ -21,7 +21,7 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
 # =============================================
-# 4. INSTALLED APPS
+# 4. INSTALLED APPS – Clean and correct
 # =============================================
 INSTALLED_APPS = [
     # Django Core
@@ -30,37 +30,32 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
+    'django.contrib.staticfiles',   # Static files handled by Whitenoise
     
     # Third Party
     'honeypot',
     'channels',
     'django_eventstream',
     'django_htmx',
-    'django_cleanup.apps.CleanupConfig',
+    'django_cleanup.apps.CleanupConfig',  # Auto-delete old files
+    
+    # Cloudinary SDK (only for media, not static)
+    'cloudinary',
     
     # Your Apps
     'accounting.apps.AccountingConfig',
 ]
 
-# Cloudinary Storage – Only in Production
-if not DEBUG:
-    # Important: cloudinary_storage must be before django.contrib.staticfiles
-    INSTALLED_APPS.insert(
-        INSTALLED_APPS.index('django.contrib.staticfiles'),
-        'cloudinary_storage'
-    )
-    INSTALLED_APPS.insert(
-        INSTALLED_APPS.index('cloudinary_storage') + 1,
-        'cloudinary'
-    )
+# Note: cloudinary_storage is NOT in INSTALLED_APPS because we are NOT
+# using Cloudinary for static files. It is only needed for media,
+# which is handled by DEFAULT_FILE_STORAGE setting.
 
 # =============================================
 # 5. MIDDLEWARE
 # =============================================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -77,7 +72,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 # =============================================
-# 6. SESSION & CSRF (CONDITIONAL)
+# 6. SESSION & CSRF
 # =============================================
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_COOKIE_HTTPONLY = True
@@ -115,7 +110,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'computer_repair.wsgi.application'
-# ASGI_APPLICATION = 'computer_repair.asgi.application'  # ASGI is disabled
+# ASGI_APPLICATION = 'computer_repair.asgi.application'  # Disabled
 
 # =============================================
 # 8. CHANNELS & EVENTSTREAM
@@ -161,17 +156,20 @@ USE_I18N = True
 USE_TZ = True
 
 # =============================================
-# 12. STATIC & MEDIA FILES
+# 12. STATIC FILES (Whitenoise – LOCAL)
 # =============================================
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+# Use Whitenoise's storage to add hash to filenames for caching
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 # =============================================
-# 13. CLOUDINARY STORAGE (PRODUCTION) – OFFICIAL WAY
+# 13. MEDIA FILES (Cloudinary – PRODUCTION ONLY)
 # =============================================
 if not DEBUG:
-    print("🔥 DEBUG is False – Cloudinary block is running")
+    print("🔥 DEBUG is False – Configuring Cloudinary for media files")
 
     # =============================================
     # CLOUDINARY STORAGE CONFIGURATION (Official)
@@ -180,8 +178,8 @@ if not DEBUG:
         'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
         'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
         'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-        'SECURE': True,
-        'PREFIX': 'media/',  # Optional: adds a prefix to uploaded files
+        'SECURE': True,                     # Use HTTPS
+        'PREFIX': 'media/',                 # Optional: folder prefix
         # 'EXCLUDE_DELETE_ORPHANED_MEDIA_PATHS': (),
         # 'MEDIA_TAG': 'media',
         # 'STATIC_TAG': 'static',
@@ -200,7 +198,7 @@ if not DEBUG:
 
 else:
     # Development: Use local media storage
-    print("🔥 DEBUG is True – Using local storage")
+    print("🔥 DEBUG is True – Using local media storage")
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -212,7 +210,7 @@ LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'
 
 # =============================================
-# 15. EMAIL (SMTP WITH GMAIL / ANY PROVIDER)
+# 15. EMAIL (SMTP)
 # =============================================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
@@ -234,7 +232,7 @@ MESSAGE_TAGS = {
 }
 
 # =============================================
-# 17. LOGGING (FULLY CONFIGURED FOR PRODUCTION)
+# 17. LOGGING
 # =============================================
 LOGGING = {
     'version': 1,
@@ -297,10 +295,10 @@ LOGGING = {
 }
 
 # =============================================
-# 18. PRODUCTION SECURITY SETTINGS (HTTPS, HSTS, ETC.)
+# 18. PRODUCTION SECURITY SETTINGS
 # =============================================
 if not DEBUG:
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_SSL_REDIRECT = True
@@ -322,14 +320,14 @@ if not LOGS_DIR.exists():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============================================
-# 20. HONEYPOT SETTINGS (SPAM PROTECTION)
+# 20. HONEYPOT SETTINGS
 # =============================================
 HONEYPOT_FIELD_NAME = 'phone'
 HONEYPOT_VALUE = ''
 HONEYPOT_VERIFY = True
 
 # =============================================
-# 21. ADDITIONAL PERFORMANCE & CUSTOM SETTINGS
+# 21. ADDITIONAL SETTINGS
 # =============================================
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
