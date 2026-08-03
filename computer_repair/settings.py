@@ -163,6 +163,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # 13. CLOUDINARY STORAGE (PRODUCTION) - FULLY OPTIMIZED
 # =============================================
 if not DEBUG:
+    print("🔥 DEBUG is False – Cloudinary block is running")
     import cloudinary
     import cloudinary.uploader
     import cloudinary.api
@@ -199,6 +200,7 @@ if not DEBUG:
 
 else:
     # Development: Use local media storage
+    print("🔥 DEBUG is True – Using local storage")
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
 
