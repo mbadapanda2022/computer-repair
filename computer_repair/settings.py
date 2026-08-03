@@ -345,6 +345,11 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
 ]
 
+# Force Cloudinary storage – Temporary fix
+if not DEBUG:
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    print("🔥 FORCE: DEFAULT_FILE_STORAGE =", DEFAULT_FILE_STORAGE)
+
 # =============================================
 # END OF SETTINGS
 # =============================================

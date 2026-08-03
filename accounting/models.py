@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 import cloudinary.uploader
+from cloudinary_storage.storage import MediaCloudinaryStorage
 
 
 
@@ -30,7 +31,7 @@ class CompanyProfile(models.Model):
     )
     email = models.EmailField(blank=True)
     gstin = models.CharField(max_length=15, blank=True, help_text="Leave blank to disable GST")
-    logo = models.ImageField(upload_to='company_logo/', blank=True, null=True)
+    logo = models.ImageField(upload_to='company_logo/', blank=True, null=True, storage=MediaCloudinaryStorage())
     invoice_prefix = models.CharField(max_length=10, default="INV", help_text="e.g., INV, REP, PUR")
     invoice_start_number = models.PositiveIntegerField(default=1)
     default_tax_rate = models.DecimalField(
@@ -53,6 +54,7 @@ class CompanyProfile(models.Model):
         upload_to='company_hero/',
         blank=True,
         null=True,
+        storage=MediaCloudinaryStorage(),
         help_text="Upload hero background or main image (recommended size: 1200x600)"
     )
     about_text = models.TextField(
@@ -147,6 +149,7 @@ class Service(models.Model):
         upload_to='services/',
         blank=True,
         null=True,
+        storage=MediaCloudinaryStorage(),
         help_text="Optional image (overrides icon if provided)"
     )
     order = models.PositiveIntegerField(default=0, help_text="Display order (lower = first)")
@@ -200,7 +203,7 @@ class Testimonial(models.Model):
     ]
 
     customer_name = models.CharField(max_length=100)
-    customer_photo = models.ImageField(upload_to='testimonials/', blank=True, null=True, help_text="Optional photo")
+    customer_photo = models.ImageField(upload_to='testimonials/', blank=True, null=True, storage=MediaCloudinaryStorage(), help_text="Optional photo")
     designation = models.CharField(max_length=100, blank=True, help_text="e.g., Business Owner, Student")
     company_name = models.CharField(max_length=100, blank=True, help_text="e.g., Google, Microsoft")
     review_text = models.TextField(help_text="Customer's feedback")
