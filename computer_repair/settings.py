@@ -197,6 +197,7 @@ if not DEBUG:
     # Log a confirmation (visible in Render logs)
     logger = logging.getLogger(__name__)
     logger.info(f"✅ Cloudinary configured with cloud name: {CLOUDINARY_CLOUD_NAME}")
+    print(f"🔥 DEFAULT_FILE_STORAGE = {DEFAULT_FILE_STORAGE}")
 
 else:
     # Development: Use local media storage
