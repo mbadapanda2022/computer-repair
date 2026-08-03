@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     'channels',
     'django_eventstream',
     'django_htmx',
-    'django_cleanup.apps.CleanupConfig', 
+    'django_cleanup.apps.CleanupConfig',
     
     # Your Apps
     'accounting.apps.AccountingConfig',
@@ -45,14 +45,22 @@ INSTALLED_APPS = [
 
 # Cloudinary Storage – Only in Production
 if not DEBUG:
-    INSTALLED_APPS += ['cloudinary_storage', 'cloudinary']
+    # Important: cloudinary_storage must be before django.contrib.staticfiles
+    INSTALLED_APPS.insert(
+        INSTALLED_APPS.index('django.contrib.staticfiles'),
+        'cloudinary_storage'
+    )
+    INSTALLED_APPS.insert(
+        INSTALLED_APPS.index('cloudinary_storage') + 1,
+        'cloudinary'
+    )
 
 # =============================================
 # 5. MIDDLEWARE
 # =============================================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -60,7 +68,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
-    'accounting.middleware.AccessControlMiddleware',  
+    'accounting.middleware.AccessControlMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -107,7 +115,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'computer_repair.wsgi.application'
-# ASGI_APPLICATION = 'computer_repair.asgi.application'  # ASGI is disabled (using channels only for eventstream)
+# ASGI_APPLICATION = 'computer_repair.asgi.application'  # ASGI is disabled
 
 # =============================================
 # 8. CHANNELS & EVENTSTREAM
@@ -160,45 +168,35 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # =============================================
-# 13. CLOUDINARY STORAGE (PRODUCTION) - FULLY OPTIMIZED
+# 13. CLOUDINARY STORAGE (PRODUCTION) – OFFICIAL WAY
 # =============================================
 if not DEBUG:
     print("🔥 DEBUG is False – Cloudinary block is running")
-    import cloudinary
-    import cloudinary.uploader
-    import cloudinary.api
-    import logging
 
-    # Get Cloudinary credentials from environment
-    CLOUDINARY_CLOUD_NAME = os.getenv('CLOUDINARY_CLOUD_NAME')
-    CLOUDINARY_API_KEY = os.getenv('CLOUDINARY_API_KEY')
-    CLOUDINARY_API_SECRET = os.getenv('CLOUDINARY_API_SECRET')
-
-    # Configure Cloudinary with all necessary parameters
-    cloudinary.config(
-        cloud_name=CLOUDINARY_CLOUD_NAME,
-        api_key=CLOUDINARY_API_KEY,
-        api_secret=CLOUDINARY_API_SECRET,
-        secure=True,           # Always use HTTPS
-        timeout=60,            # 60 seconds timeout for large files
-        chunk_size=20 * 1024 * 1024,  # 20MB chunk size for large uploads
-        max_file_size=100 * 1024 * 1024  # 100MB max file size
-    )
+    # =============================================
+    # CLOUDINARY STORAGE CONFIGURATION (Official)
+    # =============================================
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
+        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
+        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
+        'SECURE': True,
+        'PREFIX': 'media/',  # Optional: adds a prefix to uploaded files
+        # 'EXCLUDE_DELETE_ORPHANED_MEDIA_PATHS': (),
+        # 'MEDIA_TAG': 'media',
+        # 'STATIC_TAG': 'static',
+    }
 
     # Set Cloudinary as the default storage backend for media files
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-    
-    # Media URL - always use Cloudinary URL
-    MEDIA_URL = f'https://res.cloudinary.com/{CLOUDINARY_CLOUD_NAME}/image/upload/'
-    print(f"🔥 MEDIA_URL = {MEDIA_URL}")
 
-    # Optional: Enable Cloudinary's built-in image transformations in templates
-    # You can use {% cloudinary_url ... %} tag in templates if needed
+    # Media URL – Cloudinary URL
+    MEDIA_URL = f'https://res.cloudinary.com/{os.getenv("CLOUDINARY_CLOUD_NAME")}/image/upload/'
 
-    # Log a confirmation (visible in Render logs)
-    logger = logging.getLogger(__name__)
-    logger.info(f"✅ Cloudinary configured with cloud name: {CLOUDINARY_CLOUD_NAME}")
+    # Print confirmation (visible in Render logs)
+    print(f"🔥 CLOUDINARY_STORAGE configured with cloud name: {CLOUDINARY_STORAGE['CLOUD_NAME']}")
     print(f"🔥 DEFAULT_FILE_STORAGE = {DEFAULT_FILE_STORAGE}")
+    print(f"🔥 MEDIA_URL = {MEDIA_URL}")
 
 else:
     # Development: Use local media storage
@@ -290,7 +288,6 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
-        # Add Cloudinary logger to capture upload errors
         'cloudinary': {
             'handlers': ['console', 'file'],
             'level': 'ERROR',
@@ -303,26 +300,18 @@ LOGGING = {
 # 18. PRODUCTION SECURITY SETTINGS (HTTPS, HSTS, ETC.)
 # =============================================
 if not DEBUG:
-    # HSTS (HTTP Strict Transport Security)
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    
-    # SSL Redirection
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    
-    # Additional Security Headers
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    REFERRER_POLICY = 'same-origin'  # Prevents referrer leakage
-    
-    # Admin & Server Email
+    REFERRER_POLICY = 'same-origin'
     ADMINS = [('Admin', os.getenv('ADMIN_EMAIL', 'admin@example.com'))]
     SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'server@example.com')
 else:
-    # In development, allow iframe for local testing
     X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # =============================================
@@ -342,14 +331,9 @@ HONEYPOT_VERIFY = True
 # =============================================
 # 21. ADDITIONAL PERFORMANCE & CUSTOM SETTINGS
 # =============================================
-
-# Maximum file upload size (10MB)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
-
-# Session security
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
-# CSRF trusted origins (for Render)
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',
     'https://*.onrender.com',
