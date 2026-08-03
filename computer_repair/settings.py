@@ -190,6 +190,7 @@ if not DEBUG:
     
     # Media URL - always use Cloudinary URL
     MEDIA_URL = f'https://res.cloudinary.com/{CLOUDINARY_CLOUD_NAME}/image/upload/'
+    print(f"🔥 MEDIA_URL = {MEDIA_URL}")
 
     # Optional: Enable Cloudinary's built-in image transformations in templates
     # You can use {% cloudinary_url ... %} tag in templates if needed
