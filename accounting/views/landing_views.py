@@ -140,3 +140,14 @@ def cookie_policy(request):
     return render(request, 'landing/cookie_policy.html')
 
 
+def debug_cloudinary(request):
+    import cloudinary
+    from accounting.models import CompanyProfile
+    c = CompanyProfile.get_instance()
+    data = {
+        'cloud_name': cloudinary.config().cloud_name,
+        'api_key': cloudinary.config().api_key,
+        'logo_url': c.logo.url if c.logo else None,
+        'hero_url': c.hero_image.url if c.hero_image else None,
+    }
+    return render(request, 'debug.html', {'data': data})

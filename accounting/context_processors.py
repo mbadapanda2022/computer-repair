@@ -13,3 +13,4 @@ def company_profile(request):
         'logo_url': logo_url,      
         'hero_url': hero_url,      
     }
+    

@@ -231,7 +231,7 @@ def customer_statement_excel(request, contact_id):
     ws.column_dimensions['B'].width = 18
     ws.column_dimensions['C'].width = 18
     ws.column_dimensions['D'].width = 35
-    ws.column_dimensions['E'].width = 40   # Action
+    ws.column_dimensions['E'].width = 40   
     ws.column_dimensions['F'].width = 15
     ws.column_dimensions['G'].width = 15
     ws.column_dimensions['H'].width = 15
@@ -289,7 +289,7 @@ def customer_statement_whatsapp(request, contact_id):
 💰 Opening Balance: ₹{opening:,.2f}
 💵 Closing Balance: ₹{closing:,.2f}
 
-For complete statement, please visit our portal.
+For complete statement, please visit our portal https://a1computersolutions.onrender.com/
 
 Thank you,
 {company.name}

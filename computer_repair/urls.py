@@ -19,6 +19,7 @@ urlpatterns = [
     path('validate-contact-field/', landing_views.validate_contact_field, name='validate_contact_field'),
     path('privacy-policy/', landing_views.privacy_policy, name='privacy_policy'),
     path('cookie-policy/', landing_views.cookie_policy, name='cookie_policy'),
+    path('debug/', landing_views.debug_cloudinary, name='debug_cloudinary'),
 
     # 3. Customer URLs 
     path('customer/', include(('accounting.customer_urls', 'customer'))),
