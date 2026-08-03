@@ -11,6 +11,7 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django_q.tasks import async_task
 
 
 
@@ -105,11 +106,17 @@ class CompanyProfile(models.Model):
 
     class Meta:
         verbose_name_plural = "Company Profile"
-
+        
+    
     def save(self, *args, **kwargs):
-        if not self.pk and CompanyProfile.objects.exists():
-            raise Exception("Only one company profile can exist.")
         super().save(*args, **kwargs)
+
+        if self.logo and not self.logo.url.startswith('https://res.cloudinary.com'):
+            async_task(
+                'accounting.tasks.upload_to_cloudinary',
+                self.logo.name,
+                f'company_logo/{self.logo.name.split("/")[-1]}'
+            )
 
     @classmethod
     def get_instance(cls):
@@ -147,9 +154,20 @@ class Service(models.Model):
         ordering = ['order', 'created_at']
         verbose_name = "Service"
         verbose_name_plural = "Services"
+        
 
     def __str__(self):
         return self.title
+    
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.image and not self.image.url.startswith('https://res.cloudinary.com'):
+            async_task(
+                'accounting.tasks.upload_to_cloudinary',
+                self.image.name,
+                f'services/{self.image.name.split("/")[-1]}'
+            )
 
     def get_icon_html(self):
         """Returns HTML for icon or image"""
@@ -188,6 +206,16 @@ class Testimonial(models.Model):
         ordering = ['order', '-created_at']
         verbose_name = "Testimonial"
         verbose_name_plural = "Testimonials"
+        
+        
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.customer_photo and not self.customer_photo.url.startswith('https://res.cloudinary.com'):
+            async_task(
+                'accounting.tasks.upload_to_cloudinary',
+                self.customer_photo.name,
+                f'testimonials/{self.customer_photo.name.split("/")[-1]}'
+            )
 
     def __str__(self):
         return self.customer_name

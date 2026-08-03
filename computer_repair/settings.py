@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django_eventstream',
     'django_htmx',
     'django_cleanup.apps.CleanupConfig',  # Auto-delete old files
+    'django_q',
     
     # Cloudinary SDK (only for media, not static)
     'cloudinary_storage', 
@@ -47,6 +48,15 @@ INSTALLED_APPS = [
     'accounting.apps.AccountingConfig',
 ]
 
+Q_CLUSTER = {
+    'name': 'DjangoORM',
+    'workers': 1,                
+    'timeout': 120,         
+    'retry': 180,                
+    'queue_limit': 50,
+    'bulk': 10,
+    'orm': 'default',
+}
 # Note: cloudinary_storage is NOT in INSTALLED_APPS because we are NOT
 # using Cloudinary for static files. It is only needed for media,
 # which is handled by DEFAULT_FILE_STORAGE setting.
