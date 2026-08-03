@@ -40,8 +40,9 @@ INSTALLED_APPS = [
     'django_cleanup.apps.CleanupConfig',  # Auto-delete old files
     
     # Cloudinary SDK (only for media, not static)
+    'cloudinary_storage', 
     'cloudinary',
-    
+
     # Your Apps
     'accounting.apps.AccountingConfig',
 ]
@@ -178,12 +179,21 @@ if not DEBUG:
         'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
         'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
         'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-        'SECURE': True,                     # Use HTTPS
-        'PREFIX': 'media/',                 # Optional: folder prefix
-        # 'EXCLUDE_DELETE_ORPHANED_MEDIA_PATHS': (),
-        # 'MEDIA_TAG': 'media',
-        # 'STATIC_TAG': 'static',
+        'SECURE': True,
+        'TIMEOUT': 120, 
+        'CHUNK_SIZE': 20 * 1024 * 1024,  
+        'PREFIX': 'media/',
     }
+
+    import cloudinary
+    cloudinary.config(
+        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+        api_key=os.getenv('CLOUDINARY_API_KEY'),
+        api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+        secure=True,
+        timeout=120,
+        chunk_size=20 * 1024 * 1024,
+    )
 
     # Set Cloudinary as the default storage backend for media files
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
