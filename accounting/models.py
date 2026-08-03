@@ -11,7 +11,7 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
-from django_q.tasks import async_task
+import cloudinary.uploader
 
 
 
@@ -112,11 +112,15 @@ class CompanyProfile(models.Model):
         super().save(*args, **kwargs)
 
         if self.logo and not self.logo.url.startswith('https://res.cloudinary.com'):
-            async_task(
-                'accounting.tasks.upload_to_cloudinary',
-                self.logo.name,
-                f'company_logo/{self.logo.name.split("/")[-1]}'
-            )
+            try:
+                with open(self.logo.path, 'rb') as image_file:
+                    result = cloudinary.uploader.upload(
+                        image_file,
+                        public_id=f'company_logo/{self.logo.name.split("/")[-1]}'
+                    )
+                    print(f"✅ Cloudinary Upload Success: {result['secure_url']}")
+            except Exception as e:
+                print(f"🔥 Cloudinary Upload Failed: {e}")
 
     @classmethod
     def get_instance(cls):
@@ -163,11 +167,15 @@ class Service(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         if self.image and not self.image.url.startswith('https://res.cloudinary.com'):
-            async_task(
-                'accounting.tasks.upload_to_cloudinary',
-                self.image.name,
-                f'services/{self.image.name.split("/")[-1]}'
-            )
+            try:
+                with open(self.image.path, 'rb') as image_file:
+                    result = cloudinary.uploader.upload(
+                        image_file,
+                        public_id=f'services/{self.image.name.split("/")[-1]}'
+                    )
+                    print(f"✅ Service Image Upload Success: {result['secure_url']}")
+            except Exception as e:
+                print(f"🔥 Service Image Upload Failed: {e}")
 
     def get_icon_html(self):
         """Returns HTML for icon or image"""
@@ -211,11 +219,15 @@ class Testimonial(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         if self.customer_photo and not self.customer_photo.url.startswith('https://res.cloudinary.com'):
-            async_task(
-                'accounting.tasks.upload_to_cloudinary',
-                self.customer_photo.name,
-                f'testimonials/{self.customer_photo.name.split("/")[-1]}'
-            )
+            try:
+                with open(self.customer_photo.path, 'rb') as image_file:
+                    result = cloudinary.uploader.upload(
+                        image_file,
+                        public_id=f'testimonials/{self.customer_photo.name.split("/")[-1]}'
+                    )
+                    print(f"✅ Testimonial Photo Upload Success: {result['secure_url']}")
+            except Exception as e:
+                print(f"🔥 Testimonial Photo Upload Failed: {e}")
 
     def __str__(self):
         return self.customer_name
