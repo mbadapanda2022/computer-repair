@@ -108,11 +108,10 @@ def register_view(request):
 
     if request.method == 'POST':
         form = CustomerRegistrationForm(request.POST)
-        
-        # HONEYPOT CHECK - Bot Detection (Silent Fail)
+
+        # HONEYPOT CHECK
         if request.POST.get('website', '').strip():
             logger.warning(f"🔥 Honeypot triggered on registration from IP {request.META.get('REMOTE_ADDR')}")
-            # Fake success to waste bot's time
             if request.headers.get('HX-Request'):
                 response = HttpResponse()
                 response['HX-Trigger'] = json.dumps({
@@ -127,34 +126,25 @@ def register_view(request):
             return redirect('accounting:verify_otp')
 
         if form.is_valid():
-            with transaction.atomic():
-                user = form.save()
-                user.is_active = False
-                user.save()
-                print(f"🔥 User saved: {user.username}")
+            # Step 1: Save User (Atomic नहीं – अलग से Save)
+            user = form.save(commit=False)
+            user.is_active = False
+            user.save()
+            logger.info(f"🔥 User saved: {user.username} (ID: {user.id})")
 
-                # Send OTP
-                success = create_and_send_otp(user, user.email, 'signup')
-                if not success:
-                    user.delete()
-                    messages.error(request, "Unable to send OTP. Please try again.")
-                    if request.headers.get('HX-Request'):
-                        response = render(request, 'auth/partials/_register_form.html', {'form': form}, status=400)
-                        response['HX-Trigger'] = json.dumps({
-                            'showToast': {
-                                'level': 'danger',
-                                'message': 'Failed to send OTP. Please try again.'
-                            }
-                        })
-                        return response
-                    return render(request, 'auth/register.html', {'form': form})
+            # Step 2: OTP भेजने की कोशिश करें – लेकिन Fail होने पर User Delete न करें
+            otp_sent = False
+            try:
+                otp_sent = create_and_send_otp(user, user.email, 'signup')
+            except Exception as e:
+                logger.error(f"🔥 OTP sending failed: {e}")
 
-                # Store in session for OTP verification
+            if otp_sent:
+                # Session Store (OTP Verification के लिए)
                 request.session['pending_user_id'] = user.id
                 request.session['pending_email'] = user.email
                 request.session['otp_purpose'] = 'signup'
 
-                # Success – Redirect to OTP page with toast
                 messages.success(request, f"Welcome {user.first_name}! OTP sent to your email.")
                 if request.headers.get('HX-Request'):
                     response = HttpResponse()
@@ -164,6 +154,26 @@ def register_view(request):
                             'level': 'success',
                             'message': f'🎉 Welcome {user.first_name}! Check your email for OTP.',
                             'title': 'Registration Successful'
+                        }
+                    })
+                    return response
+                return redirect('accounting:verify_otp')
+            else:
+                # OTP Send Fail – लेकिन User Save रहेगा
+                # User को Active न करें (अभी भी Inactive) – और उसे Resend OPT पर भेजें
+                request.session['pending_user_id'] = user.id
+                request.session['pending_email'] = user.email
+                request.session['otp_purpose'] = 'signup'
+
+                messages.warning(request, "Registration successful, but OTP could not be sent. Please try resending OTP.")
+                if request.headers.get('HX-Request'):
+                    response = HttpResponse()
+                    response['HX-Redirect'] = reverse('accounting:verify_otp')
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {
+                            'level': 'warning',
+                            'message': 'Account created, but OTP email failed. Please click "Resend OTP" to try again.',
+                            'title': 'Registration Partial'
                         }
                     })
                     return response
@@ -181,12 +191,10 @@ def register_view(request):
                 return response
             return render(request, 'auth/register.html', {'form': form})
     else:
-        # GET request – show empty form
         form = CustomerRegistrationForm()
         if request.headers.get('HX-Request'):
             return render(request, 'auth/partials/_register_form.html', {'form': form})
         return render(request, 'auth/register.html', {'form': form})
-
 
 # ============================================================
 # 3. UNIFIED LOGOUT
