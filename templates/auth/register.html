@@ -5,18 +5,12 @@
 
 {% block extra_head %}
 <style>
-    .htmx-request #register-spinner {
-        display: inline-block !important;
-    }
-    .htmx-request #register-text {
-        opacity: 0.7;
-    }
-    .card-register {
+    .register-card {
         border-radius: 16px;
         border: none;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     }
-    .card-register .card-header {
+    .register-card .card-header {
         background: linear-gradient(135deg, #0d6efd, #0a58ca);
         color: white;
         border-radius: 16px 16px 0 0;
@@ -32,14 +26,10 @@
         transform: scale(1.02);
         box-shadow: 0 4px 12px rgba(13,110,253,0.4);
     }
-    .invalid-feedback {
-        font-size: 0.85rem;
-        margin-top: 0.25rem;
-    }
-    [data-bs-theme="dark"] .card-register {
+    [data-bs-theme="dark"] .register-card {
         background-color: #2c3034;
     }
-    [data-bs-theme="dark"] .card-register .card-header {
+    [data-bs-theme="dark"] .register-card .card-header {
         background: linear-gradient(135deg, #0a58ca, #520dc2);
     }
 </style>
@@ -49,7 +39,7 @@
 <div class="container py-5">
     <div class="row justify-content-center">
         <div class="col-md-6 col-lg-5">
-            <div class="card card-register shadow">
+            <div class="card register-card shadow">
                 <div class="card-header">
                     <h3 class="mb-0 fw-bold">Create Account</h3>
                     <p class="mb-0 opacity-75">Join us to track your repairs and invoices</p>

@@ -21,7 +21,7 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
 # =============================================
-# 4. INSTALLED APPS – Clean and correct
+# 4. INSTALLED APPS – CLEAN + ALLAUTH
 # =============================================
 INSTALLED_APPS = [
     # Django Core
@@ -30,32 +30,42 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',   # Static files handled by Whitenoise
-    
+    'django.contrib.staticfiles',
+
+    # Allauth (Sites Framework + Social Login)
+    'django.contrib.sites',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',          # Social Login के लिए (Google/Facebook)
+    # 'allauth.socialaccount.providers.google',   # Uncomment if needed
+    # 'allauth.socialaccount.providers.facebook', # Uncomment if needed
+
     # Third Party
     'honeypot',
     'channels',
     'django_eventstream',
     'django_htmx',
-    'django_cleanup.apps.CleanupConfig',  # Auto-delete old files
-    
-    # Cloudinary SDK (only for media, not static)
-    'cloudinary_storage', 
+    'django_cleanup.apps.CleanupConfig',
+
+    # Cloudinary (Media Storage)
+    'cloudinary_storage',
     'cloudinary',
 
     # Your Apps
     'accounting.apps.AccountingConfig',
 ]
 
-
+# Sites Framework – Required by Allauth
+SITE_ID = 1
 
 # =============================================
-# 5. MIDDLEWARE
+# 5. MIDDLEWARE – ✅ AccountMiddleware जोड़ा गया
 # =============================================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'allauth.account.middleware.AccountMiddleware',  
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -65,9 +75,13 @@ MIDDLEWARE = [
     'accounting.middleware.AccessControlMiddleware',
 ]
 
+# =============================================
+# AUTHENTICATION BACKENDS – Custom Phone/Email + Allauth + Default
+# =============================================
 AUTHENTICATION_BACKENDS = [
-    'accounting.auth_backends.EmailOrPhoneBackend',
-    'django.contrib.auth.backends.ModelBackend',
+    'accounting.auth_backends.EmailOrPhoneBackend',      # Custom: Phone, Email, Username (पहले Try होगा)
+    'allauth.account.auth_backends.AuthenticationBackend',  # Allauth (Email/Username) – Social Login के लिए
+    'django.contrib.auth.backends.ModelBackend',         # Fallback
 ]
 
 # =============================================
@@ -76,7 +90,6 @@ AUTHENTICATION_BACKENDS = [
 SESSION_COOKIE_AGE = 1209600  # 2 weeks
 SESSION_COOKIE_HTTPONLY = True
 SESSION_SAVE_EVERY_REQUEST = True
-
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
@@ -160,8 +173,6 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# Use Whitenoise's storage to add hash to filenames for caching
 STATICFILES_STORAGE = 'whitenoise.storage.WhiteNoiseStaticFilesStorage'
 
 # =============================================
@@ -169,17 +180,13 @@ STATICFILES_STORAGE = 'whitenoise.storage.WhiteNoiseStaticFilesStorage'
 # =============================================
 if not DEBUG:
     print("🔥 DEBUG is False – Configuring Cloudinary for media files")
-
-    # =============================================
-    # CLOUDINARY STORAGE CONFIGURATION (Official)
-    # =============================================
     CLOUDINARY_STORAGE = {
         'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
         'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
         'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
         'SECURE': True,
-        'TIMEOUT': 120, 
-        'CHUNK_SIZE': 20 * 1024 * 1024,  
+        'TIMEOUT': 120,
+        'CHUNK_SIZE': 20 * 1024 * 1024,
         'PREFIX': 'media/',
     }
 
@@ -193,32 +200,49 @@ if not DEBUG:
         chunk_size=20 * 1024 * 1024,
     )
 
-    # Set Cloudinary as the default storage backend for media files
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-
-    # Media URL – Cloudinary URL
     MEDIA_URL = f'https://res.cloudinary.com/{os.getenv("CLOUDINARY_CLOUD_NAME")}/image/upload/'
-
-    # Print confirmation (visible in Render logs)
     print(f"🔥 CLOUDINARY_STORAGE configured with cloud name: {CLOUDINARY_STORAGE['CLOUD_NAME']}")
     print(f"🔥 DEFAULT_FILE_STORAGE = {DEFAULT_FILE_STORAGE}")
     print(f"🔥 MEDIA_URL = {MEDIA_URL}")
-
 else:
-    # Development: Use local media storage
     print("🔥 DEBUG is True – Using local media storage")
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
 
 # =============================================
-# 14. AUTHENTICATION URLs
+# 14. AUTHENTICATION URLs (DEFAULT + ALLAUTH)
 # =============================================
-LOGIN_URL = 'accounting:login'
-LOGIN_REDIRECT_URL = 'home'
-LOGOUT_REDIRECT_URL = 'home'
+LOGIN_URL = 'accounting:login'          # आपके अपने Login URL को प्राथमिकता
+LOGIN_REDIRECT_URL = 'home'             # Login के बाद Redirect
+LOGOUT_REDIRECT_URL = 'home'            # Logout के बाद Redirect
 
 # =============================================
-# 15. EMAIL (SMTP)
+# 15. ALLAUTH SETTINGS – MODERN (बिना Deprecation Warnings के)
+# =============================================
+# Login Methods: Email, Username (Phone Custom Backend से हैंडल होगा)
+ACCOUNT_LOGIN_METHODS = {'username', 'email'}
+
+# Signup Fields: Email और Password (Username हटा दिया – आपके Custom Form में Username है, पर Allauth इससे प्रभावित नहीं)
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
+
+# OTP Verification ही Primary है – Allauth Email Verification बंद
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_LOGOUT_ON_GET = True
+ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
+
+# (Optional) अगर Social Login चाहिए तो यहाँ Credentials डालें
+# SOCIALACCOUNT_PROVIDERS = {
+#     'google': {
+#         'APP': {
+#             'client_id': 'your-client-id',
+#             'secret': 'your-secret',
+#         }
+#     }
+# }
+
+# =============================================
+# 16. EMAIL (SMTP)
 # =============================================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
@@ -229,7 +253,7 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@yourdomain.com')
 
 # =============================================
-# 16. MESSAGE TAGS (FOR BOOTSTRAP TOASTS)
+# 17. MESSAGE TAGS (FOR BOOTSTRAP TOASTS)
 # =============================================
 MESSAGE_TAGS = {
     messages.DEBUG: 'secondary',
@@ -240,7 +264,7 @@ MESSAGE_TAGS = {
 }
 
 # =============================================
-# 17. LOGGING
+# 18. LOGGING
 # =============================================
 LOGGING = {
     'version': 1,
@@ -303,7 +327,7 @@ LOGGING = {
 }
 
 # =============================================
-# 18. PRODUCTION SECURITY SETTINGS
+# 19. PRODUCTION SECURITY SETTINGS
 # =============================================
 if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
@@ -321,21 +345,21 @@ else:
     X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # =============================================
-# 19. ENSURE LOGS DIRECTORY EXISTS
+# 20. ENSURE LOGS DIRECTORY EXISTS
 # =============================================
 LOGS_DIR = BASE_DIR / 'logs'
 if not LOGS_DIR.exists():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # =============================================
-# 20. HONEYPOT SETTINGS
+# 21. HONEYPOT SETTINGS
 # =============================================
 HONEYPOT_FIELD_NAME = 'phone'
 HONEYPOT_VALUE = ''
 HONEYPOT_VERIFY = True
 
 # =============================================
-# 21. ADDITIONAL SETTINGS
+# 22. ADDITIONAL SETTINGS
 # =============================================
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
@@ -345,7 +369,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
 ]
 
-# Force Cloudinary storage – Temporary fix
+# Force Cloudinary storage (if needed)
 if not DEBUG:
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
     print("🔥 FORCE: DEFAULT_FILE_STORAGE =", DEFAULT_FILE_STORAGE)
@@ -353,4 +377,3 @@ if not DEBUG:
 # =============================================
 # END OF SETTINGS
 # =============================================
-

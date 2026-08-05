@@ -6,12 +6,10 @@
       hx-indicator="#register-spinner">
     {% csrf_token %}
 
-    <!-- ============================================================ -->
-    <!-- 🍯 HONEYPOT FIELD – Hidden from real users (Bots trap)        -->
-    <!-- ============================================================ -->
+    <!-- HONEYPOT FIELD -->
     {{ form.website }}
 
-    <!-- ===== USERNAME ===== -->
+    <!-- Username -->
     <div class="mb-3">
         <label for="id_username" class="form-label fw-semibold">Username</label>
         <input type="text" name="username" 
@@ -27,15 +25,13 @@
         <div id="username-errors" class="mt-1">
             {% if form.username.errors %}
                 <div class="invalid-feedback d-block">
-                    {% for err in form.username.errors %}
-                        <span>{{ err }}</span>
-                    {% endfor %}
+                    {% for err in form.username.errors %}<span>{{ err }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- ===== FULL NAME ===== -->
+    <!-- Full Name -->
     <div class="mb-3">
         <label for="id_full_name" class="form-label fw-semibold">Full Name</label>
         <input type="text" name="full_name" 
@@ -51,15 +47,13 @@
         <div id="full_name-errors" class="mt-1">
             {% if form.full_name.errors %}
                 <div class="invalid-feedback d-block">
-                    {% for err in form.full_name.errors %}
-                        <span>{{ err }}</span>
-                    {% endfor %}
+                    {% for err in form.full_name.errors %}<span>{{ err }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- ===== EMAIL ===== -->
+    <!-- Email -->
     <div class="mb-3">
         <label for="id_email" class="form-label fw-semibold">Email</label>
         <input type="email" name="email" 
@@ -75,15 +69,13 @@
         <div id="email-errors" class="mt-1">
             {% if form.email.errors %}
                 <div class="invalid-feedback d-block">
-                    {% for err in form.email.errors %}
-                        <span>{{ err }}</span>
-                    {% endfor %}
+                    {% for err in form.email.errors %}<span>{{ err }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- ===== PHONE ===== -->
+    <!-- Phone -->
     <div class="mb-3">
         <label for="id_phone" class="form-label fw-semibold">Phone</label>
         <input type="tel" name="phone" 
@@ -99,15 +91,13 @@
         <div id="phone-errors" class="mt-1">
             {% if form.phone.errors %}
                 <div class="invalid-feedback d-block">
-                    {% for err in form.phone.errors %}
-                        <span>{{ err }}</span>
-                    {% endfor %}
+                    {% for err in form.phone.errors %}<span>{{ err }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- ===== PASSWORD 1 ===== -->
+    <!-- Password 1 -->
     <div class="mb-3">
         <label for="id_password1" class="form-label fw-semibold">Password</label>
         <div class="input-group">
@@ -116,22 +106,20 @@
                    id="id_password1" 
                    placeholder="Min 8 characters" 
                    required>
-            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('id_password1', 'eye-icon-1')">
+            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('id_password1', 'eye-icon-1')">
                 <i class="bi bi-eye-slash" id="eye-icon-1"></i>
             </button>
         </div>
         <div id="password1-errors" class="mt-1">
             {% if form.password1.errors %}
                 <div class="invalid-feedback d-block">
-                    {% for err in form.password1.errors %}
-                        <span>{{ err }}</span>
-                    {% endfor %}
+                    {% for err in form.password1.errors %}<span>{{ err }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- ===== PASSWORD 2 ===== -->
+    <!-- Password 2 -->
     <div class="mb-3">
         <label for="id_password2" class="form-label fw-semibold">Confirm Password</label>
         <div class="input-group">
@@ -140,27 +128,22 @@
                    id="id_password2" 
                    placeholder="Re-enter password" 
                    required>
-            <button class="btn btn-outline-secondary" type="button" onclick="togglePasswordVisibility('id_password2', 'eye-icon-2')">
+            <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('id_password2', 'eye-icon-2')">
                 <i class="bi bi-eye-slash" id="eye-icon-2"></i>
             </button>
         </div>
         <div id="password2-errors" class="mt-1">
             {% if form.password2.errors %}
                 <div class="invalid-feedback d-block">
-                    {% for err in form.password2.errors %}
-                        <span>{{ err }}</span>
-                    {% endfor %}
+                    {% for err in form.password2.errors %}<span>{{ err }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Non-field errors -->
     {% if form.non_field_errors %}
         <div class="alert alert-danger py-2">
-            {% for err in form.non_field_errors %}
-                <span>{{ err }}</span>
-            {% endfor %}
+            {% for err in form.non_field_errors %}<span>{{ err }}</span>{% endfor %}
         </div>
     {% endif %}
 
@@ -171,7 +154,7 @@
 </form>
 
 <script>
-function togglePasswordVisibility(fieldId, iconId) {
+function togglePassword(fieldId, iconId) {
     const input = document.getElementById(fieldId);
     const icon = document.getElementById(iconId);
     if (input.type === "password") {

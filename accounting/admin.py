@@ -1,5 +1,4 @@
 # accounting/admin.py
-
 from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
@@ -8,6 +7,9 @@ from django.contrib import messages
 from django.utils import timezone
 from decimal import Decimal
 from django.utils.html import format_html
+
+from django.contrib.auth.models import User
+from django.contrib.auth.admin import UserAdmin
 
 from .models import (
     CompanyProfile, LedgerEntry, LedgerLine, Contact,
@@ -215,6 +217,7 @@ class LedgerLineAdmin(admin.ModelAdmin):
 # ============================================================
 # CONTACTS
 # ============================================================
+
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
     list_display = ['name', 'contact_type', 'phone', 'email', 'user', 'opening_balance', 'current_balance']
@@ -591,3 +594,51 @@ class EmailOTPAdmin(admin.ModelAdmin):
             'fields': ('is_used', 'expires_at', 'created_at')
         }),
     )
+    
+# ============================================================
+# USER ADMIN (Custom – with Phone from Contact)
+# ============================================================
+
+class ContactInline(admin.StackedInline):
+    """Inline for Contact model inside User admin (edit phone etc.)"""
+    model = Contact
+    can_delete = False
+    verbose_name_plural = 'Contact Info'
+    fields = ('phone', 'address', 'state', 'gstin', 'contact_type')
+    # Optional: make some fields readonly if needed
+    # readonly_fields = ('phone',)
+
+# Unregister default User admin
+admin.site.unregister(User)
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin):
+    """
+    Custom User Admin to display phone number from related Contact.
+    """
+    list_display = (
+        'username', 
+        'email', 
+        'first_name', 
+        'last_name', 
+        'is_staff', 
+        'is_active', 
+        'get_phone'
+    )
+    list_filter = ('is_staff', 'is_active')
+    search_fields = ('username', 'email', 'first_name', 'last_name')
+    
+    # Add Contact inline to edit phone directly
+    inlines = [ContactInline]
+    
+    def get_phone(self, obj):
+        """Return phone number from related Contact, if exists."""
+        try:
+            return obj.customer_contact.phone
+        except Contact.DoesNotExist:
+            return '-'
+    get_phone.short_description = 'Phone'
+    get_phone.admin_order_field = 'customer_contact__phone'  # Allow ordering (if needed)
+    
+    # Optional: You can also add phone field to the user edit form fieldsets
+    # But since we have inline, it's already there.

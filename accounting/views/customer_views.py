@@ -19,6 +19,8 @@ from django.utils import timezone
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 from ..models import *
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
 from ..forms import CustomerProfileForm, CustomerRepairForm
 from ..utils.notification_helpers import send_notification_to_staff, send_notification_sse
 from .utils import is_htmx, htmx_response, redirect_to_customer, redirect_to_staff, toast_only_response
@@ -964,35 +966,63 @@ def customer_statement_excel(request, customer):
 
 
 # ============================================================
-# PROFILE (ENHANCED)
+# PROFILE 
 # ============================================================
 
 @login_required
 @handle_errors(default_redirect='customer:customer_dashboard')
 def profile(request):
-    """Customer profile view with complete details."""
+    """Customer profile view – full page for GET, partial for HTMX."""
     customer = get_object_or_404(Contact, user=request.user)
-    
-    # Get additional stats for profile page
+
+    # ---- STATS ----
     invoices = Invoice.objects.filter(customer=customer)
     repairs = RepairJob.objects.filter(customer=customer)
     payments = Payment.objects.filter(contact=customer, direction='received')
-    
+
+    total_invoices = invoices.count()
+    total_repairs = repairs.count()
+    total_payments = payments.aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+
+    # ---- PROFILE COMPLETION ----
+    fields = [customer.name, customer.phone, customer.address, customer.state, customer.gstin, customer.email]
+    filled_count = sum(1 for f in fields if f)
+    profile_completion = int((filled_count / len(fields)) * 100) if fields else 0
+
+    # ---- RECENT ACTIVITIES ----
+    last_invoice = invoices.order_by('-date').first()
+    last_repair = repairs.order_by('-date_in').first()
+
     context = {
         'customer': customer,
-        'total_invoices': invoices.count(),
-        'total_repairs': repairs.count(),
-        'total_payments': payments.aggregate(Sum('amount'))['amount__sum'] or Decimal('0'),
+        'total_invoices': total_invoices,
+        'total_repairs': total_repairs,
+        'total_payments': total_payments,
+        'profile_completion': profile_completion,
+        'last_invoice': last_invoice,
+        'last_repair': last_repair,
     }
+
+    # HTMX Request → सिर्फ Partial Content Return करें
+    if is_htmx(request):
+        return render(request, 'customer/partials/profile_content.html', context)
+
+    # Normal Request → Full Page Return करें
     return render(request, 'customer/profile.html', context)
 
 
+# ============================================================
+# PROFILE UPDATE VIEW 
+# ============================================================
 
 @csrf_protect
 @login_required
 @handle_errors(default_redirect='customer:customer_profile')
 def profile_update(request):
-    """Update customer profile with HTMX support."""
+    """
+    Update customer profile with HTMX support.
+    After successful update, returns profile_content partial with updated stats and profile completion.
+    """
     customer = get_object_or_404(Contact, user=request.user)
 
     if request.method == 'POST':
@@ -1000,33 +1030,123 @@ def profile_update(request):
         if form.is_valid():
             form.save()
             messages.success(request, "Profile updated successfully.")
+
             if is_htmx(request):
-                # Return partial instead of full page
-                # Get fresh stats
+                # Recalculate stats and profile completion after update
                 invoices = Invoice.objects.filter(customer=customer)
                 repairs = RepairJob.objects.filter(customer=customer)
                 payments = Payment.objects.filter(contact=customer, direction='received')
-                
+
+                total_invoices = invoices.count()
+                total_repairs = repairs.count()
+                total_payments = payments.aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+
+                fields = [customer.name, customer.phone, customer.address,
+                          customer.state, customer.gstin, customer.email]
+                filled_count = sum(1 for f in fields if f)
+                profile_completion = int((filled_count / len(fields)) * 100) if fields else 0
+
+                last_invoice = invoices.order_by('-date').first()
+                last_repair = repairs.order_by('-date_in').first()
+
                 context = {
                     'customer': customer,
-                    'total_invoices': invoices.count(),
-                    'total_repairs': repairs.count(),
-                    'total_payments': payments.aggregate(Sum('amount'))['amount__sum'] or Decimal('0'),
+                    'total_invoices': total_invoices,
+                    'total_repairs': total_repairs,
+                    'total_payments': total_payments,
+                    'profile_completion': profile_completion,
+                    'last_invoice': last_invoice,
+                    'last_repair': last_repair,
                 }
+
                 return htmx_response(
                     request,
-                    'customer/partials/profile_content.html', 
+                    'customer/partials/profile_content.html',
                     context=context,
                     toast={'level': 'success', 'message': 'Profile updated successfully.'}
                 )
             return redirect_to_customer('customer_profile')
         else:
+            # Form invalid – return the edit form partial
             if is_htmx(request):
                 return render(request, 'customer/profile_edit.html', {'form': form, 'customer': customer})
     else:
         form = CustomerProfileForm(instance=customer)
 
+    # GET request – render the edit page (full page)
     return render(request, 'customer/profile_edit.html', {'form': form, 'customer': customer})
+
+
+# ============================================================
+# PASSWORD CHANGE VIEW 
+# ============================================================
+
+@login_required
+@handle_errors(default_redirect='customer:customer_profile')
+def customer_password_change(request):
+    """
+    Customer Password Change View – HTMX Support with Toast
+    """
+    if request.method == 'POST':
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)  # Keep user logged in
+            messages.success(request, "Your password has been changed successfully!")
+
+            if is_htmx(request):
+                # Success – Return profile content with toast
+                # Re-fetch customer and stats
+                from ..models import Contact, Invoice, RepairJob, Payment
+                from decimal import Decimal
+                from django.db.models import Sum
+
+                customer = get_object_or_404(Contact, user=request.user)
+                invoices = Invoice.objects.filter(customer=customer)
+                repairs = RepairJob.objects.filter(customer=customer)
+                payments = Payment.objects.filter(contact=customer, direction='received')
+
+                total_invoices = invoices.count()
+                total_repairs = repairs.count()
+                total_payments = payments.aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+
+                # Profile Completion (optional)
+                fields = [customer.name, customer.phone, customer.address,
+                          customer.state, customer.gstin, customer.email]
+                filled_count = sum(1 for f in fields if f)
+                profile_completion = int((filled_count / len(fields)) * 100) if fields else 0
+
+                last_invoice = invoices.order_by('-date').first()
+                last_repair = repairs.order_by('-date_in').first()
+
+                context = {
+                    'customer': customer,
+                    'total_invoices': total_invoices,
+                    'total_repairs': total_repairs,
+                    'total_payments': total_payments,
+                    'profile_completion': profile_completion,
+                    'last_invoice': last_invoice,
+                    'last_repair': last_repair,
+                }
+
+                return htmx_response(
+                    request,
+                    'customer/partials/profile_content.html',
+                    context=context,
+                    toast={'level': 'success', 'message': 'Password changed successfully!', 'title': 'Security Updated'}
+                )
+            return redirect('customer:customer_profile')
+        else:
+            # Form invalid – return partial with errors
+            if is_htmx(request):
+                return render(request, 'customer/partials/_password_change_form.html', {'form': form}, status=400)
+    else:
+        # GET request – show empty form
+        form = PasswordChangeForm(request.user)
+
+    if is_htmx(request):
+        return render(request, 'customer/partials/_password_change_form.html', {'form': form})
+    return render(request, 'customer/password_change.html', {'form': form})
 
 
 # ============================================================

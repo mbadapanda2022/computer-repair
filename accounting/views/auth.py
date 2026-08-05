@@ -1,3 +1,4 @@
+# accounting/views/auth.py
 import json
 import logging
 from django.shortcuts import render, redirect
@@ -14,6 +15,10 @@ from django.db import transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+# Allauth imports for Custom Signup View
+from allauth.account.views import SignupView
+from allauth.account import app_settings as allauth_settings
+
 from ..models import Contact, EmailOTP
 from ..forms import (
     CustomerRegistrationForm,
@@ -28,7 +33,10 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# 1. UNIFIED LOGIN (Staff + Customer)
+# 1. UNIFIED LOGIN (Staff + Customer) – Phone/Email/Username
+# ============================================================
+# यह View आपके Custom Backend का उपयोग करता है, जो Phone, Email, Username – तीनों से Login करता है।
+# Allauth के Login View को Override करने के लिए इस View को /accounts/login/ पर Map करें (यदि चाहें)।
 # ============================================================
 
 def unified_login_view(request):
@@ -88,7 +96,9 @@ def unified_login_view(request):
 
 
 # ============================================================
-# 2. CUSTOMER REGISTRATION (with OTP)
+# 2. CUSTOMER REGISTRATION (with OTP) – आपका मौजूदा Flow
+# ============================================================
+# यह View OTP-based Registration करता है। इसे आप अपने /register/ URL पर रख सकते हैं।
 # ============================================================
 
 @handle_errors(default_redirect='home')
@@ -99,9 +109,7 @@ def register_view(request):
     if request.method == 'POST':
         form = CustomerRegistrationForm(request.POST)
         
-        # ============================================================
         # HONEYPOT CHECK - Bot Detection (Silent Fail)
-        # ============================================================
         if request.POST.get('website', '').strip():
             logger.warning(f"🔥 Honeypot triggered on registration from IP {request.META.get('REMOTE_ADDR')}")
             # Fake success to waste bot's time
@@ -178,6 +186,7 @@ def register_view(request):
             return render(request, 'auth/partials/_register_form.html', {'form': form})
         return render(request, 'auth/register.html', {'form': form})
 
+
 # ============================================================
 # 3. UNIFIED LOGOUT
 # ============================================================
@@ -190,7 +199,7 @@ def unified_logout_view(request):
 
 
 # ============================================================
-# 4. PASSWORD RESET (Token-based – Legacy)
+# 4. PASSWORD RESET (Token-based – Legacy) – यदि आप Allauth Reset का उपयोग करते हैं तो इसकी ज़रूरत नहीं
 # ============================================================
 
 class CustomPasswordResetView(PasswordResetView):
@@ -261,10 +270,7 @@ def validate_register_field(request):
     field = request.GET.get('field')
     value = request.GET.get(field, '')
 
-    # ============================================================
     # HONEYPOT: Honeypot field ko GET validation se bypass karo
-    # Bots ko hint mat do ki ye field empty honi chahiye
-    # ============================================================
     if field == 'website':
         return HttpResponse("")
 
@@ -289,25 +295,28 @@ def validate_register_field(request):
     return HttpResponse(html)
 
 
+
 @require_http_methods(["GET"])
 def validate_login_field(request):
     """
     Real-time validation for login form.
+    Returns only the error partial (not full page).
     """
     field = request.GET.get('field')
-    value = request.GET.get(field, '')
-    errors = {}
-    
+    value = request.GET.get(field, '').strip()
+    errors = []
+
     if field == 'username':
         if not value:
-            errors['username'] = 'Email or Mobile number is required.'
-    
+            errors.append('Email or Mobile number is required.')
+
     html = render_to_string('auth/partials/_field_errors.html', {
         'field': field,
-        'errors': errors.get(field, []),
+        'errors': errors,
         'value': value
     })
     return HttpResponse(html)
+
 
 # ============================================================
 # 7. OTP VERIFICATION, RESEND, AND PASSWORD RESET (OTP-based)
@@ -406,6 +415,7 @@ def verify_otp_view(request):
 
     # GET request – show OTP form
     return render(request, 'auth/verify_otp.html', {'email': email, 'purpose': purpose})
+
 
 @handle_errors(default_redirect='home')
 def resend_otp_view(request):
@@ -540,3 +550,36 @@ def reset_password_set_view(request):
     return render(request, 'auth/reset_password_set.html', {'email': email})
 
 
+# ============================================================
+# 8. ALLAUTH CUSTOM SIGNUP VIEW (OTP के साथ)
+# ============================================================
+# यह View Allauth के Signup URL (/accounts/signup/) को OTP Flow के साथ Override करता है।
+# इसे settings.py में ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView' से Set करें।
+# ============================================================
+
+class CustomSignupView(SignupView):
+    """
+    Allauth Signup View को OTP Verification के साथ Integrate किया गया है।
+    User को Inactive रखा जाता है – OTP Verify होने पर Active होता है।
+    """
+    form_class = CustomerRegistrationForm
+    success_url = reverse_lazy('accounting:verify_otp')
+
+    def form_valid(self, form):
+        # Allauth का Default User Creation
+        response = super().form_valid(form)
+
+        # User को Inactive करें (OTP Verify होने पर Active होगा)
+        user = self.user
+        user.is_active = False
+        user.save()
+
+        # OTP भेजें
+        create_and_send_otp(user, user.email, 'signup')
+
+        # Session में Data Set करें (OTP Verification View के लिए)
+        self.request.session['pending_user_id'] = user.id
+        self.request.session['pending_email'] = user.email
+        self.request.session['otp_purpose'] = 'signup'
+
+        return response

@@ -1,4 +1,3 @@
-# accounting/urls.py
 from django.urls import path
 from django.contrib.auth import views as auth_views
 
@@ -17,6 +16,7 @@ from .views.auth import (
     resend_otp_view,
     password_reset_otp_request,
     reset_password_set_view,
+    CustomSignupView,  # ✅ यह Import जोड़ें (यदि आप URL Override करना चाहते हैं)
 )
 from .views.repairs import staff_approve_estimate
 
@@ -123,7 +123,6 @@ urlpatterns = [
     path('statements/vendor/<int:contact_id>/print/', statements.vendor_statement_print, name='vendor_statement_print'),
     path('statements/vendor/<int:contact_id>/excel/', statements.vendor_statement_excel, name='vendor_statement_excel'),
 
-
     # ===== Journal Entries =====
     path('journals/', journal.journal_list, name='journal_list'),
     path('journals/create/', journal.journal_create, name='journal_create'),
@@ -203,4 +202,3 @@ urlpatterns = [
     path('messages/<int:pk>/delete/', message_views.message_delete, name='message_delete'),
     path('messages/unread-count/', message_views.message_unread_count, name='message_unread_count'),
 ]
-

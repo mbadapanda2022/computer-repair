@@ -12,34 +12,24 @@ logger = logging.getLogger(__name__)
 
 
 def handle_errors(default_redirect=None, htmx_template=None, fallback_form=None):
-    """
-    Production-ready error handler decorator.
-    - SECURE: Never exposes tracebacks to clients in production.
-    - SAFE: Prevents infinite redirect loops.
-    - UTILIZES: fallback_form if provided.
-    """
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             try:
                 return view_func(request, *args, **kwargs)
             except Exception as e:
-                # 1. Log the full error with traceback (server side only)
                 logger.exception(f"Error in {view_func.__name__}: {e}")
 
-                # 2. Sanitize error for client (Never show raw str(e) in production!)
                 if settings.DEBUG:
                     user_error_msg = str(e)
                 else:
-                    # In production, show generic message to avoid data leakage
                     user_error_msg = "An unexpected error occurred. Please try again later."
 
-                # 3. Determine the error status code (default to 500)
                 status_code = 500
                 if hasattr(e, 'status_code'):
                     status_code = e.status_code
                 elif isinstance(e, (ValueError, TypeError, KeyError)):
-                    status_code = 400  # Client-side bad input
+                    status_code = 400 
 
                 # 4. Handle HTMX requests
                 if is_htmx(request):

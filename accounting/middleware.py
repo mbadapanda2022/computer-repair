@@ -102,5 +102,5 @@ class AccessControlMiddleware:
 
         # 10. Any other path → Allow
         return self.get_response(request)
-    
+
     

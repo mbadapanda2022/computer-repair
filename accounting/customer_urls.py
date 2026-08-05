@@ -17,6 +17,7 @@ urlpatterns = [
     path('statement/', customer_views.statement, name='customer_statement'),
     path('profile/', customer_views.profile, name='customer_profile'),
     path('profile/update/', customer_views.profile_update, name='customer_profile_update'),
+    path('password-change/', customer_views.customer_password_change, name='customer_password_change'),
     path('repairs/create/', customer_views.repair_create, name='customer_repair_create'),
     path('repairs/validate-field/', customer_views.validate_repair_field, name='customer_validate_repair_field'),
     path('repairs/<int:pk>/edit/', customer_views.repair_update, name='customer_repair_update'),
