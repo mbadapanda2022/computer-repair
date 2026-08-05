@@ -131,6 +131,7 @@ def register_view(request):
                 user = form.save()
                 user.is_active = False
                 user.save()
+                print(f"🔥 User saved: {user.username}")
 
                 # Send OTP
                 success = create_and_send_otp(user, user.email, 'signup')
