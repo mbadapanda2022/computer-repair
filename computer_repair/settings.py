@@ -244,15 +244,19 @@ ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
 
 
 # =============================================
-# 16. EMAIL (SendGrid API – No Domain, No Timeout!)
+# 16. EMAIL (Gmail SMTP – SSL Port 465)
 # =============================================
-if not DEBUG:  # Production – SendGrid API
-    EMAIL_BACKEND = "anymail.backends.sendgrid.EmailBackend"
-    ANYMAIL = {
-        "SENDGRID_API_KEY": os.getenv("SENDGRID_API_KEY", ""),
-    }
-    DEFAULT_FROM_EMAIL = "solutionsmanojtech@gmail.com"  # Verified Sender
-else:  # Development – Gmail SMTP
+if not DEBUG:  
+    # Production
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.gmail.com'
+    EMAIL_PORT = 465
+    EMAIL_USE_SSL = True          # EMAIL_USE_TLS हटा दें
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
+else:  
+    # Development
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.gmail.com'
     EMAIL_PORT = 587
