@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'django_eventstream',
     'django_htmx',
     'django_cleanup.apps.CleanupConfig',
+    'anymail',
 
     # Cloudinary (Media Storage)
     'cloudinary_storage',
@@ -241,21 +242,18 @@ ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
 #     }
 # }
 
+
 # =============================================
-# 16. EMAIL (SMTP)
+# 16. EMAIL (Mailgun API – Anymail)
 # =============================================
-if not DEBUG:  
-    # Production (DEBUG=False) – Mailgun
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.mailgun.org'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'postmaster@sandboxe60a463cdea84f9781d4f115b0915307.mailgun.org'
-    EMAIL_HOST_PASSWORD = os.getenv('MAILGUN_SMTP_PASSWORD', '')
-    DEFAULT_FROM_EMAIL = 'Mailgun Sandbox <postmaster@sandboxe60a463cdea84f9781d4f115b0915307.mailgun.org>'
-    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
-else:  
-    # Development (DEBUG=True) – Gmail
+if not DEBUG:  # Production – Mailgun API
+    EMAIL_BACKEND = "anymail.backends.mailgun.EmailBackend"
+    ANYMAIL = {
+        "MAILGUN_API_KEY": os.getenv("MAILGUN_API_KEY", ""),
+        "MAILGUN_SENDER_DOMAIN": 'sandboxe60a463cdea84f9781d4f115b0915307.mailgun.org',
+    }
+    DEFAULT_FROM_EMAIL = f"Mailgun Sandbox <postmaster@{ANYMAIL['MAILGUN_SENDER_DOMAIN']}>"
+else:  # Development – Gmail SMTP
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.gmail.com'
     EMAIL_PORT = 587
@@ -263,7 +261,6 @@ else:
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
-    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 
 # =============================================
 # 17. MESSAGE TAGS (FOR BOOTSTRAP TOASTS)
