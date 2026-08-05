@@ -51,7 +51,7 @@ INSTALLED_APPS = [
     'cloudinary_storage',
     'cloudinary',
 
-    # Your Apps
+    # My Apps
     'accounting.apps.AccountingConfig',
 ]
 
@@ -79,9 +79,9 @@ MIDDLEWARE = [
 # AUTHENTICATION BACKENDS – Custom Phone/Email + Allauth + Default
 # =============================================
 AUTHENTICATION_BACKENDS = [
-    'accounting.auth_backends.EmailOrPhoneBackend',      # Custom: Phone, Email, Username (पहले Try होगा)
-    'allauth.account.auth_backends.AuthenticationBackend',  # Allauth (Email/Username) – Social Login के लिए
-    'django.contrib.auth.backends.ModelBackend',         # Fallback
+    'accounting.auth_backends.EmailOrPhoneBackend',      
+    'allauth.account.auth_backends.AuthenticationBackend',  
+    'django.contrib.auth.backends.ModelBackend',        
 ]
 
 # =============================================
@@ -213,9 +213,9 @@ else:
 # =============================================
 # 14. AUTHENTICATION URLs (DEFAULT + ALLAUTH)
 # =============================================
-LOGIN_URL = 'accounting:login'          # आपके अपने Login URL को प्राथमिकता
-LOGIN_REDIRECT_URL = 'home'             # Login के बाद Redirect
-LOGOUT_REDIRECT_URL = 'home'            # Logout के बाद Redirect
+LOGIN_URL = 'accounting:login'        
+LOGIN_REDIRECT_URL = 'home'             
+LOGOUT_REDIRECT_URL = 'home'           
 
 # =============================================
 # 15. ALLAUTH SETTINGS – MODERN (बिना Deprecation Warnings के)
@@ -245,12 +245,13 @@ ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
 # 16. EMAIL (SMTP)
 # =============================================
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'solutionsmanojtech@gmail.com')
+DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
+ACCOUNT_EMAIL_SUBJECT_PREFIX= ''
 
 # =============================================
 # 17. MESSAGE TAGS (FOR BOOTSTRAP TOASTS)
