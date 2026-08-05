@@ -244,14 +244,26 @@ ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
 # =============================================
 # 16. EMAIL (SMTP)
 # =============================================
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
-ACCOUNT_EMAIL_SUBJECT_PREFIX= ''
+if not DEBUG:  
+    # Production (DEBUG=False) – Mailgun
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.mailgun.org'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'postmaster@sandboxe60a463cdea84f9781d4f115b0915307.mailgun.org'
+    EMAIL_HOST_PASSWORD = os.getenv('MAILGUN_SMTP_PASSWORD', '')
+    DEFAULT_FROM_EMAIL = 'Mailgun Sandbox <postmaster@sandboxe60a463cdea84f9781d4f115b0915307.mailgun.org>'
+    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
+else:  
+    # Development (DEBUG=True) – Gmail
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.gmail.com'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
+    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 
 # =============================================
 # 17. MESSAGE TAGS (FOR BOOTSTRAP TOASTS)
