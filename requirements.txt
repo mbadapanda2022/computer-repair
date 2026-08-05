@@ -60,7 +60,6 @@ pyphen==0.17.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 PyYAML==6.0.3
-redis==3.5.3
 reportlab==4.5.1
 requests==2.34.2
 service-identity==26.1.0
