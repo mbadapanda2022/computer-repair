@@ -244,19 +244,18 @@ ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
 
 
 # =============================================
-# 16. EMAIL (Gmail SMTP – SSL Port 465)
+# 16. EMAIL (Brevo SMTP – Production)
 # =============================================
-if not DEBUG:  
-    # Production
+if not DEBUG:  # Production
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.gmail.com'
-    EMAIL_PORT = 465
-    EMAIL_USE_SSL = True          # EMAIL_USE_TLS हटा दें
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
-else:  
-    # Development
+    EMAIL_HOST = 'smtp-relay.brevo.com'
+    EMAIL_PORT = 2525
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = 'b49739001@smtp-brevo.com' 
+    EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_KEY', '')
+    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'  
+    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
+else:  # Development – Gmail (optional)
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.gmail.com'
     EMAIL_PORT = 587
@@ -264,6 +263,7 @@ else:
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
+    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 
 # =============================================
 # 17. MESSAGE TAGS (FOR BOOTSTRAP TOASTS)
