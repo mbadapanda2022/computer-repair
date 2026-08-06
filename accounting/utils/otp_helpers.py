@@ -14,7 +14,6 @@ def generate_otp():
     return f"{random.randint(100000, 999999)}"
 
 def send_otp_email(user, email, otp, purpose):
-    """Send OTP via HTML email."""
     purpose_display = "Signup Verification" if purpose == 'signup' else "Password Reset"
     subject = f"Your OTP for {purpose_display}"
     context = {
@@ -25,15 +24,16 @@ def send_otp_email(user, email, otp, purpose):
         'expiry_minutes': 10,
     }
     try:
+        # HTML Message – Render Template
         html_message = render_to_string('auth/email_otp.html', context)
         plain_message = f"Your OTP for {purpose_display} is: {otp}. It expires in 10 minutes."
-        
+
         send_mail(
             subject,
             plain_message,
             settings.DEFAULT_FROM_EMAIL,
             [email],
-            html_message=html_message,
+            html_message=html_message,   
             fail_silently=False,
         )
         logger.info(f"OTP sent to {email} for {purpose}")
