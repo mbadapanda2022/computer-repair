@@ -77,10 +77,16 @@ def create_and_send_otp(user, email, purpose):
     return True
 
 def verify_otp(email, otp, purpose):
-    """
-    Verify OTP. Returns User object if valid, else None.
-    Marks OTP as used upon successful verification.
-    """
+    import logging
+    from django.utils import timezone
+    logger = logging.getLogger(__name__)
+
+    # Normalize email and OTP (remove whitespace)
+    email = email.strip().lower()
+    otp = otp.strip()
+
+    logger.info(f"🔍 Verifying OTP for email: {email}, otp: {otp}, purpose: {purpose}")
+
     try:
         otp_record = EmailOTP.objects.get(
             email=email,
@@ -89,11 +95,18 @@ def verify_otp(email, otp, purpose):
             is_used=False,
             expires_at__gte=timezone.now()
         )
-        # Mark as used
+        logger.info(f"✅ OTP found: {otp_record.otp}, expires_at: {otp_record.expires_at}, now: {timezone.now()}")
         otp_record.is_used = True
         otp_record.save()
         return otp_record.user
-    except EmailOTP.DoesNotExist:
+    except EmailOTP.DoesNotExist as e:
+        # Log the reason – check if OTP exists but is expired or used
+        try:
+            expired = EmailOTP.objects.get(email=email, otp=otp, purpose=purpose)
+            if expired.is_used:
+                logger.warning(f"⚠️ OTP already used: {otp}")
+            else:
+                logger.warning(f"⏰ OTP expired: expires_at={expired.expires_at}, now={timezone.now()}")
+        except EmailOTP.DoesNotExist:
+            logger.warning(f"❌ No OTP record found for email: {email}, otp: {otp}, purpose: {purpose}")
         return None
-
-# dummy change
