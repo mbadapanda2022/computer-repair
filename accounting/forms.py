@@ -137,19 +137,20 @@ class CustomerRegistrationForm(forms.ModelForm):
         required=True
     )
 
+    # Phone – optional
     phone = forms.CharField(
         max_length=15,
+        required=False,  
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': '10-digit Mobile Number',
+            'placeholder': '10-digit Mobile Number (Optional)',
             'hx-get': reverse_lazy('accounting:validate_register_field'),
             'hx-trigger': 'blur, keyup changed delay:500ms',
             'hx-target': '#field-phone',
             'hx-swap': 'innerHTML',
             'hx-include': '[name="phone"]',
         }),
-        label="Phone",
-        required=True
+        label="Phone (Optional)"
     )
 
     password1 = forms.CharField(
@@ -179,7 +180,6 @@ class CustomerRegistrationForm(forms.ModelForm):
     # ============================================================
 
     def clean_website(self):
-        """HONEYPOT: Agar field filled hai toh spam samjho."""
         website = self.cleaned_data.get('website')
         if website:
             raise ValidationError("Spam detected. This field should be empty.")
@@ -209,20 +209,26 @@ class CustomerRegistrationForm(forms.ModelForm):
             raise ValidationError("This email is already registered.")
         return email
 
+    # Modified clean_phone – अब Optional, और Uniqueness Check सिर्फ तब होगा जब Phone दिया हो
     def clean_phone(self):
         phone = self.cleaned_data.get('phone', '').strip()
         if not phone:
-            raise ValidationError("Phone number is required.")
-        
+            return ''   # Optional – empty allowed
+
+        # Normalize: keep only digits, and take last 10 digits (Indian mobile)
         phone_clean = ''.join(filter(str.isdigit, phone))
-        
-        if len(phone_clean) != 10:
-            raise ValidationError("Enter a valid 10-digit mobile number.")
+        if len(phone_clean) < 10:
+            raise ValidationError("Enter a valid 10-digit mobile number (or leave blank).")
+        phone_clean = phone_clean[-10:]   # Ensure 10 digits
+
+        # Indian mobile number must start with 6,7,8,9
         if not phone_clean.startswith(('6', '7', '8', '9')):
             raise ValidationError("Enter a valid Indian mobile number starting with 6-9.")
-        
+
+        # Uniqueness check – only if phone is provided
         if Contact.objects.filter(phone=phone_clean).exists():
             raise ValidationError("This phone number is already registered.")
+
         return phone_clean
 
     def clean_password1(self):
@@ -252,10 +258,11 @@ class CustomerRegistrationForm(forms.ModelForm):
                 user=user,
                 name=self.cleaned_data['full_name'],
                 email=self.cleaned_data['email'],
-                phone=self.cleaned_data['phone'],
+                phone=self.cleaned_data.get('phone', ''),  # may be empty
                 contact_type='customer'
             )
         return user
+
 
 # ============================================================
 # CUSTOM PASSWORD RESET FORM
@@ -1077,8 +1084,25 @@ class CustomerProfileForm(forms.ModelForm):
     def clean_phone(self):
         phone = self.cleaned_data.get('phone')
         if phone:
+            # 1. Format validation
             if not re.match(r'^\+?\d{10,15}$', phone):
                 raise ValidationError("Enter a valid phone number (10-15 digits, optional +).")
+            
+            # 2. Normalize: remove non-digits, keep last 10 digits (Indian mobile)
+            phone_clean = ''.join(filter(str.isdigit, phone))
+            if len(phone_clean) >= 10:
+                phone_clean = phone_clean[-10:]
+            else:
+                raise ValidationError("Phone number must contain at least 10 digits.")
+            
+            # 3. Uniqueness check (exclude self)
+            qs = Contact.objects.filter(phone=phone_clean)
+            if self.instance and self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError("This phone number is already registered by another user.")
+            
+            return phone_clean
         return phone
 
 
