@@ -96,15 +96,15 @@ def unified_login_view(request):
 
 
 # ============================================================
-# 2. CUSTOMER REGISTRATION (with OTP) – आपका मौजूदा Flow
+# 2. CUSTOMER REGISTRATION (with OTP) 
 # ============================================================
-# यह View OTP-based Registration करता है। इसे आप अपने /register/ URL पर रख सकते हैं।
-# ============================================================
-
 @handle_errors(default_redirect='home')
 def register_view(request):
     if request.user.is_authenticated:
-        return redirect('customer:customer_dashboard')
+        if request.user.is_staff:
+            return redirect('accounting:dashboard')
+        else:
+            return redirect('customer:customer_dashboard')
 
     if request.method == 'POST':
         form = CustomerRegistrationForm(request.POST)
@@ -126,13 +126,23 @@ def register_view(request):
             return redirect('accounting:verify_otp')
 
         if form.is_valid():
-            # Step 1: Save User (Atomic नहीं – अलग से Save)
+            # Step 1: Save User (Inactive)
             user = form.save(commit=False)
             user.is_active = False
             user.save()
             logger.info(f"🔥 User saved: {user.username} (ID: {user.id})")
 
-            # Step 2: OTP भेजने की कोशिश करें – लेकिन Fail होने पर User Delete न करें
+            # Step 2: Create Contact manually (because we used commit=False)
+            Contact.objects.create(
+                user=user,
+                name=form.cleaned_data['full_name'],
+                email=form.cleaned_data['email'],
+                phone=form.cleaned_data['phone'],
+                contact_type='customer'
+            )
+            logger.info(f"✅ Contact created for user: {user.username}")
+
+            # Step 3: Try to send OTP 
             otp_sent = False
             try:
                 otp_sent = create_and_send_otp(user, user.email, 'signup')
@@ -140,7 +150,6 @@ def register_view(request):
                 logger.error(f"🔥 OTP sending failed: {e}")
 
             if otp_sent:
-                # Session Store (OTP Verification के लिए)
                 request.session['pending_user_id'] = user.id
                 request.session['pending_email'] = user.email
                 request.session['otp_purpose'] = 'signup'
@@ -159,8 +168,6 @@ def register_view(request):
                     return response
                 return redirect('accounting:verify_otp')
             else:
-                # OTP Send Fail – लेकिन User Save रहेगा
-                # User को Active न करें (अभी भी Inactive) – और उसे Resend OPT पर भेजें
                 request.session['pending_user_id'] = user.id
                 request.session['pending_email'] = user.email
                 request.session['otp_purpose'] = 'signup'
@@ -179,7 +186,6 @@ def register_view(request):
                     return response
                 return redirect('accounting:verify_otp')
         else:
-            # Form invalid – return partial with errors
             if request.headers.get('HX-Request'):
                 response = render(request, 'auth/partials/_register_form.html', {'form': form}, status=400)
                 response['HX-Trigger'] = json.dumps({
@@ -560,22 +566,14 @@ def reset_password_set_view(request):
 
 
 # ============================================================
-# 8. ALLAUTH CUSTOM SIGNUP VIEW (OTP के साथ)
+# 8. ALLAUTH CUSTOM SIGNUP VIEW (with OTP)
 # ============================================================
-# यह View Allauth के Signup URL (/accounts/signup/) को OTP Flow के साथ Override करता है।
-# इसे settings.py में ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView' से Set करें।
-# ============================================================
-
 class CustomSignupView(SignupView):
-    """
-    Allauth Signup View को OTP Verification के साथ Integrate किया गया है।
-    User को Inactive रखा जाता है – OTP Verify होने पर Active होता है।
-    """
     form_class = CustomerRegistrationForm
     success_url = reverse_lazy('accounting:verify_otp')
 
     def form_valid(self, form):
-        # Allauth का Default User Creation
+        # Allauth Default User Creation
         response = super().form_valid(form)
 
         # User को Inactive करें (OTP Verify होने पर Active होगा)
@@ -592,3 +590,5 @@ class CustomSignupView(SignupView):
         self.request.session['otp_purpose'] = 'signup'
 
         return response
+    
+    
