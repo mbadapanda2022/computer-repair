@@ -9,6 +9,7 @@ from datetime import datetime, date, timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_protect
 from django.contrib import messages
@@ -17,12 +18,15 @@ from django.db import transaction
 from django.db.models import Sum, Q, Count, F
 from django.utils import timezone
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.mail import send_mail
+from django.conf import settings
 
 from ..models import *
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
-from ..forms import CustomerProfileForm, CustomerRepairForm
-from ..utils.notification_helpers import send_notification_to_staff, send_notification_sse
+from ..forms import CustomerProfileForm, CustomerRepairForm, EmailChangeRequestForm
+from ..utils.notification_helpers import send_notification_to_staff, send_notification_sse, otp_helpers
+from ..utils.otp_helpers import create_and_send_otp, verify_otp
 from .utils import is_htmx, htmx_response, redirect_to_customer, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
@@ -66,7 +70,16 @@ def validate_repair_field(request):
 @handle_errors(default_redirect='customer:customer_dashboard')
 def dashboard(request):
     """Complete customer dashboard with stats and recent activity."""
-    customer = get_object_or_404(Contact, user=request.user)
+    # Ensure Contact exists; if not, create it automatically
+    contact, created = Contact.objects.get_or_create(
+        user=request.user,
+        defaults={
+            'name': request.user.get_full_name() or request.user.username,
+            'email': request.user.email,
+            'contact_type': 'customer'
+        }
+    )
+    customer = contact  
     
     today = date.today()
     month_start = today.replace(day=1)
@@ -112,10 +125,7 @@ def dashboard(request):
     recent_payments = payments.order_by('-date')[:5]
     
     context = {
-        # Customer
         'customer': customer,
-        
-        # Invoice Stats
         'total_invoices': total_invoices,
         'total_paid': total_paid,
         'total_due': total_due,
@@ -123,8 +133,6 @@ def dashboard(request):
         'unpaid_invoices': unpaid_invoices,
         'month_sales': month_sales,
         'month_paid': month_paid,
-        
-        # Repair Stats
         'total_repairs': total_repairs,
         'pending_repairs': pending_repairs,
         'ready_repairs': ready_repairs,
@@ -134,28 +142,18 @@ def dashboard(request):
         'pending_estimates': pending_estimates,
         'hold_estimates': hold_estimates,
         'rejected_estimates': rejected_estimates,
-        
-        # Payment Stats
         'total_payments': total_payments,
         'month_payments': month_payments,
-        
-        # Notifications
         'unread_count': unread_count,
-        
-        # Recent Activity
         'recent_invoices': recent_invoices,
         'recent_repairs': recent_repairs,
         'recent_payments': recent_payments,
-        
-        # Dates
         'today': today,
         'month_start': month_start,
     }
     
-    # HTMX partial (refresh stats)
     if is_htmx(request):
         return render(request, 'customer/partials/dashboard_stats.html', context)
-    
     return render(request, 'customer/dashboard.html', context)
 
 
@@ -1540,3 +1538,139 @@ def unread_count_text(request):
         return HttpResponse(str(count))
     except Exception:
         return HttpResponse("0")
+    
+    
+# ============================================================
+# EMAIL CHANGE (Professional OTP-based)
+# ============================================================
+
+@csrf_protect
+@login_required
+@handle_errors(default_redirect='customer:customer_profile')
+def email_change_request(request):
+    """Step 1: User requests email change by entering new email."""
+    customer = get_object_or_404(Contact, user=request.user)
+
+    if request.method == 'POST':
+        form = EmailChangeRequestForm(request.user, request.POST)
+        if form.is_valid():
+            new_email = form.cleaned_data['new_email']
+            # Send OTP to the new email
+            success = create_and_send_otp(request.user, new_email, 'change_email')
+            if success:
+                # Store new email in session for verification
+                request.session['pending_new_email'] = new_email
+                request.session['otp_purpose'] = 'change_email'
+                request.session['pending_user_id'] = request.user.id
+                messages.success(request, f"OTP sent to {new_email}. Please verify to complete email change.")
+                if is_htmx(request):
+                    return htmx_response(
+                        request,
+                        'customer/partials/email_change_otp.html',
+                        context={'email': new_email},
+                        toast={'level': 'success', 'message': 'OTP sent to new email.'}
+                    )
+                return redirect('customer:email_change_verify')
+            else:
+                messages.error(request, "Failed to send OTP. Please try again.")
+        else:
+            if is_htmx(request):
+                return render(request, 'customer/partials/email_change_form.html', {'form': form}, status=400)
+    else:
+        form = EmailChangeRequestForm(request.user)
+
+    if is_htmx(request):
+        return render(request, 'customer/partials/email_change_form.html', {'form': form})
+    return render(request, 'customer/email_change.html', {'form': form, 'customer': customer})
+
+
+@csrf_protect
+@login_required
+@handle_errors(default_redirect='customer:customer_profile')
+def email_change_verify(request):
+    """Step 2: Verify OTP sent to new email, then update email."""
+    user = request.user
+    customer = get_object_or_404(Contact, user=user)
+
+    new_email = request.session.get('pending_new_email')
+    purpose = request.session.get('otp_purpose')
+
+    if not new_email or purpose != 'change_email':
+        messages.error(request, "Invalid session. Please request email change again.")
+        return redirect('customer:email_change_request')
+
+    if request.method == 'POST':
+        otp = request.POST.get('otp', '').strip()
+        if not otp or len(otp) != 6:
+            messages.error(request, "Please enter a valid 6-digit OTP.")
+            if is_htmx(request):
+                response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email}, status=400)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {
+                        'level': 'danger',
+                        'message': 'Please enter a valid 6-digit OTP.'
+                    }
+                })
+                return response
+            return render(request, 'customer/email_change_otp.html', {'email': new_email})
+
+        # Verify OTP
+        verified_user = verify_otp(new_email, otp, 'change_email')
+        if verified_user and verified_user.id == user.id:
+            with transaction.atomic():
+                # Update User email
+                user.email = new_email
+                user.save()
+                # Update Contact email
+                customer.email = new_email
+                customer.save()
+
+                # Clean session
+                request.session.pop('pending_new_email', None)
+                request.session.pop('otp_purpose', None)
+
+                # Invalidate old OTPs for this user (optional)
+                EmailOTP.objects.filter(user=user, purpose='change_email').delete()
+
+                # Send confirmation to new email (and alert to old if possible)
+                try:
+                    send_mail(
+                        subject="Your email has been changed",
+                        message=f"Your A1 Computer Solutions account email was changed to {new_email}. If you didn't request this, please contact support immediately.",
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[new_email],
+                        fail_silently=True,
+                    )
+                except:
+                    pass
+
+                messages.success(request, "Your email has been updated successfully! Please login again.")
+                # Logout user for security
+                logout(request)
+
+                if is_htmx(request):
+                    response = HttpResponse()
+                    response['HX-Redirect'] = reverse('accounting:login')
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {
+                            'level': 'success',
+                            'message': 'Email changed! Please login with your new email.',
+                            'title': 'Security Updated'
+                        }
+                    })
+                    return response
+                return redirect('accounting:login')
+        else:
+            messages.error(request, "Invalid or expired OTP. Please try again.")
+            if is_htmx(request):
+                response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email}, status=400)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {
+                        'level': 'danger',
+                        'message': 'Invalid or expired OTP. Please try again.'
+                    }
+                })
+                return response
+            return render(request, 'customer/email_change_otp.html', {'email': new_email})
+
+    return render(request, 'customer/email_change_otp.html', {'email': new_email})

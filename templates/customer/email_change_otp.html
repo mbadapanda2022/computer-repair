@@ -1,0 +1,24 @@
+{% extends "base_customer.html" %}
+{% load static %}
+
+{% block title %}Change Email – Customer Portal{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0 fw-semibold">
+                        <i class="bi bi-envelope me-2"></i>Change Email Address
+                    </h4>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted">Enter your new email address. An OTP will be sent to verify ownership.</p>
+                    {% include 'customer/partials/email_change_form.html' %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

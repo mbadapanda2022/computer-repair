@@ -1216,4 +1216,27 @@ class ContactMessageForm(forms.ModelForm):
         if len(message.strip()) < 10:
             raise forms.ValidationError("Message must be at least 10 characters.")
         return message.strip()
+    
+    
+# ============================================================
+# EMAIL CHANGE REQUEST FORM
+# ============================================================
 
+class EmailChangeRequestForm(forms.Form):
+    """Form to request email change."""
+    new_email = forms.EmailField(
+        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Enter new email address'}),
+        label="New Email"
+    )
+
+    def __init__(self, user, *args, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_new_email(self):
+        email = self.cleaned_data.get('new_email').strip().lower()
+        if User.objects.filter(email=email).exclude(pk=self.user.pk).exists():
+            raise ValidationError("This email is already registered by another user.")
+        if email == self.user.email:
+            raise ValidationError("This is your current email. Please enter a different email.")
+        return email

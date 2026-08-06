@@ -14,7 +14,17 @@ def generate_otp():
     return f"{random.randint(100000, 999999)}"
 
 def send_otp_email(user, email, otp, purpose):
-    purpose_display = "Signup Verification" if purpose == 'signup' else "Password Reset"
+    """
+    Send OTP via email with HTML template.
+    Supports: signup, reset_password, change_email
+    """
+    # Map purpose to display text
+    purpose_display = {
+        'signup': 'Signup Verification',
+        'reset_password': 'Password Reset',
+        'change_email': 'Email Change'
+    }.get(purpose, 'Verification')
+
     subject = f"Your OTP for {purpose_display}"
     context = {
         'user': user,
@@ -24,7 +34,6 @@ def send_otp_email(user, email, otp, purpose):
         'expiry_minutes': 10,
     }
     try:
-        # HTML Message – Render Template
         html_message = render_to_string('auth/email_otp.html', context)
         plain_message = f"Your OTP for {purpose_display} is: {otp}. It expires in 10 minutes."
 
@@ -33,7 +42,7 @@ def send_otp_email(user, email, otp, purpose):
             plain_message,
             settings.DEFAULT_FROM_EMAIL,
             [email],
-            html_message=html_message,   
+            html_message=html_message,
             fail_silently=False,
         )
         logger.info(f"OTP sent to {email} for {purpose}")
@@ -54,11 +63,11 @@ def create_and_send_otp(user, email, purpose):
         is_used=False,
         expires_at__lt=timezone.now()
     ).delete()
-    
+
     # 2. Generate new OTP
     otp = generate_otp()
     expires_at = timezone.now() + timezone.timedelta(minutes=10)
-    
+
     # 3. Save to DB
     otp_record = EmailOTP.objects.create(
         user=user,
@@ -67,7 +76,7 @@ def create_and_send_otp(user, email, purpose):
         purpose=purpose,
         expires_at=expires_at,
     )
-    
+
     # 4. Send email
     sent = send_otp_email(user, email, otp, purpose)
     if not sent:
@@ -77,6 +86,10 @@ def create_and_send_otp(user, email, purpose):
     return True
 
 def verify_otp(email, otp, purpose):
+    """
+    Verify OTP for given email, otp, and purpose.
+    Returns User object if valid, else None.
+    """
     import logging
     from django.utils import timezone
     logger = logging.getLogger(__name__)

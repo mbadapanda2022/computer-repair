@@ -18,6 +18,8 @@ urlpatterns = [
     path('profile/', customer_views.profile, name='customer_profile'),
     path('profile/update/', customer_views.profile_update, name='customer_profile_update'),
     path('password-change/', customer_views.customer_password_change, name='customer_password_change'),
+    path('profile/email-change/', customer_views.email_change_request, name='email_change_request'),
+    path('profile/email-change-verify/', customer_views.email_change_verify, name='email_change_verify'),
     path('repairs/create/', customer_views.repair_create, name='customer_repair_create'),
     path('repairs/validate-field/', customer_views.validate_repair_field, name='customer_validate_repair_field'),
     path('repairs/<int:pk>/edit/', customer_views.repair_update, name='customer_repair_update'),
@@ -33,6 +35,7 @@ urlpatterns = [
     path('notifications/mark-read/<int:pk>/', customer_views.notification_mark_read, name='customer_notification_mark_read'),
     path('notifications/delete/<int:pk>/', customer_views.notification_delete, name='customer_notification_delete'),
     path('notifications/delete-all/', customer_views.notification_delete_all, name='customer_notification_delete_all'),
+    
 ]
 
 

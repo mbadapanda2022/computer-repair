@@ -91,6 +91,13 @@
                         hx-swap="innerHTML">
                     <i class="bi bi-key me-1"></i> Change Password
                 </button>
+
+                <button class="btn btn-outline-warning w-100 mb-2" 
+                        hx-get="{% url 'customer:customer_password_change' %}" 
+                        hx-target="#profile-container"
+                        hx-swap="innerHTML">
+                    <i class="bi bi-key me-1"></i> Change Password
+                </button>
                 
                 <!-- Profile Completion (Optional – हिसाब लगा सकते हैं) -->
                 <div class="mt-3">
