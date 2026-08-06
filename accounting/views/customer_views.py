@@ -25,7 +25,7 @@ from ..models import *
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
 from ..forms import CustomerProfileForm, CustomerRepairForm, EmailChangeRequestForm
-from ..utils.notification_helpers import send_notification_to_staff, send_notification_sse, otp_helpers
+from ..utils.notification_helpers import send_notification_to_staff, send_notification_sse
 from ..utils.otp_helpers import create_and_send_otp, verify_otp
 from .utils import is_htmx, htmx_response, redirect_to_customer, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
