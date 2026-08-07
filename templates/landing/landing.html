@@ -7,14 +7,14 @@
 {% block content %}
 
 <!-- ===== HERO SECTION ===== -->
-<section class="hero-gradient py-5">
+<section class="hero-gradient py-3">
     <div class="container py-4">
         <div class="row align-items-center">
             <div class="col-lg-6 text-white">
-                <h1 class="display-3 fw-bold mb-3">
+                <h1 class="display-3 fw-bold mb-2">
                     {{ company.tagline|default:"Trusted Computer & Laptop Repair" }}
                 </h1>
-                <p class="lead mb-4">
+                <p class="lead mb-2">
                     {{ company.about_text|default:"Expert chip-level repair, sales, and service for all brands. Quick turnaround & guaranteed quality." }}
                 </p>
                 <div class="d-flex flex-wrap gap-3">
@@ -39,9 +39,9 @@
 </section>
 
 <!-- ===== SERVICES SECTION (Dynamic Carousel) ===== -->
-<section id="services" class="py-5">
+<section id="services" class="py-3">
     <div class="container">
-        <div class="text-center mb-5">
+        <div class="text-center mb-3">
             <h2 class="section-title fw-bold">Our Services</h2>
             <p class="text-muted">Comprehensive solutions for all your tech needs</p>
         </div>
@@ -65,9 +65,9 @@
                             <div class="row justify-content-center">
                                 <div class="col-md-8 col-lg-6">
                                     <div class="card text-center p-5 shadow-lg border-0 rounded-4">
-                                        <div class="service-icon display-1 text-primary mb-4">
+                                        <div class="service-icon display-1 text-primary mb-3">
                                             {% if service.image %}
-                                                <img src="{{ service.image.url }}" alt="{{ service.title }}" style="height:80px; width:auto;">
+                                                <img src="{{ service.image.url }}" alt="{{ service.title }}" style="height:250px; width:auto;">
                                             {% elif service.icon %}
                                                 <i class="bi {{ service.icon }}"></i>
                                             {% else %}

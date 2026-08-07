@@ -1065,9 +1065,10 @@ class JournalForm(forms.Form):
 class CustomerProfileForm(forms.ModelForm):
     class Meta:
         model = Contact
-        fields = ['name', 'phone', 'address', 'state', 'gstin']
+        fields = ['name', 'company_name', 'phone', 'address', 'state', 'gstin']
         widgets = {
             'name': BS_TEXT,
+            'company_name': BS_TEXT,
             'phone': BS_TEXT,
             'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'state': BS_TEXT,
@@ -1075,6 +1076,7 @@ class CustomerProfileForm(forms.ModelForm):
         }
         help_texts = {
             'name': 'Your full name',
+            'company_name': 'Your company name',
             'phone': 'Contact number for communication',
             'address': 'Your business or home address',
             'state': 'State (for GST purposes)',

@@ -31,6 +31,16 @@
                         {% endif %}
                     </div>
                 </div>
+
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Company Name</label>
+                        {{ form.company_name }}
+                        {% if form.company_name.errors %}
+                            <div class="invalid-feedback d-block">{{ form.company_name.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
                 
                 <div class="col-md-6">
                     <div class="mb-3">

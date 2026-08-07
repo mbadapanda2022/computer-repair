@@ -13,6 +13,12 @@
                         <td class="text-muted" style="width:40%">Full Name</td>
                         <td class="fw-semibold">{{ customer.name }}</td>
                     </tr>
+                    {% if customer.company_name %}
+                        <tr>
+                            <td class="text-muted" style="width:40%">Company Name</td>
+                            <td class="fw-semibold">{{ customer.company_name }}</td>
+                        </tr>
+                    {% endif %}
                     <tr>
                         <td class="text-muted">Email</td>
                         <td>{{ customer.email }}</td>
