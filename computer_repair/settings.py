@@ -173,8 +173,6 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-WHITENOISE_MANIFEST_STRICT = False
-
 if not DEBUG:
     # Production Storage Config
     import cloudinary
@@ -190,7 +188,7 @@ if not DEBUG:
             "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.WhiteNoiseStorage", 
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage" 
         },
     }
     
@@ -202,11 +200,12 @@ else:
             "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.WhiteNoiseStorage",
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
         },
     }
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
+WHITENOISE_MANIFEST_STRICT = False
 
 # =============================================
 # 14. AUTHENTICATION URLs (DEFAULT + ALLAUTH)
