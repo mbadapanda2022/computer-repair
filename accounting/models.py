@@ -31,7 +31,7 @@ class CompanyProfile(models.Model):
     )
     email = models.EmailField(blank=True)
     gstin = models.CharField(max_length=15, blank=True, help_text="Leave blank to disable GST")
-    logo = models.ImageField(upload_to='company_logo/', blank=True, null=True, storage=MediaCloudinaryStorage())
+    logo = models.ImageField(upload_to='company_logo/', blank=True, null=True)
     invoice_prefix = models.CharField(max_length=10, default="INV", help_text="e.g., INV, REP, PUR")
     invoice_start_number = models.PositiveIntegerField(default=1)
     default_tax_rate = models.DecimalField(
@@ -203,7 +203,7 @@ class Testimonial(models.Model):
     ]
 
     customer_name = models.CharField(max_length=100)
-    customer_photo = models.ImageField(upload_to='testimonials/', blank=True, null=True, storage=MediaCloudinaryStorage(), help_text="Optional photo")
+    customer_photo = models.ImageField(upload_to='testimonials/', blank=True, null=True, help_text="Optional photo")
     designation = models.CharField(max_length=100, blank=True, help_text="e.g., Business Owner, Student")
     company_name = models.CharField(max_length=100, blank=True, help_text="e.g., Google, Microsoft")
     review_text = models.TextField(help_text="Customer's feedback")

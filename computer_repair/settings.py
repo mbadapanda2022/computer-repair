@@ -32,14 +32,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    # Allauth (Sites Framework + Social Login)
+    # Allauth
     'django.contrib.sites',
     'allauth',
     'allauth.account',
-    'allauth.socialaccount',          # Social Login के लिए (Google/Facebook)
-    # 'allauth.socialaccount.providers.google',   # Uncomment if needed
-    # 'allauth.socialaccount.providers.facebook', # Uncomment if needed
-
+    'allauth.socialaccount',        
     # Third Party
     'honeypot',
     'channels',
@@ -147,6 +144,7 @@ DATABASES = {
         default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
         conn_max_age=600,
         conn_health_checks=True,
+        ssl_require=not DEBUG
     )
 }
 
@@ -168,48 +166,46 @@ TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
+
 # =============================================
-# 12. STATIC FILES (Whitenoise – LOCAL)
+# 12 & 13. STORAGES (STATIC + MEDIA)
 # =============================================
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.WhiteNoiseStaticFilesStorage'
 
-# =============================================
-# 13. MEDIA FILES (Cloudinary – PRODUCTION ONLY)
-# =============================================
 if not DEBUG:
-    print("🔥 DEBUG is False – Configuring Cloudinary for media files")
-    CLOUDINARY_STORAGE = {
-        'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
-        'API_KEY': os.getenv('CLOUDINARY_API_KEY'),
-        'API_SECRET': os.getenv('CLOUDINARY_API_SECRET'),
-        'SECURE': True,
-        'TIMEOUT': 120,
-        'CHUNK_SIZE': 20 * 1024 * 1024,
-        'PREFIX': 'media/',
-    }
-
+    # Production Storage Config
     import cloudinary
     cloudinary.config(
         cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
         api_key=os.getenv('CLOUDINARY_API_KEY'),
         api_secret=os.getenv('CLOUDINARY_API_SECRET'),
         secure=True,
-        timeout=120,
-        chunk_size=20 * 1024 * 1024,
     )
 
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    STORAGES = {
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.WhiteNoiseStaticFilesStorage",
+        },
+    }
     MEDIA_URL = f'https://res.cloudinary.com/{os.getenv("CLOUDINARY_CLOUD_NAME")}/image/upload/'
-    print(f"🔥 CLOUDINARY_STORAGE configured with cloud name: {CLOUDINARY_STORAGE['CLOUD_NAME']}")
-    print(f"🔥 DEFAULT_FILE_STORAGE = {DEFAULT_FILE_STORAGE}")
-    print(f"🔥 MEDIA_URL = {MEDIA_URL}")
 else:
-    print("🔥 DEBUG is True – Using local media storage")
+    # Local Development Storage Config
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.WhiteNoiseStaticFilesStorage",
+        },
+    }
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
+
 
 # =============================================
 # 14. AUTHENTICATION URLs (DEFAULT + ALLAUTH)
@@ -232,30 +228,21 @@ ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_LOGOUT_ON_GET = True
 ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
 
-# (Optional) अगर Social Login चाहिए तो यहाँ Credentials डालें
-# SOCIALACCOUNT_PROVIDERS = {
-#     'google': {
-#         'APP': {
-#             'client_id': 'your-client-id',
-#             'secret': 'your-secret',
-#         }
-#     }
-# }
-
-
 # =============================================
 # 16. EMAIL (Brevo SMTP – Production)
 # =============================================
-if not DEBUG:  # Production
+if not DEBUG:  
+    # Production
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp-relay.brevo.com'
-    EMAIL_PORT = 2525  # it not working use this port EMAIL_PORT = 465
+    EMAIL_PORT = 2525  # is it not working use this port EMAIL_PORT = 465
     EMAIL_USE_TLS = True
     EMAIL_HOST_USER = 'b49739001@smtp-brevo.com' 
     EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_KEY', '')
     DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'  
     ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
-else:  # Development – Gmail (optional)
+else:  
+    # Development – Gmail (optional)
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.gmail.com'
     EMAIL_PORT = 587
@@ -382,11 +369,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
 ]
 
-# Force Cloudinary storage (if needed)
-if not DEBUG:
-    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
-    print("🔥 FORCE: DEFAULT_FILE_STORAGE =", DEFAULT_FILE_STORAGE)
-
 # =============================================
 # END OF SETTINGS
 # =============================================
+
+
