@@ -190,7 +190,7 @@ if not DEBUG:
             "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.WhiteNoiseStaticFilesStorage",  
+            "BACKEND": "whitenoise.storage.WhiteNoiseStorage", 
         },
     }
     
@@ -202,7 +202,7 @@ else:
             "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
         "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            "BACKEND": "whitenoise.storage.WhiteNoiseStorage",
         },
     }
     MEDIA_URL = '/media/'
