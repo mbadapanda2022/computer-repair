@@ -166,7 +166,6 @@ TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
-
 # =============================================
 # 12 & 13. STORAGES (STATIC + MEDIA)
 # =============================================
@@ -209,7 +208,6 @@ else:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
 
-
 # =============================================
 # 14. AUTHENTICATION URLs (DEFAULT + ALLAUTH)
 # =============================================
@@ -220,13 +218,8 @@ LOGOUT_REDIRECT_URL = 'home'
 # =============================================
 # 15. ALLAUTH SETTINGS – MODERN (बिना Deprecation Warnings के)
 # =============================================
-# Login Methods: Email, Username (Phone Custom Backend से हैंडल होगा)
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
-
-# Signup Fields: Email और Password (Username हटा दिया – आपके Custom Form में Username है, पर Allauth इससे प्रभावित नहीं)
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
-
-# OTP Verification ही Primary है – Allauth Email Verification बंद
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_LOGOUT_ON_GET = True
 ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
@@ -256,7 +249,7 @@ else:
     ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 
 # =============================================
-# 17. MESSAGE TAGS (FOR BOOTSTRAP TOASTS)
+# 17. MESSAGE TAGS
 # =============================================
 MESSAGE_TAGS = {
     messages.DEBUG: 'secondary',
@@ -375,5 +368,3 @@ CSRF_TRUSTED_ORIGINS = [
 # =============================================
 # END OF SETTINGS
 # =============================================
-
-
