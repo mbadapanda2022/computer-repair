@@ -192,7 +192,7 @@ if not DEBUG:
         },
     }
     
-    MEDIA_URL = f'https://res.cloudinary.com/{os.getenv("CLOUDINARY_CLOUD_NAME")}/image/upload/'
+    MEDIA_URL = 'https://res.cloudinary.com/xcqsshj7/image/upload/'
 else:
     # Local Development Storage Config
     STORAGES = {
@@ -205,6 +205,7 @@ else:
     }
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
+    
 WHITENOISE_MANIFEST_STRICT = False
 
 # =============================================

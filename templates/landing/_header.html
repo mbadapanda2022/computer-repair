@@ -4,7 +4,7 @@
     <div class="container">
         <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}">  
             {% if logo_url %}
-                <img src="{{ logo_url }}" alt="{{ company.name }}" height="40" class="d-inline-block align-text-top me-2">
+                <img src="{{ logo_url }}?v={{ company.updated_at|date:'U' }}" alt="{{ company.name }}" height="40" class="d-inline-block align-text-top me-2">
             {% else %}
                 <i class="bi bi-laptop text-primary"></i>
             {% endif %}
