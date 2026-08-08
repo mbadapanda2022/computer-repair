@@ -174,6 +174,8 @@ STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+WHITENOISE_MANIFEST_STRICT = False
+
 if not DEBUG:
     # Production Storage Config
     import cloudinary
