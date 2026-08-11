@@ -16,7 +16,7 @@ from .views.auth import (
     resend_otp_view,
     password_reset_otp_request,
     reset_password_set_view,
-    CustomSignupView,  # ✅ यह Import जोड़ें (यदि आप URL Override करना चाहते हैं)
+    CustomSignupView,  
 )
 from .views.repairs import staff_approve_estimate
 
@@ -202,3 +202,4 @@ urlpatterns = [
     path('messages/<int:pk>/delete/', message_views.message_delete, name='message_delete'),
     path('messages/unread-count/', message_views.message_unread_count, name='message_unread_count'),
 ]
+

@@ -1,5 +1,3 @@
-# accounting/models.py
-
 from decimal import Decimal
 from django.db import models, transaction
 from django.conf import settings
@@ -13,11 +11,14 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 import cloudinary.uploader
 from cloudinary_storage.storage import MediaCloudinaryStorage
+from .validators import validate_image_file_extension, validate_image_binary
 
+# ❌ पुरानी लाइन हटाई गई: from ..utils.image_processor import process_uploaded_image
+# ✅ अब process_uploaded_image को सिर्फ save() methods के अंदर Local Import किया जाएगा
 
 
 # ============================================================
-# 1. COMPANY & SETTINGS
+# 1. COMPANY & SETTINGS 
 # ============================================================
 
 class CompanyProfile(models.Model):
@@ -31,7 +32,15 @@ class CompanyProfile(models.Model):
     )
     email = models.EmailField(blank=True)
     gstin = models.CharField(max_length=15, blank=True, help_text="Leave blank to disable GST")
-    logo = models.ImageField(upload_to='company_logo/', blank=True, null=True)
+    
+    # Added validators and removed explicit storage (default will be used)
+    logo = models.ImageField(
+        upload_to='company_logo/',
+        blank=True,
+        null=True,
+        validators=[validate_image_file_extension, validate_image_binary]
+    )
+    
     invoice_prefix = models.CharField(max_length=10, default="INV", help_text="e.g., INV, REP, PUR")
     invoice_start_number = models.PositiveIntegerField(default=1)
     default_tax_rate = models.DecimalField(
@@ -43,7 +52,7 @@ class CompanyProfile(models.Model):
     financial_year_start = models.DateField(default=timezone.now)
     state = models.CharField(max_length=100, blank=True, help_text="Home state for GST (CGST/SGST)")
 
-    # ----- NEW FIELDS FOR LANDING PAGE -----
+    # ----- FIELDS FOR LANDING PAGE -----
     tagline = models.CharField(
         max_length=255,
         blank=True,
@@ -55,6 +64,7 @@ class CompanyProfile(models.Model):
         blank=True,
         null=True,
         storage=MediaCloudinaryStorage(),
+        validators=[validate_image_file_extension, validate_image_binary],
         help_text="Upload hero background or main image (recommended size: 1200x600)"
     )
     about_text = models.TextField(
@@ -105,24 +115,26 @@ class CompanyProfile(models.Model):
         help_text="Open Graph image (recommended: 1200x630) for social sharing"
     )
 
-
     class Meta:
         verbose_name_plural = "Company Profile"
-        
-    
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
 
-        if self.logo and not self.logo.url.startswith('https://res.cloudinary.com'):
-            try:
-                with open(self.logo.path, 'rb') as image_file:
-                    result = cloudinary.uploader.upload(
-                        image_file,
-                        public_id=f'company_logo/{self.logo.name.split("/")[-1]}'
-                    )
-                    print(f"✅ Cloudinary Upload Success: {result['secure_url']}")
-            except Exception as e:
-                print(f"🔥 Cloudinary Upload Failed: {e}")
+    def save(self, *args, **kwargs):
+        # ✅ LOCAL IMPORT - Circular Import से बचने के लिए
+        from ..utils.image_processor import process_uploaded_image
+
+        # Process logo if new file uploaded
+        if self.logo and hasattr(self.logo, 'file') and not self.logo.name.startswith('processed/'):
+            self.logo = process_uploaded_image(self.logo)
+        
+        # Process hero_image if new file uploaded
+        if self.hero_image and hasattr(self.hero_image, 'file') and not self.hero_image.name.startswith('processed/'):
+            self.hero_image = process_uploaded_image(self.hero_image)
+
+        # Process og_image if new file uploaded
+        if self.og_image and hasattr(self.og_image, 'file') and not self.og_image.name.startswith('processed/'):
+            self.og_image = process_uploaded_image(self.og_image)
+
+        super().save(*args, **kwargs)
 
     @classmethod
     def get_instance(cls):
@@ -150,6 +162,7 @@ class Service(models.Model):
         blank=True,
         null=True,
         storage=MediaCloudinaryStorage(),
+        validators=[validate_image_file_extension, validate_image_binary],
         help_text="Optional image (overrides icon if provided)"
     )
     order = models.PositiveIntegerField(default=0, help_text="Display order (lower = first)")
@@ -168,17 +181,12 @@ class Service(models.Model):
     
     
     def save(self, *args, **kwargs):
+        # ✅ LOCAL IMPORT - Circular Import से बचने के लिए
+        from ..utils.image_processor import process_uploaded_image
+
+        if self.image and hasattr(self.image, 'file') and not self.image.name.startswith('processed/'):
+            self.image = process_uploaded_image(self.image)
         super().save(*args, **kwargs)
-        if self.image and not self.image.url.startswith('https://res.cloudinary.com'):
-            try:
-                with open(self.image.path, 'rb') as image_file:
-                    result = cloudinary.uploader.upload(
-                        image_file,
-                        public_id=f'services/{self.image.name.split("/")[-1]}'
-                    )
-                    print(f"✅ Service Image Upload Success: {result['secure_url']}")
-            except Exception as e:
-                print(f"🔥 Service Image Upload Failed: {e}")
 
     def get_icon_html(self):
         """Returns HTML for icon or image"""
@@ -203,7 +211,13 @@ class Testimonial(models.Model):
     ]
 
     customer_name = models.CharField(max_length=100)
-    customer_photo = models.ImageField(upload_to='testimonials/', blank=True, null=True, help_text="Optional photo")
+    customer_photo = models.ImageField(
+        upload_to='testimonials/',
+        blank=True,
+        null=True,
+        validators=[validate_image_file_extension, validate_image_binary],
+        help_text="Optional photo"
+    )
     designation = models.CharField(max_length=100, blank=True, help_text="e.g., Business Owner, Student")
     company_name = models.CharField(max_length=100, blank=True, help_text="e.g., Google, Microsoft")
     review_text = models.TextField(help_text="Customer's feedback")
@@ -220,17 +234,12 @@ class Testimonial(models.Model):
         
         
     def save(self, *args, **kwargs):
+        # ✅ LOCAL IMPORT - Circular Import से बचने के लिए
+        from ..utils.image_processor import process_uploaded_image
+
+        if self.customer_photo and hasattr(self.customer_photo, 'file') and not self.customer_photo.name.startswith('processed/'):
+            self.customer_photo = process_uploaded_image(self.customer_photo)
         super().save(*args, **kwargs)
-        if self.customer_photo and not self.customer_photo.url.startswith('https://res.cloudinary.com'):
-            try:
-                with open(self.customer_photo.path, 'rb') as image_file:
-                    result = cloudinary.uploader.upload(
-                        image_file,
-                        public_id=f'testimonials/{self.customer_photo.name.split("/")[-1]}'
-                    )
-                    print(f"✅ Testimonial Photo Upload Success: {result['secure_url']}")
-            except Exception as e:
-                print(f"🔥 Testimonial Photo Upload Failed: {e}")
 
     def __str__(self):
         return self.customer_name
@@ -804,8 +813,6 @@ class PurchaseItem(models.Model):
 # ============================================================
 # 7. REPAIR JOBS
 # ============================================================
-
-# accounting/models.py
 
 class RepairJob(models.Model):
     STATUS_CHOICES = (
@@ -1674,15 +1681,3 @@ class EmailOTP(models.Model):
 
     def is_valid(self):
         return not self.is_used and timezone.now() <= self.expires_at
-
-
-
-
-
-
-        
-
-
-
-
-        

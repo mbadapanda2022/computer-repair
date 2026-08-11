@@ -151,3 +151,5 @@ def debug_cloudinary(request):
         'hero_url': c.hero_image.url if c.hero_image else None,
     }
     return render(request, 'debug.html', {'data': data})
+
+

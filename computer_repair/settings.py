@@ -31,7 +31,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
+    # Cloudinary (Media Storage)
+    'cloudinary_storage',
+    'cloudinary',
     # Allauth
     'django.contrib.sites',
     'allauth',
@@ -44,10 +46,6 @@ INSTALLED_APPS = [
     'django_htmx',
     'django_cleanup.apps.CleanupConfig',
     'anymail',
-
-    # Cloudinary (Media Storage)
-    'cloudinary_storage',
-    'cloudinary',
 
     # My Apps
     'accounting.apps.AccountingConfig',
@@ -167,22 +165,23 @@ USE_I18N = True
 USE_TZ = True
 
 # =============================================
-# 12 & 13. STORAGES (STATIC + MEDIA)
+# 12 & 13. STORAGES (STATIC + MEDIA) - FIXED
 # =============================================
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-if not DEBUG:
-    # Production Storage Config
-    import cloudinary
-    cloudinary.config(
-        cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
-        api_key=os.getenv('CLOUDINARY_API_KEY'),
-        api_secret=os.getenv('CLOUDINARY_API_SECRET'),
-        secure=True,
-    )
+# Cloudinary Config - Environment se credentials लें
+import cloudinary
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+    secure=True,
+)
 
+if not DEBUG:
+    # Production: Cloudinary Storage
     STORAGES = {
         "default": {
             "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
@@ -191,10 +190,9 @@ if not DEBUG:
             "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage" 
         },
     }
-    
-    MEDIA_URL = 'https://res.cloudinary.com/xcqsshj7/image/upload/'
+    MEDIA_URL = ''
 else:
-    # Local Development Storage Config
+    # Local Development
     STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -368,3 +366,4 @@ CSRF_TRUSTED_ORIGINS = [
 # =============================================
 # END OF SETTINGS
 # =============================================
+

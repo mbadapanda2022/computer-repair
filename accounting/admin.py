@@ -640,5 +640,3 @@ class CustomUserAdmin(UserAdmin):
     get_phone.short_description = 'Phone'
     get_phone.admin_order_field = 'customer_contact__phone'  # Allow ordering (if needed)
     
-    # Optional: You can also add phone field to the user edit form fieldsets
-    # But since we have inline, it's already there.

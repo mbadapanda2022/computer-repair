@@ -1,5 +1,3 @@
-# accounting/forms.py
-
 import re
 from decimal import Decimal
 from django import forms
@@ -359,7 +357,7 @@ class ContactMessageForm(forms.ModelForm):
         return website
 
 # ============================================================
-# 1. COMPANY SETTINGS
+# 1. COMPANY SETTINGS (UPDATED with accept attributes)
 # ============================================================
 class CompanyProfileForm(forms.ModelForm):
     class Meta:
@@ -378,14 +376,22 @@ class CompanyProfileForm(forms.ModelForm):
             'phone': BS_TEXT,
             'email': BS_EMAIL,
             'gstin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '22AAAAA0000A1Z5'}),
-            'logo': BS_CLEARABLE_FILE,
+            # ✅ Added accept attribute for logo
+            'logo': forms.ClearableFileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/jpeg,image/png,image/webp'
+            }),
             'invoice_prefix': BS_TEXT,
             'invoice_start_number': forms.NumberInput(attrs={'class': 'form-control'}),
             'default_tax_rate': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'financial_year_start': BS_DATE,
             'state': BS_TEXT,
             'tagline': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Short tagline for hero section'}),
-            'hero_image': BS_CLEARABLE_FILE,
+            # ✅ Added accept attribute for hero_image
+            'hero_image': forms.ClearableFileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/jpeg,image/png,image/webp'
+            }),
             'about_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'About the company'}),
             'google_map_embed': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Paste iframe code'}),
             'working_hours': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Mon–Sat: 10:00 AM – 8:00 PM'}),
