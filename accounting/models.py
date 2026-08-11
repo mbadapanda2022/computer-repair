@@ -12,9 +12,7 @@ from django.contrib.contenttypes.models import ContentType
 import cloudinary.uploader
 from cloudinary_storage.storage import MediaCloudinaryStorage
 from .validators import validate_image_file_extension, validate_image_binary
-
-# ❌ पुरानी लाइन हटाई गई: from ..utils.image_processor import process_uploaded_image
-# ✅ अब process_uploaded_image को सिर्फ save() methods के अंदर Local Import किया जाएगा
+from accounting.image_processor import process_uploaded_image
 
 
 # ============================================================
@@ -119,18 +117,12 @@ class CompanyProfile(models.Model):
         verbose_name_plural = "Company Profile"
 
     def save(self, *args, **kwargs):
-        # ✅ LOCAL IMPORT - Circular Import से बचने के लिए
-        from ..utils.image_processor import process_uploaded_image
-
-        # Process logo if new file uploaded
         if self.logo and hasattr(self.logo, 'file') and not self.logo.name.startswith('processed/'):
             self.logo = process_uploaded_image(self.logo)
         
-        # Process hero_image if new file uploaded
         if self.hero_image and hasattr(self.hero_image, 'file') and not self.hero_image.name.startswith('processed/'):
             self.hero_image = process_uploaded_image(self.hero_image)
 
-        # Process og_image if new file uploaded
         if self.og_image and hasattr(self.og_image, 'file') and not self.og_image.name.startswith('processed/'):
             self.og_image = process_uploaded_image(self.og_image)
 
@@ -181,9 +173,6 @@ class Service(models.Model):
     
     
     def save(self, *args, **kwargs):
-        # ✅ LOCAL IMPORT - Circular Import से बचने के लिए
-        from ..utils.image_processor import process_uploaded_image
-
         if self.image and hasattr(self.image, 'file') and not self.image.name.startswith('processed/'):
             self.image = process_uploaded_image(self.image)
         super().save(*args, **kwargs)
@@ -234,9 +223,6 @@ class Testimonial(models.Model):
         
         
     def save(self, *args, **kwargs):
-        # ✅ LOCAL IMPORT - Circular Import से बचने के लिए
-        from ..utils.image_processor import process_uploaded_image
-
         if self.customer_photo and hasattr(self.customer_photo, 'file') and not self.customer_photo.name.startswith('processed/'):
             self.customer_photo = process_uploaded_image(self.customer_photo)
         super().save(*args, **kwargs)
