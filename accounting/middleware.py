@@ -1,5 +1,3 @@
-# accounting/middleware.py
-
 import logging
 from django.urls import resolve, Resolver404, reverse
 from django.shortcuts import redirect
@@ -21,7 +19,7 @@ class AccessControlMiddleware:
             '/logout/',
             '/admin/',
             '/admin/login/',
-            '/settings/',
+            # '/settings/',  
             '/privacy-policy/',
             '/contact-message/',
             '/validate-contact-field/',
@@ -50,8 +48,11 @@ class AccessControlMiddleware:
         )
 
     def __call__(self, request):
-        # 1. Static/Media
-        if request.path.startswith(settings.STATIC_URL) or request.path.startswith(settings.MEDIA_URL):
+        # 1. Static/Media – SAFE CHECK (MEDIA_URL may be empty)
+        if request.path.startswith(settings.STATIC_URL):
+            return self.get_response(request)
+        # Only check MEDIA_URL if it's not empty
+        if settings.MEDIA_URL and request.path.startswith(settings.MEDIA_URL):
             return self.get_response(request)
 
         # 2. Django Admin Login
@@ -102,5 +103,3 @@ class AccessControlMiddleware:
 
         # 10. Any other path → Allow
         return self.get_response(request)
-
-    
