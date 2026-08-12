@@ -10455,3 +10455,21 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
   File "<frozen importlib._bootstrap>", line 1324, in _find_and_load_unlocked
 ModuleNotFoundError: No module named 'allauth.account.context_processors'
+ERROR 2026-08-12 12:04:33,853 decorators 15196 3176 Error in company_settings: 'ImageFieldFile' object has no attribute 'field_name'
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\settings.py", line 60, in company_settings
+    form.save()
+    ~~~~~~~~~^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\forms\models.py", line 574, in save
+    self.instance.save()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "G:\computer_repair\accounting\models.py", line 121, in save
+    self.logo = process_uploaded_image(self.logo)
+                ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "G:\computer_repair\accounting\image_processor.py", line 57, in process_uploaded_image
+    field_name=uploaded_file.field_name,
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'ImageFieldFile' object has no attribute 'field_name'
+ERROR 2026-08-12 12:04:34,791 log 15196 3176 Internal Server Error: /settings/

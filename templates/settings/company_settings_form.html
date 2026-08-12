@@ -1,6 +1,7 @@
 <!-- templates/settings/company_settings_form.html -->
 <form method="post" enctype="multipart/form-data" 
       hx-post="{% url 'accounting:company_settings' %}" 
+      hx-encoding="multipart/form-data"  
       hx-target="#settings-form"
       hx-swap="outerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
