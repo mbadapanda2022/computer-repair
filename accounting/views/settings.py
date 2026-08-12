@@ -33,7 +33,6 @@ def validate_setting_field(request):
     if not field_name:
         return HttpResponse("Invalid field", status=400)
 
-    # File fields ko skip karo – inki validation GET se nahi ho sakti
     if field_name in ['logo', 'hero_image', 'og_image']:
         return HttpResponse("")  # Empty response = no error
 

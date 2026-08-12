@@ -22,5 +22,5 @@ def company_profile(request):
         'company': company,
         'logo_url': logo_url,      
         'hero_url': hero_url,
-        'og_image_url': og_image_url,  # optional, if you use it
+        'og_image_url': og_image_url,
     }

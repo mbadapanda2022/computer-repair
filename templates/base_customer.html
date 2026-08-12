@@ -208,128 +208,6 @@
             });
         </script>
 
-        <!-- ============================================= -->
-        <!-- REAL-TIME SSE NOTIFICATIONS (CUSTOMER)    -->
-        <!-- ============================================= -->
-        {% if user.is_authenticated %}
-        <script>
-            (function() {
-                'use strict';
-
-                let eventSource = null;
-                let reconnectTimeout = null;
-
-                function connectSSE() {
-                    if (eventSource) {
-                        eventSource.close();
-                        eventSource = null;
-                    }
-
-                    const userId = {{ user.id }};
-                    const streamName = 'notif-' + userId;
-                    const url = '/events/?channels=' + encodeURIComponent(streamName);
-
-                    console.log('🔌 Customer SSE connecting:', streamName);
-                    eventSource = new EventSource(url);
-
-                    // ---- BADGE UPDATE ----
-                    eventSource.addEventListener('badge', function(e) {
-                        try {
-                            const data = JSON.parse(e.data);
-                            const badge = document.getElementById('notificationCount');
-                            if (badge) {
-                                const count = data.count || 0;
-                                badge.textContent = count;
-                                if (count > 0) badge.classList.remove('d-none');
-                                else badge.classList.add('d-none');
-                            }
-                            // Sidebar main menu mein bhi count update
-                            const sidebarBadge = document.querySelector('#customer-sidebar .nav-link .badge.bg-danger');
-                            if (sidebarBadge && sidebarBadge.id !== 'notificationCount') {
-                                sidebarBadge.textContent = count;
-                                if (count > 0) sidebarBadge.style.display = 'inline';
-                                else sidebarBadge.style.display = 'none';
-                            }
-                        } catch (err) {
-                            console.warn('Badge event parse error:', err);
-                        }
-                    });
-
-                    // ---- TOAST POPUP ----
-                    eventSource.addEventListener('toast', function(e) {
-                        try {
-                            const data = JSON.parse(e.data);
-                            if (data.type && data.message) {
-                                window.showToast(data.type, data.message, data.title || 'Notification');
-                            }
-                        } catch (err) {
-                            console.warn('Toast event parse error:', err);
-                        }
-                    });
-
-                    // ---- REFRESH DROPDOWN ----
-                    eventSource.addEventListener('refresh', function(e) {
-                        const dropdown = document.getElementById('notification-dropdown');
-                        if (dropdown) {
-                            const url = dropdown.getAttribute('hx-get');
-                            if (url) {
-                                htmx.ajax('GET', url, {
-                                    target: dropdown,
-                                    swap: 'innerHTML'
-                                });
-                            }
-                        }
-                    });
-
-                    // ---- ERROR & RECONNECT ----
-                    eventSource.onerror = function(e) {
-                        console.warn('Customer SSE lost. Reconnecting in 5s...');
-                        if (eventSource) {
-                            eventSource.close();
-                            eventSource = null;
-                        }
-                        if (reconnectTimeout) clearTimeout(reconnectTimeout);
-                        reconnectTimeout = setTimeout(function() {
-                            connectSSE();
-                        }, 5000);
-                    };
-
-                    eventSource.onopen = function() {
-                        console.log('✅ Customer SSE connected.');
-                        if (reconnectTimeout) {
-                            clearTimeout(reconnectTimeout);
-                            reconnectTimeout = null;
-                        }
-                    };
-                }
-
-                document.addEventListener('DOMContentLoaded', function() {
-                    connectSSE();
-                });
-
-                document.addEventListener('visibilitychange', function() {
-                    if (!document.hidden) {
-                        if (!eventSource || eventSource.readyState === EventSource.CLOSED) {
-                            console.log('🔄 Customer tab visible, reconnecting SSE...');
-                            connectSSE();
-                        }
-                    }
-                });
-
-                window.addEventListener('beforeunload', function() {
-                    if (eventSource) {
-                        eventSource.close();
-                        eventSource = null;
-                    }
-                    if (reconnectTimeout) {
-                        clearTimeout(reconnectTimeout);
-                        reconnectTimeout = null;
-                    }
-                });
-
-            })();
-        </script>
-        {% endif %}
 
     {% else %}
         <!-- UNAUTHENTICATED LAYOUT (Customer Login/Register) -->
@@ -341,4 +219,6 @@
     {% endif %}
 </body>
 </html>
+
+
 
