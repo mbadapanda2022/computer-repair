@@ -1,0 +1,35 @@
+<!-- Create Invoice Modal with Date Picker -->
+<div class="modal-header">
+    <h5 class="modal-title"><i class="bi bi-receipt"></i> Create Invoice for {{ job.job_number }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+<div class="modal-body">
+    <form method="post" 
+          hx-post="{% url 'accounting:create_invoice_from_repair' job.pk %}" 
+          hx-target="#mainModalContent"
+          hx-swap="outerHTML"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        {% csrf_token %}
+        
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> 
+            Invoice will include all parts and labour charges.
+            <br><small>Status will be updated to <strong>Delivered</strong>.</small>
+        </div>
+        
+        <div class="mb-3">
+            <label for="invoice_date" class="form-label fw-bold">Invoice Date <span class="text-danger">*</span></label>
+            <input type="date" name="invoice_date" id="invoice_date" 
+                   class="form-control" 
+                   value="{{ timezone.now|date:'Y-m-d' }}" required>
+            <small class="text-muted">Select the date for this invoice. Today is default.</small>
+        </div>
+        
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success">
+                <i class="bi bi-check-circle"></i> Generate Invoice
+            </button>
+        </div>
+    </form>
+</div>

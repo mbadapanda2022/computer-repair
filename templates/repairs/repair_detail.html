@@ -39,10 +39,19 @@
             {% endif %}
             
             <!-- Create Invoice Button -->
-            {% if not job.invoice and job.status in 'ready,delivered' %}
+            {% comment %} {% if not job.invoice and job.status in 'ready,delivered' %}
                 <a href="{% url 'accounting:create_invoice_from_repair' job.pk %}" class="btn btn-success">
                     <i class="bi bi-receipt"></i> Create Invoice
                 </a>
+            {% endif %} {% endcomment %}
+
+            {% if not job.invoice and job.status == 'ready' or job.status == 'delivered' %}
+                <button class="btn btn-success" 
+                        hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}" 
+                        hx-target="#mainModalContent"
+                        hx-trigger="click">
+                    <i class="bi bi-receipt"></i> Create Invoice
+                </button>
             {% endif %}
             
             <!-- View Invoice Button -->

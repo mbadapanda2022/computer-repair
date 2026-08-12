@@ -550,6 +550,18 @@ def remove_repair_part(request, part_pk):
 def create_invoice_from_repair(request, pk):
     job = get_object_or_404(RepairJob.objects.select_related('customer'), pk=pk)
 
+    if request.method == 'GET':
+        return render(request, 'repairs/partials/create_invoice_modal.html', {'job': job})
+
+    invoice_date = timezone.now().date()
+    if request.POST.get('invoice_date'):
+        try:
+            from datetime import datetime
+            invoice_date = datetime.strptime(request.POST.get('invoice_date'), '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            pass
+
+    # --- Validations ---
     if job.invoice:
         messages.info(request, "Invoice already exists for this repair.")
         return redirect_to_staff('invoice_detail', pk=job.invoice.pk)
@@ -562,6 +574,7 @@ def create_invoice_from_repair(request, pk):
         messages.error(request, "Estimate must be approved before invoicing.")
         return redirect_to_staff('repair_detail', pk=pk)
 
+    # --- Create Invoice ---
     with transaction.atomic():
         company = CompanyProfile.get_instance()
         if not job.customer.gstin:
@@ -581,13 +594,13 @@ def create_invoice_from_repair(request, pk):
 
         invoice = Invoice(
             customer=job.customer,
-            date=timezone.now().date(),
+            date=invoice_date,  
             gst_type=gst_type,
             notes=notes
         )
         invoice.save()
 
-        # Create Invoice Items from Parts
+        # Parts → Invoice Items
         for part in job.parts.select_related('product'):
             InvoiceItem.objects.create(
                 invoice=invoice,
@@ -619,17 +632,12 @@ def create_invoice_from_repair(request, pk):
                 description="Labour Charge"
             )
 
-        # Calculate Totals
         invoice.calculate_totals()
         invoice.save()
-
-        # CRITICAL: UPDATE STOCK FROM ITEMS!
-        invoice.update_stock_from_items()  # 
-
-        # Ledger Entry
+        invoice.update_stock_from_items()
         create_or_update_invoice_ledger(invoice)
 
-        # Update Repair Job
+        # Repair Job Link
         job.invoice = invoice
         if job.status == 'ready':
             job.status = 'delivered'
@@ -639,7 +647,7 @@ def create_invoice_from_repair(request, pk):
         send_notification_to_customer(
             job.customer,
             title=f"Invoice Generated: {invoice.invoice_number}",
-            message=f"Invoice for repair job {job.job_number} is ready.",
+            message=f"Invoice for repair job {job.job_number} is ready. Date: {invoice_date}",
             link=reverse('customer:customer_invoice_detail', args=[invoice.pk]),
             notif_type='success',
             category='sales',
@@ -648,14 +656,14 @@ def create_invoice_from_repair(request, pk):
         for staff in User.objects.filter(is_staff=True):
             send_notification_sse(staff)
 
-        messages.success(request, f"Invoice {invoice.invoice_number} created. Repair status updated to 'Delivered'.")
+        messages.success(request, f"Invoice {invoice.invoice_number} created successfully for date {invoice_date}.")
         
-        # HTMX Response (Redirect to Invoice Detail)
         if is_htmx(request):
             response = HttpResponse()
             response['HX-Redirect'] = reverse('accounting:invoice_detail', args=[invoice.pk])
             response['HX-Trigger'] = json.dumps({
-                'showToast': {'level': 'success', 'message': f'Invoice {invoice.invoice_number} created.'}
+                'showToast': {'level': 'success', 'message': f'Invoice {invoice.invoice_number} created.'},
+                'closeModal': ''
             })
             return response
         
