@@ -10473,3 +10473,30 @@ Traceback (most recent call last):
                ^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'ImageFieldFile' object has no attribute 'field_name'
 ERROR 2026-08-12 12:04:34,791 log 15196 3176 Internal Server Error: /settings/
+ERROR 2026-08-12 13:15:51,314 log 16220 7044 Internal Server Error: /settings/
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\views\settings.py", line 84, in company_settings
+    form = CompanyProfileForm(instance=profile)
+  File "G:\computer_repair\accounting\forms.py", line 438, in __init__
+    self.add_htmx_validation(
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'CompanyProfileForm' object has no attribute 'add_htmx_validation'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "G:\computer_repair\venv\Lib\site-packages\django\utils\decorators.py", line 192, in _view_wrapper
+    result = _process_exception(request, e)
+  File "G:\computer_repair\venv\Lib\site-packages\django\utils\decorators.py", line 190, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\settings.py", line 102, in company_settings
+    'form': CompanyProfileForm(instance=CompanyProfile.get_instance()),
+            ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\accounting\forms.py", line 438, in __init__
+    self.add_htmx_validation(
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'CompanyProfileForm' object has no attribute 'add_htmx_validation'
