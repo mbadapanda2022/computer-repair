@@ -120,13 +120,13 @@ class CompanyProfile(models.Model):
         from django.core.files.uploadedfile import UploadedFile
 
         if self.logo and hasattr(self.logo, 'file') and isinstance(self.logo.file, UploadedFile):
-            self.logo = process_uploaded_image(self.logo)
-        
+            self.logo = process_uploaded_image(self.logo.file)  
+
         if self.hero_image and hasattr(self.hero_image, 'file') and isinstance(self.hero_image.file, UploadedFile):
-            self.hero_image = process_uploaded_image(self.hero_image)
+            self.hero_image = process_uploaded_image(self.hero_image.file)
 
         if self.og_image and hasattr(self.og_image, 'file') and isinstance(self.og_image.file, UploadedFile):
-            self.og_image = process_uploaded_image(self.og_image)
+            self.og_image = process_uploaded_image(self.og_image.file)
 
         super().save(*args, **kwargs)
 
@@ -178,7 +178,7 @@ class Service(models.Model):
         from django.core.files.uploadedfile import UploadedFile
 
         if self.image and hasattr(self.image, 'file') and isinstance(self.image.file, UploadedFile):
-            self.image = process_uploaded_image(self.image)
+            self.image = process_uploaded_image(self.image.file)
         super().save(*args, **kwargs)
 
     def get_icon_html(self):
@@ -230,9 +230,9 @@ class Testimonial(models.Model):
         from django.core.files.uploadedfile import UploadedFile
 
         if self.customer_photo and hasattr(self.customer_photo, 'file') and isinstance(self.customer_photo.file, UploadedFile):
-            self.customer_photo = process_uploaded_image(self.customer_photo)
+            self.customer_photo = process_uploaded_image(self.customer_photo.file)
         super().save(*args, **kwargs)
-
+        
     def __str__(self):
         return self.customer_name
 
