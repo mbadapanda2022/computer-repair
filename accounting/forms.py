@@ -376,7 +376,6 @@ class CompanyProfileForm(forms.ModelForm):
             'phone': BS_TEXT,
             'email': BS_EMAIL,
             'gstin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '22AAAAA0000A1Z5'}),
-            # Added accept attribute for logo
             'logo': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
                 'accept': 'image/jpeg,image/png,image/webp'
@@ -387,7 +386,6 @@ class CompanyProfileForm(forms.ModelForm):
             'financial_year_start': BS_DATE,
             'state': BS_TEXT,
             'tagline': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Short tagline for hero section'}),
-            # Added accept attribute for hero_image
             'hero_image': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
                 'accept': 'image/jpeg,image/png,image/webp'
@@ -432,6 +430,24 @@ class CompanyProfileForm(forms.ModelForm):
             if len(clean) < 10 or len(clean) > 15:
                 raise ValidationError("WhatsApp number must be between 10 and 15 digits.")
         return number
+    
+    def clean_logo(self):
+        logo = self.cleaned_data.get('logo')
+        if logo and hasattr(logo, 'file') and logo.name:
+            if 'logo' in self.files:
+                from .validators import validate_image_file_extension, validate_image_binary
+                validate_image_file_extension(logo)
+                validate_image_binary(logo)
+        return logo
+
+    def clean_hero_image(self):
+        hero = self.cleaned_data.get('hero_image')
+        if hero and hasattr(hero, 'file') and hero.name:
+            if 'hero_image' in self.files:
+                from .validators import validate_image_file_extension, validate_image_binary
+                validate_image_file_extension(hero)
+                validate_image_binary(hero)
+        return hero
 
 class FAQForm(forms.ModelForm):
     class Meta:

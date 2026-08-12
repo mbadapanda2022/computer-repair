@@ -8,7 +8,9 @@ from PIL import Image
 ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
 
 def validate_image_file_extension(value):
-    """Level 2: Django's built-in FileExtensionValidator"""
+    """Skip validation if file is None or has no name"""
+    if not value or not hasattr(value, 'name') or not value.name:
+        return
     validator = FileExtensionValidator(allowed_extensions=ALLOWED_EXTENSIONS)
     validator(value)
 

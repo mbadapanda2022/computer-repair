@@ -30,15 +30,7 @@ class CompanyProfile(models.Model):
     )
     email = models.EmailField(blank=True)
     gstin = models.CharField(max_length=15, blank=True, help_text="Leave blank to disable GST")
-    
-    # Added validators and removed explicit storage (default will be used)
-    logo = models.ImageField(
-        upload_to='company_logo/',
-        blank=True,
-        null=True,
-        validators=[validate_image_file_extension, validate_image_binary]
-    )
-    
+    logo = models.ImageField(upload_to='company_logo/', blank=True, null=True)
     invoice_prefix = models.CharField(max_length=10, default="INV", help_text="e.g., INV, REP, PUR")
     invoice_start_number = models.PositiveIntegerField(default=1)
     default_tax_rate = models.DecimalField(
@@ -61,8 +53,6 @@ class CompanyProfile(models.Model):
         upload_to='company_hero/',
         blank=True,
         null=True,
-        storage=MediaCloudinaryStorage(),
-        validators=[validate_image_file_extension, validate_image_binary],
         help_text="Upload hero background or main image (recommended size: 1200x600)"
     )
     about_text = models.TextField(
@@ -155,8 +145,6 @@ class Service(models.Model):
         upload_to='services/',
         blank=True,
         null=True,
-        storage=MediaCloudinaryStorage(),
-        validators=[validate_image_file_extension, validate_image_binary],
         help_text="Optional image (overrides icon if provided)"
     )
     order = models.PositiveIntegerField(default=0, help_text="Display order (lower = first)")
@@ -208,8 +196,7 @@ class Testimonial(models.Model):
         upload_to='testimonials/',
         blank=True,
         null=True,
-        validators=[validate_image_file_extension, validate_image_binary],
-        help_text="Optional photo"
+        help_text="Optional profile photo"
     )
     designation = models.CharField(max_length=100, blank=True, help_text="e.g., Business Owner, Student")
     company_name = models.CharField(max_length=100, blank=True, help_text="e.g., Google, Microsoft")
