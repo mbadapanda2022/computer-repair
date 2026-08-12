@@ -767,5 +767,132 @@ html {
     border-radius: 0 0 0.5rem 0.5rem;
 }
 
+/* =============================================
+   SERVICES CAROUSEL – PROFESSIONAL STYLES
+   ============================================= */
+
+/* Carousel Inner Cards */
+#servicesCarousel .carousel-item .card {
+    transition: transform 0.5s ease, box-shadow 0.5s ease;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#servicesCarousel .carousel-item.active .card {
+    transform: scale(1);
+}
+
+/* Hover Effect */
+#servicesCarousel .card:hover {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Service Icon / Image */
+#servicesCarousel .service-icon {
+    font-size: 4rem;
+    color: #0d6efd;
+    transition: transform 0.3s ease;
+}
+#servicesCarousel .card:hover .service-icon {
+    transform: scale(1.1) rotate(-3deg);
+}
+#servicesCarousel .service-icon img {
+    transition: transform 0.3s ease;
+}
+#servicesCarousel .card:hover .service-icon img {
+    transform: scale(1.05);
+}
+
+/* Carousel Control Buttons (Prev / Next) */
+#servicesCarousel .carousel-control-prev,
+#servicesCarousel .carousel-control-next {
+    width: 5%;
+    opacity: 1;
+}
+#servicesCarousel .carousel-control-prev-icon,
+#servicesCarousel .carousel-control-next-icon {
+    background-color: #0d6efd;
+    border-radius: 50%;
+    padding: 20px;
+    background-size: 50% 50%;
+    box-shadow: 0 5px 15px rgba(13, 110, 253, 0.3);
+    transition: all 0.3s ease;
+}
+#servicesCarousel .carousel-control-prev-icon:hover,
+#servicesCarousel .carousel-control-next-icon:hover {
+    background-color: #0b5ed7;
+    transform: scale(1.1);
+    box-shadow: 0 8px 25px rgba(13, 110, 253, 0.5);
+}
+
+/* Carousel Indicators (Dots) */
+#servicesCarousel .carousel-indicators button {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #0d6efd;
+    background: transparent;
+    margin: 0 6px;
+    transition: all 0.3s ease;
+}
+#servicesCarousel .carousel-indicators button.active {
+    background: #0d6efd;
+    transform: scale(1.2);
+}
+#servicesCarousel .carousel-indicators button:hover {
+    transform: scale(1.1);
+}
+
+/* Fade & Scale Animation on Slide Change */
+#servicesCarousel .carousel-item {
+    transition: transform 0.8s ease-in-out, opacity 0.8s ease-in-out;
+}
+#servicesCarousel .carousel-item-next:not(.carousel-item-start),
+#servicesCarousel .carousel-item-prev:not(.carousel-item-end) {
+    opacity: 0;
+    transform: scale(0.9);
+}
+#servicesCarousel .carousel-item-next.carousel-item-start,
+#servicesCarousel .carousel-item-prev.carousel-item-end {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* =============================================
+   DARK MODE SUPPORT
+   ============================================= */
+[data-bs-theme="dark"] #servicesCarousel .card {
+    background: rgba(33, 37, 41, 0.95);
+    border-color: rgba(255, 255, 255, 0.05);
+}
+[data-bs-theme="dark"] #servicesCarousel .carousel-control-prev-icon,
+[data-bs-theme="dark"] #servicesCarousel .carousel-control-next-icon {
+    background-color: #6ea8fe;
+}
+[data-bs-theme="dark"] #servicesCarousel .carousel-indicators button {
+    border-color: #6ea8fe;
+}
+[data-bs-theme="dark"] #servicesCarousel .carousel-indicators button.active {
+    background: #6ea8fe;
+}
+
+/* =============================================
+   RESPONSIVE FINE-TUNE
+   ============================================= */
+@media (max-width: 768px) {
+    #servicesCarousel .carousel-item .card {
+        padding: 2rem !important;
+    }
+    #servicesCarousel .service-icon {
+        font-size: 3rem;
+    }
+    #servicesCarousel .carousel-control-prev-icon,
+    #servicesCarousel .carousel-control-next-icon {
+        padding: 15px;
+        background-size: 40% 40%;
+    }
+}
 
 
