@@ -376,7 +376,6 @@ class CompanyProfileForm(forms.ModelForm):
             'phone': BS_TEXT,
             'email': BS_EMAIL,
             'gstin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '22AAAAA0000A1Z5'}),
-            # ✅ Added accept attribute for logo
             'logo': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
                 'accept': 'image/jpeg,image/png,image/webp'
@@ -387,7 +386,6 @@ class CompanyProfileForm(forms.ModelForm):
             'financial_year_start': BS_DATE,
             'state': BS_TEXT,
             'tagline': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Short tagline for hero section'}),
-            # ✅ Added accept attribute for hero_image
             'hero_image': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
                 'accept': 'image/jpeg,image/png,image/webp'
@@ -432,6 +430,15 @@ class CompanyProfileForm(forms.ModelForm):
             if len(clean) < 10 or len(clean) > 15:
                 raise ValidationError("WhatsApp number must be between 10 and 15 digits.")
         return number
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        exclude_fields = ['logo', 'hero_image', 'og_image']
+        field_names = [f for f in self.fields.keys() if f not in exclude_fields]
+        self.add_htmx_validation(
+            validate_url=reverse('accounting:validate_setting_field'),
+            field_names=field_names
+        )
 
 
 class FAQForm(forms.ModelForm):
