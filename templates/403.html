@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Access Denied | {{ block.super }}{% endblock %}
-
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
@@ -12,15 +10,9 @@
                 <h2 class="mb-4">Access Denied</h2>
                 <p class="lead text-muted">You don't have permission to access this page.</p>
                 <div class="mt-4">
-                    {% if user.is_authenticated %}
-                        {% if user.is_staff %}
-                            <a href="{% url 'accounting:dashboard' %}" class="btn btn-primary btn-lg">Staff Dashboard</a>
-                        {% else %}
-                            <a href="{% url 'customer:customer_dashboard' %}" class="btn btn-primary btn-lg">My Dashboard</a>
-                        {% endif %}
-                    {% else %}
-                        <a href="{% url 'home' %}" class="btn btn-primary btn-lg">Go Home</a>
-                    {% endif %}
+                    <a href="{% url 'accounting:dashboard' %}" class="btn btn-primary btn-lg">
+                        <i class="bi bi-speedometer2"></i> Go to Dashboard
+                    </a>
                 </div>
             </div>
         </div>
