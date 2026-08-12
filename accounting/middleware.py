@@ -1,3 +1,4 @@
+# accounting/middleware.py
 import logging
 from django.urls import resolve, Resolver404, reverse
 from django.shortcuts import redirect
@@ -10,16 +11,14 @@ class AccessControlMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
-        # Public Paths – Login, Register, Password Reset 
+        # Public Paths – Login, Register, Password Reset (अब /admin/ नहीं है)
         self.public_paths = {
             '/',
             '/home/',
             '/login/',             
             '/register/',           
             '/logout/',
-            '/admin/',
-            '/admin/login/',
-            # '/settings/',  
+            '/admin/login/',      
             '/privacy-policy/',
             '/contact-message/',
             '/validate-contact-field/',
@@ -51,11 +50,10 @@ class AccessControlMiddleware:
         # 1. Static/Media – SAFE CHECK (MEDIA_URL may be empty)
         if request.path.startswith(settings.STATIC_URL):
             return self.get_response(request)
-        # Only check MEDIA_URL if it's not empty
         if settings.MEDIA_URL and request.path.startswith(settings.MEDIA_URL):
             return self.get_response(request)
 
-        # 2. Django Admin Login
+        # 2. Django Admin Login – Public
         if request.path.startswith('/admin/login/'):
             return self.get_response(request)
 
@@ -73,13 +71,14 @@ class AccessControlMiddleware:
             resolved = resolve(request.path)
             namespace = resolved.namespace
         except Resolver404:
+            # If URL doesn't resolve, allow (will be handled by 404 handler)
             return self.get_response(request)
 
         # 6. Not Authenticated → Redirect to Login
         if not request.user.is_authenticated:
             return redirect_to_login(request.get_full_path(), login_url=settings.LOGIN_URL)
 
-        # 7. Customer → Allowed
+        # 7. Customer → Allowed (केवल Customer Portal)
         if namespace == 'customer':
             return self.get_response(request)
 
@@ -87,15 +86,17 @@ class AccessControlMiddleware:
         if namespace == 'accounting':
             if request.user.is_staff:
                 return self.get_response(request)
+            # Customer (non-staff) को Customer Dashboard पर Redirect
             try:
                 return redirect('customer:customer_dashboard')
             except:
                 return redirect('home')
 
-        # 9. Django Admin → Only Staff
-        if request.path.startswith('/admin/'):
+        # 9. Django Admin → Only Staff (स्लैश के साथ या बिना)
+        if request.path == '/admin' or request.path.startswith('/admin/'):
             if request.user.is_staff:
                 return self.get_response(request)
+            # Non-staff को Customer Dashboard या Home पर Redirect
             try:
                 return redirect('customer:customer_dashboard')
             except:
