@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import shutil
+import traceback 
 from datetime import datetime
 
 from django.shortcuts import render, redirect
@@ -33,6 +34,7 @@ def validate_setting_field(request):
     if not field_name:
         return HttpResponse("Invalid field", status=400)
 
+    # File fields ko skip karo – inki validation GET se nahi ho sakti
     if field_name in ['logo', 'hero_image', 'og_image']:
         return HttpResponse("")  # Empty response = no error
 
@@ -49,37 +51,57 @@ def validate_setting_field(request):
 
 
 # ==========================================================
-# COMPANY SETTINGS
+# COMPANY SETTINGS – WITH ENHANCED ERROR HANDLING
 # ==========================================================
 
 @csrf_protect
-@handle_errors(default_redirect='accounting:company_settings', htmx_template='settings/company_settings_form.html')
+# Temporarily remove @handle_errors to see actual error
+# @handle_errors(default_redirect='accounting:company_settings', htmx_template='settings/company_settings_form.html')
 def company_settings(request):
-    profile = CompanyProfile.get_instance()
+    try:
+        profile = CompanyProfile.get_instance()
 
-    if request.method == 'POST':
-        form = CompanyProfileForm(request.POST, request.FILES, instance=profile)
-        if form.is_valid():
-            form.save()
-            logger.info(f"Company settings updated by {request.user.username}")
+        if request.method == 'POST':
+            form = CompanyProfileForm(request.POST, request.FILES, instance=profile)
+            if form.is_valid():
+                form.save()
+                logger.info(f"Company settings updated by {request.user.username}")
 
-            if is_htmx(request):
-                return htmx_response(
-                    request,
-                    'settings/company_settings_form.html',
-                    context={'form': form, 'profile': profile},
-                    toast={'level': 'success', 'message': 'Company settings updated successfully.'}
-                )
-            messages.success(request, "Company settings updated successfully.")
-            return redirect_to_staff('company_settings')
+                if is_htmx(request):
+                    return htmx_response(
+                        request,
+                        'settings/company_settings_form.html',
+                        context={'form': form, 'profile': profile},
+                        toast={'level': 'success', 'message': 'Company settings updated successfully.'}
+                    )
+                messages.success(request, "Company settings updated successfully.")
+                return redirect_to_staff('company_settings')
+            else:
+                # Form invalid – return errors
+                if is_htmx(request):
+                    return render(request, 'settings/company_settings_form.html', {'form': form, 'profile': profile})
         else:
-            if is_htmx(request):
-                return render(request, 'settings/company_settings_form.html', {'form': form, 'profile': profile})
-    else:
-        form = CompanyProfileForm(instance=profile)
+            form = CompanyProfileForm(instance=profile)
 
-    return render(request, 'settings/company_settings.html', {'form': form, 'profile': profile})
+        return render(request, 'settings/company_settings.html', {'form': form, 'profile': profile})
 
+    except Exception as e:
+        # Log the full error (visible in Render Logs)
+        logger.error(f"🚨 Company Settings Error: {e}\n{traceback.format_exc()}")
+        
+        # If HTMX request, return a toast with the actual error (for debugging)
+        if is_htmx(request):
+            return htmx_response(
+                request,
+                'settings/company_settings_form.html',
+                context={'form': CompanyProfileForm(instance=CompanyProfile.get_instance())},
+                toast={'level': 'danger', 'message': f'Error: {str(e)}' if str(e) else 'Unknown error'}
+            )
+        # If normal request, show a page with error
+        return render(request, 'settings/company_settings.html', {
+            'form': CompanyProfileForm(instance=CompanyProfile.get_instance()),
+            'error': str(e)
+        })
 
 # ==========================================================
 # BACKUP DATABASE

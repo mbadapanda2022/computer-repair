@@ -33,7 +33,6 @@ def process_uploaded_image(uploaded_file, max_size=(1200, 1200), quality=80):
     if has_alpha:
         format = 'WEBP'
         ext = '.webp'
-        # WebP supports transparency, we keep RGBA mode
         if img.mode != 'RGBA':
             img = img.convert('RGBA')
     else:
