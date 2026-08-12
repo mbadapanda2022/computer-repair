@@ -117,13 +117,15 @@ class CompanyProfile(models.Model):
         verbose_name_plural = "Company Profile"
 
     def save(self, *args, **kwargs):
-        if self.logo and hasattr(self.logo, 'file') and not self.logo.name.startswith('processed/'):
+        from django.core.files.uploadedfile import UploadedFile
+
+        if self.logo and hasattr(self.logo, 'file') and isinstance(self.logo.file, UploadedFile):
             self.logo = process_uploaded_image(self.logo)
         
-        if self.hero_image and hasattr(self.hero_image, 'file') and not self.hero_image.name.startswith('processed/'):
+        if self.hero_image and hasattr(self.hero_image, 'file') and isinstance(self.hero_image.file, UploadedFile):
             self.hero_image = process_uploaded_image(self.hero_image)
 
-        if self.og_image and hasattr(self.og_image, 'file') and not self.og_image.name.startswith('processed/'):
+        if self.og_image and hasattr(self.og_image, 'file') and isinstance(self.og_image.file, UploadedFile):
             self.og_image = process_uploaded_image(self.og_image)
 
         super().save(*args, **kwargs)
@@ -173,7 +175,9 @@ class Service(models.Model):
     
     
     def save(self, *args, **kwargs):
-        if self.image and hasattr(self.image, 'file') and not self.image.name.startswith('processed/'):
+        from django.core.files.uploadedfile import UploadedFile
+
+        if self.image and hasattr(self.image, 'file') and isinstance(self.image.file, UploadedFile):
             self.image = process_uploaded_image(self.image)
         super().save(*args, **kwargs)
 
@@ -223,7 +227,9 @@ class Testimonial(models.Model):
         
         
     def save(self, *args, **kwargs):
-        if self.customer_photo and hasattr(self.customer_photo, 'file') and not self.customer_photo.name.startswith('processed/'):
+        from django.core.files.uploadedfile import UploadedFile
+
+        if self.customer_photo and hasattr(self.customer_photo, 'file') and isinstance(self.customer_photo.file, UploadedFile):
             self.customer_photo = process_uploaded_image(self.customer_photo)
         super().save(*args, **kwargs)
 
