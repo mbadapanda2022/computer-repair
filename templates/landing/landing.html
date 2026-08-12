@@ -39,15 +39,14 @@
 </section>
 
 <!-- ===== SERVICES SECTION (Dynamic Carousel) ===== -->
-<!-- ===== SERVICES SECTION ===== -->
 <section id="services" class="py-3">
     <div class="container">
         <div class="text-center mb-3">
             <h2 class="section-title fw-bold">Our Services</h2>
             <p class="text-muted">Comprehensive solutions for all your tech needs</p>
         </div>
-        <div id="service-list-container">
-            {% include "landing/partials/_service_list.html" with services=services %}
+        <div id="service-carousel-container">
+            {% include "landing/partials/_service_carousel.html" with services=services %}
         </div>
     </div>
 </section>
@@ -128,7 +127,6 @@
     </div>
 </section>
 
-<!-- ===== TESTIMONIALS ===== -->
 <!-- ===== TESTIMONIALS ===== -->
 <section class="bg-light py-5" id="testimonials">
     <div class="container">
