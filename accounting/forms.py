@@ -12,13 +12,7 @@ from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import (
-    CompanyProfile, Contact, ProductCategory, Product,
-    Invoice, InvoiceItem, Purchase, PurchaseItem,
-    RepairJob, RepairPart, Payment, StockMovement,
-    BankAccount, BankTransaction, ContactMessage, FAQ
-)
-
+from .models import *
 User = get_user_model()
 
 # ============================================================
@@ -449,14 +443,76 @@ class CompanyProfileForm(forms.ModelForm):
                 validate_image_binary(hero)
         return hero
 
+# ============================================================
+# SERVICE FORM
+# ============================================================
+class ServiceForm(forms.ModelForm):
+    class Meta:
+        model = Service
+        fields = ['title', 'description', 'icon', 'image', 'order', 'is_active']
+        widgets = {
+            'title': BS_TEXT,
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'icon': BS_TEXT,
+            'image': forms.ClearableFileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/jpeg,image/png,image/webp'
+            }),
+            'order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': BS_CHECKBOX,
+        }
+        help_texts = {
+            'icon': 'Bootstrap icon class (e.g., bi-tools, bi-display). See <a href="https://icons.getbootstrap.com/" target="_blank">Bootstrap Icons</a>.',
+            'order': 'Lower numbers appear first.',
+        }
+
+
+# ============================================================
+# TESTIMONIAL FORM
+# ============================================================
+class TestimonialForm(forms.ModelForm):
+    class Meta:
+        model = Testimonial
+        fields = ['customer_name', 'customer_photo', 'designation', 'company_name', 
+                  'review_text', 'rating', 'order', 'is_active']
+        widgets = {
+            'customer_name': BS_TEXT,
+            'customer_photo': forms.ClearableFileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/jpeg,image/png,image/webp'
+            }),
+            'designation': BS_TEXT,
+            'company_name': BS_TEXT,
+            'review_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'rating': forms.Select(attrs={'class': 'form-select'}),
+            'order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': BS_CHECKBOX,
+        }
+        help_texts = {
+            'customer_photo': 'Optional photo of the customer.',
+            'rating': '1 to 5 stars.',
+            'order': 'Lower numbers appear first.',
+        }
+
+
+# ============================================================
+# FAQ FORM
+# ============================================================
 class FAQForm(forms.ModelForm):
     class Meta:
         model = FAQ
-        fields = ['question', 'answer']  
+        fields = ['question', 'answer', 'order', 'is_active']
         widgets = {
-            'question': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Your question'}),
-            'answer': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Your answer suggestion'}),
+            'question': BS_TEXT,
+            'answer': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+            'order': forms.NumberInput(attrs={'class': 'form-control'}),
+            'is_active': BS_CHECKBOX,
         }
+        help_texts = {
+            'order': 'Lower numbers appear first.',
+        }
+
+
 
 # ============================================================
 # 2. CONTACTS
