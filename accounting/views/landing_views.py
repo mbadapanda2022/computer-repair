@@ -1,16 +1,18 @@
 # accounting/views/landing_views.py
-
 import json
 import logging
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.forms import modelform_factory
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_http_methods
+from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import reverse
+from django.contrib import messages
 
 from ..models import *
-from ..forms import ContactMessageForm
+from ..forms import ContactMessageForm, ServiceForm, TestimonialForm, FAQForm
 from .utils import is_htmx, htmx_response
 from ..decorators import handle_errors
 from ..utils.notification_helpers import send_notification_to_staff
@@ -61,12 +63,8 @@ def contact_message(request):
         # ============================================================
         # HONEYPOT CHECK - Bot Detection (Silent Fail)
         # ============================================================
-        # clean_website() already raises ValidationError if filled.
-        # But we want to give fake success to bots.
-        # Check if honeypot field is filled (even before form.is_valid)
         if request.POST.get('website', '').strip():
             logger.warning(f"🔥 Honeypot triggered from IP {request.META.get('REMOTE_ADDR')}")
-            # Fake success response — bot ko confuse karo
             html = '<div class="alert alert-success">Thank you! Your message has been sent.</div>'
             response = HttpResponse(html)
             response['HX-Trigger'] = json.dumps({
@@ -77,7 +75,6 @@ def contact_message(request):
         if form.is_valid():
             message = form.save()
             
-            # Send Real-time Notification to staff
             send_notification_to_staff(
                 title=f"New Contact Message from {message.name}",
                 message=f"Subject: {message.subject}\nMessage: {message.message[:100]}...",
@@ -87,7 +84,6 @@ def contact_message(request):
                 send_email=True  
             )
             
-            # Return success message and toast trigger
             html = '<div class="alert alert-success">Thank you! Your message has been sent.</div>'
             response = HttpResponse(html)
             response['HX-Trigger'] = json.dumps({
@@ -95,7 +91,6 @@ def contact_message(request):
             })
             return response
         else:
-            # Return the form with errors
             html = render_to_string('landing/partials/_contact_form.html', {'form': form}, request=request)
             return HttpResponse(html, status=200)
     else:
@@ -112,7 +107,6 @@ def validate_contact_field(request):
     if not field_name:
         return HttpResponse("Invalid field", status=400)
 
-    # Honeypot field ko skip karo
     if field_name == 'website':
         return HttpResponse("")
 
@@ -130,7 +124,7 @@ def validate_contact_field(request):
 
 
 # ============================================================
-# PRIVACY POLICY PAGE
+# PRIVACY POLICY & COOKIE POLICY
 # ============================================================
 
 def privacy_policy(request):
@@ -139,6 +133,10 @@ def privacy_policy(request):
 def cookie_policy(request):
     return render(request, 'landing/cookie_policy.html')
 
+
+# ============================================================
+# DEBUG: Cloudinary Info
+# ============================================================
 
 def debug_cloudinary(request):
     import cloudinary
@@ -153,3 +151,274 @@ def debug_cloudinary(request):
     return render(request, 'debug.html', {'data': data})
 
 
+# ============================================================
+# ============================================================
+# LANDING PAGE MANAGEMENT (HTMX CRUD) – STAFF ONLY
+# ============================================================
+# ============================================================
+
+
+# ---------- SERVICES ----------
+
+@staff_member_required
+def service_list_partial(request):
+    """Return partial HTML for service list (for HTMX refresh)"""
+    services = Service.objects.all().order_by('order', 'created_at')
+    html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+    return HttpResponse(html)
+
+
+@staff_member_required
+def service_create(request):
+    """Create a new service via HTMX modal"""
+    if request.method == 'POST':
+        form = ServiceForm(request.POST, request.FILES)
+        if form.is_valid():
+            service = form.save()
+            if is_htmx(request):
+                services = Service.objects.all().order_by('order', 'created_at')
+                html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+                response = HttpResponse(html)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'success', 'message': f'Service "{service.title}" created successfully.'},
+                    'closeModal': ''
+                })
+                return response
+            messages.success(request, f'Service "{service.title}" created successfully.')
+            return redirect('accounting:dashboard')
+    else:
+        form = ServiceForm()
+    
+    return render(request, 'landing/partials/_service_form.html', {'form': form, 'action': 'Add'})
+
+
+@staff_member_required
+def service_edit(request, pk):
+    """Edit an existing service via HTMX modal"""
+    service = get_object_or_404(Service, pk=pk)
+    if request.method == 'POST':
+        form = ServiceForm(request.POST, request.FILES, instance=service)
+        if form.is_valid():
+            form.save()
+            if is_htmx(request):
+                services = Service.objects.all().order_by('order', 'created_at')
+                html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+                response = HttpResponse(html)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'success', 'message': f'Service "{service.title}" updated successfully.'},
+                    'closeModal': ''
+                })
+                return response
+            messages.success(request, f'Service "{service.title}" updated successfully.')
+            return redirect('accounting:dashboard')
+    else:
+        form = ServiceForm(instance=service)
+    
+    return render(request, 'landing/partials/_service_form.html', {'form': form, 'action': 'Edit', 'service': service})
+
+
+@staff_member_required
+@require_http_methods(["DELETE"])
+def service_delete(request, pk):
+    """Delete a service via HTMX (with confirm)"""
+    service = get_object_or_404(Service, pk=pk)
+    title = service.title
+    service.delete()
+    if is_htmx(request):
+        services = Service.objects.all().order_by('order', 'created_at')
+        html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+        response = HttpResponse(html)
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'success', 'message': f'Service "{title}" deleted successfully.'}
+        })
+        return response
+    messages.success(request, f'Service "{title}" deleted successfully.')
+    return redirect('accounting:dashboard')
+
+
+# ---------- TESTIMONIALS ----------
+
+@staff_member_required
+def testimonial_list_partial(request):
+    """Return partial HTML for testimonial list"""
+    testimonials = Testimonial.objects.all().order_by('order', '-created_at')
+    html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+    return HttpResponse(html)
+
+
+@staff_member_required
+def testimonial_create(request):
+    """Create a new testimonial via HTMX modal"""
+    if request.method == 'POST':
+        form = TestimonialForm(request.POST, request.FILES)
+        if form.is_valid():
+            testimonial = form.save()
+            if is_htmx(request):
+                testimonials = Testimonial.objects.all().order_by('order', '-created_at')
+                html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+                response = HttpResponse(html)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'success', 'message': f'Testimonial from "{testimonial.customer_name}" created.'},
+                    'closeModal': ''
+                })
+                return response
+            messages.success(request, f'Testimonial from "{testimonial.customer_name}" created.')
+            return redirect('accounting:dashboard')
+    else:
+        form = TestimonialForm()
+    return render(request, 'landing/partials/_testimonial_form.html', {'form': form, 'action': 'Add'})
+
+
+@staff_member_required
+def testimonial_edit(request, pk):
+    """Edit an existing testimonial via HTMX modal"""
+    testimonial = get_object_or_404(Testimonial, pk=pk)
+    if request.method == 'POST':
+        form = TestimonialForm(request.POST, request.FILES, instance=testimonial)
+        if form.is_valid():
+            form.save()
+            if is_htmx(request):
+                testimonials = Testimonial.objects.all().order_by('order', '-created_at')
+                html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+                response = HttpResponse(html)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'success', 'message': 'Testimonial updated successfully.'},
+                    'closeModal': ''
+                })
+                return response
+            messages.success(request, 'Testimonial updated successfully.')
+            return redirect('accounting:dashboard')
+    else:
+        form = TestimonialForm(instance=testimonial)
+    return render(request, 'landing/partials/_testimonial_form.html', {'form': form, 'action': 'Edit', 'testimonial': testimonial})
+
+
+@staff_member_required
+@require_http_methods(["DELETE"])
+def testimonial_delete(request, pk):
+    """Delete a testimonial via HTMX"""
+    testimonial = get_object_or_404(Testimonial, pk=pk)
+    name = testimonial.customer_name
+    testimonial.delete()
+    if is_htmx(request):
+        testimonials = Testimonial.objects.all().order_by('order', '-created_at')
+        html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+        response = HttpResponse(html)
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'success', 'message': f'Testimonial from "{name}" deleted.'}
+        })
+        return response
+    messages.success(request, f'Testimonial from "{name}" deleted.')
+    return redirect('accounting:dashboard')
+
+
+# ---------- FAQS ----------
+
+@staff_member_required
+def faq_list_partial(request):
+    """Return partial HTML for FAQ list"""
+    faqs = FAQ.objects.all().order_by('order', 'created_at')
+    html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+    return HttpResponse(html)
+
+
+@staff_member_required
+def faq_create(request):
+    """Create a new FAQ via HTMX modal"""
+    if request.method == 'POST':
+        form = FAQForm(request.POST)
+        if form.is_valid():
+            faq = form.save()
+            if is_htmx(request):
+                faqs = FAQ.objects.all().order_by('order', 'created_at')
+                html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+                response = HttpResponse(html)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'success', 'message': 'FAQ added successfully.'},
+                    'closeModal': ''
+                })
+                return response
+            messages.success(request, 'FAQ added successfully.')
+            return redirect('accounting:dashboard')
+    else:
+        form = FAQForm()
+    return render(request, 'landing/partials/_faq_form.html', {'form': form, 'action': 'Add'})
+
+
+@staff_member_required
+def faq_edit(request, pk):
+    """Edit an existing FAQ via HTMX modal"""
+    faq = get_object_or_404(FAQ, pk=pk)
+    if request.method == 'POST':
+        form = FAQForm(request.POST, instance=faq)
+        if form.is_valid():
+            form.save()
+            if is_htmx(request):
+                faqs = FAQ.objects.all().order_by('order', 'created_at')
+                html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+                response = HttpResponse(html)
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'success', 'message': 'FAQ updated successfully.'},
+                    'closeModal': ''
+                })
+                return response
+            messages.success(request, 'FAQ updated successfully.')
+            return redirect('accounting:dashboard')
+    else:
+        form = FAQForm(instance=faq)
+    return render(request, 'landing/partials/_faq_form.html', {'form': form, 'action': 'Edit', 'faq': faq})
+
+
+@staff_member_required
+@require_http_methods(["DELETE"])
+def faq_delete(request, pk):
+    """Delete an FAQ via HTMX"""
+    faq = get_object_or_404(FAQ, pk=pk)
+    faq.delete()
+    if is_htmx(request):
+        faqs = FAQ.objects.all().order_by('order', 'created_at')
+        html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+        response = HttpResponse(html)
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'success', 'message': 'FAQ deleted successfully.'}
+        })
+        return response
+    messages.success(request, 'FAQ deleted successfully.')
+    return redirect('accounting:dashboard')
+
+
+# ============================================================
+# LANDING PAGE MANAGEMENT (STAFF ONLY – FULL PAGES)
+# ============================================================
+
+@staff_member_required
+def manage_services(request):
+    """Staff page to manage services (list + Add/Edit/Delete)."""
+    services = Service.objects.all().order_by('order', 'created_at')
+    context = {
+        'services': services,
+        'include_controls': True,  # Controls ko show karne ke liye
+    }
+    return render(request, 'landing/manage_services.html', context)
+
+
+@staff_member_required
+def manage_testimonials(request):
+    """Staff page to manage testimonials."""
+    testimonials = Testimonial.objects.all().order_by('order', '-created_at')
+    context = {
+        'testimonials': testimonials,
+        'include_controls': True,
+    }
+    return render(request, 'landing/manage_testimonials.html', context)
+
+
+@staff_member_required
+def manage_faqs(request):
+    """Staff page to manage FAQs."""
+    faqs = FAQ.objects.all().order_by('order', 'created_at')
+    context = {
+        'faqs': faqs,
+        'include_controls': True,
+    }
+    return render(request, 'landing/manage_faqs.html', context)

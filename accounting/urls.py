@@ -201,5 +201,29 @@ urlpatterns = [
     path('messages/<int:pk>/status/', message_views.message_mark_status, name='message_mark_status'),
     path('messages/<int:pk>/delete/', message_views.message_delete, name='message_delete'),
     path('messages/unread-count/', message_views.message_unread_count, name='message_unread_count'),
+    
+    # ===== Landing Page Management (HTMX CRUD) =====
+    # Services
+    path('landing/services/', landing_views.service_list_partial, name='service_list_partial'),
+    path('landing/services/create/', landing_views.service_create, name='service_create'),
+    path('landing/services/<int:pk>/edit/', landing_views.service_edit, name='service_edit'),
+    path('landing/services/<int:pk>/delete/', landing_views.service_delete, name='service_delete'),
+
+    # Testimonials
+    path('landing/testimonials/', landing_views.testimonial_list_partial, name='testimonial_list_partial'),
+    path('landing/testimonials/create/', landing_views.testimonial_create, name='testimonial_create'),
+    path('landing/testimonials/<int:pk>/edit/', landing_views.testimonial_edit, name='testimonial_edit'),
+    path('landing/testimonials/<int:pk>/delete/', landing_views.testimonial_delete, name='testimonial_delete'),
+
+    # FAQs
+    path('landing/faqs/', landing_views.faq_list_partial, name='faq_list_partial'),
+    path('landing/faqs/create/', landing_views.faq_create, name='faq_create'),
+    path('landing/faqs/<int:pk>/edit/', landing_views.faq_edit, name='faq_edit'),
+    path('landing/faqs/<int:pk>/delete/', landing_views.faq_delete, name='faq_delete'),
+    
+    # ===== Landing Page Management (Staff Pages) =====
+    path('landing/manage/services/', landing_views.manage_services, name='manage_services'),
+    path('landing/manage/testimonials/', landing_views.manage_testimonials, name='manage_testimonials'),
+    path('landing/manage/faqs/', landing_views.manage_faqs, name='manage_faqs'),
 ]
 

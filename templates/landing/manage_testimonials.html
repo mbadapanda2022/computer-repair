@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-chat-quote"></i> Manage Testimonials</h3>
+        <button class="btn btn-primary" 
+                hx-get="{% url 'accounting:testimonial_create' %}" 
+                hx-target="#mainModalContent"
+                hx-trigger="click">
+            <i class="bi bi-plus-circle"></i> Add Testimonial
+        </button>
+    </div>
+    
+    <div id="testimonial-list-container">
+        {% include "landing/partials/_testimonial_list.html" with testimonials=testimonials include_controls=True %}
+    </div>
+</div>
+{% endblock %}

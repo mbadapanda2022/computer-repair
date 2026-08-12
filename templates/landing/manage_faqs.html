@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3><i class="bi bi-question-circle"></i> Manage FAQs</h3>
+        <button class="btn btn-primary" 
+                hx-get="{% url 'accounting:faq_create' %}" 
+                hx-target="#mainModalContent"
+                hx-trigger="click">
+            <i class="bi bi-plus-circle"></i> Add FAQ
+        </button>
+    </div>
+    
+    <div id="faq-list-container">
+        {% include "landing/partials/_faq_list.html" with faqs=faqs include_controls=True %}
+    </div>
+</div>
+{% endblock %}

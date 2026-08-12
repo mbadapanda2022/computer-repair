@@ -39,66 +39,16 @@
 </section>
 
 <!-- ===== SERVICES SECTION (Dynamic Carousel) ===== -->
+<!-- ===== SERVICES SECTION ===== -->
 <section id="services" class="py-3">
     <div class="container">
         <div class="text-center mb-3">
             <h2 class="section-title fw-bold">Our Services</h2>
             <p class="text-muted">Comprehensive solutions for all your tech needs</p>
         </div>
-
-        {% if services %}
-            <div id="servicesCarousel" class="carousel slide" data-bs-ride="carousel" data-bs-interval="9000">
-                <!-- Indicators -->
-                <div class="carousel-indicators">
-                    {% for service in services %}
-                        <button type="button" data-bs-target="#servicesCarousel" 
-                                data-bs-slide-to="{{ forloop.counter0 }}" 
-                                class="{% if forloop.first %}active{% endif %}"
-                                aria-label="Slide {{ forloop.counter }}"></button>
-                    {% endfor %}
-                </div>
-
-                <!-- Carousel Inner -->
-                <div class="carousel-inner">
-                    {% for service in services %}
-                        <div class="carousel-item {% if forloop.first %}active{% endif %}">
-                            <div class="row justify-content-center">
-                                <div class="col-md-8 col-lg-6">
-                                    <div class="card text-center p-5 shadow-lg border-0 rounded-4">
-                                        <div class="service-icon display-1 text-primary mb-3">
-                                            {% if service.image %}
-                                                <img src="{{ service.image.url }}" alt="{{ service.title }}" style="height:250px; width:auto;">
-                                            {% elif service.icon %}
-                                                <i class="bi {{ service.icon }}"></i>
-                                            {% else %}
-                                                <i class="bi bi-box"></i>
-                                            {% endif %}
-                                        </div>
-                                        <h5 class="card-title fw-bold">{{ service.title }}</h5>
-                                        <p class="card-text text-muted">{{ service.description }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-
-                <!-- Controls -->
-                <button class="carousel-control-prev" type="button" data-bs-target="#servicesCarousel" data-bs-slide="prev">
-                    <span class="carousel-control-prev-icon bg-primary rounded-circle p-3" aria-hidden="true"></span>
-                    <span class="visually-hidden">Previous</span>
-                </button>
-                <button class="carousel-control-next" type="button" data-bs-target="#servicesCarousel" data-bs-slide="next">
-                    <span class="carousel-control-next-icon bg-primary rounded-circle p-3" aria-hidden="true"></span>
-                    <span class="visually-hidden">Next</span>
-                </button>
-            </div>
-        {% else %}
-            <div class="text-center text-muted">
-                <i class="bi bi-plus-circle fs-1"></i>
-                <p>No services added yet. Add some from the admin panel.</p>
-            </div>
-        {% endif %}
+        <div id="service-list-container">
+            {% include "landing/partials/_service_list.html" with services=services %}
+        </div>
     </div>
 </section>
 
@@ -179,59 +129,15 @@
 </section>
 
 <!-- ===== TESTIMONIALS ===== -->
-<section class="bg-light py-5">
+<!-- ===== TESTIMONIALS ===== -->
+<section class="bg-light py-5" id="testimonials">
     <div class="container">
         <div class="text-center mb-5">
             <h2 class="section-title fw-bold">What Our Customers Say</h2>
             <p class="text-muted">Real feedback from real people</p>
         </div>
-        {% if testimonials %}
-            <div class="row g-4">
-                {% for testimonial in testimonials %}
-                    <div class="col-md-4">
-                        <div class="card h-100 p-4 testimonial-card shadow-sm">
-                            <div class="d-flex align-items-center mb-3">
-                                {% if testimonial.customer_photo %}
-                                    <img src="{{ testimonial.customer_photo.url }}" class="rounded-circle me-3" width="50" height="50" style="object-fit:cover;" alt="{{ testimonial.customer_name }}">
-                                {% else %}
-                                    <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width:50px; height:50px; font-size:1.2rem;">
-                                        {{ testimonial.customer_name|first|upper }}
-                                    </div>
-                                {% endif %}
-                                <div>
-                                    <h6 class="mb-0">{{ testimonial.customer_name }}</h6>
-                                    <small class="text-muted">
-                                        {% if testimonial.designation %}{{ testimonial.designation }}{% endif %}
-                                        {% if testimonial.company_name %} – {{ testimonial.company_name }}{% endif %}
-                                    </small>
-                                </div>
-                            </div>
-                            <p class="card-text">"{{ testimonial.review_text }}"</p>
-                            <div class="text-warning">
-                                {% for i in "12345"|slice:":testimonial.rating" %}★{% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="text-center text-muted">
-                <i class="bi bi-chat-dots fs-1"></i>
-                <p>No testimonials yet. Add some from the admin panel.</p>
-            </div>
-        {% endif %}
-
-        <!-- Google Review CTA after Testimonials -->
-        <div class="text-center mt-5">
-            <p class="text-muted">Happy with our service? Share your experience! ❤️</p>
-            {% if company.google_review_link %}
-                <a href="{{ company.google_review_link }}" 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
-                   class="btn btn-danger btn-lg px-5">
-                    <i class="bi bi-google me-2"></i> Rate us on Google
-                </a>
-            {% endif %}
+        <div id="testimonial-list-container">
+            {% include "landing/partials/_testimonial_list.html" with testimonials=testimonials %}
         </div>
     </div>
 </section>
@@ -245,33 +151,9 @@
         </div>
         <div class="row justify-content-center">
             <div class="col-lg-8">
-                {% if faqs %}
-                    <div class="accordion" id="faqAccordion">
-                        {% for faq in faqs %}
-                            <div class="accordion-item">
-                                <h2 class="accordion-header">
-                                    <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}" 
-                                            type="button" 
-                                            data-bs-toggle="collapse" 
-                                            data-bs-target="#faq{{ faq.id }}">
-                                        {{ faq.question }}
-                                    </button>
-                                </h2>
-                                <div id="faq{{ faq.id }}" 
-                                     class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" 
-                                     data-bs-parent="#faqAccordion">
-                                    <div class="accordion-body">
-                                        {{ faq.answer|linebreaks }}
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="alert alert-info text-center">
-                        <i class="bi bi-info-circle"></i> No FAQs added yet. Please add some from the admin panel.
-                    </div>
-                {% endif %}
+                <div id="faq-list-container">
+                    {% include "landing/partials/_faq_list.html" with faqs=faqs %}
+                </div>
             </div>
         </div>
     </div>
