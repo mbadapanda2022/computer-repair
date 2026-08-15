@@ -1,7 +1,5 @@
-<!-- templates/notifications/list.html-->
 {% extends "base.html" %}
 {% load static %}
-
 {% block content %}
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -10,26 +8,27 @@
             {% if unread_count > 0 %}
             <button class="btn btn-sm btn-outline-primary me-2" 
                     hx-post="{% url 'accounting:notification_mark_all_read' %}" 
-                    hx-target="#notification-list-container"
-                    hx-swap="outerHTML">
+                    hx-target="#notification-list-container" hx-swap="innerHTML"
+                    hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'>
                 <i class="bi bi-check-all"></i> Mark all as read
             </button>
             {% endif %}
             <button class="btn btn-sm btn-outline-danger" 
                     hx-delete="{% url 'accounting:notification_delete_all' %}" 
-                    hx-target="#notification-list-container"
-                    hx-swap="outerHTML"
+                    hx-target="#notification-list-container" hx-swap="innerHTML"
+                    hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'
                     hx-confirm="Delete all notifications?">
                 <i class="bi bi-trash"></i> Clear all
             </button>
         </div>
     </div>
 
-    <div id="notification-list-container">
+    <!-- Container – keep intact, only innerHTML swaps -->
+    <div id="notification-list-container"
+         hx-trigger="load"
+         hx-get="{% url 'accounting:notification_list' %}"
+         hx-swap="innerHTML">
         {% include "notifications/partials/_notification_items.html" %}
     </div>
 </div>
 {% endblock %}
-
-
-

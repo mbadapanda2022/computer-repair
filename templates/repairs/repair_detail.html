@@ -38,14 +38,7 @@
                 </button>
             {% endif %}
             
-            <!-- Create Invoice Button -->
-            {% comment %} {% if not job.invoice and job.status in 'ready,delivered' %}
-                <a href="{% url 'accounting:create_invoice_from_repair' job.pk %}" class="btn btn-success">
-                    <i class="bi bi-receipt"></i> Create Invoice
-                </a>
-            {% endif %} {% endcomment %}
-
-            {% if not job.invoice and job.status == 'ready' or job.status == 'delivered' %}
+            {% if not job.invoice and job.status in 'ready,delivered' %}
                 <button class="btn btn-success" 
                         hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}" 
                         hx-target="#mainModalContent"
@@ -324,7 +317,14 @@
                         {% if job.estimate_approved_at %}
                             <div class="mt-2 p-2 bg-light rounded-3">
                                 <small class="text-muted d-block">Approved At: {{ job.estimate_approved_at|date:"d M Y H:i" }}</small>
-                                <small class="text-muted d-block">Approved By: {{ job.estimate_approved_by.get_full_name|default:job.estimate_approved_by.username }}</small>
+                                <small class="text-muted d-block">
+                                    Approved By: 
+                                    {% if job.estimate_approved_by %}
+                                        {{ job.estimate_approved_by.get_full_name|default:job.estimate_approved_by.username }}
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </small>
                                 {% if job.approval_source %}
                                     <small class="text-muted d-block">Source: {{ job.get_approval_source_display }}</small>
                                 {% endif %}
@@ -333,6 +333,7 @@
                                 {% endif %}
                             </div>
                         {% endif %}
+                           
                     {% endif %}
                 </div>
             </div>

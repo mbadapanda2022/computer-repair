@@ -1402,144 +1402,112 @@ def repair_estimate_reject(request, pk):
 
 
 # ============================================================
-# NOTIFICATIONS (Customer Specific)
+# NOTIFICATIONS (Customer) – Corrected with consistent target check
 # ============================================================
+
+def render_customer_dropdown(request):
+    notifications = request.user.notifications.all().order_by('-created_at')[:10]
+    unread_count = request.user.notifications.filter(is_read=False).count()
+    return render(request, 'customer/partials/dropdown.html', {
+        'notifications': notifications,
+        'unread_count': unread_count,
+    })
+
+def render_customer_notification_list(request, page_obj=None):
+    if page_obj is None:
+        notifications = request.user.notifications.all().order_by('-created_at')
+        paginator = Paginator(notifications, 20)
+        page = request.GET.get('page', 1)
+        page_obj = paginator.get_page(page)
+    unread_count = request.user.notifications.filter(is_read=False).count()
+    return render(request, 'customer/partials/_notification_items.html', {
+        'page_obj': page_obj,
+        'unread_count': unread_count,
+    })
 
 @login_required
 def notification_list(request):
-    """Customer notification list page."""
     notifications = request.user.notifications.all().order_by('-created_at')
-    unread_count = request.user.notifications.filter(is_read=False).count()
     paginator = Paginator(notifications, 20)
     page = request.GET.get('page', 1)
-    try:
-        page_obj = paginator.page(page)
-    except (PageNotAnInteger, EmptyPage):
-        page_obj = paginator.page(1)
-    context = {
+    page_obj = paginator.get_page(page)
+    unread_count = request.user.notifications.filter(is_read=False).count()
+    if request.htmx:
+        return render(request, 'customer/partials/_notification_items.html', {
+            'page_obj': page_obj,
+            'unread_count': unread_count,
+        })
+    return render(request, 'customer/notification_list.html', {
         'notifications': page_obj,
         'page_obj': page_obj,
         'unread_count': unread_count,
-    }
-    if is_htmx(request):
-        return render(request, 'customer/partials/_notification_items.html', context)
-    return render(request, 'customer/notification_list.html', context)
-
+    })
 
 @login_required
 def notification_mark_all_read(request):
-    """Mark all notifications as read for the current customer."""
     if request.method != 'POST':
         return HttpResponse("Method not allowed", status=405)
-
     count = request.user.notifications.filter(is_read=False).update(is_read=True)
-    notifications = request.user.notifications.all().order_by('-created_at')[:20]
-    unread_count = request.user.notifications.filter(is_read=False).count()
-
-    if is_htmx(request):
-        return render(request, 'notifications/partials/_notification_items.html', {
-            'notifications': notifications,
-            'unread_count': unread_count,
-            'page_obj': None,
-        })
-
-    messages.success(request, f"{count} notifications marked as read.")
+    if request.htmx:
+        target = request.headers.get('HX-Target', '')
+        if 'dropdown' in target.lower():
+            return render_customer_dropdown(request)
+        return render_customer_notification_list(request)
+    messages.success(request, f"{count} marked read.")
     return redirect('customer:customer_notifications')
-
 
 @login_required
 def notification_mark_read(request, pk):
-    """Mark a single notification as read."""
     if request.method != 'POST':
         return HttpResponse("Method not allowed", status=405)
-
-    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-    notification.is_read = True
-    notification.save()
-
-    notifications = request.user.notifications.all().order_by('-created_at')[:20]
-    unread_count = request.user.notifications.filter(is_read=False).count()
-
-    if is_htmx(request):
-        return render(request, 'notifications/partials/_notification_items.html', {
-            'notifications': notifications,
-            'unread_count': unread_count,
-            'page_obj': None,
-        })
-
-    return HttpResponse("Marked as read", status=200)
-
+    notif = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    notif.is_read = True
+    notif.save()
+    if request.htmx:
+        target = request.headers.get('HX-Target', '')
+        if 'dropdown' in target.lower():
+            return render_customer_dropdown(request)
+        return render_customer_notification_list(request)
+    return HttpResponse("Marked read", status=200)
 
 @login_required
 def notification_delete(request, pk):
-    """Delete a single notification."""
     if request.method != 'DELETE':
         return HttpResponse("Method not allowed", status=405)
-
-    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-    notification.delete()
-
-    notifications = request.user.notifications.all().order_by('-created_at')[:20]
-    unread_count = request.user.notifications.filter(is_read=False).count()
-
-    if is_htmx(request):
-        return render(request, 'notifications/partials/_notification_items.html', {
-            'notifications': notifications,
-            'unread_count': unread_count,
-            'page_obj': None,
-        })
-
+    notif = get_object_or_404(Notification, pk=pk, recipient=request.user)
+    notif.delete()
+    if request.htmx:
+        target = request.headers.get('HX-Target', '')
+        if 'dropdown' in target.lower():
+            return render_customer_dropdown(request)
+        return render_customer_notification_list(request)
     return HttpResponse("Deleted", status=200)
-
 
 @login_required
 def notification_delete_all(request):
-    """Delete all notifications for the current customer."""
     if request.method != 'DELETE':
         return HttpResponse("Method not allowed", status=405)
-
-    count = request.user.notifications.count()
     request.user.notifications.all().delete()
-
-    if is_htmx(request):
-        return render(request, 'notifications/partials/_notification_items.html', {
-            'notifications': [],
-            'unread_count': 0,
-            'page_obj': None,
-        })
-
-    messages.success(request, f"{count} notifications deleted.")
+    if request.htmx:
+        target = request.headers.get('HX-Target', '')
+        if 'dropdown' in target.lower():
+            return render_customer_dropdown(request)
+        return render_customer_notification_list(request)
+    messages.success(request, "All notifications deleted.")
     return redirect('customer:customer_notifications')
-
 
 @login_required
 def notification_dropdown(request):
-    """Customer portal notification dropdown (HTMX partial)."""
     try:
-        notifications = request.user.notifications.all()[:10]
-        unread_count = request.user.notifications.filter(is_read=False).count()
-        return render(request, 'customer/partials/dropdown.html', {
-            'notifications': notifications,
-            'unread_count': unread_count,
-        })
-    except Exception as e:
-        logger.error(f"Customer notification dropdown error: {e}")
-        return HttpResponse(
-            '<div class="dropdown-item text-danger">Error loading notifications</div>',
-            status=500
-        )
-
+        return render_customer_dropdown(request)
+    except Exception:
+        return HttpResponse('<div class="dropdown-item text-danger">Error loading</div>', status=500)
 
 @login_required
 def unread_count_text(request):
-    """Customer portal unread count as plain text."""
-    try:
-        count = request.user.notifications.filter(is_read=False).count()
-        return HttpResponse(str(count))
-    except Exception:
-        return HttpResponse("0")
-    
-    
+    return HttpResponse(str(request.user.notifications.filter(is_read=False).count()))
+
+
 # ============================================================
 # EMAIL CHANGE (Professional OTP-based)
 # ============================================================
@@ -1674,3 +1642,5 @@ def email_change_verify(request):
             return render(request, 'customer/email_change_otp.html', {'email': new_email})
 
     return render(request, 'customer/email_change_otp.html', {'email': new_email})
+
+

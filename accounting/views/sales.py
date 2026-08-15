@@ -16,6 +16,7 @@ from django.contrib.auth.decorators import login_required
 
 from ..models import *
 from ..forms import InvoiceForm, InvoiceItemForm, PaymentForm
+from accounting.utils.notification_helpers import send_notification_to_customer, send_notification_sse
 from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
@@ -572,3 +573,5 @@ def invoice_delete(request, pk):
                        (f'Repair #{repair_job.job_number} reverted to Ready.' if repair_job else '')
         }
     )
+    
+    

@@ -7,7 +7,7 @@ from django.db.models import Q
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
-# ✅ Masking Utility
+# Masking Utility
 def mask_username(username):
     if not username or len(username) <= 4:
         return "****"

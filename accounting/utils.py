@@ -176,3 +176,4 @@ def create_journal_lines(entry, contact, amount, journal_type):
             debit=0,
             credit=amount
         )
+        

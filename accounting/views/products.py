@@ -546,3 +546,4 @@ def export_products_excel(request):
     response['Content-Disposition'] = 'attachment; filename="products.xlsx"'
     wb.save(response)
     return response
+

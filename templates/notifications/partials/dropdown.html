@@ -1,56 +1,62 @@
-<!-- Header -->
+{% load static %}
 <div class="d-flex justify-content-between align-items-center p-2 border-bottom bg-light">
     <span class="fw-bold"><i class="bi bi-bell"></i> Notifications</span>
     {% if unread_count > 0 %}
     <button class="btn btn-sm btn-link text-decoration-none p-0" 
             hx-post="{% url 'accounting:notification_mark_all_read' %}" 
-            hx-target="#notification-dropdown" 
-            hx-swap="innerHTML">
+            hx-target="#notification-dropdown" hx-swap="innerHTML"
+            hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'>
         Mark all read
     </button>
     {% endif %}
 </div>
 
-<!-- Notification List -->
 {% if notifications %}
     {% for notif in notifications %}
-    <a href="{{ notif.link|default:'#' }}" 
-       class="dropdown-item {% if not notif.is_read %}bg-light{% endif %}" 
-       style="white-space: normal; border-bottom: 1px solid #eee;"
-       {% if not notif.is_read %}
-       hx-post="{% url 'accounting:notification_mark_read' notif.pk %}" 
-       hx-target="#notification-dropdown" 
-       hx-swap="innerHTML"
-       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-       {% endif %}>
-        <div>
-            <div class="fw-{% if not notif.is_read %}bold{% else %}normal{% endif %}">
-                {% if notif.notification_type == 'success' %}
-                    <i class="bi bi-check-circle-fill text-success"></i>
-                {% elif notif.notification_type == 'warning' %}
-                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
-                {% elif notif.notification_type == 'error' %}
-                    <i class="bi bi-x-circle-fill text-danger"></i>
-                {% else %}
-                    <i class="bi bi-info-circle-fill text-primary"></i>
-                {% endif %}
-                {{ notif.title }}
+    <div class="dropdown-item {% if not notif.is_read %}bg-light{% endif %}" style="white-space:normal;border-bottom:1px solid #eee;">
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <div class="fw-{% if not notif.is_read %}bold{% else %}normal{% endif %}">
+                    {% if notif.notification_type == 'success' %}<i class="bi bi-check-circle-fill text-success"></i>
+                    {% elif notif.notification_type == 'warning' %}<i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                    {% elif notif.notification_type == 'error' %}<i class="bi bi-x-circle-fill text-danger"></i>
+                    {% else %}<i class="bi bi-info-circle-fill text-primary"></i>{% endif %}
+                    <a href="{{ notif.link|default:'#' }}" class="text-decoration-none">{{ notif.title }}</a>
+                </div>
+                <small class="text-muted">{{ notif.message|truncatechars:60 }}</small><br>
+                <small class="text-muted" style="font-size:10px;">{{ notif.created_at|timesince }} ago</small>
             </div>
-            <small class="text-muted">{{ notif.message|truncatechars:60 }}</small><br>
-            <small class="text-muted" style="font-size: 10px;">{{ notif.created_at|timesince }} ago</small>
+            <div class="d-flex gap-1 ms-2">
+                {% if not notif.is_read %}
+                <button class="btn btn-sm btn-outline-primary" 
+                        hx-post="{% url 'accounting:notification_mark_read' notif.pk %}" 
+                        hx-target="#notification-dropdown" hx-swap="innerHTML"
+                        hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'
+                        title="Mark read"><i class="bi bi-check-lg"></i></button>
+                {% endif %}
+                <button class="btn btn-sm btn-outline-danger" 
+                        hx-delete="{% url 'accounting:notification_delete' notif.pk %}" 
+                        hx-target="#notification-dropdown" hx-swap="innerHTML"
+                        hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'
+                        hx-confirm="Delete?" title="Delete"><i class="bi bi-trash"></i></button>
+            </div>
         </div>
-    </a>
+    </div>
     {% endfor %}
 {% else %}
-    <div class="text-center py-3 text-muted">
-        <i class="bi bi-inbox fs-3 d-block mb-1"></i>
-        <small>No new notifications</small>
-    </div>
+    <div class="text-center py-3 text-muted"><i class="bi bi-inbox fs-3 d-block mb-1"></i><small>No new notifications</small></div>
 {% endif %}
 
 <!-- Footer -->
 <div class="text-center border-top p-1">
-    <a href="{% url 'accounting:notification_list' %}" class="text-decoration-none small">
+    <a href="#" class="text-decoration-none small"
+       hx-get="{% url 'accounting:notification_list' %}"
+       hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true"
+       onclick="event.stopPropagation();"
+       hx-on::after-request="
+           const dropdown = document.getElementById('notification-dropdown');
+           if (dropdown) dropdown.classList.remove('show');
+       ">
         <i class="bi bi-arrow-right-circle"></i> View all
     </a>
 </div>

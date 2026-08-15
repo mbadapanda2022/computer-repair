@@ -14,11 +14,7 @@
 </head>
 <body>
 
-    <!-- ========================================== -->
-    <!-- CUSTOMER LAYOUT – सिर्फ Authenticated Users को -->
-    <!-- ========================================== -->
     {% if user.is_authenticated %}
-
         <div class="d-flex" id="wrapper">
             <!-- CUSTOMER SIDEBAR -->
             <nav class="bg-dark text-white" id="customer-sidebar">
@@ -119,7 +115,7 @@
                                 <i class="bi bi-moon-fill" id="themeIconCustomer"></i>
                             </button>
 
-                            <!-- NOTIFICATION BELL & DROPDOWN (Customer Specific) -->
+                            <!-- Notification Bell -->
                             <div class="dropdown">
                                 <button class="btn btn-outline-secondary position-relative" type="button"
                                         id="notificationDropdown"
@@ -129,7 +125,7 @@
                                     <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
                                         id="notificationCount"
                                         hx-get="{% url 'customer:customer_unread_count_text' %}" 
-                                        hx-trigger="load, every 60s" 
+                                        hx-trigger="load, every 5s" 
                                         hx-swap="innerHTML">
                                         {{ user|unread_count }}
                                     </span>
@@ -137,14 +133,10 @@
                                 <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 
                                     style="width:350px; max-height:400px; overflow-y:auto;"
                                     hx-get="{% url 'customer:customer_notification_dropdown' %}" 
-                                    hx-trigger="load once" 
+                                    hx-trigger="load once, every 10s" 
                                     hx-target="#notification-dropdown"
                                     hx-swap="innerHTML">
-                                    <!-- Loading state -->
-                                    <div class="text-center py-3 text-muted">
-                                        <i class="bi bi-inbox fs-3 d-block mb-1"></i>
-                                        <small>Loading notifications...</small>
-                                    </div>
+                                    <div class="text-center py-3 text-muted">Loading notifications...</div>
                                 </div>
                             </div>
                                             
@@ -173,7 +165,7 @@
                 </nav>
 
                 <!-- Page Content -->
-                <div class="container-fluid mt-3">
+                <div class="container-fluid mt-3" id="main-content">
                     {% block content %}{% endblock %}
                 </div>
             </div>
@@ -213,24 +205,14 @@
             });
         </script>
 
-    <!-- ========================================== -->
-    <!-- ❌ NOT LOGGED IN – Login/Register Page -->
-    <!-- ========================================== -->
     {% else %}
+        <!-- UNAUTHENTICATED LAYOUT (Customer Login/Register) -->
         <div class="customer-auth-container">
             <div class="customer-auth-card">
-                {% block auth_content %}
-                    <!-- Default fallback if no auth_content block is provided -->
-                    <div class="text-center">
-                        <h3>Welcome</h3>
-                        <p class="text-muted">Please login to access your account.</p>
-                        <a href="{% url 'accounting:login' %}" class="btn btn-primary w-100 mt-3">Login</a>
-                        <a href="{% url 'accounting:register' %}" class="btn btn-outline-secondary w-100 mt-2">Register</a>
-                    </div>
-                {% endblock %}
+                {% block auth_content %}{% endblock %}
             </div>
         </div>
     {% endif %}
-
 </body>
 </html>
+

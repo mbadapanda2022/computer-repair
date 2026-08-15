@@ -1,67 +1,45 @@
+# computer_repair/settings.py
 import os
 from pathlib import Path
 from django.contrib.messages import constants as messages
 from dotenv import load_dotenv
 
-# =============================================
-# 1. ENVIRONMENT VARIABLES LOAD
-# =============================================
 load_dotenv()
-
-# =============================================
-# 2. BASE DIRECTORY
-# =============================================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# =============================================
-# 3. SECURITY & DEBUG (ENVIRONMENT BASED)
-# =============================================
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
-# =============================================
-# 4. INSTALLED APPS – CLEAN + ALLAUTH
-# =============================================
 INSTALLED_APPS = [
-    # Django Core
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Cloudinary (Media Storage)
     'cloudinary_storage',
     'cloudinary',
-    # Allauth
     'django.contrib.sites',
     'allauth',
     'allauth.account',
-    'allauth.socialaccount',        
-    # Third Party
+    'allauth.socialaccount',
     'honeypot',
     'channels',
     'django_eventstream',
     'django_htmx',
     'django_cleanup.apps.CleanupConfig',
     'anymail',
-
-    # My Apps
     'accounting.apps.AccountingConfig',
 ]
 
-# Sites Framework – Required by Allauth
 SITE_ID = 1
 
-# =============================================
-# 5. MIDDLEWARE – AccountMiddleware जोड़ा गया
-# =============================================
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'allauth.account.middleware.AccountMiddleware',  
+    'allauth.account.middleware.AccountMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -71,19 +49,13 @@ MIDDLEWARE = [
     'accounting.middleware.AccessControlMiddleware',
 ]
 
-# =============================================
-# AUTHENTICATION BACKENDS – Custom Phone/Email + Allauth + Default
-# =============================================
 AUTHENTICATION_BACKENDS = [
-    'accounting.auth_backends.EmailOrPhoneBackend',      
-    'allauth.account.auth_backends.AuthenticationBackend',  
-    'django.contrib.auth.backends.ModelBackend',        
+    'accounting.auth_backends.EmailOrPhoneBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
-# =============================================
-# 6. SESSION & CSRF
-# =============================================
-SESSION_COOKIE_AGE = 1209600  # 2 weeks
+SESSION_COOKIE_AGE = 1209600
 SESSION_COOKIE_HTTPONLY = True
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_SECURE = not DEBUG
@@ -96,9 +68,6 @@ CACHES = {
     }
 }
 
-# =============================================
-# 7. URLS & TEMPLATES
-# =============================================
 ROOT_URLCONF = 'computer_repair.urls'
 
 TEMPLATES = [
@@ -120,9 +89,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'computer_repair.wsgi.application'
 # ASGI_APPLICATION = 'computer_repair.asgi.application'  # Disabled
 
-# =============================================
-# 8. CHANNELS & EVENTSTREAM
-# =============================================
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer"
@@ -130,13 +96,10 @@ CHANNEL_LAYERS = {
 }
 EVENTSTREAM_CHANNEL_LAYER = "default"
 EVENTSTREAM_MAX_CONNECTIONS = 100
-EVENTSTREAM_STORAGE_CLASS = 'django_eventstream.storage.MemoryStorage'
+# Commented out the wrong storage class
+# EVENTSTREAM_STORAGE_CLASS = 'django_eventstream.storage.MemoryStorage'
 
-# =============================================
-# 9. DATABASE (PRODUCTION: POSTGRES, DEV: SQLITE)
-# =============================================
 import dj_database_url
-
 DATABASES = {
     'default': dj_database_url.config(
         default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
@@ -146,9 +109,6 @@ DATABASES = {
     )
 }
 
-# =============================================
-# 10. PASSWORD VALIDATION
-# =============================================
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -156,22 +116,15 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# =============================================
-# 11. INTERNATIONALIZATION
-# =============================================
 LANGUAGE_CODE = 'en-in'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
 
-# =============================================
-# 12 & 13. STORAGES (STATIC + MEDIA) - FIXED
-# =============================================
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Cloudinary Config - Environment se credentials लें
 import cloudinary
 cloudinary.config(
     cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
@@ -181,18 +134,16 @@ cloudinary.config(
 )
 
 if not DEBUG:
-    # Production: Cloudinary Storage
     STORAGES = {
         "default": {
             "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
         },
         "staticfiles": {
-            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage" 
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"
         },
     }
     MEDIA_URL = ''
 else:
-    # Local Development
     STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -203,40 +154,28 @@ else:
     }
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
-    
+
 WHITENOISE_MANIFEST_STRICT = False
 
-# =============================================
-# 14. AUTHENTICATION URLs (DEFAULT + ALLAUTH)
-# =============================================
-LOGIN_URL = 'accounting:login'        
-LOGIN_REDIRECT_URL = 'home'             
-LOGOUT_REDIRECT_URL = 'home'           
+LOGIN_URL = 'accounting:login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'home'
 
-# =============================================
-# 15. ALLAUTH SETTINGS – MODERN (बिना Deprecation Warnings के)
-# =============================================
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_LOGOUT_ON_GET = True
 ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
 
-# =============================================
-# 16. EMAIL (Brevo SMTP – Production)
-# =============================================
-if not DEBUG:  
-    # Production
+if not DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp-relay.brevo.com'
-    EMAIL_PORT = 2525  # is it not working use this port EMAIL_PORT = 465
+    EMAIL_PORT = 2525
     EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'b49739001@smtp-brevo.com' 
+    EMAIL_HOST_USER = 'b49739001@smtp-brevo.com'
     EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_KEY', '')
-    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'  
-    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
-else:  
-    # Development – Gmail (optional)
+    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
+else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.gmail.com'
     EMAIL_PORT = 587
@@ -244,11 +183,7 @@ else:
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
     DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
-    ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 
-# =============================================
-# 17. MESSAGE TAGS
-# =============================================
 MESSAGE_TAGS = {
     messages.DEBUG: 'secondary',
     messages.INFO: 'info',
@@ -257,9 +192,6 @@ MESSAGE_TAGS = {
     messages.ERROR: 'danger',
 }
 
-# =============================================
-# 18. LOGGING
-# =============================================
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -287,42 +219,15 @@ LOGGING = {
         },
     },
     'loggers': {
-        'django': {
-            'handlers': ['console', 'file'],
-            'level': 'INFO',
-            'propagate': True,
-        },
-        'django.request': {
-            'handlers': ['file'],
-            'level': 'ERROR',
-            'propagate': False,
-        },
-        'accounting': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
-            'propagate': True,
-        },
-        'django_eventstream': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'django.server': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
-        'cloudinary': {
-            'handlers': ['console', 'file'],
-            'level': 'ERROR',
-            'propagate': True,
-        },
+        'django': {'handlers': ['console', 'file'], 'level': 'INFO', 'propagate': True},
+        'django.request': {'handlers': ['file'], 'level': 'ERROR', 'propagate': False},
+        'accounting': {'handlers': ['console', 'file'], 'level': 'DEBUG' if DEBUG else 'INFO', 'propagate': True},
+        'django_eventstream': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'django.server': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
+        'cloudinary': {'handlers': ['console', 'file'], 'level': 'ERROR', 'propagate': True},
     },
 }
 
-# =============================================
-# 19. PRODUCTION SECURITY SETTINGS
-# =============================================
 if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -333,37 +238,21 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
     REFERRER_POLICY = 'same-origin'
-    ADMINS = [('Admin', os.getenv('ADMIN_EMAIL', 'admin@example.com'))]
-    SERVER_EMAIL = os.getenv('SERVER_EMAIL', 'server@example.com')
 else:
     X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# =============================================
-# 20. ENSURE LOGS DIRECTORY EXISTS
-# =============================================
 LOGS_DIR = BASE_DIR / 'logs'
 if not LOGS_DIR.exists():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-# =============================================
-# 21. HONEYPOT SETTINGS
-# =============================================
 HONEYPOT_FIELD_NAME = 'phone'
 HONEYPOT_VALUE = ''
 HONEYPOT_VERIFY = True
 
-# =============================================
-# 22. ADDITIONAL SETTINGS
-# =============================================
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',
     'https://*.onrender.com',
 ]
-
-# =============================================
-# END OF SETTINGS
-# =============================================
-

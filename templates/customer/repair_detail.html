@@ -689,50 +689,97 @@
                     <!-- ESTIMATE STATUS (Show only if estimated_cost > 0)             -->
                     <!-- ============================================================ -->
                     {% if repair.estimated_cost and repair.estimated_cost > 0 %}
-                    <hr>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-semibold">Estimate Status</span>
-                        <span class="estimate-badge 
-                            {% if repair.estimate_status == 'pending' %}pending
-                            {% elif repair.estimate_status == 'approved' %}approved
-                            {% elif repair.estimate_status == 'rejected' %}rejected
-                            {% elif repair.estimate_status == 'on_hold' %}on-hold
-                            {% endif %}">
-                            <i class="bi 
-                                {% if repair.estimate_status == 'pending' %}bi-hourglass-split
-                                {% elif repair.estimate_status == 'approved' %}bi-check-circle-fill
-                                {% elif repair.estimate_status == 'rejected' %}bi-x-circle-fill
-                                {% elif repair.estimate_status == 'on_hold' %}bi-pause-circle-fill
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-semibold">Estimate Status</span>
+                            <span class="estimate-badge 
+                                {% if repair.estimate_status == 'pending' %}pending
+                                {% elif repair.estimate_status == 'approved' %}approved
+                                {% elif repair.estimate_status == 'rejected' %}rejected
+                                {% elif repair.estimate_status == 'on_hold' %}on-hold
                                 {% endif %}">
-                            </i>
-                            {{ repair.get_estimate_status_display }}
-                        </span>
-                    </div>
-
-                    <!-- Approve/Hold/Reject Buttons (only if pending) -->
-                    {% if repair.estimate_status == 'pending' %}
-                        <div class="d-flex gap-2 flex-wrap mt-2">
-                            <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}" class="flex-grow-1">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-success w-100 action-btn">
-                                    <i class="bi bi-check-circle"></i> Approve
-                                </button>
-                            </form>
-                            <form method="post" action="{% url 'customer:customer_estimate_hold' repair.pk %}" class="flex-grow-1">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-warning w-100 action-btn" style="color: #212529;">
-                                    <i class="bi bi-pause-circle"></i> Hold
-                                </button>
-                            </form>
-                            <form method="post" action="{% url 'customer:customer_estimate_reject' repair.pk %}" class="flex-grow-1">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-danger w-100 action-btn">
-                                    <i class="bi bi-x-circle"></i> Reject
-                                </button>
-                            </form>
+                                <i class="bi 
+                                    {% if repair.estimate_status == 'pending' %}bi-hourglass-split
+                                    {% elif repair.estimate_status == 'approved' %}bi-check-circle-fill
+                                    {% elif repair.estimate_status == 'rejected' %}bi-x-circle-fill
+                                    {% elif repair.estimate_status == 'on_hold' %}bi-pause-circle-fill
+                                    {% endif %}">
+                                </i>
+                                {{ repair.get_estimate_status_display }}
+                            </span>
                         </div>
-                    {% endif %}
-                    {% endif %}
+
+                            <!-- ============================================================ -->
+                            <!-- APPROVAL DETAILS (Only if approved)                          -->
+                            <!-- ============================================================ -->
+                            {% if repair.estimate_status == 'approved' %}
+                                <div class="mt-2 p-3 bg-light rounded-3" style="border-left: 4px solid #28a745;">
+                                    <div class="row g-2">
+                                        <div class="col-12">
+                                            <small class="text-muted d-block">Approved At</small>
+                                            <span class="fw-semibold">{{ repair.estimate_approved_at|date:"d M Y, h:i A"|default:"—" }}</span>
+                                        </div>
+                                        <div class="col-12">
+                                            <small class="text-muted d-block">Approved By</small>
+                                            <span class="fw-semibold">
+                                                {% if repair.estimate_approved_by %}
+                                                    {{ repair.estimate_approved_by.get_full_name|default:repair.estimate_approved_by.username }}
+                                                {% else %}
+                                                    <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        {% if repair.approval_source %}
+                                        <div class="col-12">
+                                            <small class="text-muted d-block">Approval Method</small>
+                                            <span class="fw-semibold">{{ repair.get_approval_source_display }}</span>
+                                            {% if repair.approval_source == 'portal' %}
+                                                <span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> Customer Portal</span>
+                                            {% elif repair.approval_source == 'staff_phone' %}
+                                                <span class="badge bg-info ms-2"><i class="bi bi-telephone"></i> Staff (Phone)</span>
+                                            {% elif repair.approval_source == 'staff_whatsapp' %}
+                                                <span class="badge bg-success ms-2"><i class="bi bi-whatsapp"></i> Staff (WhatsApp)</span>
+                                            {% elif repair.approval_source == 'staff_inperson' %}
+                                                <span class="badge bg-warning ms-2"><i class="bi bi-person"></i> Staff (In-Person)</span>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                        {% if repair.approval_remarks %}
+                                        <div class="col-12">
+                                            <small class="text-muted d-block">Remarks</small>
+                                            <span class="fw-semibold">{{ repair.approval_remarks }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- ============================================================ -->
+                            <!-- APPROVE/HOLD/REJECT BUTTONS (Only if pending)                -->
+                            <!-- ============================================================ -->
+                            {% if repair.estimate_status == 'pending' %}
+                                <div class="d-flex gap-2 flex-wrap mt-2">
+                                    <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}" class="flex-grow-1">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-success w-100 action-btn">
+                                            <i class="bi bi-check-circle"></i> Approve
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'customer:customer_estimate_hold' repair.pk %}" class="flex-grow-1">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-warning w-100 action-btn" style="color: #212529;">
+                                            <i class="bi bi-pause-circle"></i> Hold
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'customer:customer_estimate_reject' repair.pk %}" class="flex-grow-1">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger w-100 action-btn">
+                                            <i class="bi bi-x-circle"></i> Reject
+                                        </button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                        {% endif %}
                     <!-- ============================================================ -->
                     <!-- END ESTIMATE STATUS                                          -->
                     <!-- ============================================================ -->

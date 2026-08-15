@@ -547,6 +547,24 @@
         }
     });
 
+    document.addEventListener('refresh-notifications', function() {
+    // Refresh badge
+    const badgeContainer = document.querySelector('#notification-badge-container');
+    if (badgeContainer) {
+        htmx.trigger(badgeContainer, 'refresh');
+    }
+    // Refresh dropdown (if open)
+    const dropdownContainer = document.querySelector('#notification-dropdown');
+    if (dropdownContainer) {
+        htmx.trigger(dropdownContainer, 'refresh');
+    }
+    // Refresh list page if on notification list page
+    const listContainer = document.querySelector('#notification-list-container');
+    if (listContainer) {
+        htmx.trigger(listContainer, 'refresh');
+    }
+});
+
 
 })();
 

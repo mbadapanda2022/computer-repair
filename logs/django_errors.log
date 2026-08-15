@@ -10500,3 +10500,2245 @@ Traceback (most recent call last):
     self.add_htmx_validation(
     ^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'CompanyProfileForm' object has no attribute 'add_htmx_validation'
+ERROR 2026-08-14 16:45:32,594 log 7868 6196 Internal Server Error: /repairs/29/
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 964, in _resolve_lookup
+    raise TypeError
+TypeError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 976, in _resolve_lookup
+    current = getattr(current, bit)
+AttributeError: 'NoneType' object has no attribute 'username'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 982, in _resolve_lookup
+    current = current[int(bit)]
+                      ~~~^^^^^
+ValueError: invalid literal for int() with base 10: 'username'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "G:\computer_repair\accounting\views\repairs.py", line 312, in repair_detail
+    return render(request, 'repairs/repair_detail.html', context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 174, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader_tags.py", line 160, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader_tags.py", line 66, in render
+    result = block.nodelist.render(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1150, in render
+    output = self.filter_expression.resolve(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 809, in resolve
+    arg_vals.append(arg.resolve(context))
+                    ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 928, in resolve
+    value = self._resolve_lookup(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 989, in _resolve_lookup
+    raise VariableDoesNotExist(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+    )  # missing attribute
+    ^
+django.template.base.VariableDoesNotExist: Failed lookup for key [username] in None
+ERROR 2026-08-14 16:46:26,941 log 7868 6196 Internal Server Error: /repairs/29/
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 964, in _resolve_lookup
+    raise TypeError
+TypeError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 976, in _resolve_lookup
+    current = getattr(current, bit)
+AttributeError: 'NoneType' object has no attribute 'username'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 982, in _resolve_lookup
+    current = current[int(bit)]
+                      ~~~^^^^^
+ValueError: invalid literal for int() with base 10: 'username'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "G:\computer_repair\accounting\views\repairs.py", line 312, in repair_detail
+    return render(request, 'repairs/repair_detail.html', context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 174, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader_tags.py", line 160, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader_tags.py", line 66, in render
+    result = block.nodelist.render(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1150, in render
+    output = self.filter_expression.resolve(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 809, in resolve
+    arg_vals.append(arg.resolve(context))
+                    ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 928, in resolve
+    value = self._resolve_lookup(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 989, in _resolve_lookup
+    raise VariableDoesNotExist(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+    )  # missing attribute
+    ^
+django.template.base.VariableDoesNotExist: Failed lookup for key [username] in None
+ERROR 2026-08-14 16:50:08,736 log 7868 8752 Internal Server Error: /repairs/29/
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 964, in _resolve_lookup
+    raise TypeError
+TypeError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 976, in _resolve_lookup
+    current = getattr(current, bit)
+AttributeError: 'NoneType' object has no attribute 'username'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 982, in _resolve_lookup
+    current = current[int(bit)]
+                      ~~~^^^^^
+ValueError: invalid literal for int() with base 10: 'username'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "G:\computer_repair\venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "G:\computer_repair\accounting\views\repairs.py", line 312, in repair_detail
+    return render(request, 'repairs/repair_detail.html', context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 25, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader.py", line 62, in render_to_string
+    return template.render(context, request)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\backends\django.py", line 107, in render
+    return self.template.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 174, in render
+    return self._render(context)
+           ~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader_tags.py", line 160, in render
+    return compiled_parent._render(context)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 166, in _render
+    return self.nodelist.render(context)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\loader_tags.py", line 66, in render
+    result = block.nodelist.render(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\defaulttags.py", line 333, in render
+    return nodelist.render(context)
+           ~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1091, in render
+    return SafeString("".join([node.render_annotated(context) for node in self]))
+                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1052, in render_annotated
+    return self.render(context)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 1150, in render
+    output = self.filter_expression.resolve(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 809, in resolve
+    arg_vals.append(arg.resolve(context))
+                    ~~~~~~~~~~~^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 928, in resolve
+    value = self._resolve_lookup(context)
+  File "G:\computer_repair\venv\Lib\site-packages\django\template\base.py", line 989, in _resolve_lookup
+    raise VariableDoesNotExist(
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+    )  # missing attribute
+    ^
+django.template.base.VariableDoesNotExist: Failed lookup for key [username] in None
+ERROR 2026-08-14 17:12:49,314 decorators 7868 12560 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 17:12:54,375 decorators 7868 12948 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:12,611 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,054 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,192 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,310 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,430 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,551 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,667 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,796 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:13,922 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:14,062 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:14,196 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:14,336 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:14,474 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:14,619 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:14,773 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:14,908 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:15,132 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:15,255 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:15,384 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:15,531 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:16,843 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:17,048 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:17,346 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:17,491 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:17,623 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:17,756 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:17,898 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:18,036 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:18,178 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:18,332 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:18,470 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:18,612 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:18,753 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:18,900 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:19,054 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:19,190 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:19,323 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:19,461 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:19,587 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:19,716 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:21,689 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:21,918 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:22,132 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:22,289 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:22,421 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:22,548 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:22,685 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:22,820 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:22,956 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:23,094 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:23,223 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:23,378 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:23,511 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:23,641 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:23,763 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:24,016 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:24,166 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:24,322 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:24,475 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:24,602 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:25,866 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:26,030 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:26,266 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:26,412 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:26,570 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:26,701 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:26,865 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,018 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,163 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,296 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,425 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,569 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,689 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,864 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:27,997 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:28,142 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:28,343 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:28,611 decorators 12844 5824 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:53,366 decorators 12844 13072 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:45:57,642 decorators 12844 12420 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-14 20:46:01,860 decorators 12844 13072 Error in repair_detail: No RepairJob matches the given query.
+Traceback (most recent call last):
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 90, in get_object_or_404
+    return queryset.get(*args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "G:\computer_repair\venv\Lib\site-packages\django\db\models\query.py", line 639, in get
+    raise self.model.DoesNotExist(
+        "%s matching query does not exist." % self.model._meta.object_name
+    )
+accounting.models.RepairJob.DoesNotExist: RepairJob matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\customer_views.py", line 428, in repair_detail
+    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+  File "G:\computer_repair\venv\Lib\site-packages\django\shortcuts.py", line 92, in get_object_or_404
+    raise Http404(
+        "No %s matches the given query." % queryset.model._meta.object_name
+    )
+django.http.response.Http404: No RepairJob matches the given query.
