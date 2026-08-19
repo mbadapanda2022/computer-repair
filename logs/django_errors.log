@@ -12742,3 +12742,13 @@ Traceback (most recent call last):
         "No %s matches the given query." % queryset.model._meta.object_name
     )
 django.http.response.Http404: No RepairJob matches the given query.
+ERROR 2026-08-19 21:13:42,087 decorators 8316 13964 Error in product_list: name 'F' is not defined
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 19, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\products.py", line 101, in product_list
+    context = get_paginated_products_context(request)
+  File "G:\computer_repair\accounting\views\products.py", line 62, in get_paginated_products_context
+    current_stock__lte=F('low_stock_threshold')
+                       ^
+NameError: name 'F' is not defined

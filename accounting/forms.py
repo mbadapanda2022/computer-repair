@@ -590,35 +590,74 @@ class ProductForm(forms.ModelForm):
             'low_stock_threshold', 'tax_rate', 'is_service', 'is_active'
         ]
         widgets = {
-            'name': BS_TEXT,
-            'hsn_code': BS_TEXT,
-            'category': BS_SELECT,
-            'unit': BS_SELECT,   
-            'purchase_price': BS_NUMBER,
-            'selling_price': BS_NUMBER,
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'hsn_code': forms.TextInput(attrs={'class': 'form-control'}),
+            'category': forms.Select(attrs={'class': 'form-select'}),
+            'unit': forms.Select(attrs={'class': 'form-select'}),
+            'purchase_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': 'any'}),
             'low_stock_threshold': forms.NumberInput(attrs={'class': 'form-control'}),
-            'tax_rate': BS_NUMBER,
+            'tax_rate': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'is_service': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
-    def clean(self):
-        cleaned = super().clean()
-        purchase_price = cleaned.get('purchase_price', Decimal('0'))
-        selling_price = cleaned.get('selling_price', Decimal('0'))
-        current_stock = cleaned.get('current_stock', Decimal('0'))
-        is_service = cleaned.get('is_service', False)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['current_stock'].required = False
+        self.fields['low_stock_threshold'].required = False
+        self.fields['current_stock'].widget.attrs['placeholder'] = '0 (for service)'
+        self.fields['low_stock_threshold'].widget.attrs['placeholder'] = '0 (for service)'
 
-        if is_service and current_stock > 0:
-            raise ValidationError("Service items cannot have physical stock.")
-        if purchase_price < 0:
-            self.add_error('purchase_price', "Purchase price cannot be negative.")
-        if selling_price < 0:
-            self.add_error('selling_price', "Selling price cannot be negative.")
-        if not is_service and selling_price < purchase_price:
-            self.add_error('selling_price', "Selling price should not be less than purchase price.")
-        return cleaned
+    def clean_current_stock(self):
+        is_service = self.cleaned_data.get('is_service')
+        value = self.cleaned_data.get('current_stock')
+        if is_service:
+            return Decimal('0')
+        if value is None or value == '':
+            return Decimal('0')  
+        try:
+            val = Decimal(value)
+            if val < 0:
+                raise ValidationError("Stock cannot be negative.")
+            return val
+        except:
+            raise ValidationError("Enter a valid number.")
+
+    def clean_low_stock_threshold(self):
+        is_service = self.cleaned_data.get('is_service')
+        value = self.cleaned_data.get('low_stock_threshold')
+        if is_service:
+            return 0
+        if value is None or value == '':
+            return 5  
+        try:
+            val = int(value)
+            if val < 0:
+                raise ValidationError("Threshold cannot be negative.")
+            return val
+        except:
+            raise ValidationError("Enter a valid integer.")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        is_service = cleaned_data.get('is_service', False)
+        purchase_price = cleaned_data.get('purchase_price', Decimal('0'))
+        selling_price = cleaned_data.get('selling_price', Decimal('0'))
+
+        if is_service:
+            cleaned_data['current_stock'] = Decimal('0')
+            cleaned_data['low_stock_threshold'] = 0
+        else:
+            if purchase_price < 0:
+                self.add_error('purchase_price', "Purchase price cannot be negative.")
+            if selling_price < 0:
+                self.add_error('selling_price', "Selling price cannot be negative.")
+            if selling_price < purchase_price:
+                self.add_error('selling_price', "Selling price should not be less than purchase price.")
+
+        return cleaned_data
 
 
 # ============================================================

@@ -1,3 +1,4 @@
+<!-- templates/products/product_list.html -->
 {% extends "base.html" %}
 {% load static %}
 
@@ -24,7 +25,7 @@
         </div>
     </div>
 
-    <!-- ===== SUMMARY STATS ===== -->
+    <!-- Stats Cards -->
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-sm-6">
             <div class="card border-0 shadow-sm h-100">
@@ -34,7 +35,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Total Products</small>
-                        <h5 class="mb-0 fw-bold">{{ page_obj.paginator.count|default:0 }}</h5>
+                        <h5 class="mb-0 fw-bold">{{ total_products|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -47,11 +48,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Low Stock Items</small>
-                        <h5 class="mb-0 fw-bold" id="low-stock-count">
-                            {% with low_stock=products|length %}
-                                {{ products|dictsort:"current_stock"|first|default:0 }}
-                            {% endwith %}
-                        </h5>
+                        <h5 class="mb-0 fw-bold">{{ low_stock_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -64,11 +61,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Service Items</small>
-                        <h5 class="mb-0 fw-bold">
-                            {% with service_count=0 %}
-                                {{ products|length }}
-                            {% endwith %}
-                        </h5>
+                        <h5 class="mb-0 fw-bold">{{ service_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -81,18 +74,14 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Active Products</small>
-                        <h5 class="mb-0 fw-bold">
-                            {% with active_count=0 %}
-                                {{ products|length }}
-                            {% endwith %}
-                        </h5>
+                        <h5 class="mb-0 fw-bold">{{ active_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ===== FILTERS ===== -->
+    <!-- Filters -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form id="product-filter-form" class="row g-3">
@@ -158,10 +147,9 @@
         </div>
     </div>
 
-    <!-- ===== TABLE CONTAINER ===== -->
+    <!-- Table Container -->
     <div id="product-table-container">
         {% include "products/partials/product_table.html" %}
     </div>
 </div>
 {% endblock %}
-

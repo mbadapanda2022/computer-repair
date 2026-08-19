@@ -1,3 +1,4 @@
+<!-- templates/products/product_form.html -->
 {% load static %}
 <form method="post" 
       hx-post="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}" 
@@ -24,7 +25,7 @@
             </div>
         {% endif %}
         
-        <!-- ===== ROW 1: Name & HSN ===== -->
+        <!-- Row 1: Name & HSN -->
         <div class="row g-3">
             <div class="col-md-8">
                 <label for="id_name" class="form-label fw-semibold">Product Name *</label>
@@ -56,7 +57,7 @@
             </div>
         </div>
 
-        <!-- ===== ROW 2: Category & Unit ===== -->
+        <!-- Row 2: Category & Unit -->
         <div class="row g-3 mt-2">
             <div class="col-md-6">
                 <label for="id_category" class="form-label fw-semibold">Category</label>
@@ -93,7 +94,7 @@
             </div>
         </div>
 
-        <!-- ===== ROW 3: Purchase & Selling Price ===== -->
+        <!-- Row 3: Purchase, Selling, Tax -->
         <div class="row g-3 mt-2">
             <div class="col-md-4">
                 <label for="id_purchase_price" class="form-label fw-semibold">Purchase Price (₹)</label>
@@ -139,7 +140,7 @@
             </div>
         </div>
 
-        <!-- ===== ROW 4: Stock & Threshold ===== -->
+        <!-- Row 4: Stock & Threshold -->
         <div class="row g-3 mt-2" id="stock-fields">
             <div class="col-md-4">
                 <label for="id_current_stock" class="form-label fw-semibold">Current Stock</label>
@@ -189,7 +190,7 @@
             </div>
         </div>
 
-        <!-- ===== ROW 5: Active ===== -->
+        <!-- Row 5: Active -->
         <div class="row g-3 mt-2">
             <div class="col-md-12">
                 <div class="form-check">
@@ -206,7 +207,7 @@
             </div>
         </div>
 
-        <!-- Hidden field for product_id (validation) -->
+        <!-- Hidden field for product_id -->
         <input type="hidden" name="product_id" id="id_product_id" value="{{ product.pk|default:'' }}">
     </div>
     
@@ -219,7 +220,6 @@
 </form>
 
 <script>
-    // Toggle stock fields visibility based on is_service checkbox
     document.addEventListener('DOMContentLoaded', function() {
         const isServiceCheck = document.getElementById('id_is_service');
         const stockFields = document.getElementById('stock-fields');
@@ -238,5 +238,3 @@
         }
     });
 </script>
-
-

@@ -1,3 +1,4 @@
+<!-- templates/products/partials/product_table.html -->
 {% load static %}
 
 <div class="card border-0 shadow-sm">
@@ -62,7 +63,6 @@
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
-                                    <!-- Edit -->
                                     <li>
                                         <button class="dropdown-item" 
                                                 hx-get="{% url 'accounting:product_update' product.pk %}" 
@@ -71,7 +71,6 @@
                                             <i class="bi bi-pencil me-2 text-warning"></i>Edit
                                         </button>
                                     </li>
-                                    <!-- Detail -->
                                     <li>
                                         <button class="dropdown-item" 
                                                 hx-get="{% url 'accounting:product_detail_modal' product.pk %}" 
@@ -80,7 +79,6 @@
                                             <i class="bi bi-eye me-2 text-primary"></i>Detail
                                         </button>
                                     </li>
-                                    <!-- Stock History -->
                                     <li>
                                         <button class="dropdown-item" 
                                                 hx-get="{% url 'accounting:product_stock_history' product.pk %}" 
@@ -90,7 +88,6 @@
                                         </button>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
-                                    <!-- Delete -->
                                     <li>
                                         <button class="dropdown-item text-danger" 
                                                 hx-delete="{% url 'accounting:product_delete' product.pk %}" 
@@ -123,7 +120,7 @@
         </div>
     </div>
 
-    <!-- ===== PAGINATION ===== -->
+    <!-- Pagination -->
     {% if page_obj.has_other_pages %}
     <div class="card-footer bg-white border-0">
         <nav aria-label="Product pagination">
@@ -168,4 +165,3 @@
     </div>
     {% endif %}
 </div>
-
