@@ -99,16 +99,33 @@ EVENTSTREAM_MAX_CONNECTIONS = 100
 # Commented out the wrong storage class
 # EVENTSTREAM_STORAGE_CLASS = 'django_eventstream.storage.MemoryStorage'
 
+# ============================================================
+# DATABASE CONFIGURATION (Secure – Using Environment Variables)
+# ============================================================
 import dj_database_url
-DATABASES = {
-    'default': dj_database_url.config(
-        default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
-        conn_max_age=600,
-        conn_health_checks=True,
-        ssl_require=not DEBUG
-    )
-}
-
+if os.environ.get('RENDER') and not DEBUG:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'qdjnjygivjmkrgcvsrfq'),
+            'USER': os.getenv('DB_USER', 'postgres'),
+            'PASSWORD': os.getenv('DB_PASSWORD', '2GEGM2OdquNWT9pE'),
+            'HOST': os.getenv('DB_HOST', 'db.qdjnjygivjmkrgcvsrfq.supabase.co'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+            'OPTIONS': {
+                'sslmode': 'require',
+                'connect_timeout': 10,
+            },
+        }
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+    
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
