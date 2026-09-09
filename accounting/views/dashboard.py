@@ -393,3 +393,5 @@ def dashboard_export(request):
         logger.error(f"Dashboard export error: {e}")
         messages.error(request, "Failed to export dashboard.")
         return redirect('accounting:dashboard')
+
+

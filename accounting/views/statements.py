@@ -1,3 +1,4 @@
+# accounting/views/staments.py
 import csv
 import logging
 from datetime import datetime
@@ -730,6 +731,8 @@ def vendor_statement_print(request, contact_id):
     closing_balance = running_balance
     total_debit = sum(l['debit'] for l in statement_lines) if statement_lines else Decimal('0')
     total_credit = sum(l['credit'] for l in statement_lines) if statement_lines else Decimal('0')
+    company = CompanyProfile.get_instance()
+    logo_exists = bool(company.logo and company.logo.name and company.logo.storage.exists(company.logo.name))
 
     context = {
         'contact': contact,
@@ -740,8 +743,8 @@ def vendor_statement_print(request, contact_id):
         'total_credit': total_credit,
         'date_from': date_from,
         'date_to': date_to,
-        'company': CompanyProfile.get_instance(),
-        'logo_exists': bool(CompanyProfile.logo and CompanyProfile.logo.name and CompanyProfile.logo.storage.exists(CompanyProfile.logo.name)),
+        'company': company,                     
+        'logo_exists': logo_exists,
     }
     return render(request, 'statements/print_vendor_statement.html', context)
 

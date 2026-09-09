@@ -9,6 +9,8 @@ from django.http import HttpResponse, JsonResponse
 from django.urls import reverse, NoReverseMatch
 from django.conf import settings
 from django.contrib import messages
+from django.db import connections
+from django.db.utils import OperationalError
 
 logger = logging.getLogger(__name__)
 
@@ -254,3 +256,39 @@ def htmx_required(view_func):
     return wrapper
 
 
+# ============================================================
+# HEALTH CHECK (For Render & Supabase Keep-Alive)
+# ============================================================
+def health_check(request):
+    """
+    Simple health check endpoint to keep both Render and Supabase awake.
+    Returns JSON status of database connection.
+    
+    Usage: Add to urls.py -> path('health/', health_check, name='health_check')
+    Then setup cron-job.org or similar to hit this URL every 10-15 minutes.
+    """
+    try:
+        # Try to connect to the database to ensure Supabase is awake
+        connections['default'].cursor()
+        return JsonResponse({
+            'status': 'ok',
+            'database': 'connected',
+            'server': 'active',
+            'message': 'All systems operational.'
+        }, status=200)
+    except OperationalError as e:
+        logger.error(f"Health check failed: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'database': 'disconnected',
+            'server': 'active',
+            'message': str(e)
+        }, status=500)
+    except Exception as e:
+        logger.error(f"Unexpected health check error: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'database': 'unknown',
+            'server': 'active',
+            'message': str(e)
+        }, status=500)

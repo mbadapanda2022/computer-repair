@@ -79,6 +79,20 @@
                        value="{{ form.date.value|default:''|date:'Y-m-d' }}" required>
                 <div class="invalid-feedback">{{ form.date.errors|join:", " }}</div>
             </div>
+
+            <!-- Advance Payment Checkbox -->
+            <div class="row g-3 mt-1">
+                <div class="col-md-12">
+                    <div class="form-check">
+                        {{ form.is_advance }}
+                        <label class="form-check-label fw-semibold" for="{{ form.is_advance.id_for_label }}">
+                            Is this an Advance Payment?
+                        </label>
+                        <small class="text-muted d-block">(The customer has made the payment before the invoice.)</small>
+                        <div class="invalid-feedback">{{ form.is_advance.errors|join:", " }}</div>
+                    </div>
+                </div>
+            </div>
             
             <div class="col-md-4">
                 <label for="id_method" class="form-label fw-semibold">Method</label>
@@ -121,18 +135,6 @@
                        class="form-control {% if form.reference.errors %}is-invalid{% endif %}" 
                        value="{{ form.reference.value|default:'' }}" placeholder="Cheque #, Payment ID">
                 <div class="invalid-feedback">{{ form.reference.errors|join:", " }}</div>
-            </div>
-            
-            <div class="col-md-6">
-                <label for="id_invoices" class="form-label fw-semibold">Link to Invoices</label>
-                <select name="invoices" id="id_invoices" class="form-select" multiple size="3">
-                    {% for invoice in form.fields.invoices.queryset %}
-                        <option value="{{ invoice.id }}" {% if invoice.id in form.invoices.value %}selected{% endif %}>
-                            {{ invoice.invoice_number }} - ₹{{ invoice.grand_total|floatformat:2 }}
-                        </option>
-                    {% endfor %}
-                </select>
-                <div class="invalid-feedback">{{ form.invoices.errors|join:", " }}</div>
             </div>
         </div>
         

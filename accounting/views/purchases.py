@@ -35,7 +35,6 @@ def sync_session_items(request, purchase=None):
     """
     session_key = 'temp_purchase_items'
     if purchase:
-        # If session is empty, load items from purchase
         if session_key not in request.session or not request.session[session_key]:
             items = []
             for item in purchase.items.all():
@@ -46,7 +45,7 @@ def sync_session_items(request, purchase=None):
                     'unit_price': str(item.unit_price),
                     'tax_rate': str(item.tax_rate),
                     'line_total': str(item.line_total),
-                    'db_item_id': item.id,  # Track DB ID for updates
+                    'db_item_id': item.id,
                 })
             request.session[session_key] = items
     return request.session.get(session_key, [])
@@ -59,7 +58,6 @@ def get_paginated_purchases_context(request, queryset=None):
     if queryset is None:
         queryset = Purchase.objects.select_related('vendor').all().order_by('-date')
 
-    # Filters
     search = request.GET.get('search', '').strip()
     vendor_id = request.GET.get('vendor', '')
     paid = request.GET.get('paid', '')
@@ -87,7 +85,6 @@ def get_paginated_purchases_context(request, queryset=None):
     if date_to:
         queryset = queryset.filter(date__lte=date_to)
 
-    # Pagination (15 per page)
     paginator = Paginator(queryset, 15)
     try:
         page_obj = paginator.page(page_number)
@@ -96,10 +93,8 @@ def get_paginated_purchases_context(request, queryset=None):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # Vendors for filter dropdown
     vendors = Contact.objects.filter(contact_type__in=['vendor', 'both']).order_by('name')
 
-    # Summary totals
     total_amount = queryset.aggregate(total=Sum('grand_total'))['total'] or Decimal('0')
     total_paid = queryset.filter(paid=True).aggregate(total=Sum('grand_total'))['total'] or Decimal('0')
     total_unpaid = total_amount - total_paid
@@ -152,7 +147,6 @@ def validate_purchase_field(request):
 # ============================================================
 # 2. PRODUCT SEARCH (Autocomplete)
 # ============================================================
-
 def purchase_product_search(request):
     q = request.GET.get('q', '').strip()
     products = Product.objects.filter(is_service=False, is_active=True)
@@ -162,27 +156,21 @@ def purchase_product_search(request):
             Q(name__icontains=q) |
             Q(hsn_code__icontains=q)
         )
-
-        # Limit to 20 (so we can sort in Python)
         products = products[:20]
 
         def relevance_score(product):
             name = product.name.lower()
             hsn = (product.hsn_code or '').lower()
             q_lower = q.lower()
-
             if name == q_lower or hsn == q_lower:
                 return 0
-            # Starts With
             if name.startswith(q_lower) or hsn.startswith(q_lower):
                 return 1
             if q_lower in name or q_lower in hsn:
                 return 2
             return 3
 
-        products = sorted(products, key=relevance_score)
-        # Limit to 10 after sorting
-        products = products[:10]
+        products = sorted(products, key=relevance_score)[:10]
     else:
         products = []
 
@@ -224,7 +212,7 @@ def purchase_product_quick_add(request):
 
 
 # ============================================================
-# 4. PURCHASE LIST (with filters & pagination)
+# 4. PURCHASE LIST
 # ============================================================
 @handle_errors(default_redirect='accounting:purchase_list')
 def purchase_list(request):
@@ -235,7 +223,7 @@ def purchase_list(request):
 
 
 # ============================================================
-# PURCHASE CREATE (NEW)
+# 5. PURCHASE CREATE
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:purchase_list')
@@ -249,7 +237,7 @@ def purchase_create(request):
         form = PurchaseForm(request.POST)
         if form.is_valid():
             purchase = form.save(commit=False)
-            purchase.save()
+            purchase.save()  # Save to get ID
 
             for item_data in request.session.get('temp_purchase_items', []):
                 PurchaseItem.objects.create(
@@ -262,13 +250,11 @@ def purchase_create(request):
 
             request.session['temp_purchase_items'] = []
             purchase.calculate_totals()
-            purchase.save()
-            purchase.update_stock_from_items()
+            purchase.save()  # This will trigger sync_purchase_ledger automatically
 
             logger.info(f"Purchase {purchase.purchase_number} created by {request.user.username}")
 
             if is_htmx(request):
-                # ✅ Success Message before Redirect
                 messages.success(request, f"Purchase {purchase.purchase_number} created successfully.")
                 response = HttpResponse()
                 response['HX-Redirect'] = reverse('accounting:purchase_list')
@@ -278,7 +264,6 @@ def purchase_create(request):
             return redirect('accounting:purchase_list')
 
         else:
-            # ... invalid form handling (same as before) ...
             items = request.session.get('temp_purchase_items', [])
             items_total = sum(Decimal(i['line_total']) for i in items) if items else Decimal('0')
             context = {
@@ -309,7 +294,7 @@ def purchase_create(request):
 
 
 # ============================================================
-# PURCHASE UPDATE (EDIT)
+# 6. PURCHASE UPDATE
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:purchase_list')
@@ -336,13 +321,11 @@ def purchase_update(request, pk):
 
             request.session['temp_purchase_items'] = []
             purchase.calculate_totals()
-            purchase.save()
-            purchase.update_stock_from_items()
+            purchase.save()  # This triggers ledger sync
 
             logger.info(f"Purchase {purchase.purchase_number} updated by {request.user.username}")
 
             if is_htmx(request):
-                # Success Message before Redirect
                 messages.success(request, f"Purchase {purchase.purchase_number} updated successfully.")
                 response = HttpResponse()
                 response['HX-Redirect'] = reverse('accounting:purchase_list')
@@ -352,7 +335,6 @@ def purchase_update(request, pk):
             return redirect('accounting:purchase_list')
 
         else:
-            # ... invalid form handling (same as before) ...
             items = request.session.get('temp_purchase_items', [])
             items_total = sum(Decimal(i['line_total']) for i in items) if items else Decimal('0')
             context = {
@@ -383,7 +365,7 @@ def purchase_update(request, pk):
 
 
 # ============================================================
-# 7. PURCHASE DELETE
+# 7. PURCHASE DELETE (CORRECTED – NO MANUAL STOCK REVERSAL)
 # ============================================================
 @csrf_protect
 @require_http_methods(["DELETE"])
@@ -391,24 +373,12 @@ def purchase_update(request, pk):
 def purchase_delete(request, pk):
     purchase = get_object_or_404(Purchase, pk=pk)
 
-    # Reverse stock movements
-    for item in purchase.items.all():
-        if not item.product.is_service:
-            Product.objects.filter(pk=item.product_id).update(current_stock=F('current_stock') - item.quantity)
-            StockMovement.objects.create(
-                product=item.product,
-                movement_type='adjustment',
-                quantity=-item.quantity,
-                reference=f"PUR_DEL_{purchase.purchase_number}",
-                date=timezone.now().date(),
-                notes=f"Reversed due to deletion of purchase {purchase.purchase_number}"
-            )
-
-    # Delete ledger entry
+    # Delete ledger entry (since Purchase.delete does not auto-delete ledger)
     LedgerEntry.objects.filter(reference_id=purchase.id, entry_type='purchase').delete()
 
     purchase_name = purchase.purchase_number
-    purchase.delete()
+    purchase.delete()  # This will cascade delete PurchaseItems, which reverse stock automatically
+
     logger.info(f"Purchase {purchase_name} deleted by {request.user.username}")
 
     context = get_paginated_purchases_context(request)
@@ -453,7 +423,8 @@ def add_purchase_item(request):
             'quantity': str(qty),
             'unit_price': str(price),
             'tax_rate': str(tax),
-            'line_total': str(line_total)
+            'line_total': str(line_total),
+            'is_office_use': request.POST.get('is_office_use') == 'on'
         }
 
         items = request.session.get('temp_purchase_items', [])
@@ -514,20 +485,16 @@ def purchase_print(request, pk):
 
 
 # ============================================================
-# 12. 📊 EXPORT PURCHASES TO EXCEL (PROFESSIONAL)
+# 12. EXPORT PURCHASES TO EXCEL
 # ============================================================
 @require_http_methods(["GET"])
 def export_purchases_excel(request):
-    """
-    Export all purchases to a professional styled Excel (.xlsx) file.
-    """
     purchases = Purchase.objects.select_related('vendor').all().order_by('-date')
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Purchases List"
 
-    # ---------- STYLES ----------
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     thin_border = Border(
@@ -539,16 +506,13 @@ def export_purchases_excel(request):
     right_align = Alignment(horizontal='right', vertical='center')
     money_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
 
-    # ---------- TITLE ----------
     ws.merge_cells('A1:G1')
     title_cell = ws.cell(row=1, column=1, value="📥 Purchase List – A1 Computer Solutions")
     title_cell.font = Font(bold=True, size=14, color="1F4E78")
     title_cell.alignment = center_align
     ws.row_dimensions[1].height = 30
 
-    # ---------- HEADERS ----------
     headers = ['Purchase #', 'Date', 'Vendor', 'Subtotal', 'Tax Amount', 'Grand Total', 'Paid']
-
     for col_idx, header in enumerate(headers, 1):
         cell = ws.cell(row=2, column=col_idx, value=header)
         cell.font = header_font
@@ -557,7 +521,6 @@ def export_purchases_excel(request):
         cell.alignment = center_align
         ws.row_dimensions[2].height = 25
 
-    # ---------- DATA ----------
     for idx, purchase in enumerate(purchases, start=3):
         row_num = idx
         row_fill = PatternFill(
@@ -565,7 +528,6 @@ def export_purchases_excel(request):
             end_color="F2F6FC" if idx % 2 == 0 else "FFFFFF",
             fill_type="solid"
         )
-
         row_data = [
             purchase.purchase_number,
             purchase.date.strftime('%d-%b-%Y'),
@@ -575,21 +537,18 @@ def export_purchases_excel(request):
             float(purchase.grand_total),
             'Yes' if purchase.paid else 'No'
         ]
-
         for col_idx, value in enumerate(row_data, 1):
             cell = ws.cell(row=row_num, column=col_idx, value=value)
             cell.border = thin_border
             cell.fill = row_fill
-
-            if col_idx in (1, 7):  # Purchase #, Paid -> Center
+            if col_idx in (1, 7):
                 cell.alignment = center_align
-            elif col_idx in (4, 5, 6):  # Amounts -> Right with currency
+            elif col_idx in (4, 5, 6):
                 cell.alignment = right_align
                 cell.number_format = money_format
             else:
                 cell.alignment = left_align
 
-    # ---------- AUTO-WIDTH ----------
     for col in ws.columns:
         max_length = 0
         col_letter = get_column_letter(col[0].column)

@@ -8,12 +8,15 @@ from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from ..models import Notification
-from .utils import is_htmx, redirect_to_staff
+from .utils import is_htmx, redirect_to_staff   # ✅ is_htmx import किया
 from ..decorators import handle_errors
 
 logger = logging.getLogger(__name__)
 
-# ===== Helpers =====
+
+# ============================================================
+# HELPERS
+# ============================================================
 def render_notification_partial(request, paginator_page=None):
     if paginator_page is None:
         notifications = request.user.notifications.all()
@@ -36,7 +39,10 @@ def render_dropdown_partial(request):
         'unread_count': unread_count,
     })
 
-# ===== List =====
+
+# ============================================================
+# LIST
+# ============================================================
 @login_required
 def notification_list(request):
     try:
@@ -45,7 +51,9 @@ def notification_list(request):
         page = request.GET.get('page')
         page_obj = paginator.get_page(page)
         unread_count = request.user.notifications.filter(is_read=False).count()
-        if request.htmx:
+        
+        # ✅ Fix: request.htmx → is_htmx(request)
+        if is_htmx(request):
             return render(request, 'notifications/partials/_notification_items.html', {
                 'page_obj': page_obj,
                 'unread_count': unread_count,
@@ -59,7 +67,10 @@ def notification_list(request):
         messages.error(request, "Unable to load notifications.")
         return redirect_to_staff('dashboard')
 
-# ===== Dropdown =====
+
+# ============================================================
+# DROPDOWN
+# ============================================================
 @login_required
 def notification_dropdown(request):
     try:
@@ -67,7 +78,10 @@ def notification_dropdown(request):
     except Exception:
         return HttpResponse('<div class="dropdown-item text-danger">Error loading</div>', status=500)
 
-# ===== Mark Read (single) =====
+
+# ============================================================
+# MARK READ (SINGLE)
+# ============================================================
 @login_required
 @require_http_methods(["POST"])
 @handle_errors(default_redirect='accounting:notification_list')
@@ -75,15 +89,21 @@ def mark_as_read(request, pk):
     notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
     notification.is_read = True
     notification.save()
-    if request.htmx:
+    
+    # ✅ Fix: request.htmx → is_htmx(request)
+    if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
             return render_dropdown_partial(request)
         return render_notification_partial(request)
+    
     messages.success(request, "Marked as read.")
     return redirect_to_staff('notification_list')
 
-# ===== Mark All Read =====
+
+# ============================================================
+# MARK ALL READ
+# ============================================================
 @login_required
 @require_http_methods(["POST"])
 @handle_errors(default_redirect='accounting:notification_list')
@@ -91,7 +111,8 @@ def mark_all_read(request):
     count = request.user.notifications.filter(is_read=False).update(is_read=True)
     logger.info(f"User {request.user.id} marked {count} notifications as read")
 
-    if request.htmx:
+    # ✅ Fix: request.htmx → is_htmx(request)
+    if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
             return render_dropdown_partial(request)
@@ -100,7 +121,10 @@ def mark_all_read(request):
     messages.success(request, f"{count} marked read.")
     return redirect_to_staff('notification_list')
 
-# ===== Delete Single =====
+
+# ============================================================
+# DELETE SINGLE
+# ============================================================
 @login_required
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:notification_list')
@@ -109,7 +133,8 @@ def delete_notification(request, pk):
     notification.delete()
     logger.info(f"User {request.user.id} deleted notification {pk}")
 
-    if request.htmx:
+    # ✅ Fix: request.htmx → is_htmx(request)
+    if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
             return render_dropdown_partial(request)
@@ -118,7 +143,10 @@ def delete_notification(request, pk):
     messages.success(request, "Notification deleted.")
     return redirect_to_staff('notification_list')
 
-# ===== Delete All =====
+
+# ============================================================
+# DELETE ALL
+# ============================================================
 @login_required
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:notification_list')
@@ -127,7 +155,8 @@ def delete_all_notifications(request):
     request.user.notifications.all().delete()
     logger.info(f"User {request.user.id} deleted all {count} notifications")
 
-    if request.htmx:
+    # ✅ Fix: request.htmx → is_htmx(request)
+    if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
             return render_dropdown_partial(request)
@@ -136,7 +165,10 @@ def delete_all_notifications(request):
     messages.success(request, "All deleted.")
     return redirect_to_staff('notification_list')
 
-# ===== Unread Count (JSON) – for AJAX/API =====
+
+# ============================================================
+# UNREAD COUNT (JSON)
+# ============================================================
 @login_required
 def get_unread_count(request):
     if not request.user.is_authenticated:
@@ -148,7 +180,10 @@ def get_unread_count(request):
         logger.error(f"Error getting unread count: {e}")
         return JsonResponse({'count': 0}, status=500)
 
-# ===== Unread Count (Plain Text) – for HTMX =====
+
+# ============================================================
+# UNREAD COUNT (PLAIN TEXT)
+# ============================================================
 def unread_count_text(request):
     if not request.user.is_authenticated:
         return HttpResponse("0")

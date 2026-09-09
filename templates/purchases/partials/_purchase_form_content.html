@@ -82,6 +82,12 @@
                                     {{ form.gst_type.errors|join:", " }}
                                 </div>
                             </div>
+                            <div class="col-md-3">
+                                <label for="id_freight_charge" class="form-label fw-semibold">Freight / Transport (₹)</label>
+                                <input type="number" name="freight_charge" id="id_freight_charge" step="0.01" 
+                                    class="form-control" value="{{ form.freight_charge.value|default:'0' }}">
+                                <div class="invalid-feedback">{{ form.freight_charge.errors|join:", " }}</div>
+                            </div>
                         </div>
 
                         <!-- ===== ROW 2: Notes ===== -->

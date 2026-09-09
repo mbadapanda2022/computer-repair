@@ -13,8 +13,6 @@ handler400 = 'accounting.views.error_handlers.custom_400'
 urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
-
-    # Allauth (Social Login, Password Reset, etc.) – इसे अपने कस्टम URLs से पहले रखें
     path('accounts/', include('allauth.urls')),
 
     # Public Landing Pages

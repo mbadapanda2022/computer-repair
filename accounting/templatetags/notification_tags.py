@@ -13,3 +13,5 @@ def unread_count(user):
         return user.notifications.filter(is_read=False).count()
     except Exception:
         return 0
+
+

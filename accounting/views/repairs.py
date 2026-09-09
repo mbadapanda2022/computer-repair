@@ -20,13 +20,12 @@ from django.contrib.auth.decorators import login_required
 from ..models import *
 from ..forms import RepairJobForm, RepairPartForm
 from accounting.utils.notification_helpers import (
-    
     send_notification_to_customer,
     send_notification_sse
 )
 from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
-from .sales import create_or_update_invoice_ledger
+from ..models import sync_invoice_ledger
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +118,7 @@ def validate_repair_field(request):
 
 
 # ============================================================
-# 2. REPAIR LIST (with pagination & filters)
+# 2. REPAIR LIST
 # ============================================================
 @handle_errors(default_redirect='accounting:repair_list')
 def repair_list(request):
@@ -184,7 +183,7 @@ def repair_list_print(request):
 
 
 # ============================================================
-# 4. REPAIR CREATE (general)
+# 4. REPAIR CREATE
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='repairs/partials/repair_form_modal.html')
@@ -239,22 +238,17 @@ def repair_update(request, pk):
         
         if form.is_valid():
             with transaction.atomic():
-                # Save without committing to DB yet
                 job = form.save(commit=False)
                 
-                # Auto-set delivery_date if status is 'delivered' and date is empty
                 if job.status == 'delivered' and not job.delivery_date:
                     job.delivery_date = timezone.now().date()
                 
-                # Save the job with updated fields
                 job.save()
                 
-                # Recalculate final amount
                 parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
                 job.final_amount = parts_total + job.labour_charge
                 job.save(update_fields=['final_amount'])
 
-                # Send notifications
                 send_notification_to_customer(
                     job.customer,
                     title=f"Repair Job Updated: {job.job_number}",
@@ -267,29 +261,24 @@ def repair_update(request, pk):
                 for staff in User.objects.filter(is_staff=True):
                     send_notification_sse(staff)
 
-                # HTMX Response
                 if is_htmx(request):
                     messages.success(request, f"Repair job {job.job_number} updated.")
                     response = HttpResponse()
                     response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
                     return response
 
-                # Non-HTMX Response
                 messages.success(request, f"Repair job {job.job_number} updated.")
                 return redirect_to_staff('repair_detail', pk=job.pk)
 
         else:
-            # ❌ Form Invalid – keep in modal
             if is_htmx(request):
                 return render(request, 'repairs/partials/repair_form_modal.html', {
                     'form': form,
                     'job': job
                 })
-            # Full page mode – render form with errors
             return render(request, template_name, {'form': form, 'job': job})
 
     else:
-        # GET Request – show edit form
         form = RepairJobForm(instance=job)
         return render(request, template_name, {'form': form, 'job': job})
 
@@ -381,7 +370,6 @@ def update_repair_status(request, pk):
 # ============================================================
 # 8. ADD REPAIR PART (WITH STOCK VALIDATION)
 # ============================================================
-
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='repairs/partials/part_form_modal.html')
 def add_repair_part(request, pk):
@@ -393,7 +381,6 @@ def add_repair_part(request, pk):
             product = form.cleaned_data['product']
             quantity = form.cleaned_data['quantity']
 
-            # Stock Validation (if not service)
             if not product.is_service and product.current_stock < quantity:
                 error_msg = f"Insufficient stock for {product.name}. Available: {product.current_stock}"
                 if is_htmx(request):
@@ -407,33 +394,27 @@ def add_repair_part(request, pk):
                     return redirect_to_staff('repair_detail', pk=job.pk)
 
             with transaction.atomic():
-                # 1. Save the part
                 part = form.save(commit=False)
                 part.repair_job = job
                 part.save()
 
-                # 2. REDUCE STOCK (if not service)
                 if not product.is_service:
-                    # Create StockMovement
                     StockMovement.objects.create(
                         product=product,
                         movement_type='repair_out',
-                        quantity=-quantity,  # Negative because stock is going OUT
+                        quantity=-quantity,
                         reference=f"REP-{job.job_number}",
                         date=timezone.now().date(),
                         notes=f"Part used in repair {job.job_number}"
                     )
-                    # Update product current_stock using F() to avoid race conditions
                     Product.objects.filter(pk=product.pk).update(
                         current_stock=F('current_stock') - quantity
                     )
 
-                # 3. Recalculate job final amount
                 parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
                 job.final_amount = parts_total + job.labour_charge
                 job.save(update_fields=['final_amount'])
 
-                # 4. Notifications
                 send_notification_to_customer(
                     job.customer,
                     title=f"Part Added to Repair: {job.job_number}",
@@ -446,7 +427,6 @@ def add_repair_part(request, pk):
                 for staff in User.objects.filter(is_staff=True):
                     send_notification_sse(staff)
 
-                # 5. HTMX Response
                 if is_htmx(request):
                     parts = job.parts.all()
                     parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
@@ -482,8 +462,9 @@ def add_repair_part(request, pk):
 
     return redirect_to_staff('repair_detail', pk=job.pk)
 
+
 # ============================================================
-# 9. REMOVE REPAIR PART (WITH STOCK VALIDATION)
+# 9. REMOVE REPAIR PART
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
@@ -529,7 +510,6 @@ def remove_repair_part(request, part_pk):
                 'job': job,
                 'parts_total': parts_total,
             })
-            # Toast Notification 
             response['HX-Trigger'] = json.dumps({
                 'showToast': {
                     'level': 'success',
@@ -543,7 +523,7 @@ def remove_repair_part(request, part_pk):
 
 
 # ============================================================
-# 10. CREATE INVOICE FROM REPAIR
+# 10. CREATE INVOICE FROM REPAIR (FIXED)
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
@@ -561,7 +541,6 @@ def create_invoice_from_repair(request, pk):
         except (ValueError, TypeError):
             pass
 
-    # --- Validations ---
     if job.invoice:
         messages.info(request, "Invoice already exists for this repair.")
         return redirect_to_staff('invoice_detail', pk=job.invoice.pk)
@@ -574,7 +553,6 @@ def create_invoice_from_repair(request, pk):
         messages.error(request, "Estimate must be approved before invoicing.")
         return redirect_to_staff('repair_detail', pk=pk)
 
-    # --- Create Invoice ---
     with transaction.atomic():
         company = CompanyProfile.get_instance()
         if not job.customer.gstin:
@@ -594,7 +572,7 @@ def create_invoice_from_repair(request, pk):
 
         invoice = Invoice(
             customer=job.customer,
-            date=invoice_date,  
+            date=invoice_date,
             gst_type=gst_type,
             notes=notes
         )
@@ -633,9 +611,13 @@ def create_invoice_from_repair(request, pk):
             )
 
         invoice.calculate_totals()
-        invoice.save()
-        invoice.update_stock_from_items()
-        create_or_update_invoice_ledger(invoice)
+        invoice.save()  # This triggers sync_invoice_ledger automatically
+
+        # ✅ FIX: Stock update is automatic via InvoiceItem.save, so remove manual call
+        # invoice.update_stock_from_items()  ← हटा दें
+
+        # ✅ FIX: सही लेजर सिंक – models से sync_invoice_ledger
+        sync_invoice_ledger(invoice)  # अतिरिक्त कॉल (save() पहले ही कर चुका है, लेकिन safe है)
 
         # Repair Job Link
         job.invoice = invoice
@@ -804,7 +786,6 @@ def staff_approve_estimate(request, pk):
 
             repair.save()
 
-            # Notifications
             send_notification_to_customer(
                 repair.customer,
                 title=f"✅ Your repair {repair.job_number} has been approved",
@@ -819,16 +800,12 @@ def staff_approve_estimate(request, pk):
 
             messages.success(request, f"✅ Estimate for {repair.job_number} approved! (Source: {source})")
 
-            # HTMX → Redirect the whole page (not just modal)
             if is_htmx(request):
                 response = HttpResponse()
                 response['HX-Redirect'] = reverse('accounting:repair_detail', args=[repair.pk])
-                response['HX-Trigger'] = json.dumps({'closeModal': ''})  # Close modal just in case
+                response['HX-Trigger'] = json.dumps({'closeModal': ''})
                 return response
 
-            # ❌ Non-HTMX → Normal redirect
             return redirect('accounting:repair_detail', pk=repair.pk)
 
-    # GET request → show the modal form
     return render(request, 'repairs/partials/staff_approve_modal.html', {'repair': repair})
-

@@ -1,3 +1,4 @@
+
 from django.urls import path
 from accounting.views import customer_views
 
@@ -15,6 +16,7 @@ urlpatterns = [
     path('repairs/<int:pk>/print/', customer_views.repair_print, name='customer_repair_print'),
     path('payments/', customer_views.payment_list, name='customer_payments'),
     path('statement/', customer_views.statement, name='customer_statement'),
+    path('profile/validate-field/', customer_views.validate_customer_profile_field, name='validate_customer_profile_field'),
     path('profile/', customer_views.profile, name='customer_profile'),
     path('profile/update/', customer_views.profile_update, name='customer_profile_update'),
     path('password-change/', customer_views.customer_password_change, name='customer_password_change'),

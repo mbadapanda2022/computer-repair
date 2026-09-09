@@ -81,13 +81,13 @@ def unified_login_view(request):
                 for field, field_errors in form.errors.items():
                     for err in field_errors:
                         errors.append(err)
-                if errors:
-                    response['HX-Trigger'] = json.dumps({
-                        'showToast': {
-                            'level': 'danger',
-                            'message': ' '.join(errors)
-                        }
-                    })
+                error_message = ' '.join(errors) if errors else 'Please correct the errors below.'
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {
+                        'level': 'danger',
+                        'message': error_message
+                    }
+                })
                 return response
     else:
         form = AuthenticationForm()
@@ -381,12 +381,12 @@ def verify_otp_view(request):
                 request.session.pop('pending_email', None)
                 request.session.pop('otp_purpose', None)
 
-                # Login the user
-                login(request, user, backend='accounting.auth_backends.EmailOrPhoneBackend')
+                # --- FIX: Set backend explicitly before login ---
+                user.backend = 'accounting.auth_backends.EmailOrPhoneBackend'
+                login(request, user)
 
                 messages.success(request, "Email verified! Welcome aboard.")
 
-                # HTMX request → Send HX-Redirect
                 if request.headers.get('HX-Request'):
                     response = HttpResponse()
                     response['HX-Redirect'] = reverse('customer:customer_dashboard')
@@ -415,7 +415,6 @@ def verify_otp_view(request):
                 return redirect('accounting:reset_password_set')
 
         else:
-            # Invalid OTP
             messages.error(request, "Invalid or expired OTP. Please try again.")
             if request.headers.get('HX-Request'):
                 response = render(request, 'auth/verify_otp.html', {'email': email, 'purpose': purpose}, status=400)
@@ -507,9 +506,14 @@ def password_reset_otp_request(request):
         
         try:
             user = User.objects.get(email__iexact=email)
-        except User.DoesNotExist:
-            messages.info(request, "If an account with this email exists, we've sent an OTP.")
-            return render(request, 'auth/password_reset_otp.html')
+        except (User.DoesNotExist, User.MultipleObjectsReturned):
+            users = User.objects.filter(email__iexact=email)
+            if users.count() == 1:
+                user = users.first()
+            else:
+                # Multiple users – rare case, but handle gracefully
+                messages.info(request, "If an account with this email exists, we've sent an OTP.")
+                return render(request, 'auth/password_reset_otp.html')
         
         success = create_and_send_otp(user, email, 'reset_password')
         

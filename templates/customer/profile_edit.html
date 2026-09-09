@@ -4,8 +4,9 @@
       hx-post="{% url 'customer:customer_profile_update' %}" 
       hx-target="#profile-container"
       hx-swap="innerHTML"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-      hx-indicator="#profile-spinner">
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
+      hx-indicator="#profile-spinner"
+      novalidate>
     
     {% csrf_token %}
     
@@ -22,63 +23,133 @@
             {% endif %}
             
             <div class="row g-3">
+                <!-- ===== NAME ===== -->
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Full Name</label>
-                        {{ form.name }}
-                        {% if form.name.errors %}
-                            <div class="invalid-feedback d-block">{{ form.name.errors.0 }}</div>
-                        {% endif %}
+                        <input type="text" 
+                               name="name" 
+                               id="id_name" 
+                               class="form-control {% if form.name.errors %}is-invalid{% endif %}"
+                               value="{{ form.name.value|default:'' }}"
+                               hx-get="{% url 'customer:validate_customer_profile_field' %}"
+                               hx-trigger="blur, keyup changed delay:300ms"
+                               hx-target="#field-name"
+                               hx-swap="outerHTML"
+                               hx-include="#id_name"
+                               required>
+                        <div id="field-name" class="invalid-feedback d-block">
+                            {% for error in form.name.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
 
+                <!-- ===== COMPANY NAME ===== -->
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Company Name</label>
-                        {{ form.company_name }}
-                        {% if form.company_name.errors %}
-                            <div class="invalid-feedback d-block">{{ form.company_name.errors.0 }}</div>
-                        {% endif %}
+                        <input type="text" 
+                               name="company_name" 
+                               id="id_company_name" 
+                               class="form-control {% if form.company_name.errors %}is-invalid{% endif %}"
+                               value="{{ form.company_name.value|default:'' }}"
+                               hx-get="{% url 'customer:validate_customer_profile_field' %}"
+                               hx-trigger="blur, keyup changed delay:300ms"
+                               hx-target="#field-company_name"
+                               hx-swap="outerHTML"
+                               hx-include="#id_company_name">
+                        <div id="field-company_name" class="invalid-feedback d-block">
+                            {% for error in form.company_name.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
                 
+                <!-- ===== PHONE ===== -->
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Phone</label>
-                        {{ form.phone }}
-                        {% if form.phone.errors %}
-                            <div class="invalid-feedback d-block">{{ form.phone.errors.0 }}</div>
-                        {% endif %}
+                        <input type="text" 
+                               name="phone" 
+                               id="id_phone" 
+                               class="form-control {% if form.phone.errors %}is-invalid{% endif %}"
+                               value="{{ form.phone.value|default:'' }}"
+                               hx-get="{% url 'customer:validate_customer_profile_field' %}"
+                               hx-trigger="blur, keyup changed delay:300ms"
+                               hx-target="#field-phone"
+                               hx-swap="outerHTML"
+                               hx-include="#id_phone"
+                               placeholder="10-digit mobile number">
+                        <div id="field-phone" class="invalid-feedback d-block">
+                            {% for error in form.phone.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Optional, but helps us reach you faster.</small>
                     </div>
                 </div>
                 
+                <!-- ===== ADDRESS ===== -->
                 <div class="col-12">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Address</label>
-                        {{ form.address }}
-                        {% if form.address.errors %}
-                            <div class="invalid-feedback d-block">{{ form.address.errors.0 }}</div>
-                        {% endif %}
+                        <textarea name="address" 
+                                  id="id_address" 
+                                  class="form-control {% if form.address.errors %}is-invalid{% endif %}"
+                                  rows="2">{{ form.address.value|default:'' }}</textarea>
+                        <div id="field-address" class="invalid-feedback d-block">
+                            {% for error in form.address.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
                 
+                <!-- ===== STATE ===== -->
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">State</label>
-                        {{ form.state }}
-                        {% if form.state.errors %}
-                            <div class="invalid-feedback d-block">{{ form.state.errors.0 }}</div>
-                        {% endif %}
+                        <input type="text" 
+                               name="state" 
+                               id="id_state" 
+                               class="form-control {% if form.state.errors %}is-invalid{% endif %}"
+                               value="{{ form.state.value|default:'' }}"
+                               hx-get="{% url 'customer:validate_customer_profile_field' %}"
+                               hx-trigger="blur, keyup changed delay:300ms"
+                               hx-target="#field-state"
+                               hx-swap="outerHTML"
+                               hx-include="#id_state">
+                        <div id="field-state" class="invalid-feedback d-block">
+                            {% for error in form.state.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
                 
+                <!-- ===== GSTIN ===== -->
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">GSTIN</label>
-                        {{ form.gstin }}
-                        {% if form.gstin.errors %}
-                            <div class="invalid-feedback d-block">{{ form.gstin.errors.0 }}</div>
-                        {% endif %}
+                        <input type="text" 
+                               name="gstin" 
+                               id="id_gstin" 
+                               class="form-control {% if form.gstin.errors %}is-invalid{% endif %}"
+                               value="{{ form.gstin.value|default:'' }}"
+                               hx-get="{% url 'customer:validate_customer_profile_field' %}"
+                               hx-trigger="blur, keyup changed delay:300ms"
+                               hx-target="#field-gstin"
+                               hx-swap="outerHTML"
+                               hx-include="#id_gstin"
+                               placeholder="22AAAAA0000A1Z5">
+                        <div id="field-gstin" class="invalid-feedback d-block">
+                            {% for error in form.gstin.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
                         <small class="text-muted">Optional</small>
                     </div>
                 </div>
@@ -114,4 +185,3 @@
         }
     });
 </script>
-

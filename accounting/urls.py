@@ -19,6 +19,7 @@ from .views.auth import (
     CustomSignupView,  
 )
 from .views.repairs import staff_approve_estimate
+from .views.utils import health_check
 
 app_name = 'accounting'
 
@@ -47,6 +48,7 @@ urlpatterns = [
     path('products/<int:pk>/delete/', products.product_delete, name='product_delete'),
     path('products/<int:pk>/detail/', products.product_detail_modal, name='product_detail_modal'),
     path('products/validate-field/', products.validate_product_field, name='validate_product_field'),
+    path('validate-category-field/', products.validate_category_field, name='validate_category_field'),
     path('products/add-category/', products.add_category_inline, name='add_category_inline'),
     path('products/get-price/', products.get_product_price, name='get_product_price'),
     path('products/stock-history/<int:pk>/', products.product_stock_history, name='product_stock_history'),
@@ -61,7 +63,8 @@ urlpatterns = [
     path('sales/<int:pk>/print/', sales.invoice_print, name='invoice_print'),
     path('sales/<int:pk>/update/', sales.invoice_update, name='invoice_update'),
     path('sales/<int:pk>/delete/', sales.invoice_delete, name='invoice_delete'),
-    path('sales/<int:pk>/add-payment/', sales.add_payment, name='add_payment'),
+    # path('sales/<int:pk>/add-payment/', sales.add_payment, name='add_payment'),
+    path('sales/<int:pk>/add-payment/', payments.payment_create, name='add_payment'),
     path('sales/add-item/', sales.add_invoice_item, name='add_invoice_item'),
     path('sales/remove-item/<int:index>/', sales.remove_invoice_item, name='remove_invoice_item'),
     path('sales/search-products/', sales.product_search, name='product_search'),
@@ -225,5 +228,7 @@ urlpatterns = [
     path('landing/manage/services/', landing_views.manage_services, name='manage_services'),
     path('landing/manage/testimonials/', landing_views.manage_testimonials, name='manage_testimonials'),
     path('landing/manage/faqs/', landing_views.manage_faqs, name='manage_faqs'),
+    
+    path('health/', health_check, name='health_check'),
 ]
 

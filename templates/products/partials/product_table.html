@@ -29,9 +29,15 @@
                         <td>{{ product.category.name|default:"—" }}</td>
                         <td><code>{{ product.hsn_code|default:"—" }}</code></td>
                         <td>
-                            <small class="text-muted">₹{{ product.purchase_price|floatformat:2 }}</small>
-                            <span class="text-muted">/</span>
-                            <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
+                            {% if product.is_service %}
+                                <!-- ✅ Service Products: सिर्फ Selling Price दिखाएँ -->
+                                <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
+                            {% else %}
+                                <!-- ✅ Physical Products: Purchase/Sell Price दिखाएँ -->
+                                <small class="text-muted">₹{{ product.purchase_price|floatformat:2 }}</small>
+                                <span class="text-muted">/</span>
+                                <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
+                            {% endif %}
                         </td>
                         <td>
                             {% if product.is_service %}

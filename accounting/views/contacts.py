@@ -1,4 +1,4 @@
-# accounting/views/contacts.py
+# accounting/views/contacts.py  (only for staff)
 import csv
 import json
 import logging

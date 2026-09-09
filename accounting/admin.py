@@ -15,11 +15,12 @@ from .models import (
     CompanyProfile, LedgerEntry, LedgerLine, Contact,
     ProductCategory, Product, Invoice, InvoiceItem,
     Purchase, PurchaseItem, RepairJob, RepairPart,
-    Payment, StockMovement, Transaction,
+    Payment, StockMovement,
     Notification, NotificationPreference, ContactMessage, 
     FAQ, Testimonial, Service, EmailOTP  
 )
-from .views.sales import create_or_update_invoice_ledger
+
+from .models import sync_invoice_ledger
 
 admin.site.site_header = "A1 Computer Solutions"
 admin.site.site_title = "A1 Computer Solutions Admin"
@@ -262,10 +263,7 @@ class ProductCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = [
-        'name', 'category', 'hsn_code', 'selling_price', 'current_stock',
-        'is_service', 'is_active', 'low_stock_badge'
-    ]
+    list_display = ['name', 'category', 'hsn_code', 'selling_price', 'current_stock', 'is_service', 'is_active']
     list_filter = ['is_service', 'is_active', 'category', 'unit']
     search_fields = ['name', 'hsn_code']
     readonly_fields = ['created_at']
@@ -351,8 +349,8 @@ class InvoiceAdmin(admin.ModelAdmin):
     view_invoice_link.short_description = "Link"
 
     def save_model(self, request, obj, form, change):
-        obj.save()  # triggers calculate_totals, etc.
-        create_or_update_invoice_ledger(obj)
+        obj.save()
+        sync_invoice_ledger(obj)
 
 
 @admin.register(InvoiceItem)
@@ -482,21 +480,18 @@ class PaymentAdmin(admin.ModelAdmin):
     list_filter = ['direction', 'method', 'date']
     search_fields = ['contact__name', 'reference', 'description']
     readonly_fields = ['created_at']
-    filter_horizontal = ['invoices']
     fieldsets = (
         (None, {
             'fields': ('direction', 'contact', 'amount', 'date', 'method', 'reference', 'description')
         }),
-        ('Link to Invoices', {
-            'fields': ('invoices',)
-        }),
+
         ('Meta', {
             'fields': ('created_at',)
         }),
     )
 
     def linked_invoices(self, obj):
-        return ", ".join([inv.invoice_number for inv in obj.invoices.all()])
+        return ", ".join([alloc.invoice.invoice_number for alloc in obj.allocations.all()])
     linked_invoices.short_description = "Invoices"
 
 
@@ -514,15 +509,6 @@ class StockMovementAdmin(admin.ModelAdmin):
         return obj.notes[:50] + "..." if len(obj.notes) > 50 else obj.notes
     notes_preview.short_description = "Notes"
 
-
-# ============================================================
-# LEGACY TRANSACTIONS
-# ============================================================
-@admin.register(Transaction)
-class TransactionAdmin(admin.ModelAdmin):
-    list_display = ['date', 'type', 'description', 'debit_account', 'credit_account', 'amount']
-    list_filter = ['type', 'date']
-    search_fields = ['description', 'reference_id']
 
 
 # ============================================================
@@ -602,6 +588,7 @@ class EmailOTPAdmin(admin.ModelAdmin):
 class ContactInline(admin.StackedInline):
     """Inline for Contact model inside User admin (edit phone etc.)"""
     model = Contact
+    fk_name = 'user'
     can_delete = False
     verbose_name_plural = 'Contact Info'
     fields = ('phone', 'address', 'state', 'gstin', 'contact_type')

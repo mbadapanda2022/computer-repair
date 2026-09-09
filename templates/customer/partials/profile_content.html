@@ -69,7 +69,6 @@
                         <td class="text-muted">Total Payments</td>
                         <td class="fw-bold text-success">₹{{ total_payments|floatformat:2|default:"0.00" }}</td>
                     </tr>
-                    <!-- Recent Activity (if available) -->
                     <tr>
                         <td class="text-muted">Last Login</td>
                         <td class="fw-bold">{{ request.user.last_login|date:"d M Y, H:i"|default:"First Login" }}</td>
@@ -98,28 +97,17 @@
                     <i class="bi bi-key me-1"></i> Change Password
                 </button>
 
-                <button class="btn btn-outline-warning w-100 mb-2" 
-                        hx-get="{% url 'customer:customer_password_change' %}" 
+                <!-- Email Change Button -->
+                <button class="btn btn-outline-info w-100 mb-2" 
+                        hx-get="{% url 'customer:email_change_request' %}" 
                         hx-target="#profile-container"
                         hx-swap="innerHTML">
-                    <i class="bi bi-key me-1"></i> Change Password
+                    <i class="bi bi-envelope me-1"></i> Change Email
                 </button>
                 
-                <!-- Profile Completion (Optional – हिसाब लगा सकते हैं) -->
+                <!-- Profile Completion -->
                 <div class="mt-3">
                     <label class="text-muted small">Profile Completion</label>
-                    {% with filled_fields=0 %}
-                        {% if customer.name %}{% widthratio 1 1 20 as filled_fields %}{% endif %}
-                        {% if customer.phone %}{% widthratio 1 1 20 as filled_fields %}{% endif %}
-                        {% if customer.address %}{% widthratio 1 1 20 as filled_fields %}{% endif %}
-                        {% if customer.state %}{% widthratio 1 1 20 as filled_fields %}{% endif %}
-                        {% if customer.gstin %}{% widthratio 1 1 20 as filled_fields %}{% endif %}
-                    {% endwith %}
-                    {% comment %} 
-                        Note: Django templates don't support arithmetic like this easily.
-                        Use a custom template tag or pass `profile_completion` from view.
-                        I'll show a simple way below.
-                    {% endcomment %}
                     <div class="progress" style="height:8px;">
                         <div class="progress-bar bg-success" role="progressbar" 
                              style="width: {{ profile_completion|default:0 }}%;" 

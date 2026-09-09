@@ -104,7 +104,7 @@
         <div class="card-header bg-light fw-bold">Payment History</div>
         <div class="card-body p-0">
             <div id="payment-list-container">
-                {% include "sales/partials/payment_list.html" %}
+                {% include "sales/partials/payment_list.html" with payment_allocations=payment_allocations %}
             </div>
         </div>
     </div>

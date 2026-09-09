@@ -75,7 +75,8 @@
                 </div>
                 <div class="card-body p-0">
                     <ul class="list-group list-group-flush">
-                        {% for invoice in recent_invoices|slice:":3" %}
+                        <!-- ===== INVOICES ===== -->
+                        {% for invoice in recent_invoices|slice:":2" %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <i class="bi bi-receipt text-primary me-2"></i>
@@ -93,8 +94,9 @@
                         {% empty %}
                         <li class="list-group-item text-center text-muted py-2">No recent invoices</li>
                         {% endfor %}
-                        
-                        {% for repair in recent_repairs|slice:":3" %}
+
+                        <!-- ===== REPAIRS ===== -->
+                        {% for repair in recent_repairs|slice:":2" %}
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
                                 <i class="bi bi-tools text-warning me-2"></i>
@@ -117,6 +119,25 @@
                         </li>
                         {% empty %}
                         <li class="list-group-item text-center text-muted py-2">No recent repairs</li>
+                        {% endfor %}
+
+                        <!-- ===== PAYMENTS ===== -->
+                        {% for payment in recent_payments|slice:":2" %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-credit-card text-success me-2"></i>
+                                <span class="fw-bold">₹{{ payment.amount|floatformat:2 }}</span>
+                                <span class="text-muted ms-2">{{ payment.date|date:"d M Y" }}</span>
+                            </div>
+                            <div>
+                                <span class="badge bg-info">{{ payment.get_method_display }}</span>
+                                {% if payment.description %}
+                                    <small class="text-muted ms-2">{{ payment.description|truncatechars:20 }}</small>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item text-center text-muted py-2">No recent payments</li>
                         {% endfor %}
                     </ul>
                 </div>
@@ -160,106 +181,168 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        fetch("{% url 'customer:customer_dashboard_stats_json' %}")
-            .then(response => response.json())
+        const chartUrl = "{% url 'customer:customer_dashboard_stats_json' %}";
+        
+        fetch(chartUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Dashboard Stats Data:', data); 
+
                 if (data.error) {
-                    console.error(data.error);
+                    console.error('Server Error:', data.error);
+                    showChartError('Error loading chart data. Please try again.');
                     return;
                 }
 
-                // Invoice & Payment Chart
-                const ctx1 = document.getElementById('invoiceChart').getContext('2d');
-                new Chart(ctx1, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels,
-                        datasets: [
-                            {
-                                label: 'Invoices',
-                                data: data.invoices,
-                                borderColor: '#0d6efd',
-                                backgroundColor: 'rgba(13,110,253,0.1)',
-                                fill: true,
-                                tension: 0.4
-                            },
-                            {
-                                label: 'Payments',
-                                data: data.payments,
-                                borderColor: '#28a745',
-                                backgroundColor: 'rgba(40,167,69,0.1)',
-                                fill: true,
-                                tension: 0.4
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: { legend: { position: 'top' } },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } }
-                            }
-                        }
+                // =============================================================
+                // 1. INVOICE & PAYMENT TREND (Line Chart)
+                // =============================================================
+                const ctx1 = document.getElementById('invoiceChart');
+                if (ctx1) {
+                    // Destroy existing chart if any
+                    if (window.invoiceChartInstance) {
+                        window.invoiceChartInstance.destroy();
                     }
-                });
-
-                // Invoice Status Chart
-                if (data.status_labels.length > 0) {
-                    const ctx2 = document.getElementById('statusChart').getContext('2d');
-                    const colors = ['#28a745', '#ffc107', '#dc3545'];
-                    new Chart(ctx2, {
-                        type: 'doughnut',
+                    window.invoiceChartInstance = new Chart(ctx1, {
+                        type: 'line',
                         data: {
-                            labels: data.status_labels,
-                            datasets: [{
-                                data: data.status_data,
-                                backgroundColor: colors,
-                                borderWidth: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                    labels: { font: { size: 10 } }
+                            labels: data.labels.length ? data.labels : ['No Data'],
+                            datasets: [
+                                {
+                                    label: 'Invoices',
+                                    data: data.invoices.length ? data.invoices : [0],
+                                    borderColor: '#0d6efd',
+                                    backgroundColor: 'rgba(13,110,253,0.1)',
+                                    fill: true,
+                                    tension: 0.4
+                                },
+                                {
+                                    label: 'Payments',
+                                    data: data.payments.length ? data.payments : [0],
+                                    borderColor: '#28a745',
+                                    backgroundColor: 'rgba(40,167,69,0.1)',
+                                    fill: true,
+                                    tension: 0.4
                                 }
-                            }
-                        }
-                    });
-                }
-
-                // Repair Status Chart
-                if (data.repair_status_labels.length > 0) {
-                    const ctx3 = document.getElementById('repairStatusChart').getContext('2d');
-                    const colors = ['#ffc107', '#17a2b8', '#007bff', '#28a745', '#dc3545', '#6c757d'];
-                    new Chart(ctx3, {
-                        type: 'bar',
-                        data: {
-                            labels: data.repair_status_labels,
-                            datasets: [{
-                                label: 'Repair Jobs',
-                                data: data.repair_status_data,
-                                backgroundColor: colors,
-                                borderWidth: 0
-                            }]
+                            ]
                         },
                         options: {
                             responsive: true,
-                            plugins: { legend: { display: false } },
+                            plugins: { legend: { position: 'top' } },
                             scales: {
                                 y: {
                                     beginAtZero: true,
-                                    ticks: { stepSize: 1 }
+                                    ticks: { callback: function(value) { return '₹' + value.toLocaleString(); } }
                                 }
                             }
                         }
                     });
                 }
+
+                // =============================================================
+                // 2. INVOICE STATUS (Doughnut Chart)
+                // =============================================================
+                const ctx2 = document.getElementById('statusChart');
+                if (ctx2) {
+                    if (window.statusChartInstance) {
+                        window.statusChartInstance.destroy();
+                    }
+                    if (data.status_labels.length > 0) {
+                        const colors = ['#28a745', '#ffc107', '#dc3545'];
+                        window.statusChartInstance = new Chart(ctx2, {
+                            type: 'doughnut',
+                            data: {
+                                labels: data.status_labels,
+                                datasets: [{
+                                    data: data.status_data,
+                                    backgroundColor: colors,
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    legend: {
+                                        position: 'bottom',
+                                        labels: { font: { size: 10 } }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        // No data – show message
+                        ctx2.parentElement.innerHTML = `
+                            <div class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                <p>No invoice status data available.</p>
+                            </div>
+                        `;
+                    }
+                }
+
+                // =============================================================
+                // 3. REPAIR STATUS (Bar Chart)
+                // =============================================================
+                const ctx3 = document.getElementById('repairStatusChart');
+                if (ctx3) {
+                    if (window.repairStatusChartInstance) {
+                        window.repairStatusChartInstance.destroy();
+                    }
+                    if (data.repair_status_labels.length > 0) {
+                        const colors = ['#ffc107', '#17a2b8', '#007bff', '#28a745', '#dc3545', '#6c757d'];
+                        window.repairStatusChartInstance = new Chart(ctx3, {
+                            type: 'bar',
+                            data: {
+                                labels: data.repair_status_labels,
+                                datasets: [{
+                                    label: 'Repair Jobs',
+                                    data: data.repair_status_data,
+                                    backgroundColor: colors.slice(0, data.repair_status_labels.length),
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        ticks: { stepSize: 1 }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        ctx3.parentElement.innerHTML = `
+                            <div class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                <p>No repair status data available.</p>
+                            </div>
+                        `;
+                    }
+                }
             })
-            .catch(error => console.error('Error loading chart data:', error));
+            .catch(error => {
+                console.error('Error fetching chart data:', error);
+                showChartError('Unable to load charts. Please refresh the page.');
+            });
     });
+
+    // Helper function to show error message on charts
+    function showChartError(message) {
+        document.querySelectorAll('.card-body canvas').forEach(canvas => {
+            canvas.parentElement.innerHTML = `
+                <div class="text-center py-4 text-danger">
+                    <i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>
+                    <p>${message}</p>
+                </div>
+            `;
+        });
+    }
 </script>
 {% endblock %}

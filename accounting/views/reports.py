@@ -623,10 +623,10 @@ def trial_balance(request):
             as_on_date = date.today()
         
         # Get all ledger accounts with balances
-        accounts = LedgerLine.objects.values('account').annotate(
+        accounts = LedgerLine.objects.values('account__name').annotate(
             total_dr=Sum('debit'),
             total_cr=Sum('credit')
-        ).order_by('account')
+        ).order_by('account__name')
         
         total_dr = Decimal('0')
         total_cr = Decimal('0')
@@ -691,14 +691,14 @@ def balance_sheet(request):
             as_on_date = date.today()
         
         # ===== ASSETS =====
-        
+
         # 1. Cash Balance
-        cash_balance = LedgerLine.objects.filter(account='Cash').aggregate(
+        cash_balance = LedgerLine.objects.filter(account__name='Cash').aggregate(
             total=Sum('debit') - Sum('credit')
         )['total'] or Decimal('0')
-        
+
         # 2. Bank Balances (all bank accounts)
-        bank_balance = LedgerLine.objects.filter(account__icontains='Bank').aggregate(
+        bank_balance = LedgerLine.objects.filter(account__name__icontains='Bank').aggregate(
             total=Sum('debit') - Sum('credit')
         )['total'] or Decimal('0')
         

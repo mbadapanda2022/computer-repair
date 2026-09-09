@@ -206,6 +206,37 @@ def product_detail_modal(request, pk):
         'product': product,
         'recent_movements': recent_movements,
     })
+    
+@require_http_methods(["GET"])
+def validate_category_field(request):
+    """
+    Real-time validation for category name (uniqueness, required, etc.)
+    """
+    field_name = request.GET.get('field')
+    if not field_name:
+        return HttpResponse("")
+
+    value = request.GET.get(field_name, '').strip()
+    errors = []
+
+    # Only validate the 'name' field (since category form only has name)
+    if field_name == 'name':
+        if not value:
+            errors.append("Category name is required.")
+        else:
+            # Check uniqueness (case-insensitive)
+            if ProductCategory.objects.filter(name__iexact=value).exists():
+                errors.append("A category with this name already exists.")
+
+    if errors:
+        error_html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
+        for err in errors:
+            error_html += f'<div>{err}</div>'
+        error_html += '</div>'
+        return HttpResponse(error_html)
+    else:
+        # No errors: return an empty div (or a success message if needed)
+        return HttpResponse(f'<div id="field-{field_name}" class="invalid-feedback"></div>')
 
 
 # ============================================================
@@ -219,20 +250,21 @@ def add_category_inline(request):
         if form.is_valid():
             new_cat = form.save()
             categories = ProductCategory.objects.all().order_by('name')
+            # Return just the dropdown content (select + button)
             html = render_to_string('products/partials/category_dropdown.html', {
                 'categories': categories,
                 'selected_category_id': new_cat.id,
             }, request=request)
             response = HttpResponse(html)
             response['HX-Trigger'] = json.dumps({
-                'showToast': {'level': 'success', 'message': f'Category "{new_cat.name}" added.'},
-                'closeModal': ''
+                'showToast': {'level': 'success', 'message': f'Category "{new_cat.name}" added!'}
             })
             return response
         else:
-            if is_htmx(request):
-                return render(request, 'products/partials/category_inline_form.html', {'form': form})
+            # ❌ Form invalid – return form with errors
+            return render(request, 'products/partials/category_inline_form.html', {'form': form})
     else:
+        # GET – show the form (when "+" button clicked)
         form = ProductCategoryForm()
         return render(request, 'products/partials/category_inline_form.html', {'form': form})
 

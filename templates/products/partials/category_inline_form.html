@@ -1,27 +1,74 @@
+<!-- templates/products/partials/category_inline_form.html -->
+{% load static %}
+
 <form method="post" 
+      id="categoryInlineForm"
       hx-post="{% url 'accounting:add_category_inline' %}" 
-      hx-target="#mainModalContent"
-      hx-swap="innerHTML">
+      hx-target="#category-field-container"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      novalidate>
     {% csrf_token %}
-    <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-tags me-2"></i>Add New Category</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-    </div>
-    <div class="modal-body">
-        <div class="mb-3">
-            <label for="id_name" class="form-label fw-semibold">Category Name</label>
-            <input type="text" name="name" id="id_name" class="form-control" required>
-            <div id="field-name" class="invalid-feedback d-block">
-                {{ form.name.errors|join:", " }}
+    
+    <div class="d-flex align-items-center gap-2">
+        <div class="flex-grow-1">
+            <div class="input-group">
+                <span class="input-group-text bg-primary text-white">
+                    <i class="bi bi-tag"></i>
+                </span>
+                <input type="text" 
+                       name="name" 
+                       id="id_name" 
+                       class="form-control {% if form.name.errors %}is-invalid{% endif %}" 
+                       placeholder="New category name..."
+                       value="{{ form.name.value|default:'' }}"
+                       hx-get="{% url 'accounting:validate_category_field' %}" 
+                       hx-trigger="blur, keyup changed delay:300ms" 
+                       hx-target="#category-name-error" 
+                       hx-swap="innerHTML"
+                       hx-include="#id_name"
+                       required>
+                <button type="submit" class="btn btn-success" id="category-submit-btn">
+                    <i class="bi bi-check-circle"></i>
+                </button>
+                <button type="button" class="btn btn-secondary" id="category-cancel-btn">
+                    <i class="bi bi-x-circle"></i>
+                </button>
+            </div>
+            <!-- Real-time Error Display -->
+            <div id="category-name-error" class="invalid-feedback d-block">
+                {% for error in form.name.errors %}
+                    <div>{{ error }}</div>
+                {% endfor %}
             </div>
         </div>
-        <div class="mb-3">
-            <label for="id_description" class="form-label fw-semibold">Description</label>
-            <textarea name="description" id="id_description" class="form-control" rows="2"></textarea>
-        </div>
-    </div>
-    <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Add Category</button>
     </div>
 </form>
+
+<script>
+    (function() {
+        // Cancel button: Go back to dropdown
+        const cancelBtn = document.getElementById('category-cancel-btn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function() {
+                htmx.ajax('GET', "{% url 'accounting:add_category_inline' %}", {
+                    target: '#category-field-container',
+                    swap: 'innerHTML'
+                });
+            });
+        }
+
+        // Real-time validation: add/remove is-invalid class
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            if (evt.detail.target && evt.detail.target.id === 'category-name-error') {
+                const errorText = evt.detail.target.innerText.trim();
+                const input = document.getElementById('id_name');
+                if (input && errorText) {
+                    input.classList.add('is-invalid');
+                } else if (input) {
+                    input.classList.remove('is-invalid');
+                }
+            }
+        });
+    })();
+</script>

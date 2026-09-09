@@ -29,6 +29,12 @@
         <label class="form-label small fw-semibold">Tax (%)</label>
         <input type="number" id="item-tax" class="form-control form-control-sm" step="0.01" value="18" placeholder="0">
     </div>
+    <div class="col-md-2 d-flex align-items-center">
+        <div class="form-check mt-2">
+            <input type="checkbox" class="form-check-input" id="item-office-use" checked>
+            <label class="form-check-label small" for="item-office-use">Office Use</label>
+        </div>
+    </div>
     <div class="col-md-2">
         <button class="btn btn-primary btn-sm w-100" type="button" id="add-item-btn">
             <i class="bi bi-plus-circle"></i> Add
@@ -52,7 +58,7 @@
         <tbody>
             {% for item in items %}
             <tr>
-                <td>{{ item.product_name }}</td>
+                <td>{{ item.product_name }} {% if item.is_office_use %}<span class="badge bg-warning text-dark ms-1">Office</span>{% endif %}</td>
                 <td class="text-center">{{ item.quantity }}</td>
                 <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
                 <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
@@ -61,7 +67,8 @@
                     <button class="btn btn-sm btn-outline-danger" 
                             hx-post="{% url 'accounting:remove_purchase_item' forloop.counter0 %}" 
                             hx-target="#purchase-items-container"
-                            hx-swap="outerHTML">
+                            hx-swap="innerHTML"   
+                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
                         <i class="bi bi-x-circle"></i>
                     </button>
                 </td>
@@ -110,12 +117,13 @@
 
             htmx.ajax('POST', "{% url 'accounting:add_purchase_item' %}", {
                 target: '#purchase-items-container',
-                swap: 'outerHTML',
+                swap: 'innerHTML',   
                 values: {
                     product: pid,
                     quantity: qtyVal,
                     unit_price: priceVal,
-                    tax_rate: taxVal
+                    tax_rate: taxVal,
+                    is_office_use: document.getElementById('item-office-use').checked ? 'on' : ''
                 }
             });
         });

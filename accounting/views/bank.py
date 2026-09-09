@@ -21,10 +21,32 @@ from ..decorators import handle_errors
 logger = logging.getLogger(__name__)
 
 
-# ==========================================================
-# BANK ACCOUNT LIST
-# ==========================================================
+# =============================================================
+# HELPER: RECALCULATE ACCOUNT BALANCE
+# =============================================================
+def recalculate_account_balance(account):
+    """
+    Recalculate and update current_balance for a bank account
+    based on opening_balance and all transactions.
+    """
+    total_deposits = account.transactions.filter(
+        transaction_type='deposit'
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
+    total_withdrawals = account.transactions.filter(
+        transaction_type='withdrawal'
+    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+    account.current_balance = (
+        account.opening_balance + total_deposits - total_withdrawals
+    ).quantize(Decimal('0.01'))
+    account.save(update_fields=['current_balance'])
+    return account.current_balance
+
+
+# =============================================================
+# BANK ACCOUNT LIST
+# =============================================================
 def bank_account_list(request):
     accounts = BankAccount.objects.all().order_by('name')
     context = {'accounts': accounts}
@@ -34,10 +56,9 @@ def bank_account_list(request):
     return render(request, 'bank/bank_account_list.html', context)
 
 
-# ==========================================================
-# BANK ACCOUNT CREATE (CSRF PROTECTED)
-# ==========================================================
-
+# =============================================================
+# BANK ACCOUNT CREATE
+# =============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:bank_account_list', htmx_template='bank/partials/bank_account_form.html')
 def bank_account_add(request):
@@ -46,6 +67,7 @@ def bank_account_add(request):
         if form.is_valid():
             with transaction.atomic():
                 account = form.save()
+                # For new account, current balance = opening balance
                 account.current_balance = account.opening_balance
                 account.save(update_fields=['current_balance'])
 
@@ -73,10 +95,9 @@ def bank_account_add(request):
     return render(request, 'bank/bank_account_form.html', context)
 
 
-# ==========================================================
-# BANK ACCOUNT EDIT (CSRF PROTECTED)
-# ==========================================================
-
+# =============================================================
+# BANK ACCOUNT EDIT (FIXED: removed update_balance() call)
+# =============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:bank_account_list', htmx_template='bank/partials/bank_account_form.html')
 def bank_account_edit(request, pk):
@@ -87,7 +108,8 @@ def bank_account_edit(request, pk):
         if form.is_valid():
             with transaction.atomic():
                 form.save()
-                account.update_balance()  # Recalculate balance
+                # Recalculate balance after saving (in case opening_balance changed)
+                recalculate_account_balance(account)
 
             logger.info(f"Bank account updated: {account.name} by {request.user.username}")
 
@@ -113,16 +135,14 @@ def bank_account_edit(request, pk):
     return render(request, 'bank/bank_account_form.html', context)
 
 
-# ==========================================================
-# BANK ACCOUNT DELETE (CSRF PROTECTED)
-# ==========================================================
-
+# =============================================================
+# BANK ACCOUNT DELETE
+# =============================================================
 @csrf_protect
 @require_http_methods(["DELETE"])
 def bank_account_delete(request, pk):
     account = get_object_or_404(BankAccount, pk=pk)
 
-    # Check if account has any transactions
     if account.transactions.exists():
         response = HttpResponse("Cannot delete account with existing transactions.", status=400)
         response['HX-Trigger'] = json.dumps({
@@ -150,10 +170,9 @@ def bank_account_delete(request, pk):
         return response
 
 
-# ==========================================================
+# =============================================================
 # BANK STATEMENT
-# ==========================================================
-
+# =============================================================
 def bank_statement(request, pk):
     account = get_object_or_404(BankAccount, pk=pk)
     date_from = request.GET.get('date_from', '')
@@ -172,7 +191,6 @@ def bank_statement(request, pk):
         except ValueError:
             pass
 
-    # Calculate opening balance for the filtered period
     opening_balance = account.opening_balance
     if date_from:
         previous_transactions = account.transactions.filter(date__lt=date_from)
@@ -211,10 +229,9 @@ def bank_statement(request, pk):
     return render(request, 'bank/bank_statement.html', context)
 
 
-# ==========================================================
-# ADD BANK TRANSACTION (CSRF PROTECTED)
-# ==========================================================
-
+# =============================================================
+# ADD BANK TRANSACTION (FIXED: updates account balance)
+# =============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:bank_account_list', htmx_template='bank/partials/bank_transaction_form.html')
 def bank_transaction_add(request, account_pk):
@@ -227,7 +244,7 @@ def bank_transaction_add(request, account_pk):
                 txn = form.save(commit=False)
                 txn.bank_account = account
 
-                # Prevent withdrawal if insufficient balance
+                # Insufficient balance check (use latest current_balance)
                 if txn.transaction_type == 'withdrawal' and txn.amount > account.current_balance:
                     form.add_error('amount', f'Insufficient balance. Available: ₹{account.current_balance}')
                     if is_htmx(request):
@@ -240,6 +257,9 @@ def bank_transaction_add(request, account_pk):
 
                 txn.save()
                 logger.info(f"Bank transaction added: {txn.get_transaction_type_display()} ₹{txn.amount} for {account.name} by {request.user.username}")
+
+                # --- CRITICAL FIX: Update account balance after transaction ---
+                recalculate_account_balance(account)
 
                 if is_htmx(request):
                     response = HttpResponse()

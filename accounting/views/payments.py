@@ -1,4 +1,4 @@
-# accounting/views/payments.py
+# accounting/views/payments.py (only for staff)
 
 import json
 import logging
@@ -14,14 +14,12 @@ from django.template.loader import render_to_string
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from ..models import Payment, BankTransaction, Contact, Invoice
+from ..models import Payment, BankTransaction, Contact, Invoice, PaymentAllocation
 from ..forms import PaymentForm
 from .utils import is_htmx, htmx_response, redirect_to_staff
 from ..decorators import handle_errors
 
-# ============================================================
-# NOTIFICATION HELPERS IMPORT (ADDED)
-# ============================================================
+# Notification Helpers
 from accounting.utils.notification_helpers import (
     send_notification_to_customer,
     send_notification_to_staff,
@@ -76,7 +74,7 @@ def get_paginated_payments_context(request, queryset=None):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # Summary stats (from filtered queryset)
+    # Summary stats
     total_received = queryset.filter(direction='received').aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
     total_paid = queryset.filter(direction='paid').aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
     upi_count = queryset.filter(method='upi').count()
@@ -101,11 +99,10 @@ def get_paginated_payments_context(request, queryset=None):
 
 
 # ============================================================
-# PAYMENT LIST (with HTMX)
+# PAYMENT LIST
 # ============================================================
 @handle_errors(default_redirect='accounting:payment_list')
 def payment_list(request):
-    """List payments with filters, pagination, and summary stats."""
     context = get_paginated_payments_context(request)
     if is_htmx(request):
         return render(request, 'payments/partials/payment_table.html', context)
@@ -113,7 +110,7 @@ def payment_list(request):
 
 
 # ============================================================
-# PAYMENT CREATE (with Notification)
+# PAYMENT CREATE (with Notification & Allocation)
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:payment_list', htmx_template='payments/payment_form.html')
@@ -133,12 +130,8 @@ def payment_create(request):
         except Contact.DoesNotExist:
             pass
 
-    if invoice_id:
-        try:
-            inv = Invoice.objects.get(pk=invoice_id)
-            initial['invoices'] = [inv.id]
-        except Invoice.DoesNotExist:
-            pass
+    # We no longer set initial['invoices'] because it doesn't exist.
+    # We'll handle allocation after payment save.
 
     if request.method == 'POST':
         form = PaymentForm(request.POST)
@@ -146,11 +139,26 @@ def payment_create(request):
             payment = form.save()
             logger.info(f"Payment #{payment.id} created by {request.user.username}")
 
+            # --- CREATE PAYMENT ALLOCATION IF INVOICE_ID PROVIDED ---
+            if invoice_id:
+                try:
+                    invoice = Invoice.objects.get(pk=invoice_id)
+                    # Create allocation for the full payment amount
+                    PaymentAllocation.objects.create(
+                        payment=payment,
+                        invoice=invoice,
+                        amount=payment.amount
+                    )
+                    # Update invoice paid status
+                    payment.update_invoices()
+                    logger.info(f"Payment #{payment.id} allocated to invoice {invoice.invoice_number}")
+                except Invoice.DoesNotExist:
+                    logger.warning(f"Invoice {invoice_id} not found for payment allocation")
+
             # ============================================================
-            # 🔔 NOTIFICATION: Customer (if payment received) & Staff SSE
+            # 🔔 NOTIFICATIONS
             # ============================================================
             try:
-                # 1. Customer Notification (if direction is 'received')
                 if payment.direction == 'received' and payment.contact:
                     send_notification_to_customer(
                         payment.contact,
@@ -159,10 +167,9 @@ def payment_create(request):
                         link=reverse('customer:customer_payments'),
                         notif_type='success',
                         category='payment',
-                        send_email=False   # Optional: set True for email
+                        send_email=False
                     )
 
-                # 2. Staff Notification
                 send_notification_to_staff(
                     title=f"New Payment #{payment.id}",
                     message=f"{payment.get_direction_display()} of ₹{payment.amount} from {payment.contact.name}",
@@ -172,14 +179,12 @@ def payment_create(request):
                     send_email=False
                 )
 
-                # 3. SSE for all staff (real-time badge update)
                 for staff in User.objects.filter(is_staff=True):
                     send_notification_sse(staff)
 
             except Exception as notif_error:
-                logger.error(f"🔥 Payment notification failed for #{payment.id}: {notif_error}", exc_info=True)
+                logger.error(f"Payment notification failed for #{payment.id}: {notif_error}", exc_info=True)
 
-            # If HTMX, return updated table + close modal
             if is_htmx(request):
                 context = get_paginated_payments_context(request)
                 response = render(request, 'payments/partials/payment_table.html', context)
@@ -191,7 +196,6 @@ def payment_create(request):
             messages.success(request, "Payment created successfully.")
             return redirect_to_staff('payment_list')
         else:
-            # Invalid form – retarget to modal
             if is_htmx(request):
                 response = render(request, 'payments/payment_form.html', {'form': form})
                 response['HX-Retarget'] = '#mainModalContent'
@@ -215,8 +219,11 @@ def payment_update(request, pk):
             form.save()
             logger.info(f"Payment #{pk} updated by {request.user.username}")
 
+            # --- Update related invoice statuses ---
+            payment.update_invoices()
+
             # ============================================================
-            # 🔔 NOTIFICATION: Update customer & staff
+            # 🔔 NOTIFICATIONS
             # ============================================================
             try:
                 if payment.direction == 'received' and payment.contact:
@@ -230,12 +237,11 @@ def payment_update(request, pk):
                         send_email=False
                     )
 
-                # SSE for all staff
                 for staff in User.objects.filter(is_staff=True):
                     send_notification_sse(staff)
 
             except Exception as notif_error:
-                logger.error(f"🔥 Payment update notification failed for #{pk}: {notif_error}", exc_info=True)
+                logger.error(f"Payment update notification failed for #{pk}: {notif_error}", exc_info=True)
 
             if is_htmx(request):
                 context = get_paginated_payments_context(request)
@@ -265,18 +271,13 @@ def payment_update(request, pk):
 @handle_errors(default_redirect='accounting:payment_list')
 def payment_delete(request, pk):
     payment = get_object_or_404(Payment, pk=pk)
-
-    # Store info before deletion for notification
     contact = payment.contact
     amount = payment.amount
     direction = payment.direction
 
-    payment.delete()
+    payment.delete()  # soft delete; handles allocations, ledger, bank transaction
     logger.info(f"Payment #{pk} deleted by {request.user.username}")
 
-    # ============================================================
-    # NOTIFICATION: Staff (deletion alert)
-    # ============================================================
     try:
         send_notification_to_staff(
             title=f"Payment Deleted: ₹{amount}",
@@ -289,7 +290,7 @@ def payment_delete(request, pk):
         for staff in User.objects.filter(is_staff=True):
             send_notification_sse(staff)
     except Exception as notif_error:
-        logger.error(f"🔥 Payment deletion notification failed: {notif_error}", exc_info=True)
+        logger.error(f"Payment deletion notification failed: {notif_error}", exc_info=True)
 
     if is_htmx(request):
         context = get_paginated_payments_context(request)
@@ -303,7 +304,7 @@ def payment_delete(request, pk):
 
 
 # ============================================================
-# PAYMENT RECONCILIATION TOGGLE (with Notification)
+# PAYMENT RECONCILIATION TOGGLE
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:payment_list')
@@ -314,14 +315,11 @@ def reconcile_payment(request, pk):
     BankTransaction.objects.filter(payment=payment).update(reconciled=payment.reconciled)
     logger.info(f"Payment #{pk} reconciliation toggled to {payment.reconciled} by {request.user.username}")
 
-    # ============================================================
-    # 🔔 NOTIFICATION: Staff about reconciliation change
-    # ============================================================
     try:
         for staff in User.objects.filter(is_staff=True):
             send_notification_sse(staff)
     except Exception as notif_error:
-        logger.error(f"🔥 Reconciliation notification failed: {notif_error}", exc_info=True)
+        logger.error(f"Reconciliation notification failed: {notif_error}", exc_info=True)
 
     if is_htmx(request):
         context = get_paginated_payments_context(request)

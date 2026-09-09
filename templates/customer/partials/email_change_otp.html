@@ -1,11 +1,14 @@
 {% load static %}
 
 <form method="post" 
+      id="emailOtpForm"
       hx-post="{% url 'customer:email_change_verify' %}" 
       hx-target="#profile-container"
       hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
       hx-indicator="#otp-spinner"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+      hx-on:submit="htmx.trigger('#otp-input', 'htmx:abort');"
+      novalidate>
     
     {% csrf_token %}
     
@@ -21,30 +24,33 @@
             
             <div class="mb-3">
                 <label for="otp-input" class="form-label fw-semibold">OTP</label>
-                <input type="text" name="otp" id="otp-input" 
-                       class="form-control" 
-                       placeholder="Enter 6-digit OTP" 
-                       maxlength="6" 
-                       required>
-                <div id="otp-errors" class="mt-1"></div>
-            </div>
-            
-            <!-- Timer + Resend -->
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <span class="text-muted small">
-                    <i class="bi bi-clock me-1"></i> 
-                    <span id="resend-timer">60</span>s
-                </span>
-                <button type="button" id="resend-otp-btn" 
-                        class="btn btn-link btn-sm text-decoration-none" 
-                        disabled
-                        onclick="resendOTP()">
-                    <i class="bi bi-arrow-clockwise me-1"></i> Resend OTP
-                </button>
+                <div class="input-group">
+                    <input type="text" 
+                           name="otp" 
+                           id="otp-input" 
+                           class="form-control" 
+                           placeholder="Enter 6-digit OTP" 
+                           maxlength="6" 
+                           pattern="[0-9]{6}"
+                           required>
+                    <button type="button" id="resend-otp-btn" 
+                            class="btn btn-outline-primary" 
+                            disabled>
+                        <span id="resend-timer">60</span>s
+                    </button>
+                </div>
+                <div id="otp-errors" class="invalid-feedback d-block mt-1">
+                    {% if form.otp.errors %}
+                        {% for error in form.otp.errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+                <small class="text-muted">OTP expires in 5 minutes.</small>
             </div>
         </div>
         <div class="card-footer bg-white d-flex gap-2">
-            <button type="submit" class="btn btn-warning">
+            <button type="submit" class="btn btn-warning" id="otp-submit-btn">
                 <span id="otp-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
                 <i class="bi bi-check-circle me-1"></i> Verify & Update
             </button>
@@ -52,14 +58,14 @@
                     hx-get="{% url 'customer:email_change_request' %}" 
                     hx-target="#profile-container"
                     hx-swap="innerHTML">
-                Back
+                <i class="bi bi-arrow-left me-1"></i> Back
             </button>
         </div>
     </div>
 </form>
 
 <script>
-    // Timer logic
+    // ===== TIMER & RESEND =====
     let timer = 60;
     let timerInterval = null;
     const timerDisplay = document.getElementById('resend-timer');
@@ -68,17 +74,23 @@
     function startTimer() {
         timer = 60;
         if (timerDisplay) timerDisplay.textContent = timer;
-        if (resendBtn) resendBtn.disabled = true;
+        if (resendBtn) {
+            resendBtn.disabled = true;
+            resendBtn.innerHTML = `<span id="resend-timer">${timer}</span>s`;
+        }
         if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(function() {
             timer -= 1;
             if (timerDisplay) timerDisplay.textContent = timer;
+            if (resendBtn) {
+                resendBtn.innerHTML = `<span id="resend-timer">${timer}</span>s`;
+            }
             if (timer <= 0) {
                 clearInterval(timerInterval);
                 timerInterval = null;
                 if (resendBtn) {
                     resendBtn.disabled = false;
-                    resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend OTP';
+                    resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend';
                 }
             }
         }, 1000);
@@ -88,7 +100,6 @@
         if (resendBtn && resendBtn.disabled) return;
         resendBtn.disabled = true;
         resendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Sending...';
-        
         fetch("{% url 'customer:email_change_request' %}", {
             method: 'POST',
             headers: {
@@ -111,39 +122,47 @@
                 window.showToast('success', 'New OTP sent to your email.', 'OTP Resent');
             }
         })
-        .catch(error => {
-            console.error('Resend error:', error);
+        .catch(() => {
             if (window.showToast) {
                 window.showToast('error', 'Failed to resend OTP. Please try again.', 'Error');
             }
             if (resendBtn) {
                 resendBtn.disabled = false;
-                resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend OTP';
+                resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Retry';
             }
         });
     }
 
-    document.addEventListener('DOMContentLoaded', startTimer);
+    document.addEventListener('DOMContentLoaded', function() {
+        if (resendBtn) resendBtn.addEventListener('click', resendOTP);
+        startTimer();
+    });
 
-    // Spinner & Error Handling
+    // ===== SPINNER =====
     document.addEventListener('htmx:beforeRequest', function(evt) {
         if (evt.detail.target && evt.detail.target.closest('#profile-container')) {
             const spinner = document.getElementById('otp-spinner');
+            const btn = document.getElementById('otp-submit-btn');
             if (spinner) spinner.classList.remove('d-none');
+            if (btn) btn.disabled = true;
         }
     });
     document.addEventListener('htmx:afterRequest', function(evt) {
         if (evt.detail.target && evt.detail.target.closest('#profile-container')) {
             const spinner = document.getElementById('otp-spinner');
+            const btn = document.getElementById('otp-submit-btn');
             if (spinner) spinner.classList.add('d-none');
+            if (btn) btn.disabled = false;
         }
     });
-    document.addEventListener('htmx:afterSwap', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#profile-container')) {
-            // Restart timer if OTP form is re-loaded
-            if (document.getElementById('resend-timer')) {
-                startTimer();
-            }
+
+    // ===== OTP ONLY DIGITS =====
+    document.addEventListener('DOMContentLoaded', function() {
+        const otpInput = document.getElementById('otp-input');
+        if (otpInput) {
+            otpInput.addEventListener('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
         }
     });
 </script>

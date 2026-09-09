@@ -45,9 +45,22 @@
                 <div class="card-header bg-light fw-bold">Financial Summary</div>
                 <div class="card-body">
                     <table class="table table-borderless">
-                        <tr><td>Subtotal</td><td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td></tr>
-                        <tr><td>Tax Amount</td><td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td></tr>
-                        <tr class="fw-bold"><td>Grand Total</td><td class="text-end fs-5">₹{{ purchase.grand_total|floatformat:2 }}</td></tr>
+                        <tr>
+                            <td>Subtotal</td>
+                            <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Freight / Transport</td>
+                            <td class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Tax Amount</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="fw-bold">
+                            <td>Grand Total</td>
+                            <td class="text-end fs-5">₹{{ purchase.grand_total|floatformat:2 }}</td>
+                        </tr>
                     </table>
                 </div>
             </div>
@@ -72,7 +85,12 @@
                     <tbody>
                         {% for item in purchase.items.all %}
                         <tr>
-                            <td>{{ item.product.name }}</td>
+                            <td>
+                                {{ item.product.name }}
+                                {% if item.is_office_use %}
+                                    <span class="badge bg-warning text-dark ms-1">Office</span>
+                                {% endif %}
+                            </td>
                             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
                             <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
                             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
@@ -84,8 +102,22 @@
                     </tbody>
                     <tfoot class="table-light">
                         <tr>
-                            <th colspan="4" class="text-end">Total</th>
-                            <th class="text-end fw-bold">₹{{ purchase.grand_total|floatformat:2 }}</th>
+                            <th colspan="4" class="text-end">Subtotal</th>
+                            <th class="text-end fw-bold">₹{{ purchase.subtotal|floatformat:2 }}</th>
+                        </tr>
+                        {% if purchase.freight_charge > 0 %}
+                        <tr>
+                            <th colspan="4" class="text-end">Freight / Transport</th>
+                            <th class="text-end fw-bold">₹{{ purchase.freight_charge|floatformat:2 }}</th>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <th colspan="4" class="text-end">Tax Amount</th>
+                            <th class="text-end fw-bold">₹{{ purchase.tax_amount|floatformat:2 }}</th>
+                        </tr>
+                        <tr class="table-primary">
+                            <th colspan="4" class="text-end fw-bold" style="font-size: 1.1rem;">Grand Total</th>
+                            <th class="text-end fw-bold" style="font-size: 1.2rem;">₹{{ purchase.grand_total|floatformat:2 }}</th>
                         </tr>
                     </tfoot>
                 </table>

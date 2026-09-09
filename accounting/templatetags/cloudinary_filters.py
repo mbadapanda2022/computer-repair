@@ -16,3 +16,5 @@ def fix_cloudinary_url(value):
     value = re.sub(r'^https:/', 'https://', value)
     value = re.sub(r'^http:/', 'http://', value)
     return value
+
+

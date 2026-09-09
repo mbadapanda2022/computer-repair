@@ -1,10 +1,12 @@
 <!-- templates/products/product_form.html -->
 {% load static %}
 <form method="post" 
+      id="productForm"
       hx-post="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}" 
       hx-target="#product-table-container" 
       hx-swap="innerHTML"
-      id="productForm"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-on:after-request="handleProductFormResponse(event)"
       novalidate>
     {% csrf_token %}
     
@@ -57,25 +59,12 @@
             </div>
         </div>
 
-        <!-- Row 2: Category & Unit -->
+        <!-- Row 2: Category (Inline Add Support) -->
         <div class="row g-3 mt-2">
-            <div class="col-md-6">
+            <div class="col-md-6" id="category-wrapper">
                 <label for="id_category" class="form-label fw-semibold">Category</label>
-                <div class="d-flex gap-2">
-                    <select name="category" id="id_category" class="form-select">
-                        <option value="">---------</option>
-                        {% for cat in form.fields.category.queryset %}
-                            <option value="{{ cat.id }}" {% if form.category.value == cat.id %}selected{% endif %}>
-                                {{ cat.name }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                    <button type="button" class="btn btn-outline-secondary" 
-                            hx-get="{% url 'accounting:add_category_inline' %}" 
-                            hx-target="#mainModalContent" 
-                            hx-trigger="click">
-                        <i class="bi bi-plus-circle"></i>
-                    </button>
+                <div id="category-field-container">
+                    {% include "products/partials/category_dropdown.html" with categories=form.fields.category.queryset selected_category_id=form.category.value %}
                 </div>
                 <div id="field-category" class="invalid-feedback d-block">
                     {{ form.category.errors|join:", " }}
@@ -213,7 +202,7 @@
     
     <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" id="product-submit-btn">
             {% if product %}Update{% else %}Create{% endif %} Product
         </button>
     </div>
@@ -235,6 +224,54 @@
             }
             isServiceCheck.addEventListener('change', toggleStockFields);
             toggleStockFields();
+        }
+    });
+
+    // ============================================================
+    // HTMX response handler for product form
+    // ============================================================
+    function handleProductFormResponse(event) {
+        const xhr = event.detail.xhr;
+        if (!xhr) return;
+        const triggerHeader = xhr.getResponseHeader('HX-Trigger');
+        if (!triggerHeader) return;
+        try {
+            const data = JSON.parse(triggerHeader);
+            if (data.closeModal) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('mainModal'));
+                if (modal) {
+                    modal.hide();
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                }
+            }
+            if (data.showToast) {
+                if (typeof window.showToast === 'function') {
+                    window.showToast(data.showToast.level, data.showToast.message, data.showToast.title);
+                }
+            }
+        } catch(e) {}
+    }
+
+    // ============================================================
+    // GLOBAL: Close Modal on 'closeModal' event (for safety)
+    // ============================================================
+    document.addEventListener('closeModal', function() {
+        const modalEl = document.getElementById('mainModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) {
+                modal.hide();
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+            }
+        }
+    });
+
+    document.addEventListener('hidden.bs.modal', function(e) {
+        if (e.target.id === 'mainModal') {
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            document.body.classList.remove('modal-open');
         }
     });
 </script>

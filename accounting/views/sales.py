@@ -1,3 +1,4 @@
+# accounting/views/sales.py
 import json
 import logging
 from decimal import Decimal
@@ -15,7 +16,7 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 
 from ..models import *
-from ..forms import InvoiceForm, InvoiceItemForm, PaymentForm
+from ..forms import InvoiceForm, InvoiceItemForm
 from accounting.utils.notification_helpers import send_notification_to_customer, send_notification_sse
 from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
@@ -51,60 +52,7 @@ def sync_session_items(request, invoice=None):
 
 
 # ============================================================
-# HELPER 2: LEDGER ENTRY
-# ============================================================
-def create_or_update_invoice_ledger(invoice):
-    try:
-        LedgerEntry.objects.filter(reference_id=invoice.id, entry_type='sales').delete()
-        entry = LedgerEntry.objects.create(
-            date=invoice.date,
-            entry_type='sales',
-            reference_id=invoice.id,
-            description=f"Invoice {invoice.invoice_number}",
-            total_amount=invoice.grand_total,
-        )
-        LedgerLine.objects.create(
-            ledger_entry=entry,
-            account=f'Customer: {invoice.customer.name}',
-            contact=invoice.customer,
-            debit=invoice.grand_total,
-            credit=0,
-        )
-        LedgerLine.objects.create(
-            ledger_entry=entry,
-            account='Sales Revenue',
-            debit=0,
-            credit=invoice.grand_total,
-        )
-        logger.info(f"Ledger entry created for invoice {invoice.invoice_number}")
-    except Exception as e:
-        logger.error(f"Ledger error for {invoice.invoice_number}: {e}")
-        raise
-
-
-# ============================================================
-# HELPER 3: REVERSE STOCK ON DELETE
-# ============================================================
-def reverse_invoice_stock(invoice):
-    """Add stock back when invoice is deleted."""
-    for item in invoice.items.all():
-        if not item.product.is_service:
-            Product.objects.filter(pk=item.product_id).update(
-                current_stock=F('current_stock') + item.quantity
-            )
-            StockMovement.objects.create(
-                product=item.product,
-                movement_type='adjustment',
-                quantity=item.quantity,
-                reference=f"INV_DEL_{invoice.invoice_number}",
-                date=timezone.now().date(),
-                notes=f"Stock restored due to deletion of invoice {invoice.invoice_number}"
-            )
-    logger.info(f"Stock reversed for deleted invoice {invoice.invoice_number}")
-
-
-# ============================================================
-# HELPER 4: GET PAGINATED INVOICES CONTEXT
+# HELPER 2: GET PAGINATED INVOICES CONTEXT
 # ============================================================
 def get_paginated_invoices_context(request, queryset=None):
     if queryset is None:
@@ -135,7 +83,7 @@ def get_paginated_invoices_context(request, queryset=None):
     if date_to:
         queryset = queryset.filter(date__lte=date_to)
 
-    paginator = Paginator(queryset, 20)  # 20 per page
+    paginator = Paginator(queryset, 20)
     try:
         page_obj = paginator.page(page_number)
     except PageNotAnInteger:
@@ -166,7 +114,7 @@ def get_paginated_invoices_context(request, queryset=None):
 
 
 # ============================================================
-# 1. INVOICE LIST (WITH PAGINATION)
+# 1. INVOICE LIST
 # ============================================================
 @handle_errors(default_redirect='accounting:invoice_list')
 def invoice_list(request):
@@ -177,7 +125,7 @@ def invoice_list(request):
 
 
 # ============================================================
-# 2. PRODUCT SEARCH (WITH RELEVANCE ORDERING - SQLITE FRIENDLY)
+# 2. PRODUCT SEARCH
 # ============================================================
 @login_required
 def product_search(request):
@@ -191,7 +139,6 @@ def product_search(request):
         is_service=False
     )[:20]
 
-    # Python Relevance Sorting (SQLite में Case/When reliable नहीं है)
     def relevance_score(p):
         name = p.name.lower()
         hsn = (p.hsn_code or '').lower()
@@ -211,7 +158,7 @@ def product_search(request):
 # ============================================================
 # 3. INVOICE CREATE
 # ============================================================
-@csrf_protect  
+@csrf_protect
 @handle_errors(default_redirect='accounting:invoice_list', htmx_template='sales/partials/invoice_form_modal.html')
 def invoice_create(request):
     if 'temp_invoice_items' not in request.session:
@@ -223,24 +170,23 @@ def invoice_create(request):
         form = InvoiceForm(request.POST)
         if form.is_valid():
             invoice = form.save(commit=False)
-            invoice.save()
+            invoice.save()  # Save to get an ID
 
             temp_items = request.session.get('temp_invoice_items', [])
-            for item in temp_items:
+            for item_data in temp_items:
                 InvoiceItem.objects.create(
                     invoice=invoice,
-                    product_id=item['product_id'],
-                    quantity=Decimal(item['quantity']),
-                    unit_price=Decimal(item['unit_price']),
-                    tax_rate=Decimal(item['tax_rate']),
-                    description=item.get('description', '')
+                    product_id=item_data['product_id'],
+                    quantity=Decimal(item_data['quantity']),
+                    unit_price=Decimal(item_data['unit_price']),
+                    tax_rate=Decimal(item_data['tax_rate']),
+                    description=item_data.get('description', '')
                 )
             request.session['temp_invoice_items'] = []
 
+            # Calculate totals and save again (this will also sync ledger)
             invoice.calculate_totals()
-            invoice.save()
-            invoice.update_stock_from_items()  # Stock Update
-            create_or_update_invoice_ledger(invoice)
+            invoice.save()  # This calls sync_invoice_ledger automatically
 
             logger.info(f"Invoice {invoice.invoice_number} created by {request.user.username}")
 
@@ -267,7 +213,6 @@ def invoice_create(request):
             return render(request, 'sales/invoice_form.html', context)
 
     else:
-        # GET Request
         form = InvoiceForm()
         temp_items = request.session.get('temp_invoice_items', [])
         context = {
@@ -281,14 +226,12 @@ def invoice_create(request):
 
 
 # ============================================================
-# 4. INVOICE UPDATE (WITH SESSION SYNC)
+# 4. INVOICE UPDATE
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:invoice_list', htmx_template='sales/partials/invoice_form_modal.html')
 def invoice_update(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
-
-    # Sync session with database items (if empty)
     sync_session_items(request, invoice)
 
     template_name = 'sales/partials/invoice_form_modal.html' if is_htmx(request) else 'sales/invoice_form.html'
@@ -297,10 +240,8 @@ def invoice_update(request, pk):
         form = InvoiceForm(request.POST, instance=invoice)
         if form.is_valid():
             invoice = form.save(commit=False)
-
             # Delete existing items
             invoice.items.all().delete()
-
             # Create new items from session
             for item_data in request.session.get('temp_invoice_items', []):
                 InvoiceItem.objects.create(
@@ -311,13 +252,10 @@ def invoice_update(request, pk):
                     tax_rate=Decimal(item_data['tax_rate']),
                     description=item_data.get('description', '')
                 )
-
             request.session['temp_invoice_items'] = []
 
             invoice.calculate_totals()
-            invoice.save()
-            invoice.update_stock_from_items()  # Stock Update
-            create_or_update_invoice_ledger(invoice)
+            invoice.save()  # This syncs ledger automatically
 
             logger.info(f"Invoice {invoice.invoice_number} updated by {request.user.username}")
 
@@ -345,7 +283,6 @@ def invoice_update(request, pk):
             return render(request, 'sales/invoice_form.html', context)
 
     else:
-        # GET Request
         form = InvoiceForm(instance=invoice)
         temp_items = request.session.get('temp_invoice_items', [])
         context = {
@@ -360,7 +297,7 @@ def invoice_update(request, pk):
 
 
 # ============================================================
-# 5. INVOICE DELETE (WITH STOCK REVERSAL)
+# 5. INVOICE DELETE (SINGLE VERSION – CORRECTED)
 # ============================================================
 @csrf_protect
 @require_http_methods(["DELETE"])
@@ -369,21 +306,35 @@ def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     invoice_number = invoice.invoice_number
 
-    # Reverse Stock
-    reverse_invoice_stock(invoice)
+    # 1. Handle Repair Job (revert status and unlink invoice)
+    repair_job = None
+    try:
+        repair_job = RepairJob.objects.filter(invoice=invoice).first()
+        if repair_job:
+            if repair_job.status == 'delivered':
+                repair_job.status = 'ready'
+            repair_job.invoice = None
+            repair_job.save(update_fields=['status', 'invoice'])
+            logger.info(f"Repair job {repair_job.job_number} reverted to 'ready'.")
+    except Exception as e:
+        logger.error(f"Error reverting repair job status: {e}")
 
-    # Delete Ledger
-    LedgerEntry.objects.filter(reference_id=invoice.id, entry_type='sales').delete()
+    # 2. Delete the invoice (cascades to items, which reverse stock automatically)
     invoice.delete()
 
     logger.info(f"Invoice {invoice_number} deleted by {request.user.username}")
 
+    # 3. Return HTMX response with updated table
     context = get_paginated_invoices_context(request)
     return htmx_response(
         request,
         'sales/partials/invoice_table.html',
         context=context,
-        toast={'level': 'success', 'message': f'Invoice {invoice_number} deleted.'}
+        toast={
+            'level': 'success',
+            'message': f'Invoice {invoice_number} deleted. ' +
+                       (f'Repair #{repair_job.job_number} reverted to Ready.' if repair_job else '')
+        }
     )
 
 
@@ -428,7 +379,6 @@ def add_invoice_item(request):
         items.append(item)
         request.session['temp_invoice_items'] = items
 
-        # Pass items_total to the partial
         items_total = sum(Decimal(i['line_total']) for i in items)
         return render(request, 'sales/partials/invoice_items.html', {'items': items, 'items_total': items_total})
 
@@ -463,11 +413,12 @@ def remove_invoice_item(request, index):
 # ============================================================
 def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related('customer'), pk=pk)
-    payments = invoice.payments_received.all().order_by('-date')
+    payment_allocations = invoice.payment_allocations.select_related('payment').all().order_by('-payment__date')
+    payments = [pa.payment for pa in payment_allocations] 
     context = {
         'invoice': invoice,
         'payments': payments,
-        'payment_form': PaymentForm(initial={'direction': 'received', 'contact': invoice.customer})
+        'payment_allocations': payment_allocations,
     }
     return render(request, 'sales/invoice_detail.html', context)
 
@@ -479,7 +430,7 @@ def invoice_print(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related('customer'), pk=pk)
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name and company.logo.storage.exists(company.logo.name))
-    gst_breakup = invoice.get_gst_breakup()
+    gst_breakup = invoice.get_gst_breakup()  # Ensure this method exists; if not, implement
     context = {
         'invoice': invoice,
         'company': company,
@@ -487,91 +438,3 @@ def invoice_print(request, pk):
         'gst_breakup': gst_breakup,
     }
     return render(request, 'sales/invoice_print.html', context)
-
-
-# ============================================================
-# 10. ADD PAYMENT (FROM INVOICE DETAIL)
-# ============================================================
-@csrf_protect
-@handle_errors(default_redirect='accounting:invoice_list')
-def add_payment(request, invoice_pk):
-    invoice = get_object_or_404(Invoice, pk=invoice_pk)
-
-    if request.method == 'POST':
-        form = PaymentForm(request.POST)
-        if form.is_valid():
-            payment = form.save()
-            if not payment.invoices.exists():
-                payment.invoices.add(invoice)
-            invoice.update_paid_amount()
-            logger.info(f"Payment {payment.id} recorded for {invoice.invoice_number}")
-
-            if is_htmx(request):
-                payments = invoice.payments_received.all().order_by('-date')
-                response = render(request, 'sales/partials/payment_list.html', {'payments': payments})
-                response['HX-Trigger'] = json.dumps({
-                    'showToast': {'level': 'success', 'message': 'Payment recorded.'},
-                    'closeModal': ''
-                })
-                return response
-            messages.success(request, "Payment recorded.")
-            return redirect_to_staff('invoice_detail', pk=invoice.pk)
-        else:
-            if is_htmx(request):
-                return render(request, 'payments/payment_form.html', {'form': form, 'invoice': invoice})
-    else:
-        form = PaymentForm(initial={
-            'direction': 'received',
-            'contact': invoice.customer,
-            'amount': invoice.balance_due,
-            'date': timezone.now().date(),
-        })
-    return render(request, 'payments/payment_form.html', {'form': form, 'invoice': invoice})
-
-
-
-@csrf_protect
-@require_http_methods(["DELETE"])
-@handle_errors(default_redirect='accounting:invoice_list')
-def invoice_delete(request, pk):
-    invoice = get_object_or_404(Invoice, pk=pk)
-    invoice_number = invoice.invoice_number
-
-    # 1. Reverse Stock
-    reverse_invoice_stock(invoice)
-
-    # 2. Delete Ledger Entry
-    LedgerEntry.objects.filter(reference_id=invoice.id, entry_type='sales').delete()
-
-    # 3. Handle Repair Job (Revert status to 'ready')
-    repair_job = None
-    try:
-        repair_job = RepairJob.objects.filter(invoice=invoice).first()
-        if repair_job:
-            if repair_job.status == 'delivered':
-                repair_job.status = 'ready'
-            repair_job.invoice = None
-            repair_job.save(update_fields=['status', 'invoice'])
-            logger.info(f"Repair job {repair_job.job_number} status reverted to 'ready'.")
-    except Exception as e:
-        logger.error(f"Error reverting repair job status: {e}")
-
-    # 4. Delete the invoice
-    invoice.delete()
-
-    logger.info(f"Invoice {invoice_number} deleted by {request.user.username}")
-
-    # 5. Return HTMX response
-    context = get_paginated_invoices_context(request)
-    return htmx_response(
-        request,
-        'sales/partials/invoice_table.html',
-        context=context,
-        toast={
-            'level': 'success',
-            'message': f'Invoice {invoice_number} deleted. ' + 
-                       (f'Repair #{repair_job.job_number} reverted to Ready.' if repair_job else '')
-        }
-    )
-    
-    

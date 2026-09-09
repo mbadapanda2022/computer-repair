@@ -19,9 +19,7 @@
         
         <div class="mb-3">
             <label for="invoice_date" class="form-label fw-bold">Invoice Date <span class="text-danger">*</span></label>
-            <input type="date" name="invoice_date" id="invoice_date" 
-                   class="form-control" 
-                   value="{{ timezone.now|date:'Y-m-d' }}" required>
+            <input type="date" name="invoice_date" id="invoice_date" class="form-control" value="{% now 'Y-m-d' %}" required>
             <small class="text-muted">Select the date for this invoice. Today is default.</small>
         </div>
         

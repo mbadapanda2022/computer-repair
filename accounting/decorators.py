@@ -11,7 +11,7 @@ from .views.utils import is_htmx
 logger = logging.getLogger(__name__)
 
 
-def handle_errors(default_redirect=None, htmx_template=None, fallback_form=None):
+def handle_errors(default_redirect=None, htmx_template=None):
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
@@ -29,20 +29,13 @@ def handle_errors(default_redirect=None, htmx_template=None, fallback_form=None)
                 if hasattr(e, 'status_code'):
                     status_code = e.status_code
                 elif isinstance(e, (ValueError, TypeError, KeyError)):
-                    status_code = 400 
+                    status_code = 400
 
-                # 4. Handle HTMX requests
                 if is_htmx(request):
                     context = {'error': user_error_msg}
-                    
-                    # If fallback_form is provided, instantiate it to re-render form with errors
-                    if fallback_form:
-                        context['form'] = fallback_form(request.POST or None)
-                    
                     if htmx_template:
                         return render(request, htmx_template, context, status=status_code)
-                    
-                    # Default HTMX response (Toast notification)
+
                     response = HttpResponse(
                         f'<div class="alert alert-danger alert-dismissible fade show" role="alert">'
                         f'  {user_error_msg}'
@@ -58,14 +51,11 @@ def handle_errors(default_redirect=None, htmx_template=None, fallback_form=None)
                     })
                     return response
 
-                # 5. Handle Non-HTMX (standard) requests
                 messages.error(request, user_error_msg)
-                
-                # 6. Safe redirect (Prevents infinite loops)
+
                 redirect_to = default_redirect or 'home'
                 referer = request.META.get('HTTP_REFERER')
                 if referer:
-                    # Ensure the referer is from our own domain to prevent open redirects
                     try:
                         from urllib.parse import urlparse
                         parsed_referer = urlparse(referer)
@@ -74,8 +64,7 @@ def handle_errors(default_redirect=None, htmx_template=None, fallback_form=None)
                             redirect_to = referer
                     except Exception:
                         pass
-                
+
                 return redirect(redirect_to)
         return wrapper
     return decorator
-

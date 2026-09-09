@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.db import transaction
@@ -61,6 +62,46 @@ def validate_repair_field(request):
             error_html += f'<div>{err}</div>'
         error_html += '</div>'
         return HttpResponse(error_html)
+    
+# ============================================================
+# REAL-TIME VALIDATION FOR CUSTOMER PROFILE (HTMX)
+# ============================================================
+
+@login_required
+@require_http_methods(["GET"])
+def validate_customer_profile_field(request):
+    """
+    Real-time validation for Customer Profile fields (HTMX).
+    Returns error HTML for the specific field.
+    """
+    field_name = request.GET.get('field')
+    if not field_name:
+        return HttpResponse("")
+
+    value = request.GET.get(field_name, '').strip()
+    
+    # Get current customer instance for uniqueness check
+    try:
+        customer = request.user.customer_contact
+    except Contact.DoesNotExist:
+        return HttpResponse("")
+
+    # Build data dict with all fields
+    data = {}
+    for f in CustomerProfileForm.base_fields:
+        data[f] = request.GET.get(f, '')
+
+    # Create form instance with current data and instance for uniqueness checks
+    form = CustomerProfileForm(data, instance=customer)
+    form.is_valid()  # Triggers validation
+
+    errors = form.errors.get(field_name, [])
+    error_html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
+    for err in errors:
+        error_html += f'<div>{err}</div>'
+    error_html += '</div>'
+
+    return HttpResponse(error_html)
 
 
 # ============================================================
@@ -164,9 +205,9 @@ def dashboard(request):
 @handle_errors(default_redirect='customer:customer_dashboard')
 def dashboard_stats_json(request):
     """Return chart data as JSON for customer dashboard."""
-    customer = get_object_or_404(Contact, user=request.user)
-    
     try:
+        customer = get_object_or_404(Contact, user=request.user)
+        
         today = date.today()
         invoice_data = []
         payment_data = []
@@ -177,17 +218,15 @@ def dashboard_stats_json(request):
             d = today - timedelta(days=i)
             labels.append(d.strftime('%d %b'))
             
-            invoice_data.append(
-                float(Invoice.objects.filter(customer=customer, date=d).aggregate(
-                    total=Sum('grand_total')
-                )['total'] or Decimal('0'))
-            )
+            inv_total = Invoice.objects.filter(customer=customer, date=d).aggregate(
+                total=Sum('grand_total')
+            )['total'] or Decimal('0')
+            invoice_data.append(float(inv_total))
             
-            payment_data.append(
-                float(Payment.objects.filter(
-                    contact=customer, direction='received', date=d
-                ).aggregate(total=Sum('amount'))['total'] or Decimal('0'))
-            )
+            pay_total = Payment.objects.filter(
+                contact=customer, direction='received', date=d
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            payment_data.append(float(pay_total))
         
         # Invoice Status Distribution
         invoice_status = Invoice.objects.filter(customer=customer).values('payment_status').annotate(
@@ -215,7 +254,7 @@ def dashboard_stats_json(request):
         
     except Exception as e:
         logger.error(f"Customer dashboard stats error: {e}")
-        return JsonResponse({'error': 'Unable to load statistics.'}, status=500)
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 # ============================================================
@@ -1518,37 +1557,72 @@ def unread_count_text(request):
 def email_change_request(request):
     """Step 1: User requests email change by entering new email."""
     customer = get_object_or_404(Contact, user=request.user)
-
+    
+    # Resend OTP (AJAX)
+    if request.method == 'POST' and request.headers.get('Content-Type') == 'application/json':
+        try:
+            import json
+            data = json.loads(request.body)
+            if data.get('resend'):
+                new_email = request.session.get('pending_new_email')
+                if not new_email:
+                    return JsonResponse({'error': 'Session expired.'}, status=400)
+                last_otp = EmailOTP.objects.filter(email=new_email, purpose='change_email').order_by('-created_at').first()
+                if last_otp:
+                    diff = (timezone.now() - last_otp.created_at).total_seconds()
+                    if diff < 60:
+                        return JsonResponse({'error': f'Please wait {60-int(diff)} seconds.'}, status=429)
+                success = create_and_send_otp(request.user, new_email, 'change_email')
+                if success:
+                    return JsonResponse({'success': True})
+                return JsonResponse({'error': 'Failed to send OTP.'}, status=500)
+        except:
+            pass
+        return JsonResponse({'error': 'Invalid request.'}, status=400)
+    
     if request.method == 'POST':
         form = EmailChangeRequestForm(request.user, request.POST)
         if form.is_valid():
             new_email = form.cleaned_data['new_email']
-            # Send OTP to the new email
             success = create_and_send_otp(request.user, new_email, 'change_email')
             if success:
-                # Store new email in session for verification
                 request.session['pending_new_email'] = new_email
-                request.session['otp_purpose'] = 'change_email'
                 request.session['pending_user_id'] = request.user.id
-                messages.success(request, f"OTP sent to {new_email}. Please verify to complete email change.")
+                request.session['otp_purpose'] = 'change_email'
+                
                 if is_htmx(request):
-                    return htmx_response(
-                        request,
-                        'customer/partials/email_change_otp.html',
-                        context={'email': new_email},
-                        toast={'level': 'success', 'message': 'OTP sent to new email.'}
-                    )
+                    response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email})
+                    # ✅ CRITICAL: Target और Swap Headers Set करें
+                    response['HX-Retarget'] = '#profile-container'
+                    response['HX-Reswap'] = 'innerHTML'
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {'level': 'success', 'message': f'OTP sent to {new_email}'}
+                    })
+                    return response
+                messages.success(request, f"OTP sent to {new_email}")
                 return redirect('customer:email_change_verify')
             else:
-                messages.error(request, "Failed to send OTP. Please try again.")
+                if is_htmx(request):
+                    response = render(request, 'customer/partials/email_change_form.html', {'form': form})
+                    response['HX-Retarget'] = '#profile-container'
+                    response['HX-Reswap'] = 'innerHTML'
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {'level': 'danger', 'message': 'Failed to send OTP. Please try again.'}
+                    })
+                    return response
+                messages.error(request, "Failed to send OTP.")
         else:
             if is_htmx(request):
-                return render(request, 'customer/partials/email_change_form.html', {'form': form}, status=400)
+                response = render(request, 'customer/partials/email_change_form.html', {'form': form})
+                response['HX-Retarget'] = '#profile-container'
+                response['HX-Reswap'] = 'innerHTML'
+                return response
     else:
         form = EmailChangeRequestForm(request.user)
-
+    
     if is_htmx(request):
         return render(request, 'customer/partials/email_change_form.html', {'form': form})
+    
     return render(request, 'customer/email_change.html', {'form': form, 'customer': customer})
 
 
@@ -1556,51 +1630,53 @@ def email_change_request(request):
 @login_required
 @handle_errors(default_redirect='customer:customer_profile')
 def email_change_verify(request):
-    """Step 2: Verify OTP sent to new email, then update email."""
+    """Step 2: Verify OTP and update email."""
     user = request.user
     customer = get_object_or_404(Contact, user=user)
-
+    
     new_email = request.session.get('pending_new_email')
     purpose = request.session.get('otp_purpose')
-
+    
     if not new_email or purpose != 'change_email':
         messages.error(request, "Invalid session. Please request email change again.")
+        if is_htmx(request):
+            response = render(request, 'customer/partials/email_change_form.html', {'form': EmailChangeRequestForm(user)})
+            response['HX-Retarget'] = '#profile-container'
+            response['HX-Reswap'] = 'innerHTML'
+            response['HX-Trigger'] = json.dumps({
+                'showToast': {'level': 'danger', 'message': 'Invalid session. Please try again.'}
+            })
+            return response
         return redirect('customer:email_change_request')
-
+    
     if request.method == 'POST':
         otp = request.POST.get('otp', '').strip()
         if not otp or len(otp) != 6:
-            messages.error(request, "Please enter a valid 6-digit OTP.")
             if is_htmx(request):
-                response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email}, status=400)
+                response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email})
+                response['HX-Retarget'] = '#profile-container'
+                response['HX-Reswap'] = 'innerHTML'
                 response['HX-Trigger'] = json.dumps({
-                    'showToast': {
-                        'level': 'danger',
-                        'message': 'Please enter a valid 6-digit OTP.'
-                    }
+                    'showToast': {'level': 'danger', 'message': 'Please enter a valid 6-digit OTP.'}
                 })
                 return response
+            messages.error(request, "Please enter a valid 6-digit OTP.")
             return render(request, 'customer/email_change_otp.html', {'email': new_email})
-
-        # Verify OTP
+        
         verified_user = verify_otp(new_email, otp, 'change_email')
+        
         if verified_user and verified_user.id == user.id:
             with transaction.atomic():
-                # Update User email
                 user.email = new_email
                 user.save()
-                # Update Contact email
                 customer.email = new_email
                 customer.save()
-
-                # Clean session
+                
                 request.session.pop('pending_new_email', None)
                 request.session.pop('otp_purpose', None)
-
-                # Invalidate old OTPs for this user (optional)
+                
                 EmailOTP.objects.filter(user=user, purpose='change_email').delete()
-
-                # Send confirmation to new email (and alert to old if possible)
+                
                 try:
                     send_mail(
                         subject="Your email has been changed",
@@ -1611,36 +1687,36 @@ def email_change_verify(request):
                     )
                 except:
                     pass
-
-                messages.success(request, "Your email has been updated successfully! Please login again.")
-                # Logout user for security
-                logout(request)
-
-                if is_htmx(request):
-                    response = HttpResponse()
-                    response['HX-Redirect'] = reverse('accounting:login')
-                    response['HX-Trigger'] = json.dumps({
-                        'showToast': {
-                            'level': 'success',
-                            'message': 'Email changed! Please login with your new email.',
-                            'title': 'Security Updated'
-                        }
-                    })
-                    return response
-                return redirect('accounting:login')
-        else:
-            messages.error(request, "Invalid or expired OTP. Please try again.")
+            
+            logout(request)
+            
             if is_htmx(request):
-                response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email}, status=400)
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('accounting:login')
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {
-                        'level': 'danger',
-                        'message': 'Invalid or expired OTP. Please try again.'
+                        'level': 'success',
+                        'message': 'Email changed! Please login with your new email.',
+                        'title': 'Security Updated'
                     }
                 })
                 return response
+            
+            messages.success(request, "Email updated successfully. Please login with your new email.")
+            return redirect('accounting:login')
+        else:
+            if is_htmx(request):
+                response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email})
+                response['HX-Retarget'] = '#profile-container'
+                response['HX-Reswap'] = 'innerHTML'
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'danger', 'message': 'Invalid or expired OTP. Please try again.'}
+                })
+                return response
+            messages.error(request, "Invalid or expired OTP. Please try again.")
             return render(request, 'customer/email_change_otp.html', {'email': new_email})
-
+    
+    if is_htmx(request):
+        return render(request, 'customer/partials/email_change_otp.html', {'email': new_email})
+    
     return render(request, 'customer/email_change_otp.html', {'email': new_email})
-
-

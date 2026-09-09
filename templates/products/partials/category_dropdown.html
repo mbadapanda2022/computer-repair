@@ -1,3 +1,4 @@
+<!-- templates/products/partials/category_dropdown.html -->
 <select name="category" id="id_category" class="form-select">
     <option value="">---------</option>
     {% for cat in categories %}
@@ -6,3 +7,11 @@
         </option>
     {% endfor %}
 </select>
+<button type="button" class="btn btn-outline-secondary" 
+        id="add-category-btn"
+        hx-get="{% url 'accounting:add_category_inline' %}" 
+        hx-target="#category-field-container"
+        hx-swap="innerHTML"
+        hx-trigger="click">
+    <i class="bi bi-plus-circle"></i>
+</button>

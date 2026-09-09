@@ -8,11 +8,11 @@
     <div class="row justify-content-center">
         <div class="col-md-8 text-center">
             <div class="error-page">
-                <h1 class="display-1 text-muted">404</h1>
+                <h1 class="display-1 text-muted">400</h1>
                 <h2 class="mb-4">Oops! Page not found.</h2>
                 <p class="lead text-muted">The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
                 <div class="mt-4">
-                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+                    <a href="{% url 'accounting:dashboard' %}" class="btn btn-primary btn-lg">
                         <i class="bi bi-house"></i> Go to Dashboard
                     </a>
                     <button onclick="history.back()" class="btn btn-outline-secondary btn-lg ms-2">

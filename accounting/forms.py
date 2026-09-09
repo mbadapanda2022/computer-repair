@@ -362,7 +362,8 @@ class CompanyProfileForm(forms.ModelForm):
             'default_tax_rate', 'financial_year_start', 'state',
             'tagline', 'hero_image', 'about_text',
             'google_map_embed', 'working_hours',
-            'facebook_url', 'instagram_url', 'youtube_url', 'whatsapp_number', 'google_review_link'
+            'facebook_url', 'instagram_url', 'youtube_url', 'whatsapp_number', 'google_review_link',
+            'meta_title', 'meta_description', 'meta_keywords', 'og_image'
         ]
         widgets = {
             'name': BS_TEXT,
@@ -375,7 +376,6 @@ class CompanyProfileForm(forms.ModelForm):
                 'accept': 'image/jpeg,image/png,image/webp'
             }),
             'invoice_prefix': BS_TEXT,
-            'invoice_start_number': forms.NumberInput(attrs={'class': 'form-control'}),
             'default_tax_rate': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'financial_year_start': BS_DATE,
             'state': BS_TEXT,
@@ -391,7 +391,11 @@ class CompanyProfileForm(forms.ModelForm):
             'instagram_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://instagram.com/yourprofile'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://youtube.com/yourchannel'}),
             'whatsapp_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+919876543210'}),
-            'google_review_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://g.page/r/CSroVuEHgpaJEAE/review'})
+            'google_review_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://g.page/r/CSroVuEHgpaJEAE/review'}),
+            'meta_title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Max 70 characters'}),
+            'meta_description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Max 160 characters'}),
+            'meta_keywords': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Comma separated keywords'}),
+            'og_image': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': 'image/jpeg,image/png,image/webp'}),
         }
         help_texts = {
             'gstin': 'Leave blank to disable GST features',
@@ -406,6 +410,10 @@ class CompanyProfileForm(forms.ModelForm):
             'instagram_url': 'Full URL to your Instagram profile',
             'youtube_url': 'Full URL to your YouTube channel',
             'whatsapp_number': 'WhatsApp number with country code (e.g., +919876543210)',
+            'meta_title': 'Page Title (max 70 chars). Leave blank to use company name.',
+            'meta_description': 'Meta Description (max 160 chars). Used in search results.',
+            'meta_keywords': 'Comma separated keywords for SEO.',
+            'og_image': 'Social Media Sharing Image (Recommended: 1200x630).',
         }
 
     def clean_phone(self):
@@ -577,6 +585,14 @@ class ProductCategoryForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
+    def clean_name(self):
+        name = self.cleaned_data.get('name', '').strip()
+        if not name:
+            raise ValidationError("Category name is required.")
+        if ProductCategory.objects.filter(name__iexact=name).exists():
+            raise ValidationError("A category with this name already exists.")
+        return name
+
 
 # ============================================================
 # 4. PRODUCT
@@ -736,26 +752,19 @@ class InvoiceItemForm(forms.ModelForm):
 class PurchaseForm(forms.ModelForm, HTMXValidationMixin):
     class Meta:
         model = Purchase
-        fields = ['vendor', 'date', 'gst_type', 'notes']
+        fields = ['vendor', 'date', 'gst_type', 'freight_charge', 'notes']
         widgets = {
             'vendor': BS_SELECT,
             'date': BS_DATE,
             'gst_type': BS_SELECT,
+            'freight_charge': BS_NUMBER, 
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.add_htmx_validation(
-            validate_url=reverse('accounting:validate_purchase_field'),
-            include_id_field='purchase_id'
-        )
-
 
 class PurchaseItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseItem
-        fields = ['product', 'quantity', 'unit_price', 'tax_rate']
+        fields = ['product', 'quantity', 'unit_price', 'tax_rate', 'is_office_use']
         widgets = {
             'product': forms.Select(attrs={
                 'class': 'form-select',
@@ -778,6 +787,7 @@ class PurchaseItemForm(forms.ModelForm):
                 'step': '0.01',
                 'id': 'id_tax_rate'
             }),
+            'is_office_use': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -919,7 +929,7 @@ class RepairPartForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['product'].queryset = Product.objects.filter(is_service=False, is_active=True)
+        self.fields['product'].queryset = Product.objects.filter(is_active=True)
 
     def clean_quantity(self):
         qty = self.cleaned_data.get('quantity')
@@ -954,7 +964,8 @@ class PaymentForm(forms.ModelForm):
         model = Payment
         fields = [
             'direction', 'contact', 'amount', 'date', 'method',
-            'bank_account', 'upi_ref', 'reference', 'description', 'invoices'
+            'bank_account', 'upi_ref', 'reference', 'description',
+            'is_advance'
         ]
         widgets = {
             'direction': BS_SELECT,
@@ -966,13 +977,12 @@ class PaymentForm(forms.ModelForm):
             'upi_ref': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'UPI TXN ID'}),
             'reference': BS_TEXT,
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'invoices': forms.SelectMultiple(attrs={'class': 'form-select', 'size': '3'}),
+            'is_advance': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['bank_account'].queryset = BankAccount.objects.filter(is_active=True)
-        self.fields['invoices'].queryset = Invoice.objects.none()
         
         # Pre-populate contact_search if contact is set
         if self.instance and self.instance.contact_id:
@@ -989,18 +999,6 @@ class PaymentForm(forms.ModelForm):
                 except Contact.DoesNotExist:
                     pass
 
-        # Dynamic invoice queryset based on contact and direction
-        if self.data and 'contact' in self.data and 'direction' in self.data:
-            try:
-                contact_id = int(self.data.get('contact'))
-                direction = self.data.get('direction')
-                if direction == 'received':
-                    self.fields['invoices'].queryset = Invoice.objects.filter(
-                        customer_id=contact_id,
-                        payment_status__in=['unpaid', 'partial']
-                    )
-            except (ValueError, TypeError):
-                pass
 
     def clean_contact_search(self):
         # Validate that a contact is selected (hidden field must have a value)
@@ -1022,7 +1020,6 @@ class PaymentForm(forms.ModelForm):
         if method in ['bank', 'upi'] and not bank_account:
             self.add_error('bank_account', "Please select a bank account for bank/UPI payments.")
         return cleaned_data
-
 
 # ============================================================
 # 9. STOCK MOVEMENT
@@ -1335,30 +1332,6 @@ class InvoiceFilterForm(forms.Form):
         })
     )
 
-
-class ContactMessageForm(forms.ModelForm):
-    class Meta:
-        model = ContactMessage
-        fields = ['name', 'email', 'subject', 'message']
-
-    def clean_name(self):
-        name = self.cleaned_data.get('name')
-        if len(name.strip()) < 2:
-            raise forms.ValidationError("Name must be at least 2 characters.")
-        return name.strip()
-
-    def clean_subject(self):
-        subject = self.cleaned_data.get('subject')
-        if len(subject.strip()) < 3:
-            raise forms.ValidationError("Subject must be at least 3 characters.")
-        return subject.strip()
-
-    def clean_message(self):
-        message = self.cleaned_data.get('message')
-        if len(message.strip()) < 10:
-            raise forms.ValidationError("Message must be at least 10 characters.")
-        return message.strip()
-    
     
 # ============================================================
 # EMAIL CHANGE REQUEST FORM
