@@ -81,11 +81,14 @@ class Migration(migrations.Migration):
             name='testimonial',
             options={'ordering': ['order', '-created_at']},
         ),
-        migrations.RenameIndex(
-            model_name='ledgerline',
-            new_name='accounting__account_f344c8_idx',
-            old_name='accounting__account_bac47e_idx',
-        ),
+        migrations.AddIndex(
+    		model_name='ledgerline',
+    		index=models.Index(
+        	fields=['account'],
+        	name='accounting__account_f344c8_idx',
+    		),
+	),
+
         migrations.RemoveField(
             model_name='companyprofile',
             name='invoice_start_number',

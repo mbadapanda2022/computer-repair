@@ -407,11 +407,26 @@ class LedgerLine(SoftDeleteModel):
     debit = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     credit = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
 
+    
     class Meta:
-        indexes = [models.Index(fields=['account']), models.Index(fields=['contact'])]
+        indexes = [
+            models.Index(
+                fields=['account'],
+                name='accounting__account_f344c8_idx',
+            ),
+            models.Index(
+                fields=['contact'],
+            ),
+        ]
         constraints = [
-            models.CheckConstraint(condition=Q(debit__gte=0), name='ledgerline_debit_positive'),
-            models.CheckConstraint(condition=Q(credit__gte=0), name='ledgerline_credit_positive'),
+            models.CheckConstraint(
+                condition=Q(debit__gte=0),
+                name='ledgerline_debit_positive',
+            ),
+            models.CheckConstraint(
+                condition=Q(credit__gte=0),
+                name='ledgerline_credit_positive',
+            ),
         ]
 
     def __str__(self):

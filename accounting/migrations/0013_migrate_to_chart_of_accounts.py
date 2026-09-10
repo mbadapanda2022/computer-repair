@@ -160,8 +160,23 @@ class Migration(migrations.Migration):
         ),
         migrations.RunPython(create_accounts_and_migrate, reverse_code=migrations.RunPython.noop),
 
-        # 🆕 Drop the old index before dropping the column
-        migrations.RunSQL("DROP INDEX accounting__account_bac47e_idx;"),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunSQL(
+                    "DROP INDEX accounting__account_bac47e_idx;",
+                    reverse_sql=(
+                        "CREATE INDEX accounting__account_bac47e_idx "
+                        "ON accounting_ledgerline (account_id);"
+                    ),
+                ),
+            ],
+            state_operations=[
+                migrations.RemoveIndex(
+                    model_name='ledgerline',
+                    name='accounting__account_bac47e_idx',
+                ),
+            ],
+        ),
 
         migrations.RemoveField(
             model_name='ledgerline',
