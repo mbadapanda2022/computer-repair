@@ -3,7 +3,7 @@
       hx-post="{% url 'accounting:company_settings' %}" 
       hx-encoding="multipart/form-data" 
       hx-target="#settings-form"
-      hx-swap="outerHTML"
+      hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
     {% csrf_token %}
     

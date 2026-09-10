@@ -34,7 +34,7 @@ def validate_setting_field(request):
 
     # File fields – GET validation skip
     if field_name in ['logo', 'hero_image', 'og_image']:
-        return HttpResponse("")  # Empty = no error
+        return HttpResponse("") 
 
     value = request.GET.get(field_name, '')
     CompanyValidationForm = modelform_factory(
