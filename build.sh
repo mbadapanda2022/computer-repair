@@ -11,6 +11,6 @@ echo "Collecting Static Files..."
 python manage.py collectstatic --no-input --clear
 
 echo "Running Migrations..."
-python manage.py migrate
+python manage.py migrate --verbosity 2
 
 echo "Build completed!"
