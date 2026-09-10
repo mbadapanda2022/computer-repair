@@ -102,22 +102,29 @@ EVENTSTREAM_MAX_CONNECTIONS = 100
 # ============================================================
 # DATABASE CONFIGURATION (Secure – Using Environment Variables)
 # ============================================================
-import dj_database_url
-if os.environ.get('RENDER'):
-    # Render Production – Use Persistent Disk
-    DATA_DIR = Path('/opt/render/project/src/data')
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    DB_PATH = DATA_DIR / 'db.sqlite3'
-else:
-    # Local Development
-    DB_PATH = BASE_DIR / 'db.sqlite3'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': DB_PATH,
+import dj_database_url
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=0,
+            ssl_require=True,
+        )
     }
-}
+else:
+    # Local development
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
