@@ -196,16 +196,13 @@
 
     if (mainModalEl) {
         document.body.addEventListener('htmx:afterSwap', function(evt) {
-            if (evt.detail.target.id === 'mainModalContent') {
-                let modal = bootstrap.Modal.getInstance(mainModalEl);
-                if (!modal) {
-                    modal = new bootstrap.Modal(mainModalEl, {
-                        backdrop: 'static',
-                        keyboard: true
-                    });
-                }
-                modal.show();
+            const target = evt.detail && evt.detail.target;
+            if (!target || target.id !== 'mainModalContent') return;
+            let modal = bootstrap.Modal.getInstance(mainModalEl);
+            if (!modal) {
+                modal = new bootstrap.Modal(mainModalEl, { backdrop: 'static', keyboard: true });
             }
+            modal.show();
         });
     }
 
@@ -253,10 +250,13 @@
         if (quickAddModalEl) {
             const modal = bootstrap.Modal.getInstance(quickAddModalEl);
             if (modal) modal.hide();
-            mainModalEl.style.display = 'none';
-            // Remove any leftover backdrop
-            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
         }
+        if (mainModalEl) {
+            mainModalEl.style.display = 'none';
+        }
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
     });
   
     // ==============================

@@ -520,10 +520,9 @@ canvas {
 .btn {
     transition: all 0.2s ease;
 }
-.btn:hover {
+.btn-lg:hover {
     transform: scale(1.02);
 }
-
 .modal.fade .modal-dialog {
     transition: transform 0.25s ease-out;
 }

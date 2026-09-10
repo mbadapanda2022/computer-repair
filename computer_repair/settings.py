@@ -8,7 +8,11 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
-DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
+if not SECRET_KEY:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY environment variable is missing!")
+
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').strip().lower() == 'true'
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
 
 INSTALLED_APPS = [
@@ -191,8 +195,8 @@ LOGOUT_REDIRECT_URL = 'home'
 ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
-ACCOUNT_LOGOUT_ON_GET = True
-ACCOUNT_SIGNUP_VIEW = 'accounting.views.auth.CustomSignupView'
+ACCOUNT_LOGOUT_ON_GET = False
+
 
 if not DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -272,12 +276,14 @@ LOGS_DIR = BASE_DIR / 'logs'
 if not LOGS_DIR.exists():
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-HONEYPOT_FIELD_NAME = 'phone'
+HONEYPOT_FIELD_NAME = 'website'
 HONEYPOT_VALUE = ''
 HONEYPOT_VERIFY = True
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+CSRF_FAILURE_VIEW = 'accounting.views.error_handlers.csrf_failure'
 
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',

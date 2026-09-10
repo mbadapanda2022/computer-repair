@@ -43,13 +43,12 @@ class EmailOrPhoneBackend(ModelBackend):
             try:
                 from .models import Contact
                 phone_clean = ''.join(filter(str.isdigit, login_input))
-                # अगर 10 digits से कम है तो कोशिश न करें
                 if len(phone_clean) >= 10:
-                    # DB में हमेशा last 10 digits स्टोर होते हैं (हमने save() में यह सुनिश्चित किया है)
                     normalized_phone = phone_clean[-10:]
-                    contact = Contact.objects.get(phone=normalized_phone)
-                    user = contact.user
-            except (Contact.DoesNotExist, AttributeError):
+                    contact = Contact.objects.filter(phone=normalized_phone).first()
+                    if contact:
+                        user = contact.user
+            except Exception:
                 pass
 
         # Authentication check

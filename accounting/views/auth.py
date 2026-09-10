@@ -4,13 +4,15 @@ import logging
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordResetView, PasswordResetConfirmView
 from django.urls import reverse_lazy, reverse
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django.db import transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -66,7 +68,7 @@ def unified_login_view(request):
             else:
                 messages.error(request, "Invalid email/mobile or password.")
                 if request.headers.get('HX-Request'):
-                    response = render(request, 'auth/partials/_login_form.html', {'form': form}, status=400)
+                    response = render(request, 'auth/partials/_login_form.html', {'form': form})
                     response['HX-Trigger'] = json.dumps({
                         'showToast': {
                             'level': 'danger',
@@ -76,7 +78,7 @@ def unified_login_view(request):
                     return response
         else:
             if request.headers.get('HX-Request'):
-                response = render(request, 'auth/partials/_login_form.html', {'form': form}, status=400)
+                response = render(request, 'auth/partials/_login_form.html', {'form': form})
                 errors = []
                 for field, field_errors in form.errors.items():
                     for err in field_errors:
@@ -187,7 +189,7 @@ def register_view(request):
                 return redirect('accounting:verify_otp')
         else:
             if request.headers.get('HX-Request'):
-                response = render(request, 'auth/partials/_register_form.html', {'form': form}, status=400)
+                response = render(request, 'auth/partials/_register_form.html', {'form': form})
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {
                         'level': 'danger',
@@ -205,7 +207,7 @@ def register_view(request):
 # ============================================================
 # 3. UNIFIED LOGOUT
 # ============================================================
-
+@require_POST
 def unified_logout_view(request):
     if request.user.is_authenticated:
         logout(request)
@@ -508,12 +510,10 @@ def password_reset_otp_request(request):
             user = User.objects.get(email__iexact=email)
         except (User.DoesNotExist, User.MultipleObjectsReturned):
             users = User.objects.filter(email__iexact=email)
-            if users.count() == 1:
-                user = users.first()
-            else:
-                # Multiple users – rare case, but handle gracefully
+            if users.count() != 1:
                 messages.info(request, "If an account with this email exists, we've sent an OTP.")
                 return render(request, 'auth/password_reset_otp.html')
+            user = users.first()
         
         success = create_and_send_otp(user, email, 'reset_password')
         
@@ -549,12 +549,23 @@ def reset_password_set_view(request):
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
         
+        if not password1 or not password2:
+            messages.error(request, "Both password fields are required.")
+            return render(request, 'auth/reset_password_set.html', {'email': email})
+        
         if not password1 or len(password1) < 8:
             messages.error(request, "Password must be at least 8 characters.")
             return render(request, 'auth/reset_password_set.html', {'email': email})
         
         if password1 != password2:
             messages.error(request, "Passwords do not match.")
+            return render(request, 'auth/reset_password_set.html', {'email': email})
+        
+        try:
+            validate_password(password1, user=user)
+        except ValidationError as e:
+            for err in e.messages:
+                messages.error(request, err)
             return render(request, 'auth/reset_password_set.html', {'email': email})
         
         user.set_password(password1)
@@ -572,27 +583,36 @@ def reset_password_set_view(request):
 # ============================================================
 # 8. ALLAUTH CUSTOM SIGNUP VIEW (with OTP)
 # ============================================================
+
 class CustomSignupView(SignupView):
     form_class = CustomerRegistrationForm
     success_url = reverse_lazy('accounting:verify_otp')
 
     def form_valid(self, form):
-        # Allauth Default User Creation
-        response = super().form_valid(form)
-
-        # User को Inactive करें (OTP Verify होने पर Active होगा)
-        user = self.user
+        user = form.save(commit=False)
         user.is_active = False
         user.save()
 
-        # OTP भेजें
-        create_and_send_otp(user, user.email, 'signup')
+        # Contact create करें
+        Contact.objects.create(
+            user=user,
+            name=form.cleaned_data.get('full_name', user.username),
+            email=form.cleaned_data.get('email', ''),
+            phone=form.cleaned_data.get('phone', ''),
+            contact_type='customer',
+        )
 
-        # Session में Data Set करें (OTP Verification View के लिए)
+        # OTP भेजें
+        try:
+            create_and_send_otp(user, user.email, 'signup')
+        except Exception as e:
+            logger.error(f"OTP sending failed in CustomSignupView: {e}")
+
+        # Session set करें
         self.request.session['pending_user_id'] = user.id
         self.request.session['pending_email'] = user.email
         self.request.session['otp_purpose'] = 'signup'
 
-        return response
+        return redirect(self.success_url)
     
     

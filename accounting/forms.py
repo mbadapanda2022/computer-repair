@@ -11,6 +11,7 @@ from django.core.validators import validate_email
 from django.core.cache import cache
 from django.db.models import Q
 from django.utils import timezone
+from django.db import transaction
 
 from .models import *
 User = get_user_model()
@@ -245,14 +246,15 @@ class CustomerRegistrationForm(forms.ModelForm):
         user.set_password(self.cleaned_data['password1'])
         user.first_name = self.cleaned_data['full_name']
         if commit:
-            user.save()
-            Contact.objects.create(
-                user=user,
-                name=self.cleaned_data['full_name'],
-                email=self.cleaned_data['email'],
-                phone=self.cleaned_data.get('phone', ''),  # may be empty
-                contact_type='customer'
-            )
+            with transaction.atomic():
+                user.save()
+                Contact.objects.create(
+                    user=user,
+                    name=self.cleaned_data['full_name'],
+                    email=self.cleaned_data['email'],
+                    phone=self.cleaned_data.get('phone', ''),
+                    contact_type='customer',
+                )
         return user
 
 
@@ -268,11 +270,6 @@ class CustomPasswordResetForm(PasswordResetForm):
         label="Email"
     )
 
-    def clean_email(self):
-        email = self.cleaned_data.get('email')
-        if not User.objects.filter(email=email).exists():
-            raise ValidationError("No user found with this email address.")
-        return email
 
 # ============================================================
 # CUSTOM PASSWORD CHANGE FORM

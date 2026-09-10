@@ -17,6 +17,7 @@ from .utils import is_htmx, htmx_response
 from ..decorators import handle_errors
 from ..utils.notification_helpers import send_notification_to_staff
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -101,11 +102,11 @@ def contact_message(request):
 # ============================================================
 # REAL-TIME FIELD VALIDATION (HTMX) + HONEYPOT BYPASS
 # ============================================================
-
+ALLOWED_FIELDS = {'name', 'email', 'phone', 'subject', 'message'}
 def validate_contact_field(request):
     field_name = request.GET.get('field')
-    if not field_name:
-        return HttpResponse("Invalid field", status=400)
+    if field_name not in ALLOWED_FIELDS:
+        return HttpResponse("", status=200)
 
     if field_name == 'website':
         return HttpResponse("")
@@ -137,7 +138,7 @@ def cookie_policy(request):
 # ============================================================
 # DEBUG: Cloudinary Info
 # ============================================================
-
+@staff_member_required
 def debug_cloudinary(request):
     import cloudinary
     from accounting.models import CompanyProfile

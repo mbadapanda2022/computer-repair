@@ -37,8 +37,6 @@ class AccessControlMiddleware:
         self.public_prefixes = (
             '/password-reset/',
             '/auth/validate-',
-            '/events/',
-            '/api/',
             '/login/',             
             '/register/', 
             '/verify-otp/',       

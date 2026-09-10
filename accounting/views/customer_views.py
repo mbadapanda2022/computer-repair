@@ -331,7 +331,7 @@ def invoice_detail(request, pk):
     repair_job = None
     if invoice:
         try:
-            repair_job = RepairJob.objects.get(invoice=invoice)
+            repair_job = RepairJob.objects.filter(invoice=invoice).first()
         except RepairJob.DoesNotExist:
             pass
     
@@ -360,7 +360,7 @@ def invoice_print(request, pk):
     # Check if invoice is linked to a repair job
     repair_job = None
     try:
-        repair_job = RepairJob.objects.get(invoice=invoice)
+        repair_job = RepairJob.objects.filter(invoice=invoice).first()
     except RepairJob.DoesNotExist:
         pass
     
@@ -368,7 +368,7 @@ def invoice_print(request, pk):
     company = CompanyProfile.get_instance()
     
     # Check if logo exists
-    logo_exists = bool(company.logo and company.logo.name and company.logo.storage.exists(company.logo.name))
+    logo_exists = bool(company.logo and company.logo.name)
     
     # Get GST breakup
     gst_breakup = invoice.get_gst_breakup() if hasattr(invoice, 'get_gst_breakup') else {
@@ -1576,7 +1576,7 @@ def email_change_request(request):
                 if success:
                     return JsonResponse({'success': True})
                 return JsonResponse({'error': 'Failed to send OTP.'}, status=500)
-        except:
+        except (json.JSONDecodeError, KeyError, AttributeError):
             pass
         return JsonResponse({'error': 'Invalid request.'}, status=400)
     

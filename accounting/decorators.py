@@ -5,6 +5,7 @@ from functools import wraps
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.http import HttpResponse
+from django.core.exceptions import ValidationError
 from django.conf import settings
 from .views.utils import is_htmx
 
@@ -28,7 +29,7 @@ def handle_errors(default_redirect=None, htmx_template=None):
                 status_code = 500
                 if hasattr(e, 'status_code'):
                     status_code = e.status_code
-                elif isinstance(e, (ValueError, TypeError, KeyError)):
+                elif isinstance(e, (ValueError, TypeError, KeyError, ValidationError)):
                     status_code = 400
 
                 if is_htmx(request):
