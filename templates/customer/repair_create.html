@@ -15,7 +15,8 @@
                 <div class="card-body">
                     <form method="post" 
                           id="repairCreateForm" 
-                          novalidate>
+                          novalidate
+                          hx-disabled-elt="find button[type='submit']">
                         {% csrf_token %}
 
                         {% if form.non_field_errors %}
