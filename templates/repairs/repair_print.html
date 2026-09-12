@@ -11,29 +11,24 @@
     <style>
         /* ===== PRINT STYLES ===== */
         @media print {
-            body { font-size: 12pt; margin: 1.5cm; }
+            body { font-size: 11pt; margin: 1cm; }
             .no-print { display: none !important; }
             .table { width: 100%; border-collapse: collapse; }
             .table th, .table td { border: 1px solid #999; padding: 5px 8px; }
             .table th { background: #e9ecef !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-            .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 10pt; }
+            .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 9pt; }
             .text-end { text-align: right; }
             .text-center { text-align: center; }
             .fw-bold { font-weight: bold; }
             .badge { padding: 1px 6px; border-radius: 3px; font-size: 9pt; color: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .badge-pending { background: #6c757d !important; }
+            .badge-pending { background: #ffc107 !important; color: #000 !important; }
+            .badge-received { background: #6c757d !important; }
             .badge-diagnosis { background: #0dcaf0 !important; color: #000 !important; }
             .badge-repairing { background: #ffc107 !important; color: #000 !important; }
             .badge-ready { background: #0d6efd !important; }
             .badge-delivered { background: #198754 !important; }
             .badge-cancelled { background: #dc3545 !important; }
-            .status-pending { color: #6c757d; }
-            .status-diagnosis { color: #0dcaf0; }
-            .status-repairing { color: #ffc107; }
-            .status-ready { color: #0d6efd; }
-            .status-delivered { color: #198754; }
-            .status-cancelled { color: #dc3545; }
         }
 
         /* ===== SCREEN STYLES ===== */
@@ -43,28 +38,40 @@
         .header p { margin: 3px 0; color: #6c757d; font-size: 10pt; }
         .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 15px; margin-top: 20px; font-size: 10pt; color: #6c757d; }
         .table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-        .table th, .table td { border: 1px solid #ddd; padding: 6px 10px; }
+        .table th, .table td { border: 1px solid #ddd; padding: 6px 10px; vertical-align: top; }
         .table th { background: #e9ecef; font-weight: 600; text-align: left; }
         .table tr:nth-child(even) { background: #f8f9fa; }
-        .table tr:hover { background: #e3f2fd; }
         .text-end { text-align: right; }
         .text-center { text-align: center; }
         .fw-bold { font-weight: bold; }
+        .text-muted { color: #6c757d; }
+        .text-success { color: #198754; }
+        .text-warning { color: #ffc107; }
+        .text-primary { color: #0d6efd; }
         .badge { padding: 2px 8px; border-radius: 4px; font-size: 9pt; color: #fff; }
-        .badge-pending { background: #6c757d; }
+        .badge-pending { background: #ffc107; color: #000; }
+        .badge-received { background: #6c757d; }
         .badge-diagnosis { background: #0dcaf0; color: #000; }
         .badge-repairing { background: #ffc107; color: #000; }
         .badge-ready { background: #0d6efd; }
         .badge-delivered { background: #198754; }
         .badge-cancelled { background: #dc3545; }
         .no-print { margin-top: 20px; text-align: center; }
-        .btn { padding: 8px 24px; border: none; border-radius: 6px; font-size: 12pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 5px; }
+        .btn { padding: 8px 24px; border: none; border-radius: 6px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 5px; }
         .btn-primary { background: #0d6efd; color: #fff; }
-        .btn-primary:hover { background: #0b5ed7; }
         .btn-secondary { background: #6c757d; color: #fff; }
-        .btn-secondary:hover { background: #5a6268; }
         .company-logo { max-height: 60px; margin-bottom: 5px; }
         .summary-row td { background: #f8f9fa; font-weight: bold; border-top: 2px solid #333; }
+        .timeline-box {
+            background: #f8f9fa;
+            border-left: 3px solid #0d6efd;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 9.5pt;
+        }
+        .timeline-box .item { display: inline-block; margin-right: 18px; }
+        .timeline-box .item strong { color: #1a1a2e; }
     </style>
 </head>
 <body>
@@ -84,41 +91,98 @@
     </div>
 
     <!-- ===== TITLE ===== -->
-    <h3 style="text-align:center; margin-bottom:10px;">
-        <i class="bi bi-tools"></i> Repair Job #{{ job.job_number }}
+    <h3 style="text-align:center; margin-bottom:15px;">
+        Repair Job #{{ job.job_number }}
     </h3>
 
-    <!-- Job Details Table -->
+    <!-- ===== TIMELINE BOX ===== -->
+    <div class="timeline-box">
+        <strong><i>Timeline:</i></strong>
+        {% if job.submitted_at %}
+            <span class="item"><strong>Submitted:</strong> {{ job.submitted_at|date:"d M Y" }}</span>
+        {% endif %}
+        {% if job.received_at %}
+            <span class="item text-success"><strong>Received:</strong> {{ job.received_at|date:"d M Y" }}</span>
+        {% else %}
+            <span class="item text-warning"><strong>Received:</strong> Pending</span>
+        {% endif %}
+        {% if job.ready_at %}
+            <span class="item text-primary"><strong>Ready:</strong> {{ job.ready_at|date:"d M Y" }}</span>
+        {% endif %}
+        {% if job.delivery_date %}
+            <span class="item text-success"><strong>Delivered:</strong> {{ job.delivery_date|date:"d M Y" }}</span>
+        {% endif %}
+    </div>
+
+    <!-- ===== JOB DETAILS TABLE ===== -->
     <table class="table">
+        <!-- Customer Row -->
         <tr>
-            <td style="width:50%;"><strong>Date In:</strong> {{ job.date_in|date:"d M Y" }}</td>
-            <td style="width:50%;">
+            <td colspan="2">
                 <strong>Customer:</strong> {{ job.customer.name }}
                 {% if job.customer.phone %}
-                <strong>Phone:</strong> {{ job.customer.phone }}
+                    &nbsp;|&nbsp; <strong>Phone:</strong> {{ job.customer.phone }}
                 {% endif %}
                 {% if job.customer.address %}
-                <strong>Address:</strong> {{ job.customer.address }}
+                    <br><strong>Address:</strong> {{ job.customer.address }}
                 {% endif %}
             </td>
         </tr>
+
+        <!-- Device Row -->
         <tr>
-            <td><strong>Device:</strong> {{ job.device_model }}</td>
-            <td><strong>Serial #:</strong> {{ job.serial_number|default:"—" }}</td>
+            <td style="width:50%;"><strong>Device:</strong> {{ job.device_model }}</td>
+            <td style="width:50%;"><strong>Serial #:</strong> {{ job.serial_number|default:"—" }}</td>
         </tr>
+
+        <!-- Status Row -->
         <tr>
-            <td><strong>Status:</strong> 
+            <td>
+                <strong>Status:</strong> 
                 <span class="badge badge-{{ job.status }}">
                     {{ job.get_status_display }}
                 </span>
             </td>
-            <td><strong>Received By:</strong> {{ job.received_by|default:"—" }}</td>
+            <td>
+                <strong>Received By:</strong> {{ job.received_by|default:"—" }}
+            </td>
         </tr>
+
+        <!-- Reception Remarks -->
+        {% if job.received_remarks %}
+        <tr>
+            <td colspan="2"><strong>Reception Remarks:</strong> {{ job.received_remarks }}</td>
+        </tr>
+        {% endif %}
+
+        <!-- Issue -->
+        <tr>
+            <td colspan="2"><strong>Issue:</strong> {{ job.issue_description }}</td>
+        </tr>
+
+        <!-- Diagnosis -->
+        <tr>
+            <td colspan="2"><strong>Diagnosis:</strong> {{ job.diagnosis_report|default:"—" }}</td>
+        </tr>
+
+        <!-- Action Taken -->
+        <tr>
+            <td colspan="2"><strong>Action Taken:</strong> {{ job.action_taken|default:"—" }}</td>
+        </tr>
+
+        <!-- Estimated Cost -->
+        {% if job.estimated_cost %}
+        <tr>
+            <td colspan="2"><strong>Estimated Cost:</strong> ₹{{ job.estimated_cost|floatformat:2 }}</td>
+        </tr>
+        {% endif %}
+
+        <!-- Delivery Details -->
+        {% if job.delivered_to_name or job.delivery_date or job.delivered_by %}
         <tr>
             <td><strong>Delivered By:</strong> {{ job.delivered_by|default:"—" }}</td>
             <td><strong>Delivery Date:</strong> {{ job.delivery_date|date:"d M Y"|default:"—" }}</td>
         </tr>
-        <!-- Delivery Recipient Fields -->
         <tr>
             <td><strong>Delivered To:</strong> {{ job.delivered_to_name|default:"—" }}</td>
             <td><strong>Recipient Phone:</strong> {{ job.delivered_to_phone|default:"—" }}</td>
@@ -127,21 +191,12 @@
             <td><strong>Designation:</strong> {{ job.delivered_to_designation|default:"—" }}</td>
             <td><strong>Delivery Remarks:</strong> {{ job.delivery_remarks|default:"—" }}</td>
         </tr>
+        {% endif %}
+
+        <!-- Notes -->
+        {% if job.notes %}
         <tr>
-            <td colspan="2"><strong>Issue:</strong> {{ job.issue_description }}</td>
-        </tr>
-        <tr>
-            <td colspan="2"><strong>Diagnosis:</strong> {{ job.diagnosis_report|default:"—" }}</td>
-        </tr>
-        <tr>
-            <td colspan="2"><strong>Action Taken:</strong> {{ job.action_taken|default:"—" }}</td>
-        </tr>
-        <tr>
-            <td colspan="2"><strong>Notes:</strong> {{ job.notes|default:"—" }}</td>
-        </tr>
-        {% if job.estimated_cost %}
-        <tr>
-            <td colspan="2"><strong>Estimated Cost:</strong> ₹{{ job.estimated_cost|floatformat:2 }}</td>
+            <td colspan="2"><strong>Notes:</strong> {{ job.notes }}</td>
         </tr>
         {% endif %}
     </table>
@@ -152,9 +207,9 @@
         <thead>
             <tr>
                 <th>Product</th>
-                <th class="text-center">Qty</th>
-                <th class="text-end">Unit Price</th>
-                <th class="text-end">Line Total</th>
+                <th class="text-center" style="width:80px;">Qty</th>
+                <th class="text-end" style="width:120px;">Unit Price</th>
+                <th class="text-end" style="width:120px;">Line Total</th>
             </tr>
         </thead>
         <tbody>
@@ -187,7 +242,7 @@
 
     <!-- ===== INVOICE LINK (if exists) ===== -->
     {% if invoice %}
-    <p><strong>Invoice:</strong> <a href="{% url 'accounting:invoice_detail' invoice.pk %}" target="_blank">{{ invoice.invoice_number }}</a></p>
+    <p><strong>Invoice:</strong> {{ invoice.invoice_number }}</p>
     {% endif %}
 
     <!-- ===== FOOTER ===== -->
@@ -217,4 +272,3 @@
 
 </body>
 </html>
-

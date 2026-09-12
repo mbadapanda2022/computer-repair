@@ -455,7 +455,7 @@
             </div>
             <div class="col-md-5 text-md-end mt-3 mt-md-0">
                 <div class="d-flex flex-wrap gap-2 justify-content-md-end">
-                    {% if repair.status == 'pending' or repair.status == 'diagnosis' %}
+                    {% if repair.status == 'pending' and not repair.received_at %}
                         <a href="{% url 'customer:customer_repair_update' repair.pk %}" class="btn btn-light action-btn">
                             <i class="bi bi-pencil"></i> Edit
                         </a>

@@ -60,21 +60,40 @@
         </div>
         
         <div class="row g-3 mt-2">
-            <div class="col-md-4">
-                <label for="id_estimated_cost" class="form-label fw-semibold">Estimated Cost</label>
-                <input type="number" name="estimated_cost" id="id_estimated_cost" step="0.01" 
-                       class="form-control" value="{{ form.estimated_cost.value|default:'' }}">
+            <!-- Reception Details -->
+            <h6 class="text-success border-bottom pb-2 mb-3 mt-4">
+                <i class="bi bi-box-arrow-in-down"></i> Reception Details
+            </h6>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="id_received_at" class="form-label fw-semibold">Received Date</label>
+                    <input type="date" name="received_at" id="id_received_at" 
+                        class="form-control" value="{% now 'Y-m-d' %}">
+                </div>
+                <div class="col-md-4">
+                    <label for="id_received_by" class="form-label fw-semibold">Received By</label>
+                    <input type="text" name="received_by" id="id_received_by" 
+                        class="form-control" value="{{ form.received_by.value|default:request.user.get_full_name }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="id_estimated_cost" class="form-label fw-semibold">Estimated Cost (₹)</label>
+                    <input type="number" name="estimated_cost" id="id_estimated_cost" step="0.01" 
+                        class="form-control" value="{{ form.estimated_cost.value|default:'' }}">
+                </div>
             </div>
-            <div class="col-md-4">
-                <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge</label>
-                <input type="number" name="labour_charge" id="id_labour_charge" step="0.01" 
-                       class="form-control" value="{{ form.labour_charge.value|default:'0' }}">
+            <div class="row g-3 mt-2">
+                <div class="col-md-6">
+                    <label for="id_received_remarks" class="form-label fw-semibold">Reception Remarks</label>
+                    <textarea name="received_remarks" id="id_received_remarks" rows="2"
+                            class="form-control" placeholder="Device condition at reception...">{{ form.received_remarks.value|default:'' }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge (₹)</label>
+                    <input type="number" name="labour_charge" id="id_labour_charge" step="0.01" 
+                        class="form-control" value="{{ form.labour_charge.value|default:'0' }}">
+                </div>
             </div>
-            <div class="col-md-4">
-                <label for="id_received_by" class="form-label fw-semibold">Received By</label>
-                <input type="text" name="received_by" id="id_received_by" 
-                       class="form-control" value="{{ form.received_by.value|default:request.user.get_full_name }}">
-            </div>
+
         </div>
     </div>
     

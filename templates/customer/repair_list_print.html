@@ -1,3 +1,4 @@
+<!-- templates/customer/repair_list_print.html -->
 {% load static math_filters %}
 <!DOCTYPE html>
 <html>
@@ -19,15 +20,18 @@
         .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
         .no-print { margin-top: 20px; text-align: center; }
         .badge { padding: 2px 6px; border-radius: 4px; font-size: 8pt; color: #fff; }
-        .badge-pending { background: #6c757d; }
+        .badge-pending { background: #ffc107; color: #000; }
+        .badge-received { background: #6c757d; color: #fff; }
         .badge-diagnosis { background: #0dcaf0; color: #000; }
         .badge-repairing { background: #ffc107; color: #000; }
-        .badge-ready { background: #0d6efd; }
-        .badge-delivered { background: #198754; }
-        .badge-cancelled { background: #dc3545; }
+        .badge-ready { background: #0d6efd; color: #fff; }
+        .badge-delivered { background: #198754; color: #fff; }
+        .badge-cancelled { background: #dc3545; color: #fff; }
         .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
         .btn-primary { background: #0d6efd; color: #fff; }
         .btn-secondary { background: #6c757d; color: #fff; }
+        .text-muted { color: #6c757d; }
+        .total-row th { background: #e9ecef; border-top: 2px solid #333; }
     </style>
 </head>
 <body>
@@ -43,25 +47,39 @@
         {% if date_from %}<span>From: {{ date_from }}</span>{% endif %}
         {% if date_to %}<span>To: {{ date_to }}</span>{% endif %}
         {% if not status_filter and not search and not date_from and not date_to %}<span>All Records</span>{% endif %}
-        <br><small>Generated: {% now "d M Y, h:i A" %} | Total: {{ total_count }}</small>
+        <br><small>Generated: {% now "d M Y, h:i A" %} | Total Records: {{ total_count }}</small>
     </div>
 
     <table class="table">
         <thead>
             <tr>
                 <th>Job #</th>
-                <th>Date</th>
+                <th>Submitted</th>
+                <th>Received</th>
                 <th>Device</th>
                 <th>Status</th>
-                <th class="text-center">Handover Date</th>
-                <th class="text-end">Amount</th>
+                <th class="text-center">Delivered</th>
+                <th class="text-end">Amount (₹)</th>
             </tr>
         </thead>
         <tbody>
             {% for repair in repairs %}
             <tr>
                 <td>{{ repair.job_number }}</td>
-                <td>{{ repair.date_in|date:"d M Y" }}</td>
+                <td>
+                    {% if repair.submitted_at %}
+                        {{ repair.submitted_at|date:"d M Y" }}
+                    {% else %}
+                        {{ repair.date_in|date:"d M Y" }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if repair.received_at %}
+                        {{ repair.received_at|date:"d M Y" }}
+                    {% else %}
+                        <span class="text-muted">Pending</span>
+                    {% endif %}
+                </td>
                 <td>{{ repair.device_model }}</td>
                 <td><span class="badge badge-{{ repair.status }}">{{ repair.get_status_display }}</span></td>
                 <td class="text-center">
@@ -74,13 +92,15 @@
                 <td class="text-end">₹{{ repair.final_amount|floatformat:2 }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center">No repair jobs found.</td></tr>
+            <tr>
+                <td colspan="7" class="text-center">No repair jobs found.</td>
+            </tr>
             {% endfor %}
         </tbody>
         <tfoot>
-            <tr>
-                <th colspan="4" class="text-end">Total</th>
-                <th class="text-end fw-bold">₹{{ total_count|default:0|floatformat:2 }}</th>
+            <tr class="total-row">
+                <th colspan="6" class="text-end">Total Amount</th>
+                <th class="text-end fw-bold">₹{{ total_amount|default:0|floatformat:2 }}</th>
             </tr>
         </tfoot>
     </table>

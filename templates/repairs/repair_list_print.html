@@ -34,7 +34,8 @@
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
             }
-            .badge-pending { background: #6c757d !important; }
+            .badge-pending { background: #ffc107 !important; color: #000 !important; }
+            .badge-received { background: #6c757d !important; }
             .badge-diagnosis { background: #0dcaf0 !important; color: #000 !important; }
             .badge-repairing { background: #ffc107 !important; color: #000 !important; }
             .badge-ready { background: #0d6efd !important; }
@@ -195,11 +196,12 @@
         <thead>
             <tr>
                 <th>Job #</th>
-                <th>Date</th>
+                <th>Submitted</th>
+                <th>Received</th>
                 <th>Customer</th>
                 <th>Device</th>
                 <th>Status</th>
-                <th class="text-center">Handover Date</th>
+                <th class="text-center">Delivered</th>
                 <th class="text-end">Amount (₹)</th>
             </tr>
         </thead>
@@ -207,7 +209,12 @@
             {% for job in jobs %}
             <tr>
                 <td><strong>{{ job.job_number }}</strong></td>
-                <td>{{ job.date_in|date:"d M Y" }}</td>
+                <td>
+                    {% if job.submitted_at %}{{ job.submitted_at|date:"d M Y" }}{% else %}{{ job.date_in|date:"d M Y" }}{% endif %}
+                </td>
+                <td>
+                    {% if job.received_at %}{{ job.received_at|date:"d M Y" }}{% else %}<span style="color:#ffc107;">Pending</span>{% endif %}
+                </td>
                 <td>{{ job.customer.name }}</td>
                 <td>{{ job.device_model }}</td>
                 <td>
@@ -226,7 +233,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" class="no-data">
+                <td colspan="7" class="no-data">
                     <i class="bi bi-inbox"></i>
                     <strong>No repair jobs found</strong><br>
                     <span style="font-size: 10pt; color: #999;">
@@ -238,7 +245,7 @@
         </tbody>
         <tfoot>
             <tr class="summary-row">
-                <td colspan="6" class="text-end fw-bold">Total Amount</td>
+                <td colspan="7" class="text-end fw-bold">Total Amount</td>
                 <td class="text-end fw-bold">₹{{ total_amount|floatformat:2 }}</td>
             </tr>
         </tfoot>

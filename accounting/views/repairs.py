@@ -206,21 +206,37 @@ def repair_list_print(request):
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='repairs/partials/repair_form_modal.html')
 def repair_create(request):
+    """
+    Staff walk-in repair create karo.
+    Device already staff ke haath me hai, isliye status='received' direct.
+    """
     template_name = 'repairs/partials/repair_form_modal.html' if is_htmx(request) else 'repairs/repair_form.html'
 
     if request.method == 'POST':
         form = RepairJobForm(request.POST)
         if form.is_valid():
             with transaction.atomic():
-                job = form.save()
+                job = form.save(commit=False)
+                now = timezone.now()
+                job.date_in = now.date()
+                job.submitted_at = now
+
+                if job.status == 'pending':
+                    job.status = 'received'
+
+                if not job.received_at:
+                    job.received_at = now.date()
+
+                job.save()
+
                 send_notification_to_customer(
                     job.customer,
                     title=f"Repair Job Created: {job.job_number}",
-                    message=f"Your repair for {job.device_model} has been received.",
+                    message=f"Your repair for {job.device_model} has been received at the shop.",
                     link=reverse('customer:customer_repair_detail', args=[job.pk]),
                     notif_type='success',
                     category='repairs',
-                    send_email=True
+                    send_email=True,
                 )
                 for staff in User.objects.filter(is_staff=True):
                     send_notification_sse(staff)
@@ -329,6 +345,10 @@ def repair_detail(request, pk):
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def update_repair_status(request, pk):
+    """
+    Staff repair status update karta hai.
+    save() method auto-stamp karega dates ko.
+    """
     job = get_object_or_404(RepairJob, pk=pk)
 
     if request.method != 'POST':
@@ -365,7 +385,9 @@ def update_repair_status(request, pk):
                     date=timezone.now().date(),
                     notes=f"Stock returned due to cancellation of repair job {job.job_number}"
                 )
-                Product.objects.filter(pk=part.product_id).update(current_stock=F('current_stock') + part.quantity)
+                Product.objects.filter(pk=part.product_id).update(
+                    current_stock=F('current_stock') + part.quantity
+                )
 
         job.status = new_status
         job.save(update_fields=['status'])
@@ -753,6 +775,16 @@ def repair_create_for_contact(request, contact_id):
             with transaction.atomic():
                 job = form.save(commit=False)
                 job.customer = contact
+                now = timezone.now()
+                # Walk-in: device already received
+                if not job.submitted_at:
+                    job.submitted_at = now
+                if not job.received_at:
+                    job.received_at = now.date()
+                if not job.date_in:
+                    job.date_in = now.date()
+                if job.status == 'pending':
+                    job.status = 'received'
                 job.save()
                 form.save_m2m()
 

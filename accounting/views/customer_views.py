@@ -397,6 +397,11 @@ def invoice_print(request, pk):
 @handle_errors(default_redirect='customer:customer_dashboard')
 def repair_list(request):
     customer = get_object_or_404(Contact, user=request.user)
+
+    # Reset handling — filters clear karke redirect
+    if request.GET.get('reset'):
+        return redirect('customer:customer_repairs')
+
     repairs = RepairJob.objects.filter(customer=customer).order_by('-date_in')
 
     # Filters
@@ -419,9 +424,12 @@ def repair_list(request):
     if date_to:
         repairs = repairs.filter(date_in__lte=date_to)
 
+    filtered_total = repairs.aggregate(total=Sum('final_amount'))['total'] or Decimal('0')
+
     # Print Mode 
     if is_print:
         company = CompanyProfile.get_instance()
+        total_amount = repairs.aggregate(total=Sum('final_amount'))['total'] or Decimal('0')
         context = {
             'repairs': repairs,
             'customer': customer,
@@ -432,6 +440,7 @@ def repair_list(request):
             'date_from': date_from,
             'date_to': date_to,
             'total_count': repairs.count(),
+            'total_amount': total_amount,
             'repair_status_choices': RepairJob.STATUS_CHOICES,
         }
         return render(request, 'customer/repair_list_print.html', context)
@@ -452,6 +461,7 @@ def repair_list(request):
         'date_from': date_from,
         'date_to': date_to,
         'total_count': paginator.count,
+        'filtered_total': filtered_total,   
         'repair_status_choices': RepairJob.STATUS_CHOICES,
         'customer': customer,
     }
@@ -522,7 +532,8 @@ def customer_repairs_excel(request):
     left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
     right_align = Alignment(horizontal='right', vertical='center')
 
-    TOTAL_COLS = 15
+    # 20 columns now (added Submitted, Received, Ready, Received By, Delivered By)
+    TOTAL_COLS = 20
     last_col = get_column_letter(TOTAL_COLS)
 
     # Row 1 - Company Name
@@ -568,22 +579,27 @@ def customer_repairs_excel(request):
 
     ws.row_dimensions[5].height = 5
 
-    # Row 6 - Headers
+    # Row 6 - Headers (20 columns)
     headers = [
         ('Job #', 14),
-        ('Date In', 12),
+        ('Submitted', 13),
+        ('Received', 13),
+        ('Ready', 13),
+        ('Delivered', 13),
         ('Device Model', 22),
         ('Serial #', 16),
-        ('Issue', 32),
-        ('Diagnosis', 32),
-        ('Action Taken', 32),
-        ('Status', 12),
+        ('Issue', 30),
+        ('Diagnosis', 30),
+        ('Action Taken', 30),
+        ('Status', 22),
         ('Estimate Status', 14),
         ('Estimated Cost (₹)', 16),
         ('Labour (₹)', 12),
         ('Parts (₹)', 12),
         ('Final Amount (₹)', 16),
-        ('Delivery Date', 13),
+        ('Received By', 14),
+        ('Delivered By', 14),
+        ('Recipient', 18),
         ('Invoice #', 14),
     ]
 
@@ -609,19 +625,32 @@ def customer_repairs_excel(request):
 
         row_data = [
             repair.job_number,
-            repair.date_in.strftime('%d-%m-%Y') if repair.date_in else '',
+            # ---- Timeline (4 dates) ----
+            repair.submitted_at.strftime('%d-%m-%Y') if repair.submitted_at else (
+                repair.date_in.strftime('%d-%m-%Y') if repair.date_in else ''
+            ),
+            repair.received_at.strftime('%d-%m-%Y') if repair.received_at else '',
+            repair.ready_at.strftime('%d-%m-%Y') if repair.ready_at else '',
+            repair.delivery_date.strftime('%d-%m-%Y') if repair.delivery_date else '',
+            # ---- Device details ----
             repair.device_model or '',
             repair.serial_number or '',
             repair.issue_description or '',
             repair.diagnosis_report or '',
             repair.action_taken or '',
+            # ---- Status ----
             repair.get_status_display(),
             repair.get_estimate_status_display() if repair.estimate_status else 'No Estimate',
+            # ---- Amounts ----
             float(repair.estimated_cost) if repair.estimated_cost else 0,
             float(repair.labour_charge or 0),
             float(parts_total),
             float(repair.final_amount or 0),
-            repair.delivery_date.strftime('%d-%m-%Y') if repair.delivery_date else '',
+            # ---- Personnel ----
+            repair.received_by or '',
+            repair.delivered_by or '',
+            repair.delivered_to_name or '',
+            # ---- Invoice ----
             repair.invoice.invoice_number if repair.invoice else '',
         ]
 
@@ -630,21 +659,22 @@ def customer_repairs_excel(request):
             cell.border = border_all
             cell.alignment = left_align
 
-        # Money columns
-        for col_idx in [10, 11, 12, 13]:
+        # Money columns: 13, 14, 15, 16
+        for col_idx in [13, 14, 15, 16]:
             ws.cell(row=row_num, column=col_idx).alignment = right_align
             ws.cell(row=row_num, column=col_idx).number_format = money_format
 
-        # Center align
-        for col_idx in [1, 2, 8, 9, 14, 15]:
+        # Center align: Job#, all dates (2,3,4,5), status (11,12), invoice (20)
+        for col_idx in [1, 2, 3, 4, 5, 11, 12, 20]:
             ws.cell(row=row_num, column=col_idx).alignment = center_align
 
+        # Accumulate totals
         total_est += Decimal(str(repair.estimated_cost or 0))
         total_labour += Decimal(str(repair.labour_charge or 0))
         total_parts += parts_total
         total_final += Decimal(str(repair.final_amount or 0))
 
-        # Alternate fill
+        # Alternate row fill
         if row_num % 2 == 0:
             alt = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             for c in range(1, TOTAL_COLS + 1):
@@ -652,15 +682,23 @@ def customer_repairs_excel(request):
 
         row_num += 1
 
-    # Total row
-    ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=9)
+    # ===== Grand Total Row =====
+    # Merge cols 1-12 for label
+    ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=12)
     total_label = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
     total_label.font = total_font
     total_label.fill = total_fill
     total_label.alignment = right_align
     total_label.border = border_header
 
-    for col_idx, val in [(10, total_est), (11, total_labour), (12, total_parts), (13, total_final)]:
+    # Fill merged region
+    for col_idx in range(2, 13):
+        c = ws.cell(row=row_num, column=col_idx)
+        c.fill = total_fill
+        c.border = border_header
+
+    # Money totals: cols 13, 14, 15, 16
+    for col_idx, val in [(13, total_est), (14, total_labour), (15, total_parts), (16, total_final)]:
         c = ws.cell(row=row_num, column=col_idx, value=float(val))
         c.font = total_font
         c.fill = total_fill
@@ -668,19 +706,15 @@ def customer_repairs_excel(request):
         c.number_format = money_format
         c.border = border_header
 
-    for col_idx in range(2, 10):
-        c = ws.cell(row=row_num, column=col_idx)
-        c.fill = total_fill
-        c.border = border_header
-
-    for col_idx in [14, 15]:
+    # Remaining cols 17-20
+    for col_idx in [17, 18, 19, 20]:
         c = ws.cell(row=row_num, column=col_idx, value="")
         c.fill = total_fill
         c.border = border_header
 
     ws.row_dimensions[row_num].height = 22
 
-    # Footer
+    # ===== Footer =====
     footer_row = row_num + 2
     ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=TOTAL_COLS)
     footer_text = f"Auto-generated by {company.name or 'A1 Computer Solutions'} on {timezone.now().strftime('%d-%m-%Y %H:%M')}."
@@ -1005,7 +1039,10 @@ def statement(request):
 
         # Build description
         if invoice_no and device_model:
-            main_desc = f"Inv: {invoice_no} | Device: {device_model}"
+            if repair and repair.job_number:
+                main_desc = f"Inv: {invoice_no} | {repair.job_number} | Device: {device_model}"
+            else:
+                main_desc = f"Inv: {invoice_no} | Device: {device_model}"
         elif invoice_no:
             main_desc = f"Invoice {invoice_no}"
         else:
@@ -1436,6 +1473,7 @@ def customer_password_change(request):
 # ============================================================
 
 # ---------- 1. REPAIR CREATE (Customer) ----------
+# ---------- 1. REPAIR CREATE (Customer) ----------
 @csrf_protect
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs', htmx_template='customer/repair_create.html')
@@ -1448,17 +1486,19 @@ def repair_create(request):
             with transaction.atomic():
                 job = form.save(commit=False)
                 job.customer = customer
-                job.status = 'pending'
+
+                job.status = 'pending'   
                 job.date_in = timezone.now().date()
+                job.submitted_at = timezone.now()
                 job.save()
 
                 send_notification_to_staff(
                     title=f"New Repair Request: {job.job_number}",
-                    message=f"{customer.name} submitted a repair for {job.device_model}",
+                    message=f"{customer.name} submitted a repair for {job.device_model}. Awaiting device drop-off.",
                     link=reverse('accounting:repair_detail', args=[job.pk]),
                     notif_type='warning',
                     category='repairs',
-                    send_email=True
+                    send_email=True,
                 )
 
                 if is_htmx(request):
@@ -1466,9 +1506,13 @@ def repair_create(request):
                         request,
                         'customer/partials/repair_list_table.html',
                         context={'repairs': RepairJob.objects.filter(customer=customer).order_by('-date_in')[:10]},
-                        toast={'level': 'success', 'message': f'Repair job {job.job_number} created.'}
+                        toast={'level': 'success', 'message': f'Repair job {job.job_number} submitted. Please bring your device to the shop.'}
                     )
-                messages.success(request, f"Repair job {job.job_number} created successfully.")
+
+                messages.success(
+                    request,
+                    f"Repair request {job.job_number} submitted. Please bring your device to the shop."
+                )
                 return redirect_to_customer('customer_repairs')
         else:
             if is_htmx(request):
@@ -1478,17 +1522,27 @@ def repair_create(request):
 
     return render(request, 'customer/repair_create.html', {'form': form})
 
-
 # ---------- 2. REPAIR UPDATE (Customer) ----------
 @csrf_protect
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs', htmx_template='customer/repair_edit.html')
 def repair_update(request, pk):
+    """
+    Customer apni repair job edit kar sakta hai — SIRF tab tak jab tak
+    staff ne device physically receive na kiya ho.
+    
+    Jaise hi staff device receive karke 'received' (ya aage) mark karta hai,
+    customer edit nahi kar sakta. Sirf estimate approve/reject kar sakta hai.
+    """
     customer = get_object_or_404(Contact, user=request.user)
     repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
 
-    if repair.status not in ['pending', 'diagnosis']:
-        messages.error(request, "This repair job has already been processed and cannot be edited.")
+    if repair.status != 'pending' or repair.received_at is not None:
+        messages.error(
+            request,
+            "This repair has already been received by the shop. "
+            "You can no longer edit it. Please contact us directly for any changes."
+        )
         return redirect_to_customer('customer_repair_detail', pk=repair.pk)
 
     if request.method == 'POST':
@@ -1496,22 +1550,22 @@ def repair_update(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, f"Repair job {repair.job_number} updated.")
-            
+
             send_notification_to_staff(
                 title=f"Repair Updated by Customer: {repair.job_number}",
-                message=f"{customer.name} has updated repair for {repair.device_model}",
+                message=f"{customer.name} updated repair for {repair.device_model}",
                 link=reverse('accounting:repair_detail', args=[repair.pk]),
                 notif_type='info',
                 category='repairs',
-                send_email=False
+                send_email=False,
             )
-            
+
             if is_htmx(request):
                 return htmx_response(
                     request,
                     'customer/repair_detail.html',
                     context={'repair': repair, 'parts': repair.parts.all()},
-                    toast={'level': 'success', 'message': f'Repair job {repair.job_number} updated.'}
+                    toast={'level': 'success', 'message': f'Repair job {repair.job_number} updated.'},
                 )
             return redirect_to_customer('customer_repair_detail', pk=repair.pk)
         else:
@@ -1528,45 +1582,53 @@ def repair_update(request, pk):
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs')
 def repair_delete(request, pk):
+    """
+    Customer apni repair delete kar sakta hai — SIRF tab tak jab tak
+    staff ne device physically receive na kiya ho.
+    """
     customer = get_object_or_404(Contact, user=request.user)
     repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
 
-    if repair.status not in ['pending', 'diagnosis']:
-        messages.error(request, "This repair job has already been processed and cannot be deleted.")
+    # ---- Same permission check ----
+    if repair.status != 'pending' or repair.received_at is not None:
+        messages.error(
+            request,
+            "This repair has already been received by the shop. "
+            "It cannot be deleted. Please contact us directly."
+        )
         if is_htmx(request):
             return toast_only_response(
-                {'level': 'danger', 'message': 'Cannot delete processed repair.'},
-                status=400
+                {'level': 'danger', 'message': 'Cannot delete - repair already received by shop.'},
+                status=400,
             )
         return redirect_to_customer('customer_repair_detail', pk=repair.pk)
 
     if request.method == 'POST':
         job_number = repair.job_number
         device_model = repair.device_model
-        
+
         repair.delete()
         messages.success(request, f"Repair job {job_number} deleted.")
-        
+
         send_notification_to_staff(
             title=f"Repair Deleted by Customer: {job_number}",
-            message=f"{customer.name} has deleted repair for {device_model}",
+            message=f"{customer.name} deleted repair for {device_model}",
             link=reverse('accounting:repair_list'),
             notif_type='warning',
             category='repairs',
-            send_email=False
+            send_email=False,
         )
-        
+
         if is_htmx(request):
             return htmx_response(
                 request,
                 'customer/partials/repair_list_table.html',
                 context={'repairs': RepairJob.objects.filter(customer=customer).order_by('-date_in')[:10]},
-                toast={'level': 'success', 'message': f'Repair job {job_number} deleted.'}
+                toast={'level': 'success', 'message': f'Repair job {job_number} deleted.'},
             )
         return redirect_to_customer('customer_repairs')
 
     return render(request, 'customer/repair_confirm_delete.html', {'repair': repair})
-
 
 # ============================================================
 # ESTIMATE APPROVAL / HOLD / REJECT

@@ -809,20 +809,27 @@ class PurchaseItemForm(forms.ModelForm):
 # ============================================================
 
 class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
+    """
+    Staff ke liye repair form.
+    Staff saare timeline dates, delivery details, aur status edit kar sakta hai.
+    """
     class Meta:
         model = RepairJob
         fields = [
             'customer', 'device_model', 'serial_number',
             'issue_description', 'diagnosis_report', 'action_taken',
             'accessories', 'device_condition',
-            'received_by', 
-            'delivered_by', 'delivery_date',
+            'status',
+            # Timeline tracking (staff-editable)
+            'received_at', 'ready_at', 'delivery_date',
+            'received_by', 'received_remarks',
+            'delivered_by',
             'delivered_to_name',
             'delivered_to_phone',
             'delivered_to_designation',
             'delivery_remarks',
             'estimated_cost', 'labour_charge',
-            'status', 'date_in', 'notes'
+            'notes',
         ]
         widgets = {
             'customer': BS_SELECT,
@@ -833,24 +840,41 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'action_taken': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Describe what was done...'}),
             'accessories': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'E.g., Adaptor, Bag, CD'}),
             'device_condition': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'E.g., Battery missing, Hard disk removed'}),
-            'received_by': BS_TEXT,
-            'delivered_by': BS_TEXT,
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            # Timeline fields
+            'received_at': BS_DATE,
+            'ready_at': BS_DATE,
             'delivery_date': BS_DATE,
+            'received_by': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Staff name who received device'}),
+            'received_remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Device condition at reception (e.g., scratched screen, missing charger)'}),
+            # Delivery
+            'delivered_by': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Staff name who delivered'}),
             'delivered_to_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Recipient name (if different from customer)'}),
             'delivered_to_phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Recipient phone number'}),
             'delivered_to_designation': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Driver, Accountant, Office Boy'}),
             'delivery_remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Any special delivery remarks...'}),
             'estimated_cost': BS_NUMBER,
             'labour_charge': BS_NUMBER,
-            'status': forms.Select(attrs={'class': 'form-select'}, choices=RepairJob.STATUS_CHOICES),
-            'date_in': BS_DATE,
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+        labels = {
+            'received_at': 'Received at Shop (date)',
+            'ready_at': 'Ready for Delivery (date)',
+            'delivery_date': 'Delivered to Customer (date)',
+            'received_by': 'Received By (staff name)',
+            'received_remarks': 'Device Condition at Reception',
+            'delivered_by': 'Delivered By (staff name)',
+            'delivered_to_name': 'Handed Over To (name)',
+            'delivered_to_phone': 'Recipient Phone',
+            'delivered_to_designation': 'Recipient Designation',
+            'delivery_remarks': 'Delivery Remarks',
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Set default date_in if new
-        if not self.instance.pk:
+
+        # date_in form se hata diya — model me auto-mirror hota hai
+        if 'date_in' in self.fields and not self.instance.pk:
             self.fields['date_in'].initial = timezone.now().date()
 
         # Add HTMX validation to all fields except status (dynamic)
@@ -858,21 +882,16 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
         self.add_htmx_validation(
             validate_url=reverse('accounting:validate_repair_field'),
             field_names=field_names,
-            include_id_field='repair_id'
+            include_id_field='repair_id',
         )
 
-        # Make delivery fields optional (since existing data may be null)
-        # They are already optional because model has blank=True, null=True
-        # But we can also set required=False explicitly for clarity
-        for field in ['delivered_to_name', 'delivered_to_phone', 'delivered_to_designation', 'delivery_remarks']:
-            self.fields[field].required = False
-
-        # If status is 'delivered', we can optionally make delivery fields required
-        # But we keep them optional for backward compatibility with existing data.
-        # You can uncomment the following lines if you want strict validation:
-        # if self.instance and self.instance.status == 'delivered':
-        #     self.fields['delivered_to_name'].required = True
-        #     self.fields['delivery_date'].required = True
+        # Make delivery fields optional by default
+        for field in ['delivered_to_name', 'delivered_to_phone',
+                      'delivered_to_designation', 'delivery_remarks',
+                      'received_at', 'ready_at', 'delivery_date',
+                      'received_by', 'received_remarks', 'delivered_by']:
+            if field in self.fields:
+                self.fields[field].required = False
 
     def clean_estimated_cost(self):
         cost = self.cleaned_data.get('estimated_cost')
@@ -886,20 +905,14 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             raise ValidationError("Labour charge cannot be negative.")
         return labour
 
-    # Optional: Cross-field validation for delivery
     def clean(self):
         cleaned_data = super().clean()
         status = cleaned_data.get('status')
-        delivered_to_name = cleaned_data.get('delivered_to_name')
         delivery_date = cleaned_data.get('delivery_date')
 
-        # If status is 'delivered', we recommend having at least a delivery date
+        # Delivery date recommended when status='delivered'
         if status == 'delivered' and not delivery_date:
-            self.add_error('delivery_date', "Delivery date is recommended when status is 'Delivered'.")
-        # If delivery_to_name is filled but no phone, warn (but not error)
-        if delivered_to_name and not cleaned_data.get('delivered_to_phone'):
-            # You can add a warning or just ignore; we'll not add error to keep it flexible
-            pass
+            self.add_error('delivery_date', "Delivery date is required when status is 'Delivered'.")
 
         return cleaned_data
 

@@ -14271,3 +14271,23 @@ Traceback (most recent call last):
     return super().execute(query, params)
            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
 django.db.utils.IntegrityError: UNIQUE constraint failed: accounting_repairjob.job_number
+ERROR 2026-09-12 20:40:35,522 decorators 9180 16252 Error in repair_create: 'date_in'
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 20, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\repairs.py", line 256, in repair_create
+    form = RepairJobForm()
+  File "G:\computer_repair\accounting\forms.py", line 878, in __init__
+    self.fields['date_in'].initial = timezone.now().date()
+    ~~~~~~~~~~~^^^^^^^^^^^
+KeyError: 'date_in'
+ERROR 2026-09-12 20:40:43,156 decorators 9180 13632 Error in repair_create: 'date_in'
+Traceback (most recent call last):
+  File "G:\computer_repair\accounting\decorators.py", line 20, in wrapper
+    return view_func(request, *args, **kwargs)
+  File "G:\computer_repair\accounting\views\repairs.py", line 256, in repair_create
+    form = RepairJobForm()
+  File "G:\computer_repair\accounting\forms.py", line 878, in __init__
+    self.fields['date_in'].initial = timezone.now().date()
+    ~~~~~~~~~~~^^^^^^^^^^^
+KeyError: 'date_in'

@@ -7,11 +7,12 @@
                 <thead class="table-light">
                     <tr>
                         <th>Job #</th>
-                        <th>Date In</th>
+                        <th>Submitted</th>
                         <th>Customer</th>
                         <th>Device</th>
                         <th>Status</th>
-                        <th class="text-center">Handover Date</th> 
+                        <th class="text-center">Received</th>
+                        <th class="text-center">Delivered</th>
                         <th class="text-end">Amount</th>
                         <th class="text-center">Actions</th>
                     </tr>
@@ -20,12 +21,19 @@
                     {% for job in jobs %}
                     <tr>
                         <td><strong>{{ job.job_number }}</strong></td>
-                        <td>{{ job.date_in|date:"d M Y" }}</td>
+                        <td>
+                            {% if job.submitted_at %}
+                                {{ job.submitted_at|date:"d M Y" }}
+                            {% else %}
+                                {{ job.date_in|date:"d M Y" }}
+                            {% endif %}
+                        </td>
                         <td>{{ job.customer.name }}</td>
                         <td>{{ job.device_model }}</td>
                         <td>
                             <span class="badge 
-                                {% if job.status == 'pending' %}bg-secondary
+                                {% if job.status == 'pending' %}bg-warning text-dark
+                                {% elif job.status == 'received' %}bg-secondary
                                 {% elif job.status == 'diagnosis' %}bg-info text-dark
                                 {% elif job.status == 'repairing' %}bg-warning text-dark
                                 {% elif job.status == 'ready' %}bg-primary
@@ -36,6 +44,13 @@
                             </span>
                             {% if job.estimate_status == 'pending' and job.estimated_cost %}
                                 <br><span class="badge bg-warning text-dark">Estimate Pending</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if job.received_at %}
+                                {{ job.received_at|date:"d M Y" }}
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
@@ -92,7 +107,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-5">
+                        <td colspan="9" class="text-center py-5">
                             <i class="bi bi-inbox display-6 d-block mb-3 text-muted"></i>
                             <h5 class="text-muted">No repair jobs found</h5>
                             <p class="text-muted">Try adjusting your filters or create a new repair job.</p>
@@ -105,7 +120,7 @@
                 </tbody>
                 <tfoot class="table-light">
                     <tr>
-                        <th colspan="6" class="text-end">Total</th>
+                        <th colspan="7" class="text-end">Total</th>
                         <th class="text-end fw-bold">₹{{ filtered_total|floatformat:2 }}</th>
                         <th></th>
                     </tr>

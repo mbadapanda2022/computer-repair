@@ -7,10 +7,11 @@
                 <thead class="table-light">
                     <tr>
                         <th>Job #</th>
-                        <th>Date In</th>
+                        <th>Submitted</th>
+                        <th>Received</th>
                         <th>Device</th>
                         <th>Status</th>
-                        <th class="text-center">Handover Date</th>
+                        <th class="text-center">Delivered</th>
                         <th class="text-end">Amount</th>
                         <th class="text-center">Action</th>
                     </tr>
@@ -19,11 +20,25 @@
                     {% for repair in repairs %}
                     <tr>
                         <td><strong>{{ repair.job_number }}</strong></td>
-                        <td>{{ repair.date_in|date:"d M Y" }}</td>
+                        <td>
+                            {% if repair.submitted_at %}
+                                {{ repair.submitted_at|date:"d M Y" }}
+                            {% else %}
+                                {{ repair.date_in|date:"d M Y" }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if repair.received_at %}
+                                {{ repair.received_at|date:"d M Y" }}
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            {% endif %}
+                        </td>
                         <td>{{ repair.device_model }}</td>
                         <td>
                             <span class="badge 
-                                {% if repair.status == 'pending' %}bg-secondary
+                                {% if repair.status == 'pending' %}bg-warning text-dark
+                                {% elif repair.status == 'received' %}bg-secondary
                                 {% elif repair.status == 'diagnosis' %}bg-info text-dark
                                 {% elif repair.status == 'repairing' %}bg-warning text-dark
                                 {% elif repair.status == 'ready' %}bg-primary
@@ -53,20 +68,20 @@
                                             <i class="bi bi-eye me-2 text-primary"></i>View
                                         </a>
                                     </li>
-                                    {% if repair.status == 'pending' or repair.status == 'diagnosis' %}
-                                    <li>
-                                        <a class="dropdown-item" href="{% url 'customer:customer_repair_update' repair.pk %}">
-                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <button class="dropdown-item text-danger" 
-                                                hx-get="{% url 'customer:customer_repair_delete' repair.pk %}" 
-                                                hx-target="#mainModalContent" 
-                                                hx-trigger="click">
-                                            <i class="bi bi-trash me-2"></i>Delete
-                                        </button>
-                                    </li>
+                                    {% if repair.status == 'pending' and not repair.received_at %}
+                                        <li>
+                                            <a class="dropdown-item" href="{% url 'customer:customer_repair_update' repair.pk %}">
+                                                <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item text-danger" 
+                                                    hx-get="{% url 'customer:customer_repair_delete' repair.pk %}" 
+                                                    hx-target="#mainModalContent" 
+                                                    hx-trigger="click">
+                                                <i class="bi bi-trash me-2"></i>Delete
+                                            </button>
+                                        </li>
                                     {% endif %}
                                     <li>
                                         <a class="dropdown-item" href="{% url 'customer:customer_repair_print' repair.pk %}" target="_blank">
@@ -79,7 +94,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">
+                        <td colspan="8" class="text-center py-4 text-muted">
                             <i class="bi bi-inbox display-6 d-block mb-2"></i>
                             <p>You don't have any repair jobs yet.</p>
                             <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-primary btn-sm">
@@ -91,12 +106,8 @@
                 </tbody>
                 <tfoot class="table-light">
                     <tr>
-                        <th colspan="4" class="text-end">Total</th>
-                        <th class="text-end fw-bold">
-                            {% with total=repairs|length %}
-                                ₹{{ total|default:0|floatformat:2 }}
-                            {% endwith %}
-                        </th>
+                        <th colspan="6" class="text-end">Total Amount</th>
+                        <th class="text-end fw-bold">₹{{ filtered_total|floatformat:2 }}</th>
                         <th></th>
                     </tr>
                 </tfoot>

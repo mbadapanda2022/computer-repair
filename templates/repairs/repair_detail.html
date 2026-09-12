@@ -15,14 +15,38 @@
                 </div>
                 <div>
                     <h3 class="fw-bold mb-0">{{ job.job_number }}</h3>
-                    <p class="text-muted small mb-0">
-                        <i class="bi bi-calendar3 me-1"></i> 
-                        Created: {{ job.date_in|date:"d M Y" }}
-                        {% if job.delivery_date %}
-                        | <i class="bi bi-check-circle text-success me-1"></i> 
-                        Delivered: {{ job.delivery_date|date:"d M Y" }}
+                    <div class="d-flex flex-wrap gap-3 mt-1">
+                        {% if job.submitted_at %}
+                        <small class="text-muted">
+                            <i class="bi bi-cloud-upload me-1"></i>
+                            Submitted: {{ job.submitted_at|date:"d M Y, H:i" }}
+                        </small>
                         {% endif %}
-                    </p>
+                        {% if job.received_at %}
+                        <small class="text-success">
+                            <i class="bi bi-box-arrow-in-down me-1"></i>
+                            Received: {{ job.received_at|date:"d M Y" }}
+                            {% if job.received_by %}({{ job.received_by }}){% endif %}
+                        </small>
+                        {% else %}
+                        <small class="text-warning">
+                            <i class="bi bi-hourglass-split me-1"></i>
+                            Awaiting device at shop
+                        </small>
+                        {% endif %}
+                        {% if job.ready_at %}
+                        <small class="text-primary">
+                            <i class="bi bi-check2-circle me-1"></i>
+                            Ready: {{ job.ready_at|date:"d M Y" }}
+                        </small>
+                        {% endif %}
+                        {% if job.delivered_at %}
+                        <small class="text-success">
+                            <i class="bi bi-truck me-1"></i>
+                            Delivered: {{ job.delivered_at|date:"d M Y, H:i" }}
+                        </small>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -238,6 +262,12 @@
                                 <small class="text-muted d-block mb-1">Delivery Details</small>
                                 <strong>Delivered By:</strong> {{ job.delivered_by|default:"—" }}<br>
                                 <strong>Delivery Date:</strong> {{ job.delivery_date|date:"d M Y"|default:"—" }}<br>
+                                {% if job.delivered_at %}
+                                <strong>System Stamped:</strong> {{ job.delivered_at|date:"d M Y, H:i" }}<br>
+                                {% endif %}
+                                {% if job.received_remarks %}
+                                <strong>Reception Remarks:</strong> {{ job.received_remarks }}<br>
+                                {% endif %}
                                 {% if job.delivery_remarks %}
                                     <strong>Remarks:</strong> {{ job.delivery_remarks }}
                                 {% endif %}
@@ -365,6 +395,26 @@
                 <div class="card-body">
                     <div class="row g-2">
                         <div class="col-6">
+                            <small class="text-muted d-block">Submitted</small>
+                            <span class="fw-bold">
+                                {% if job.submitted_at %}{{ job.submitted_at|date:"d M Y" }}{% else %}{{ job.date_in|date:"d M Y" }}{% endif %}
+                            </span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Received</small>
+                            <span class="fw-bold">
+                                {% if job.received_at %}{{ job.received_at|date:"d M Y" }}{% else %}<span class="text-warning">Pending</span>{% endif %}
+                            </span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Ready</small>
+                            <span class="fw-bold">{{ job.ready_at|date:"d M Y"|default:"—" }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Delivered</small>
+                            <span class="fw-bold">{{ job.delivery_date|date:"d M Y"|default:"—" }}</span>
+                        </div>
+                        <div class="col-6">
                             <small class="text-muted d-block">Received By</small>
                             <span class="fw-bold">{{ job.received_by|default:"—" }}</span>
                         </div>
@@ -372,29 +422,21 @@
                             <small class="text-muted d-block">Delivered By</small>
                             <span class="fw-bold">{{ job.delivered_by|default:"—" }}</span>
                         </div>
-                        <div class="col-6">
-                            <small class="text-muted d-block">Date In</small>
-                            <span class="fw-bold">{{ job.date_in|date:"d M Y" }}</span>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted d-block">Delivery Date</small>
-                            <span class="fw-bold">{{ job.delivery_date|date:"d M Y"|default:"—" }}</span>
-                        </div>
                         <div class="col-12">
                             <hr>
                             <div class="d-flex gap-2 flex-wrap">
                                 <a href="{% url 'accounting:customer_statement' job.customer.pk %}" class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-file-text"></i> Statement
                                 </a>
-                                <a href="{% url 'accounting:customer_statement_whatsapp' job.customer.pk %}" 
-                                   class="btn btn-sm btn-outline-success" target="_blank">
+                                <a href="{% url 'accounting:customer_statement_whatsapp' job.customer.pk %}"
+                                class="btn btn-sm btn-outline-success" target="_blank">
                                     <i class="bi bi-whatsapp"></i> WhatsApp
                                 </a>
-                                <a href="{% url 'accounting:repair_create_for_contact' job.customer.pk %}" 
-                                   class="btn btn-sm btn-outline-warning"
-                                   hx-get="{% url 'accounting:repair_create_for_contact' job.customer.pk %}"
-                                   hx-target="#mainModalContent"
-                                   hx-trigger="click">
+                                <a href="{% url 'accounting:repair_create_for_contact' job.customer.pk %}"
+                                class="btn btn-sm btn-outline-warning"
+                                hx-get="{% url 'accounting:repair_create_for_contact' job.customer.pk %}"
+                                hx-target="#mainModalContent"
+                                hx-trigger="click">
                                     <i class="bi bi-plus"></i> New Repair
                                 </a>
                             </div>
@@ -402,6 +444,7 @@
                     </div>
                 </div>
             </div>
+            
         </div>
     </div>
 

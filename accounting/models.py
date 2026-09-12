@@ -1175,11 +1175,29 @@ class PurchaseItem(SoftDeleteModel):
 # ============================================================
 
 class RepairJob(SoftDeleteModel):
-    STATUS_CHOICES = (('pending', 'Pending'), ('diagnosis', 'Diagnosis'), ('repairing', 'Repairing'), ('ready', 'Ready for Delivery'), ('delivered', 'Delivered'), ('cancelled', 'Cancelled'))
-    ESTIMATE_STATUS_CHOICES = (('pending', 'Pending Approval'), ('approved', 'Approved'), ('on_hold', 'On Hold'), ('rejected', 'Rejected'))
+    STATUS_CHOICES = (
+        ('pending',    'Pending (Awaiting Receipt)'),
+        ('received',   'Received at Shop'),
+        ('diagnosis',  'Diagnosis'),
+        ('repairing',  'Repairing'),
+        ('ready',      'Ready for Delivery'),
+        ('delivered',  'Delivered'),
+        ('cancelled',  'Cancelled'),
+    )
+    ESTIMATE_STATUS_CHOICES = (
+        ('pending',  'Pending Approval'),
+        ('approved', 'Approved'),
+        ('on_hold',  'On Hold'),
+        ('rejected', 'Rejected'),
+    )
 
     job_number = models.CharField(max_length=50, unique=True, editable=False)
-    customer = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='repair_jobs', limit_choices_to={'contact_type__in': ['customer', 'both']})
+    customer = models.ForeignKey(
+        Contact,
+        on_delete=models.PROTECT,
+        related_name='repair_jobs',
+        limit_choices_to={'contact_type__in': ['customer', 'both']},
+    )
     device_model = models.CharField(max_length=200)
     serial_number = models.CharField(max_length=100, blank=True)
     issue_description = models.TextField()
@@ -1188,22 +1206,55 @@ class RepairJob(SoftDeleteModel):
     action_taken = models.TextField(blank=True)
     diagnosis_report = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+
+    # ---------- Estimate flow ----------
     estimate_status = models.CharField(max_length=10, choices=ESTIMATE_STATUS_CHOICES, default='pending')
     estimate_approved_at = models.DateTimeField(null=True, blank=True)
-    estimate_approved_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_estimates')
-    approval_source = models.CharField(max_length=30, blank=True, null=True, choices=[('portal', 'Customer Portal'), ('staff_phone', 'Staff (Phone Call)'), ('staff_inperson', 'Staff (In-Person)'), ('staff_whatsapp', 'Staff (WhatsApp)')])
+    estimate_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_estimates',
+    )
+    approval_source = models.CharField(
+        max_length=30,
+        blank=True,
+        null=True,
+        choices=[
+            ('portal', 'Customer Portal'),
+            ('staff_phone', 'Staff (Phone Call)'),
+            ('staff_inperson', 'Staff (In-Person)'),
+            ('staff_whatsapp', 'Staff (WhatsApp)'),
+        ],
+    )
     approval_remarks = models.TextField(blank=True, null=True)
+
+    # ---------- Amounts ----------
     estimated_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=POSITIVE_VALIDATOR)
     final_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     labour_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+
+    # ---------- Personnel ----------
     received_by = models.CharField(max_length=100, blank=True, null=True)
     delivered_by = models.CharField(max_length=100, blank=True, null=True)
-    date_in = models.DateField(default=timezone.now)
-    delivery_date = models.DateField(blank=True, null=True)
+
+    # ---------- Timeline tracking ----------
+    date_in = models.DateField(default=timezone.now, help_text="Legacy: date of first entry into system")
+    submitted_at = models.DateTimeField(null=True, blank=True, help_text="Auto: when customer submitted via online portal")
+    received_at = models.DateField(null=True, blank=True, help_text="Staff: when device physically arrived at shop")
+    received_remarks = models.TextField(blank=True, null=True, help_text="Staff: device condition at reception")
+    ready_at = models.DateField(null=True, blank=True, help_text="Auto: when repair was marked Ready for Delivery")
+    delivered_at = models.DateTimeField(null=True, blank=True, help_text="Auto audit: when status changed to Delivered")
+
+    # ---------- Delivery details (staff-editable) ----------
+    delivery_date = models.DateField(blank=True, null=True, help_text="Staff: actual date device was handed over")
     delivered_to_name = models.CharField(max_length=200, blank=True, null=True)
     delivered_to_phone = models.CharField(max_length=20, blank=True, null=True)
     delivered_to_designation = models.CharField(max_length=100, blank=True, null=True)
     delivery_remarks = models.TextField(blank=True, null=True)
+
+    # ---------- Related ----------
     invoice = models.OneToOneField(Invoice, on_delete=models.SET_NULL, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1219,7 +1270,7 @@ class RepairJob(SoftDeleteModel):
 
     def __str__(self):
         return f"Job {self.job_number} - {self.device_model} ({self.customer.name})"
-    
+
     @property
     def can_be_invoiced(self):
         return not self.invoice and self.status in ('ready', 'delivered')
@@ -1229,10 +1280,25 @@ class RepairJob(SoftDeleteModel):
         self.final_amount = (parts_total + self.labour_charge).quantize(TAX_PRECISION)
         self.save(update_fields=['final_amount'])
         return self.final_amount
-
+    
     def save(self, *args, **kwargs):
         from django.db import IntegrityError, transaction
+
         is_new = self.pk is None
+
+        # ============================================================
+        # AUTO-SYNC date_in
+        # - Agar received_at set hai → date_in = received_at (staff / received customer)
+        # - Warna submitted_at.date() (customer pending)
+        # ============================================================
+        if self.received_at:
+            self.date_in = self.received_at
+        elif self.submitted_at:
+            self.date_in = self.submitted_at.date()
+
+        # ============================================================
+        # NEW RECORD PATH (race-safe job_number)
+        # ============================================================
         if is_new:
             max_attempts = 5
             last_error = None
@@ -1244,7 +1310,7 @@ class RepairJob(SoftDeleteModel):
                 try:
                     with transaction.atomic():
                         super().save(*args, **kwargs)
-                    break 
+                    break
                 except IntegrityError as e:
                     last_error = e
                     if 'job_number' in str(e).lower() and attempt < max_attempts - 1:
@@ -1252,13 +1318,13 @@ class RepairJob(SoftDeleteModel):
                             f"job_number collision on attempt {attempt + 1}, "
                             f"got {self.job_number}, retrying..."
                         )
-                        continue 
-                    raise  
+                        continue
+                    raise
 
-            return  
-         
+            return
+
         # ============================================================
-        # EXISTING RECORD PATH (update)
+        # EXISTING RECORD PATH
         # ============================================================
         old_status = None
         try:
@@ -1266,12 +1332,46 @@ class RepairJob(SoftDeleteModel):
         except RepairJob.DoesNotExist:
             pass
 
+        # Auto-stamp timeline dates on status change
+        if old_status and old_status != self.status:
+            now_dt = timezone.now()
+            today = now_dt.date()
+
+            if self.status == 'received' and not self.received_at:
+                self.received_at = today
+                # Mirror to date_in
+                self.date_in = self.received_at
+
+            if self.status == 'ready' and not self.ready_at:
+                self.ready_at = today
+
+            if self.status == 'delivered':
+                if not self.delivered_at:
+                    self.delivered_at = now_dt
+                if not self.delivery_date:
+                    self.delivery_date = today
+
+        # Recalculate final_amount
         if self.pk:
             parts_total = self.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
             self.final_amount = (parts_total + self.labour_charge).quantize(TAX_PRECISION)
 
+        # Ensure auto-stamped fields are included in update_fields
+        update_fields = kwargs.get('update_fields')
+        if update_fields:
+            extra = []
+            if 'date_in' not in update_fields:
+                extra.append('date_in')
+            if old_status and old_status != self.status:
+                for f in ['received_at', 'ready_at', 'delivered_at', 'delivery_date']:
+                    if getattr(self, f, None) and f not in update_fields:
+                        extra.append(f)
+            if extra:
+                kwargs['update_fields'] = list(update_fields) + extra
+
         super().save(*args, **kwargs)
 
+        # Notifications on status change
         if old_status and old_status != self.status:
             try:
                 from django.urls import reverse
@@ -1293,7 +1393,7 @@ class RepairJob(SoftDeleteModel):
             except Exception as notif_error:
                 logger.error(f"Notification error for job {self.job_number}: {notif_error}")
 
-
+   
 class RepairPart(SoftDeleteModel):
     repair_job = models.ForeignKey(RepairJob, on_delete=models.CASCADE, related_name='parts')
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
