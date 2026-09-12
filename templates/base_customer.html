@@ -125,7 +125,7 @@
                                     <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
                                         id="notificationCount"
                                         hx-get="{% url 'customer:customer_unread_count_text' %}" 
-                                        hx-trigger="load, every 5s" 
+                                        hx-trigger="load, every 30s" 
                                         hx-swap="innerHTML">
                                         {{ user|unread_count }}
                                     </span>
@@ -133,7 +133,7 @@
                                 <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 
                                     style="width:350px; max-height:400px; overflow-y:auto;"
                                     hx-get="{% url 'customer:customer_notification_dropdown' %}" 
-                                    hx-trigger="load once, every 10s" 
+                                    hx-trigger="load once, every 60s" 
                                     hx-target="#notification-dropdown"
                                     hx-swap="innerHTML">
                                     <div class="text-center py-3 text-muted">Loading notifications...</div>

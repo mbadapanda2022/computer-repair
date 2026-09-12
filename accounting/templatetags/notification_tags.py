@@ -1,9 +1,11 @@
 # accounting/templatetags/notification_tags.py
-
+import logging
 from django import template
 from django.contrib.auth.models import User
 
 register = template.Library()
+
+logger = logging.getLogger(__name__)
 
 @register.filter
 def unread_count(user):
@@ -11,7 +13,8 @@ def unread_count(user):
         return 0
     try:
         return user.notifications.filter(is_read=False).count()
-    except Exception:
+    except Exception as e:
+        logger.warning(f"unread_count failed for user {user.pk}: {e}")
         return 0
 
 

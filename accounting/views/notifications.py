@@ -8,7 +8,7 @@ from django.core.paginator import Paginator
 from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 from ..models import Notification
-from .utils import is_htmx, redirect_to_staff   # ✅ is_htmx import किया
+from .utils import is_htmx, redirect_to_staff
 from ..decorators import handle_errors
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ def render_notification_partial(request, paginator_page=None):
         'unread_count': unread_count,
     })
 
+
 def render_dropdown_partial(request):
     notifications = request.user.notifications.all()[:10]
     unread_count = request.user.notifications.filter(is_read=False).count()
@@ -51,8 +52,7 @@ def notification_list(request):
         page = request.GET.get('page')
         page_obj = paginator.get_page(page)
         unread_count = request.user.notifications.filter(is_read=False).count()
-        
-        # ✅ Fix: request.htmx → is_htmx(request)
+
         if is_htmx(request):
             return render(request, 'notifications/partials/_notification_items.html', {
                 'page_obj': page_obj,
@@ -89,14 +89,13 @@ def mark_as_read(request, pk):
     notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
     notification.is_read = True
     notification.save()
-    
-    # ✅ Fix: request.htmx → is_htmx(request)
+
     if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
             return render_dropdown_partial(request)
         return render_notification_partial(request)
-    
+
     messages.success(request, "Marked as read.")
     return redirect_to_staff('notification_list')
 
@@ -111,7 +110,6 @@ def mark_all_read(request):
     count = request.user.notifications.filter(is_read=False).update(is_read=True)
     logger.info(f"User {request.user.id} marked {count} notifications as read")
 
-    # ✅ Fix: request.htmx → is_htmx(request)
     if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
@@ -133,7 +131,6 @@ def delete_notification(request, pk):
     notification.delete()
     logger.info(f"User {request.user.id} deleted notification {pk}")
 
-    # ✅ Fix: request.htmx → is_htmx(request)
     if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
@@ -155,7 +152,6 @@ def delete_all_notifications(request):
     request.user.notifications.all().delete()
     logger.info(f"User {request.user.id} deleted all {count} notifications")
 
-    # ✅ Fix: request.htmx → is_htmx(request)
     if is_htmx(request):
         target = request.headers.get('HX-Target', '')
         if 'dropdown' in target.lower():
@@ -171,8 +167,6 @@ def delete_all_notifications(request):
 # ============================================================
 @login_required
 def get_unread_count(request):
-    if not request.user.is_authenticated:
-        return JsonResponse({'count': 0})
     try:
         count = request.user.notifications.filter(is_read=False).count()
         return JsonResponse({'count': count})
@@ -184,7 +178,6 @@ def get_unread_count(request):
 # ============================================================
 # UNREAD COUNT (PLAIN TEXT)
 # ============================================================
+@login_required
 def unread_count_text(request):
-    if not request.user.is_authenticated:
-        return HttpResponse("0")
     return HttpResponse(str(request.user.notifications.filter(is_read=False).count()))
