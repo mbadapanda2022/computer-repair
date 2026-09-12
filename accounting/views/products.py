@@ -11,8 +11,8 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
-
-from ..models import Product, ProductCategory, StockMovement
+from django.utils import timezone
+from ..models import Product, ProductCategory, StockMovement, CompanyProfile
 from ..forms import ProductForm, ProductCategoryForm
 from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
@@ -95,9 +95,14 @@ def get_paginated_products_context(request, queryset=None):
 # ============================================================
 # 1. PRODUCT LIST
 # ============================================================
+@login_required
 @handle_errors(default_redirect='accounting:product_list')
 def product_list(request):
     """List products with search, category filters, and pagination."""
+    # Reset handling
+    if request.GET.get('reset'):
+        return redirect('accounting:product_list')
+
     context = get_paginated_products_context(request)
     if is_htmx(request):
         return render(request, 'products/partials/product_table.html', context)
@@ -107,6 +112,7 @@ def product_list(request):
 # ============================================================
 # 2. PRODUCT CREATE
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:product_list', htmx_template='products/product_form.html')
 def product_create(request):
@@ -139,6 +145,7 @@ def product_create(request):
 # ============================================================
 # 3. PRODUCT UPDATE
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:product_list', htmx_template='products/product_form.html')
 def product_update(request, pk):
@@ -172,6 +179,7 @@ def product_update(request, pk):
 # ============================================================
 # 4. PRODUCT DELETE
 # ============================================================
+@login_required
 @csrf_protect
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:product_list')
@@ -199,6 +207,7 @@ def product_delete(request, pk):
 # ============================================================
 # 5. PRODUCT DETAIL MODAL
 # ============================================================
+@login_required
 def product_detail_modal(request, pk):
     product = get_object_or_404(Product, pk=pk)
     recent_movements = StockMovement.objects.filter(product=product).order_by('-date')[:10]
@@ -242,6 +251,7 @@ def validate_category_field(request):
 # ============================================================
 # 6. INLINE CATEGORY ADD
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:product_list')
 def add_category_inline(request):
@@ -301,7 +311,7 @@ def validate_product_field(request):
                 price = Decimal(value)
                 if price < 0:
                     errors.append("Purchase price cannot be negative.")
-            except:
+            except (ValueError, TypeError):
                 errors.append("Enter a valid number.")
     elif field_name == 'selling_price':
         if not value:
@@ -319,7 +329,7 @@ def validate_product_field(request):
                             errors.append("Selling price should not be less than purchase price.")
                     except:
                         pass
-            except:
+            except (ValueError, TypeError):
                 errors.append("Enter a valid number.")
     elif field_name == 'tax_rate':
         if value:
@@ -338,7 +348,7 @@ def validate_product_field(request):
                 is_service = request.GET.get('is_service')
                 if is_service == 'on' and stock > 0:
                     errors.append("Service items cannot have physical stock.")
-            except:
+            except (ValueError, TypeError):
                 errors.append("Enter a valid number.")
     elif field_name == 'low_stock_threshold':
         if value:
@@ -388,6 +398,7 @@ def get_product_price(request):
 # ============================================================
 # 9. STOCK HISTORY
 # ============================================================
+@login_required
 def product_stock_history(request, pk):
     product = get_object_or_404(Product, pk=pk)
     movements = StockMovement.objects.filter(product=product).order_by('-date')[:50]
@@ -414,6 +425,7 @@ def product_search(request):
 # ============================================================
 # 11. QUICK ADD PRODUCT (for Purchase)
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:product_list')
 def product_quick_add(request):
@@ -427,91 +439,307 @@ def product_quick_add(request):
     else:
         form = ProductForm()
         return render(request, 'products/partials/product_quick_add_form.html', {'form': form})
-
+    
+    
 
 # ============================================================
-# 12. EXPORT PRODUCTS TO EXCEL
+# 12. EXPORT PRODUCTS TO EXCEL (Professional)
 # ============================================================
 @login_required
 @require_http_methods(["GET"])
+@handle_errors(default_redirect='accounting:product_list')
 def export_products_excel(request):
+    """Export filtered products to a professional Excel file."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        messages.error(request, "Openpyxl library is not installed on the server.")
+        return redirect('accounting:product_list')
+
+    # === Filters (same as product_list) ===
+    search = request.GET.get('search', '').strip()
+    category_id = request.GET.get('category', '')
+    is_active = request.GET.get('is_active', '')
+
     products = Product.objects.select_related('category').all().order_by('name')
-    wb = Workbook()
+
+    if search:
+        products = products.filter(
+            Q(name__icontains=search) | Q(hsn_code__icontains=search)
+        )
+    if category_id:
+        products = products.filter(category_id=category_id)
+    if is_active != '':
+        products = products.filter(is_active=(is_active.lower() == 'true'))
+
+    company = CompanyProfile.get_instance()
+
+    # === Create Workbook ===
+    wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Products"
 
-    # Styles
-    header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                         top=Side(style='thin'), bottom=Side(style='thin'))
-    center_align = Alignment(horizontal='center', vertical='center')
-    left_align = Alignment(horizontal='left', vertical='center')
-    right_align = Alignment(horizontal='right', vertical='center')
-    money_format = numbers.FORMAT_NUMBER_COMMA_SEPARATED1
+    # === Styles ===
+    title_font = Font(bold=True, size=16, color="FFFFFF")
+    title_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    subtitle_font = Font(bold=True, size=12, color="FFFFFF")
+    subtitle_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    total_font = Font(bold=True, size=11, color="FFFFFF")
+    total_fill = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
 
-    # Title
-    ws.merge_cells('A1:K1')
-    title_cell = ws.cell(row=1, column=1, value="Product Inventory – A1 Computer Solutions")
-    title_cell.font = Font(bold=True, size=14, color="1F4E78")
-    title_cell.alignment = center_align
+    thin = Side(style='thin', color="999999")
+    medium = Side(style='medium', color="000000")
+    border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
+    border_header = Border(left=medium, right=medium, top=medium, bottom=medium)
+    money_format = '#,##0.00'
+    number_format = '#,##0.###'
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right_align = Alignment(horizontal='right', vertical='center')
+
+    # 14 columns
+    TOTAL_COLS = 14
+    last_col = get_column_letter(TOTAL_COLS)
+
+    # === Row 1: Company Name ===
+    ws.merge_cells(f'A1:{last_col}1')
+    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'].font = title_font
+    ws['A1'].fill = title_fill
+    ws['A1'].alignment = center_align
     ws.row_dimensions[1].height = 30
 
-    # Headers
-    headers = ['ID', 'Name', 'HSN Code', 'Category', 'Unit',
-               'Purchase Price', 'Selling Price', 'Tax Rate (%)',
-               'Current Stock', 'Low Stock Threshold', 'Type', 'Active']
-    for col_idx, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col_idx, value=header)
+    # === Row 2: Company Details ===
+    ws.merge_cells(f'A2:{last_col}2')
+    addr_parts = []
+    if company.address: addr_parts.append(company.address)
+    if company.phone: addr_parts.append(f"Phone: {company.phone}")
+    if company.email: addr_parts.append(f"Email: {company.email}")
+    if company.gstin: addr_parts.append(f"GSTIN: {company.gstin}")
+    ws['A2'] = " | ".join(addr_parts)
+    ws['A2'].font = Font(size=10, italic=True)
+    ws['A2'].alignment = center_align
+    ws.row_dimensions[2].height = 20
+
+    # === Row 3: Report Title ===
+    ws.merge_cells(f'A3:{last_col}3')
+    ws['A3'] = "PRODUCT INVENTORY REPORT"
+    ws['A3'].font = subtitle_font
+    ws['A3'].fill = subtitle_fill
+    ws['A3'].alignment = center_align
+    ws.row_dimensions[3].height = 25
+
+    # === Row 4: Filters Bar ===
+    ws.merge_cells(f'A4:{last_col}4')
+    filter_parts = [f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')}"]
+    if search:
+        filter_parts.append(f"Search: {search}")
+    if category_id:
+        try:
+            cat = ProductCategory.objects.get(pk=category_id)
+            filter_parts.append(f"Category: {cat.name}")
+        except ProductCategory.DoesNotExist:
+            pass
+    if is_active == 'true':
+        filter_parts.append("Status: Active Only")
+    elif is_active == 'false':
+        filter_parts.append("Status: Inactive Only")
+    filter_parts.append(f"Total Records: {products.count()}")
+    ws['A4'] = " | ".join(filter_parts)
+    ws['A4'].font = Font(size=10, italic=True, color="555555")
+    ws['A4'].alignment = center_align
+    ws.row_dimensions[4].height = 20
+
+    # === Row 5: spacer ===
+    ws.row_dimensions[5].height = 5
+
+    # === Row 6: Table Headers ===
+    headers = [
+        ('#', 6),
+        ('Product Name', 32),
+        ('HSN/SAC', 12),
+        ('Category', 20),
+        ('Unit', 10),
+        ('Type', 10),
+        ('Purchase Price (₹)', 16),
+        ('Selling Price (₹)', 16),
+        ('Tax Rate (%)', 12),
+        ('Current Stock', 14),
+        ('Low Stock Alert', 14),
+        ('Stock Status', 14),
+        ('Stock Value (₹)', 16),
+        ('Active', 10),
+    ]
+
+    for col_num, (header, width) in enumerate(headers, 1):
+        cell = ws.cell(row=6, column=col_num, value=header)
         cell.font = header_font
         cell.fill = header_fill
-        cell.border = thin_border
         cell.alignment = center_align
-        ws.row_dimensions[2].height = 25
+        cell.border = border_header
+        ws.column_dimensions[get_column_letter(col_num)].width = width
 
-    # Data
-    for idx, product in enumerate(products, start=3):
-        row_fill = PatternFill(start_color="F2F6FC" if idx % 2 == 0 else "FFFFFF",
-                               end_color="F2F6FC" if idx % 2 == 0 else "FFFFFF",
-                               fill_type="solid")
+    ws.row_dimensions[6].height = 30
+
+    # === Data Rows ===
+    row_num = 7
+    total_stock_value = Decimal('0')
+    total_physical_stock = Decimal('0')
+    low_stock_rows = 0
+
+    for idx, product in enumerate(products, 1):
+        # Stock status
+        if product.is_service:
+            stock_status = "Service"
+            stock_value = Decimal('0')
+        else:
+            stock_value = (product.current_stock or Decimal('0')) * (product.purchase_price or Decimal('0'))
+            total_stock_value += stock_value
+            total_physical_stock += (product.current_stock or Decimal('0'))
+            if product.current_stock <= product.low_stock_threshold:
+                stock_status = "LOW"
+                low_stock_rows += 1
+            else:
+                stock_status = "OK"
+
         row_data = [
-            product.id,
-            product.name,
+            idx,
+            product.name or '',
             product.hsn_code or '',
             product.category.name if product.category else '',
             product.get_unit_display(),
-            float(product.purchase_price),
-            float(product.selling_price),
-            float(product.tax_rate),
-            float(product.current_stock),
-            product.low_stock_threshold,
             'Service' if product.is_service else 'Product',
-            'Yes' if product.is_active else 'No'
+            float(product.purchase_price or 0),
+            float(product.selling_price or 0),
+            float(product.tax_rate or 0),
+            float(product.current_stock or 0) if not product.is_service else 0,
+            product.low_stock_threshold if not product.is_service else 0,
+            stock_status,
+            float(stock_value),
+            'Yes' if product.is_active else 'No',
         ]
-        for col_idx, value in enumerate(row_data, 1):
-            cell = ws.cell(row=idx, column=col_idx, value=value)
-            cell.border = thin_border
-            cell.fill = row_fill
-            if col_idx in (1, 5, 8, 9, 10, 11, 12):
-                cell.alignment = center_align
-            elif col_idx in (6, 7):
-                cell.alignment = right_align
-                cell.number_format = money_format
-            else:
-                cell.alignment = left_align
 
-    # Auto-width
-    for col in ws.columns:
-        max_len = 0
-        col_letter = get_column_letter(col[0].column)
-        for cell in col:
-            if cell.value:
-                max_len = max(max_len, len(str(cell.value)))
-        ws.column_dimensions[col_letter].width = min(max_len + 3, 50)
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell.border = border_all
+            cell.alignment = left_align
 
-    ws.freeze_panes = 'A3'
+        # Money columns
+        for col_idx in [7, 8, 13]:
+            ws.cell(row=row_num, column=col_idx).alignment = right_align
+            ws.cell(row=row_num, column=col_idx).number_format = money_format
 
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="products.xlsx"'
+        # Number columns
+        for col_idx in [9, 10, 11]:
+            ws.cell(row=row_num, column=col_idx).alignment = center_align
+            ws.cell(row=row_num, column=col_idx).number_format = number_format
+
+        # Center align
+        for col_idx in [1, 3, 5, 6, 12, 14]:
+            ws.cell(row=row_num, column=col_idx).alignment = center_align
+
+        # Colour code stock status
+        status_cell = ws.cell(row=row_num, column=12)
+        if stock_status == "LOW":
+            status_cell.font = Font(bold=True, color="C00000")
+        elif stock_status == "OK":
+            status_cell.font = Font(color="1F7A1F")
+        else:
+            status_cell.font = Font(color="666666", italic=True)
+
+        # Inactive row = grey
+        if not product.is_active:
+            grey = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
+            for c in range(1, TOTAL_COLS + 1):
+                ws.cell(row=row_num, column=c).fill = grey
+        elif row_num % 2 == 0:
+            alt = PatternFill(start_color="F2F6FC", end_color="F2F6FC", fill_type="solid")
+            for c in range(1, TOTAL_COLS + 1):
+                ws.cell(row=row_num, column=c).fill = alt
+
+        row_num += 1
+
+    # === Grand Total Row ===
+    ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=9)
+    total_label = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
+    total_label.font = total_font
+    total_label.fill = total_fill
+    total_label.alignment = right_align
+    total_label.border = border_header
+
+    # Fill merged cells' backgrounds and borders
+    for col_idx in range(2, 10):
+        c = ws.cell(row=row_num, column=col_idx)
+        c.fill = total_fill
+        c.border = border_header
+
+    # Total physical stock in col 10
+    c = ws.cell(row=row_num, column=10, value=float(total_physical_stock))
+    c.font = total_font
+    c.fill = total_fill
+    c.alignment = center_align
+    c.number_format = number_format
+    c.border = border_header
+
+    # Low stock count in col 11
+    c = ws.cell(row=row_num, column=11, value=f"{low_stock_rows} LOW")
+    c.font = total_font
+    c.fill = total_fill
+    c.alignment = center_align
+    c.border = border_header
+
+    # Status column empty
+    c = ws.cell(row=row_num, column=12, value="")
+    c.fill = total_fill
+    c.border = border_header
+
+    # Total stock value
+    c = ws.cell(row=row_num, column=13, value=float(total_stock_value))
+    c.font = total_font
+    c.fill = total_fill
+    c.alignment = right_align
+    c.number_format = money_format
+    c.border = border_header
+
+    c = ws.cell(row=row_num, column=14, value="")
+    c.fill = total_fill
+    c.border = border_header
+
+    ws.row_dimensions[row_num].height = 24
+
+    # === Footer ===
+    footer_row = row_num + 2
+    ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=TOTAL_COLS)
+    footer_text = (
+        f"Auto-generated by {company.name or 'A1 Computer Solutions'} on "
+        f"{timezone.now().strftime('%d-%m-%Y %H:%M')}. "
+        f"Total Products: {products.count()} | Total Stock Value: ₹{total_stock_value:,.2f}"
+    )
+    fc = ws.cell(row=footer_row, column=1, value=footer_text)
+    fc.font = Font(size=9, italic=True, color="777777")
+    fc.alignment = center_align
+
+    # === Freeze Panes & Auto-filter ===
+    ws.freeze_panes = 'A7'
+    ws.auto_filter.ref = f"A6:{last_col}6"
+
+    # === Page setup for printing ===
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    # === Response ===
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"products_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
+

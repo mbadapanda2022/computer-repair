@@ -208,7 +208,7 @@ def get_account(code, name, account_type, group_code):
 # ============================================================
 
 class InvoiceCounter(models.Model):
-    prefix = models.CharField(max_length=10, default="INV")
+    prefix = models.CharField(max_length=10, default="INV", unique=True)
     last_number = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -216,22 +216,21 @@ class InvoiceCounter(models.Model):
         verbose_name_plural = "Invoice Counters"
 
     @classmethod
-    def get_next_number(cls, prefix="INV"):
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                with transaction.atomic():
-                    counter, created = cls.objects.select_for_update().get_or_create(prefix=prefix)
-                    next_num = counter.last_number + 1
-                    counter.last_number = next_num
-                    counter.save(update_fields=['last_number'])
-                    return next_num
-            except IntegrityError:
-                continue
-        raise Exception("Failed to generate unique number after multiple attempts")
+    def get_next_number(cls, prefix):
+        from django.db import transaction
 
-    def __str__(self):
-        return f"{self.prefix} - {self.last_number:04d}"
+        with transaction.atomic():
+            try:
+                counter = cls.objects.select_for_update().get(prefix=prefix)
+            except cls.DoesNotExist:
+                # Pehli baar – create with locking
+                counter = cls.objects.create(prefix=prefix, last_number=0)
+                # Refresh with lock
+                counter = cls.objects.select_for_update().get(pk=counter.pk)
+
+            counter.last_number = (counter.last_number or 0) + 1
+            counter.save(update_fields=['last_number'])
+            return counter.last_number
 
 
 # ============================================================
@@ -1073,16 +1072,34 @@ class Purchase(SoftDeleteModel):
         ]
         
     def save(self, *args, **kwargs):
+        from django.db import IntegrityError, transaction
+
         if not self.purchase_number:
-            for _ in range(5):
+            max_attempts = 5
+            last_error = None
+
+            for attempt in range(max_attempts):
+                next_num = InvoiceCounter.get_next_number("PUR")
+                self.purchase_number = f"PUR-{next_num:04d}"
+
                 try:
-                    next_num = InvoiceCounter.get_next_number("PUR")
-                    self.purchase_number = f"PUR-{next_num:04d}"
-                    super().save(*args, **kwargs)
-                    return  # Success
-                except IntegrityError:
-                    continue
-            raise IntegrityError("Unable to generate unique purchase number after retries")
+                    with transaction.atomic():
+                        super().save(*args, **kwargs)
+                    return  
+                except IntegrityError as e:
+                    last_error = e
+                    if 'purchase_number' in str(e).lower() and attempt < max_attempts - 1:
+                        logger.warning(
+                            f"purchase_number collision on attempt {attempt + 1}, "
+                            f"got {self.purchase_number}, retrying..."
+                        )
+                        continue
+                    raise
+
+            raise IntegrityError(
+                f"Unable to generate unique purchase_number after {max_attempts} attempts: {last_error}"
+            )
+
         super().save(*args, **kwargs)
 
 
@@ -1214,17 +1231,40 @@ class RepairJob(SoftDeleteModel):
         return self.final_amount
 
     def save(self, *args, **kwargs):
+        from django.db import IntegrityError, transaction
         is_new = self.pk is None
         if is_new:
-            next_num = InvoiceCounter.get_next_number("REP")
-            self.job_number = f"REP-{next_num:04d}"
+            max_attempts = 5
+            last_error = None
 
+            for attempt in range(max_attempts):
+                next_num = InvoiceCounter.get_next_number("REP")
+                self.job_number = f"REP-{next_num:04d}"
+
+                try:
+                    with transaction.atomic():
+                        super().save(*args, **kwargs)
+                    break 
+                except IntegrityError as e:
+                    last_error = e
+                    if 'job_number' in str(e).lower() and attempt < max_attempts - 1:
+                        logger.warning(
+                            f"job_number collision on attempt {attempt + 1}, "
+                            f"got {self.job_number}, retrying..."
+                        )
+                        continue 
+                    raise  
+
+            return  
+         
+        # ============================================================
+        # EXISTING RECORD PATH (update)
+        # ============================================================
         old_status = None
-        if not is_new:
-            try:
-                old_status = RepairJob.objects.get(pk=self.pk).status
-            except RepairJob.DoesNotExist:
-                pass
+        try:
+            old_status = RepairJob.objects.get(pk=self.pk).status
+        except RepairJob.DoesNotExist:
+            pass
 
         if self.pk:
             parts_total = self.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
@@ -1235,13 +1275,18 @@ class RepairJob(SoftDeleteModel):
         if old_status and old_status != self.status:
             try:
                 from django.urls import reverse
-                from accounting.utils.notification_helpers import send_notification_to_customer, send_notification_sse
+                from accounting.utils.notification_helpers import (
+                    send_notification_to_customer,
+                    send_notification_sse,
+                )
                 send_notification_to_customer(
                     self.customer,
                     title=f"Repair Status Updated: {self.job_number}",
                     message=f"Your repair for {self.device_model} is now {self.get_status_display()}.",
                     link=reverse('customer:customer_repair_detail', args=[self.pk]),
-                    notif_type='info', category='repairs', send_email=False
+                    notif_type='info',
+                    category='repairs',
+                    send_email=False,
                 )
                 for staff in User.objects.filter(is_staff=True):
                     send_notification_sse(staff)

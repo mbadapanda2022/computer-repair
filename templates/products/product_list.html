@@ -19,9 +19,11 @@
                     hx-trigger="click">
                 <i class="bi bi-plus-circle"></i> New Product
             </button>
-            <a href="{% url 'accounting:export_products_excel' %}" class="btn btn-success" target="_blank">
+            <button class="btn btn-success"
+                    onclick="window.location.href='{% url 'accounting:export_products_excel' %}?' + new URLSearchParams(window.location.search).toString()"
+                    title="Export filtered list as Excel">
                 <i class="bi bi-file-earmark-excel"></i> Export Excel
-            </a>
+            </button>
         </div>
     </div>
 
