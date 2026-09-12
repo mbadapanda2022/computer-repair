@@ -37,15 +37,14 @@
                     <i class="bi bi-check-circle"></i> Approve Estimate
                 </button>
             {% endif %}
-            
-            {% if not job.invoice and job.status in 'ready,delivered' %}
+            {% if not job.invoice %}{% if job.status == 'ready' or job.status == 'delivered' %}
                 <button class="btn btn-success" 
                         hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}" 
                         hx-target="#mainModalContent"
                         hx-trigger="click">
                     <i class="bi bi-receipt"></i> Create Invoice
                 </button>
-            {% endif %}
+            {% endif %}{% endif %}
             
             <!-- View Invoice Button -->
             {% if job.invoice %}

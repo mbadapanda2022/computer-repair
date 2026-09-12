@@ -37,16 +37,21 @@ def get_paginated_repairs_context(request, queryset=None):
     if queryset is None:
         queryset = RepairJob.objects.select_related('customer').all().order_by('-created_at')
 
+    # Stats (filter se independent, sare jobs ke liye)
+    all_jobs = RepairJob.objects.all()
+    stats = {
+        'total_count': all_jobs.count(),
+        'pending_count': all_jobs.filter(status__in=['pending', 'diagnosis', 'repairing']).count(),
+        'completed_count': all_jobs.filter(status='delivered').count(),
+        'urgent_count': all_jobs.filter(estimate_status='pending', estimated_cost__isnull=False).count(),
+    }
+
     search = request.GET.get('search', '').strip()
     status = request.GET.get('status', '')
     customer_id = request.GET.get('customer', '')
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
-    reset = request.GET.get('reset', '')
     page_number = request.GET.get('page', 1)
-
-    if reset:
-        return redirect_to_staff('repair_list')
 
     if search:
         queryset = queryset.filter(
@@ -63,6 +68,9 @@ def get_paginated_repairs_context(request, queryset=None):
         queryset = queryset.filter(date_in__gte=date_from)
     if date_to:
         queryset = queryset.filter(date_in__lte=date_to)
+
+    # Filtered total (footer ke liye)
+    filtered_total = queryset.aggregate(total=Sum('final_amount'))['total'] or Decimal('0')
 
     paginator = Paginator(queryset, 20)
     try:
@@ -84,6 +92,8 @@ def get_paginated_repairs_context(request, queryset=None):
         'date_from': date_from,
         'date_to': date_to,
         'status_choices': RepairJob.STATUS_CHOICES,
+        'stats': stats,
+        'filtered_total': filtered_total,
     }
     return context
 
@@ -91,6 +101,7 @@ def get_paginated_repairs_context(request, queryset=None):
 # ============================================================
 # 1. FIELD VALIDATION (HTMX)
 # ============================================================
+@login_required
 def validate_repair_field(request):
     field_name = request.GET.get('field')
     if not field_name:
@@ -120,8 +131,13 @@ def validate_repair_field(request):
 # ============================================================
 # 2. REPAIR LIST
 # ============================================================
+@login_required
 @handle_errors(default_redirect='accounting:repair_list')
 def repair_list(request):
+    # Reset button handling
+    if request.GET.get('reset'):
+        return redirect('accounting:repair_list')
+
     context = get_paginated_repairs_context(request)
 
     if is_htmx(request):
@@ -132,6 +148,7 @@ def repair_list(request):
 # ============================================================
 # 3. PRINT LIST
 # ============================================================
+@login_required
 def repair_list_print(request):
     search = request.GET.get('search', '')
     status = request.GET.get('status', '')
@@ -185,6 +202,7 @@ def repair_list_print(request):
 # ============================================================
 # 4. REPAIR CREATE
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='repairs/partials/repair_form_modal.html')
 def repair_create(request):
@@ -227,6 +245,7 @@ def repair_create(request):
 # ============================================================
 # 5. REPAIR UPDATE
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='repairs/partials/repair_form_modal.html')
 def repair_update(request, pk):
@@ -286,6 +305,7 @@ def repair_update(request, pk):
 # ============================================================
 # 6. REPAIR DETAIL
 # ============================================================
+@login_required
 def repair_detail(request, pk):
     job = get_object_or_404(RepairJob.objects.select_related('customer', 'invoice'), pk=pk)
     parts = job.parts.select_related('product').all()
@@ -297,6 +317,7 @@ def repair_detail(request, pk):
         'parts': parts,
         'parts_total': parts_total,
         'part_form': part_form,
+        'status_choices': RepairJob.STATUS_CHOICES,
     }
     return render(request, 'repairs/repair_detail.html', context)
 
@@ -304,6 +325,7 @@ def repair_detail(request, pk):
 # ============================================================
 # 7. UPDATE STATUS
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def update_repair_status(request, pk):
@@ -361,7 +383,10 @@ def update_repair_status(request, pk):
             send_notification_sse(staff)
 
         if is_htmx(request):
-            return render(request, 'repairs/partials/status_row.html', {'job': job})
+            return render(request, 'repairs/partials/status_row.html', {
+                'job': job,
+                'status_choices': RepairJob.STATUS_CHOICES,
+            })
 
         messages.success(request, f"Status updated to {job.get_status_display()}.")
         return redirect_to_staff('repair_detail', pk=pk)
@@ -370,6 +395,7 @@ def update_repair_status(request, pk):
 # ============================================================
 # 8. ADD REPAIR PART (WITH STOCK VALIDATION)
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='repairs/partials/part_form_modal.html')
 def add_repair_part(request, pk):
@@ -466,6 +492,7 @@ def add_repair_part(request, pk):
 # ============================================================
 # 9. REMOVE REPAIR PART
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def remove_repair_part(request, part_pk):
@@ -525,6 +552,7 @@ def remove_repair_part(request, part_pk):
 # ============================================================
 # 10. CREATE INVOICE FROM REPAIR (FIXED)
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def create_invoice_from_repair(request, pk):
@@ -611,13 +639,8 @@ def create_invoice_from_repair(request, pk):
             )
 
         invoice.calculate_totals()
-        invoice.save()  # This triggers sync_invoice_ledger automatically
-
-        # ✅ FIX: Stock update is automatic via InvoiceItem.save, so remove manual call
-        # invoice.update_stock_from_items()  ← हटा दें
-
-        # ✅ FIX: सही लेजर सिंक – models से sync_invoice_ledger
-        sync_invoice_ledger(invoice)  # अतिरिक्त कॉल (save() पहले ही कर चुका है, लेकिन safe है)
+        invoice.save() 
+        sync_invoice_ledger(invoice)  
 
         # Repair Job Link
         job.invoice = invoice
@@ -655,6 +678,7 @@ def create_invoice_from_repair(request, pk):
 # ============================================================
 # 11. DELETE REPAIR
 # ============================================================
+@login_required
 @csrf_protect
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:repair_list')
@@ -697,6 +721,7 @@ def repair_delete(request, pk):
 # ============================================================
 # 12. PRINT REPAIR
 # ============================================================
+@login_required
 def repair_print(request, pk):
     job = get_object_or_404(RepairJob.objects.select_related('customer', 'invoice'), pk=pk)
     parts = job.parts.select_related('product').all()
@@ -716,6 +741,7 @@ def repair_print(request, pk):
 # ============================================================
 # 13. REPAIR CREATE FOR SPECIFIC CONTACT
 # ============================================================
+@login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='contacts/repair_form_from_contact.html')
 def repair_create_for_contact(request, contact_id):
@@ -809,3 +835,286 @@ def staff_approve_estimate(request, pk):
             return redirect('accounting:repair_detail', pk=repair.pk)
 
     return render(request, 'repairs/partials/staff_approve_modal.html', {'repair': repair})
+
+# ============================================================
+# 15. EXPORT REPAIRS TO EXCEL
+# ============================================================
+@login_required
+@handle_errors(default_redirect='accounting:repair_list')
+def export_repairs_excel(request):
+    """Export filtered repair jobs to a professional Excel file."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        messages.error(request, "Openpyxl library is not installed on the server.")
+        return redirect('accounting:repair_list')
+
+    # === Same filters as repair_list ===
+    queryset = RepairJob.objects.select_related('customer', 'invoice').all().order_by('-created_at')
+
+    search = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '')
+    customer_id = request.GET.get('customer', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    if search:
+        queryset = queryset.filter(
+            Q(job_number__icontains=search) |
+            Q(customer__name__icontains=search) |
+            Q(device_model__icontains=search) |
+            Q(serial_number__icontains=search)
+        )
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+    if customer_id:
+        queryset = queryset.filter(customer_id=customer_id)
+    if date_from:
+        queryset = queryset.filter(date_in__gte=date_from)
+    if date_to:
+        queryset = queryset.filter(date_in__lte=date_to)
+
+    company = CompanyProfile.get_instance()
+
+    # === Create Workbook ===
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Repair Jobs"
+
+    # === Styles ===
+    title_font = Font(bold=True, size=16, color="FFFFFF")
+    title_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    subtitle_font = Font(bold=True, size=12, color="FFFFFF")
+    subtitle_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    section_font = Font(bold=True, size=11, color="000000")
+    section_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    total_font = Font(bold=True, size=11, color="FFFFFF")
+    total_fill = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
+
+    thin = Side(style='thin', color="999999")
+    medium = Side(style='medium', color="000000")
+    border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
+    border_header = Border(left=medium, right=medium, top=medium, bottom=medium)
+    money_format = '#,##0.00'
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right_align = Alignment(horizontal='right', vertical='center')
+
+    # === Determine column count ===
+    # 21 columns
+    TOTAL_COLS = 21
+    last_col = get_column_letter(TOTAL_COLS)
+
+    # === Row 1: Company Name ===
+    ws.merge_cells(f'A1:{last_col}1')
+    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'].font = title_font
+    ws['A1'].fill = title_fill
+    ws['A1'].alignment = center_align
+    ws.row_dimensions[1].height = 30
+
+    # === Row 2: Company Address ===
+    ws.merge_cells(f'A2:{last_col}2')
+    address_parts = []
+    if company.address:
+        address_parts.append(company.address)
+    if company.phone:
+        address_parts.append(f"Phone: {company.phone}")
+    if company.email:
+        address_parts.append(f"Email: {company.email}")
+    if company.gstin:
+        address_parts.append(f"GSTIN: {company.gstin}")
+    ws['A2'] = " | ".join(address_parts)
+    ws['A2'].font = Font(size=10, italic=True)
+    ws['A2'].alignment = center_align
+    ws.row_dimensions[2].height = 20
+
+    # === Row 3: Report Title ===
+    ws.merge_cells(f'A3:{last_col}3')
+    ws['A3'] = "REPAIR JOBS REPORT"
+    ws['A3'].font = subtitle_font
+    ws['A3'].fill = subtitle_fill
+    ws['A3'].alignment = center_align
+    ws.row_dimensions[3].height = 25
+
+    # === Row 4: Filter info ===
+    ws.merge_cells(f'A4:{last_col}4')
+    filter_parts = [f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')}"]
+    if search:
+        filter_parts.append(f"Search: {search}")
+    if status_filter:
+        filter_parts.append(f"Status: {status_filter}")
+    if customer_id:
+        try:
+            cust = Contact.objects.get(pk=customer_id)
+            filter_parts.append(f"Customer: {cust.name}")
+        except Contact.DoesNotExist:
+            pass
+    if date_from:
+        filter_parts.append(f"From: {date_from}")
+    if date_to:
+        filter_parts.append(f"To: {date_to}")
+    filter_parts.append(f"Total Records: {queryset.count()}")
+    ws['A4'] = " | ".join(filter_parts)
+    ws['A4'].font = Font(size=10, italic=True, color="555555")
+    ws['A4'].alignment = center_align
+    ws.row_dimensions[4].height = 20
+
+    # === Row 5: blank ===
+    ws.row_dimensions[5].height = 5
+
+    # === Row 6: Table Headers ===
+    headers = [
+        ('Job #', 14),
+        ('Date In', 12),
+        ('Customer', 22),
+        ('Phone', 14),
+        ('Device Model', 20),
+        ('Serial #', 16),
+        ('Issue', 28),
+        ('Diagnosis', 28),
+        ('Action Taken', 28),
+        ('Status', 12),
+        ('Estimate Status', 14),
+        ('Estimated Cost', 14),
+        ('Received By', 14),
+        ('Delivered By', 14),
+        ('Delivered To', 16),
+        ('Recipient Phone', 14),
+        ('Delivery Date', 12),
+        ('Labour (₹)', 12),
+        ('Parts (₹)', 12),
+        ('Final Amount (₹)', 15),
+        ('Invoice #', 14),
+    ]
+
+    for col_num, (header, width) in enumerate(headers, 1):
+        cell = ws.cell(row=6, column=col_num, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = border_header
+        ws.column_dimensions[get_column_letter(col_num)].width = width
+
+    ws.row_dimensions[6].height = 30
+
+    # === Data rows ===
+    row_num = 7
+    total_labour = Decimal('0')
+    total_parts = Decimal('0')
+    total_final = Decimal('0')
+
+    for job in queryset:
+        parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+
+        row_data = [
+            job.job_number,
+            job.date_in.strftime('%d-%m-%Y') if job.date_in else '',
+            job.customer.name if job.customer else '',
+            job.customer.phone if job.customer and job.customer.phone else '',
+            job.device_model or '',
+            job.serial_number or '',
+            job.issue_description or '',
+            job.diagnosis_report or '',
+            job.action_taken or '',
+            job.get_status_display(),
+            job.get_estimate_status_display() if job.estimate_status else 'No Estimate',
+            float(job.estimated_cost) if job.estimated_cost else 0,
+            job.received_by or '',
+            job.delivered_by or '',
+            job.delivered_to_name or '',
+            job.delivered_to_phone or '',
+            job.delivery_date.strftime('%d-%m-%Y') if job.delivery_date else '',
+            float(job.labour_charge or 0),
+            float(parts_total),
+            float(job.final_amount or 0),
+            job.invoice.invoice_number if job.invoice else '',
+        ]
+
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell.border = border_all
+            cell.alignment = left_align
+
+        # Money columns right-align
+        for col_idx in [12, 18, 19, 20]:
+            ws.cell(row=row_num, column=col_idx).alignment = right_align
+            ws.cell(row=row_num, column=col_idx).number_format = money_format
+
+        # Center align some columns
+        for col_idx in [1, 2, 10, 11, 17, 21]:
+            ws.cell(row=row_num, column=col_idx).alignment = center_align
+
+        # Accumulate totals
+        total_labour += Decimal(str(job.labour_charge or 0))
+        total_parts += parts_total
+        total_final += Decimal(str(job.final_amount or 0))
+
+        # Alternate row color
+        if row_num % 2 == 0:
+            alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            for col_idx in range(1, TOTAL_COLS + 1):
+                ws.cell(row=row_num, column=col_idx).fill = alt_fill
+
+        row_num += 1
+
+    # === Total row ===
+    ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=17)
+    total_label = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
+    total_label.font = total_font
+    total_label.fill = total_fill
+    total_label.alignment = right_align
+    total_label.border = border_header
+
+    for col_idx, val in [(18, total_labour), (19, total_parts), (20, total_final)]:
+        c = ws.cell(row=row_num, column=col_idx, value=float(val))
+        c.font = total_font
+        c.fill = total_fill
+        c.alignment = right_align
+        c.number_format = money_format
+        c.border = border_header
+
+    empty_total = ws.cell(row=row_num, column=21, value="")
+    empty_total.fill = total_fill
+    empty_total.border = border_header
+
+    # Fill the merged cells' borders
+    for col_idx in range(2, 18):
+        c = ws.cell(row=row_num, column=col_idx)
+        c.fill = total_fill
+        c.border = border_header
+
+    ws.row_dimensions[row_num].height = 22
+
+    # === Footer ===
+    footer_row = row_num + 2
+    ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=TOTAL_COLS)
+    footer_text = f"This report was generated automatically by {company.name or 'A1 Computer Solutions'} on {timezone.now().strftime('%d-%m-%Y %H:%M')}."
+    ws.cell(row=footer_row, column=1, value=footer_text).font = Font(size=9, italic=True, color="777777")
+    ws.cell(row=footer_row, column=1).alignment = center_align
+
+    # === Freeze header row ===
+    ws.freeze_panes = 'A7'
+
+    # === Auto filter on header ===
+    ws.auto_filter.ref = f"A6:{last_col}6"
+
+    # === Page setup for printing ===
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    # === Save response ===
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"repairs_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response

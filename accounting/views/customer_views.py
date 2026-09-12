@@ -35,6 +35,7 @@ from ..decorators import handle_errors
 try:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
 except ImportError:
     openpyxl = None
 
@@ -459,6 +460,250 @@ def repair_list(request):
         return render(request, 'customer/partials/repair_list_table.html', context)
     return render(request, 'customer/repairs.html', context)
 
+
+# ============================================================
+# CUSTOMER REPAIRS - EXCEL EXPORT
+# ============================================================
+@login_required
+@handle_errors(default_redirect='customer:customer_repairs')
+def customer_repairs_excel(request):
+    """Customer ki apni repairs ko Excel me export karein (filters ke saath)."""
+    if openpyxl is None:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Openpyxl library is not installed.'},
+            status=400
+        )
+
+    customer = get_object_or_404(Contact, user=request.user)
+
+    # Same filters as repair_list
+    status_filter = request.GET.get('status', '')
+    search = request.GET.get('search', '').strip()
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    repairs = RepairJob.objects.filter(customer=customer).order_by('-date_in')
+    if status_filter:
+        repairs = repairs.filter(status=status_filter)
+    if search:
+        repairs = repairs.filter(
+            Q(job_number__icontains=search) |
+            Q(device_model__icontains=search) |
+            Q(issue_description__icontains=search)
+        )
+    if date_from:
+        repairs = repairs.filter(date_in__gte=date_from)
+    if date_to:
+        repairs = repairs.filter(date_in__lte=date_to)
+
+    company = CompanyProfile.get_instance()
+
+    # ===== Workbook =====
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "My Repairs"
+
+    # Styles
+    title_font = Font(bold=True, size=16, color="FFFFFF")
+    title_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    subtitle_font = Font(bold=True, size=12, color="FFFFFF")
+    subtitle_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
+    total_font = Font(bold=True, size=11, color="FFFFFF")
+    total_fill = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
+
+    thin = Side(style='thin', color="999999")
+    medium = Side(style='medium', color="000000")
+    border_all = Border(left=thin, right=thin, top=thin, bottom=thin)
+    border_header = Border(left=medium, right=medium, top=medium, bottom=medium)
+    money_format = '#,##0.00'
+    center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right_align = Alignment(horizontal='right', vertical='center')
+
+    TOTAL_COLS = 15
+    last_col = get_column_letter(TOTAL_COLS)
+
+    # Row 1 - Company Name
+    ws.merge_cells(f'A1:{last_col}1')
+    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'].font = title_font
+    ws['A1'].fill = title_fill
+    ws['A1'].alignment = center_align
+    ws.row_dimensions[1].height = 30
+
+    # Row 2 - Company Info
+    ws.merge_cells(f'A2:{last_col}2')
+    addr_parts = []
+    if company.address: addr_parts.append(company.address)
+    if company.phone: addr_parts.append(f"Phone: {company.phone}")
+    if company.email: addr_parts.append(f"Email: {company.email}")
+    if company.gstin: addr_parts.append(f"GSTIN: {company.gstin}")
+    ws['A2'] = " | ".join(addr_parts)
+    ws['A2'].font = Font(size=10, italic=True)
+    ws['A2'].alignment = center_align
+    ws.row_dimensions[2].height = 20
+
+    # Row 3 - Title
+    ws.merge_cells(f'A3:{last_col}3')
+    ws['A3'] = f"MY REPAIR HISTORY — {customer.name}"
+    ws['A3'].font = subtitle_font
+    ws['A3'].fill = subtitle_fill
+    ws['A3'].alignment = center_align
+    ws.row_dimensions[3].height = 25
+
+    # Row 4 - Filters
+    ws.merge_cells(f'A4:{last_col}4')
+    filter_parts = [f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')}"]
+    if search: filter_parts.append(f"Search: {search}")
+    if status_filter: filter_parts.append(f"Status: {status_filter}")
+    if date_from: filter_parts.append(f"From: {date_from}")
+    if date_to: filter_parts.append(f"To: {date_to}")
+    filter_parts.append(f"Total: {repairs.count()}")
+    ws['A4'] = " | ".join(filter_parts)
+    ws['A4'].font = Font(size=10, italic=True, color="555555")
+    ws['A4'].alignment = center_align
+    ws.row_dimensions[4].height = 20
+
+    ws.row_dimensions[5].height = 5
+
+    # Row 6 - Headers
+    headers = [
+        ('Job #', 14),
+        ('Date In', 12),
+        ('Device Model', 22),
+        ('Serial #', 16),
+        ('Issue', 32),
+        ('Diagnosis', 32),
+        ('Action Taken', 32),
+        ('Status', 12),
+        ('Estimate Status', 14),
+        ('Estimated Cost (₹)', 16),
+        ('Labour (₹)', 12),
+        ('Parts (₹)', 12),
+        ('Final Amount (₹)', 16),
+        ('Delivery Date', 13),
+        ('Invoice #', 14),
+    ]
+
+    for col_num, (header, width) in enumerate(headers, 1):
+        cell = ws.cell(row=6, column=col_num, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_align
+        cell.border = border_header
+        ws.column_dimensions[get_column_letter(col_num)].width = width
+
+    ws.row_dimensions[6].height = 30
+
+    # Data rows
+    row_num = 7
+    total_est = Decimal('0')
+    total_labour = Decimal('0')
+    total_parts = Decimal('0')
+    total_final = Decimal('0')
+
+    for repair in repairs:
+        parts_total = repair.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+
+        row_data = [
+            repair.job_number,
+            repair.date_in.strftime('%d-%m-%Y') if repair.date_in else '',
+            repair.device_model or '',
+            repair.serial_number or '',
+            repair.issue_description or '',
+            repair.diagnosis_report or '',
+            repair.action_taken or '',
+            repair.get_status_display(),
+            repair.get_estimate_status_display() if repair.estimate_status else 'No Estimate',
+            float(repair.estimated_cost) if repair.estimated_cost else 0,
+            float(repair.labour_charge or 0),
+            float(parts_total),
+            float(repair.final_amount or 0),
+            repair.delivery_date.strftime('%d-%m-%Y') if repair.delivery_date else '',
+            repair.invoice.invoice_number if repair.invoice else '',
+        ]
+
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell.border = border_all
+            cell.alignment = left_align
+
+        # Money columns
+        for col_idx in [10, 11, 12, 13]:
+            ws.cell(row=row_num, column=col_idx).alignment = right_align
+            ws.cell(row=row_num, column=col_idx).number_format = money_format
+
+        # Center align
+        for col_idx in [1, 2, 8, 9, 14, 15]:
+            ws.cell(row=row_num, column=col_idx).alignment = center_align
+
+        total_est += Decimal(str(repair.estimated_cost or 0))
+        total_labour += Decimal(str(repair.labour_charge or 0))
+        total_parts += parts_total
+        total_final += Decimal(str(repair.final_amount or 0))
+
+        # Alternate fill
+        if row_num % 2 == 0:
+            alt = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            for c in range(1, TOTAL_COLS + 1):
+                ws.cell(row=row_num, column=c).fill = alt
+
+        row_num += 1
+
+    # Total row
+    ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=9)
+    total_label = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
+    total_label.font = total_font
+    total_label.fill = total_fill
+    total_label.alignment = right_align
+    total_label.border = border_header
+
+    for col_idx, val in [(10, total_est), (11, total_labour), (12, total_parts), (13, total_final)]:
+        c = ws.cell(row=row_num, column=col_idx, value=float(val))
+        c.font = total_font
+        c.fill = total_fill
+        c.alignment = right_align
+        c.number_format = money_format
+        c.border = border_header
+
+    for col_idx in range(2, 10):
+        c = ws.cell(row=row_num, column=col_idx)
+        c.fill = total_fill
+        c.border = border_header
+
+    for col_idx in [14, 15]:
+        c = ws.cell(row=row_num, column=col_idx, value="")
+        c.fill = total_fill
+        c.border = border_header
+
+    ws.row_dimensions[row_num].height = 22
+
+    # Footer
+    footer_row = row_num + 2
+    ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=TOTAL_COLS)
+    footer_text = f"Auto-generated by {company.name or 'A1 Computer Solutions'} on {timezone.now().strftime('%d-%m-%Y %H:%M')}."
+    ws.cell(row=footer_row, column=1, value=footer_text).font = Font(size=9, italic=True, color="777777")
+    ws.cell(row=footer_row, column=1).alignment = center_align
+
+    ws.freeze_panes = 'A7'
+    ws.auto_filter.ref = f"A6:{last_col}6"
+
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    # Response
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"my_repairs_{timezone.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
 
 @login_required
 @handle_errors(default_redirect='customer:customer_dashboard')

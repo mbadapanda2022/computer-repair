@@ -11,12 +11,19 @@
             <p class="text-muted small mt-1">Track all your repair jobs</p>
         </div>
         <div>
-            <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> New Repair
-            </a>
-            <a href="{% url 'customer:customer_repairs' %}?print=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}" class="btn btn-secondary" target="_blank">
-                <i class="bi bi-printer"></i> Print List
-            </a>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> New Repair
+                </a>
+                <button class="btn btn-success"
+                        onclick="window.location.href='{% url 'customer:customer_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()"
+                        title="Download as Excel">
+                    <i class="bi bi-file-earmark-excel"></i> Export to Excel
+                </button>
+                <a href="{% url 'customer:customer_repairs' %}?print=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}" class="btn btn-secondary" target="_blank">
+                    <i class="bi bi-printer"></i> Print List
+                </a>
+            </div>
         </div>
     </div>
 

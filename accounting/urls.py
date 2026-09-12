@@ -97,6 +97,7 @@ urlpatterns = [
     path('repairs/<int:pk>/delete/', repairs.repair_delete, name='repair_delete'),
     path('repairs/<int:pk>/print/', repairs.repair_print, name='repair_print'),
     path('repairs/print-list/', repairs.repair_list_print, name='repair_list_print'),
+    path('repairs/export/excel/', repairs.export_repairs_excel, name='export_repairs_excel'),
     path('repairs/<int:pk>/staff-approve/', repairs.staff_approve_estimate, name='staff_approve_estimate'),
 
     # ===== Reports =====

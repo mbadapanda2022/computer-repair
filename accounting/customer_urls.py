@@ -12,6 +12,7 @@ urlpatterns = [
     path('invoices/<int:pk>/', customer_views.invoice_detail, name='customer_invoice_detail'),
     path('invoices/<int:pk>/print/', customer_views.invoice_print, name='customer_invoice_print'),
     path('repairs/', customer_views.repair_list, name='customer_repairs'),
+    path('repairs/export/excel/', customer_views.customer_repairs_excel, name='customer_repairs_excel'),
     path('repairs/<int:pk>/', customer_views.repair_detail, name='customer_repair_detail'),
     path('repairs/<int:pk>/print/', customer_views.repair_print, name='customer_repair_print'),
     path('payments/', customer_views.payment_list, name='customer_payments'),

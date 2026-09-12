@@ -7,7 +7,7 @@
     <form method="post" 
           hx-post="{% url 'accounting:create_invoice_from_repair' job.pk %}" 
           hx-target="#mainModalContent"
-          hx-swap="outerHTML"
+          hx-swap="innerHTML"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
         {% csrf_token %}
         

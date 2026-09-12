@@ -1202,6 +1202,10 @@ class RepairJob(SoftDeleteModel):
 
     def __str__(self):
         return f"Job {self.job_number} - {self.device_model} ({self.customer.name})"
+    
+    @property
+    def can_be_invoiced(self):
+        return not self.invoice and self.status in ('ready', 'delivered')
 
     def calculate_final_amount(self):
         parts_total = self.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')

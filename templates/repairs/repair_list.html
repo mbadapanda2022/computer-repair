@@ -15,6 +15,12 @@
             <a href="{% url 'accounting:repair_create' %}" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> New Repair
             </a>
+
+            <button class="btn btn-success"
+                    onclick="window.location.href='{% url 'accounting:export_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()"
+                    title="Download as Excel">
+                <i class="bi bi-file-earmark-excel"></i> Export to Excel
+            </button>
             
             <button class="btn btn-secondary" 
                     onclick="window.open('{% url 'accounting:repair_list_print' %}?' + new URLSearchParams(window.location.search).toString(), '_blank')"
@@ -47,11 +53,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Pending</small>
-                        <h5 class="mb-0 fw-bold" id="pending-count">
-                            {% with pending=jobs|length %}
-                                {{ pending|default:0 }}
-                            {% endwith %}
-                        </h5>
+                        <h5 class="mb-0 fw-bold" id="pending-count">{{ stats.pending_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -64,9 +66,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Completed</small>
-                        <h5 class="mb-0 fw-bold">
-                            {% with delivered=0 %}{{ delivered }}{% endwith %}
-                        </h5>
+                        <h5 class="mb-0 fw-bold">{{ stats.completed_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -80,7 +80,7 @@
                     <div>
                         <small class="text-muted d-block">Urgent</small>
                         <h5 class="mb-0 fw-bold">
-                            {% with urgent=0 %}{{ urgent }}{% endwith %}
+                            {{ stats.urgent_count|default:0 }}
                         </h5>
                     </div>
                 </div>

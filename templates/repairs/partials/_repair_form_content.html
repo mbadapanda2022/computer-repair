@@ -45,7 +45,7 @@
                                         hx-get="{% url 'accounting:validate_repair_field' %}" 
                                         hx-trigger="change" 
                                         hx-target="#field-customer" 
-                                        hx-swap="outerHTML"
+                                        hx-swap="innerHTML"
                                         hx-include="#id_customer, #id_repair_id">
                                     <option value="">---------</option>
                                     {% for customer in form.fields.customer.queryset %}
@@ -85,7 +85,7 @@
                                        hx-get="{% url 'accounting:validate_repair_field' %}" 
                                        hx-trigger="blur change" 
                                        hx-target="#field-device_model" 
-                                       hx-swap="outerHTML"
+                                       hx-swap="innerHTML"
                                        hx-include="#id_device_model, #id_repair_id">
                                 <div id="field-device_model" class="invalid-feedback d-block">
                                     {{ form.device_model.errors|join:", " }}

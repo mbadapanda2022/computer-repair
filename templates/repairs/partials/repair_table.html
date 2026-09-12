@@ -105,12 +105,8 @@
                 </tbody>
                 <tfoot class="table-light">
                     <tr>
-                        <th colspan="5" class="text-end">Total</th>
-                        <th class="text-end fw-bold">
-                            {% with total=jobs|length %}
-                                ₹{{ total|default:0|floatformat:2 }}
-                            {% endwith %}
-                        </th>
+                        <th colspan="6" class="text-end">Total</th>
+                        <th class="text-end fw-bold">₹{{ filtered_total|floatformat:2 }}</th>
                         <th></th>
                     </tr>
                 </tfoot>

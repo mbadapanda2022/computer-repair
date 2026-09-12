@@ -8,7 +8,7 @@
     <div class="row g-2 align-items-center">
         <div class="col-md-8">
             <select name="status" class="form-select form-select-sm">
-                {% for value, label in job.STATUS_CHOICES %}
+                {% for value, label in status_choices %}
                     <option value="{{ value }}" {% if job.status == value %}selected{% endif %}>
                         {{ label }}
                     </option>
