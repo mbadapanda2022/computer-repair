@@ -29,7 +29,15 @@
             <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
         {% endif %}
         <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
-        <p>Payment History – {{ customer.name }}</p>
+        <p>
+            {% if company.address %}{{ company.address }}<br>{% endif %}
+            {% if company.phone %}Phone: {{ company.phone }} | {% endif %}
+            {% if company.email %}Email: {{ company.email }}{% endif %}
+        </p>
+        <h4 style="margin-top: 15px;">Payment History</h4>
+        <p><strong>Customer:</strong> {{ customer.name }}
+            {% if customer.phone %} | <strong>Phone:</strong> {{ customer.phone }}{% endif %}
+        </p>
     </div>
 
     <div class="filters-box">
