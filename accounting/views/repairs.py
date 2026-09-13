@@ -328,12 +328,17 @@ def repair_detail(request, pk):
     part_form = RepairPartForm()
     parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
 
+    # Generate tracking token (no DB write)
+    from ..utils.tracking import generate_tracking_token
+    track_token = generate_tracking_token(job)
+
     context = {
         'job': job,
         'parts': parts,
         'parts_total': parts_total,
         'part_form': part_form,
         'status_choices': RepairJob.STATUS_CHOICES,
+        'track_token': track_token,
     }
     return render(request, 'repairs/repair_detail.html', context)
 
@@ -750,12 +755,17 @@ def repair_print(request, pk):
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name and company.logo.storage.exists(company.logo.name))
 
+    # Generate tracking token (no DB write)
+    from ..utils.tracking import generate_tracking_token
+    track_token = generate_tracking_token(job)
+
     context = {
         'job': job,
         'parts': parts,
         'company': company,
         'logo_exists': logo_exists,
         'invoice': job.invoice if job.invoice else None,
+        'track_token': track_token,
     }
     return render(request, 'repairs/repair_print.html', context)
 

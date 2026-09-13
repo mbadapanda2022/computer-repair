@@ -86,6 +86,13 @@
             <a href="{% url 'accounting:repair_print' job.pk %}" class="btn btn-info text-white" target="_blank">
                 <i class="bi bi-printer"></i> Print
             </a>
+
+            <!-- Share Tracking Button -->
+            <button class="btn btn-outline-success" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#trackingModal">
+                <i class="bi bi-share"></i> Share Tracking
+            </button>
             
             <!-- Back Button -->
             <a href="{% url 'accounting:repair_list' %}" class="btn btn-outline-secondary">
@@ -468,6 +475,85 @@
             {% include "repairs/partials/parts_with_totals.html" %}
         </div>
     </div>
-
 </div>
+
+<!-- ===== TRACKING SHARE MODAL ===== -->
+<div class="modal fade" id="trackingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-share"></i> Share Tracking Link
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Customer can open this link (no login required) to see live status. 
+                    Valid for <strong>90 days</strong>.
+                </p>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Tracking URL:</label>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               id="trackingUrlInput" 
+                               value="{{ request.scheme }}://{{ request.get_host }}{% url 'tracking:repair_track' track_token %}"
+                               readonly>
+                        <button class="btn btn-success" type="button" onclick="copyTrackingUrl()">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                </div>
+
+                <div class="alert alert-light border mb-3">
+                    <small class="text-muted">
+                        <i class="bi bi-shield-check text-success"></i>
+                        Token-secured · No personal data in URL
+                    </small>
+                </div>
+
+                {% if job.customer.phone %}
+                <div class="d-grid">
+                    <a href="https://wa.me/91{{ job.customer.phone }}?text={{ 'Your repair tracking link: '|urlencode }}{{ request.scheme }}://{{ request.get_host }}{% url 'tracking:repair_track' track_token %}"
+                       target="_blank"
+                       class="btn btn-success">
+                        <i class="bi bi-whatsapp"></i> Send via WhatsApp to {{ job.customer.name }}
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function copyTrackingUrl() {
+        const input = document.getElementById('trackingUrlInput');
+        input.select();
+        input.setSelectionRange(0, 99999);
+        try {
+            navigator.clipboard.writeText(input.value).then(function() {
+                showCopyToast();
+            }).catch(function() {
+                document.execCommand('copy');
+                showCopyToast();
+            });
+        } catch(e) {
+            document.execCommand('copy');
+            showCopyToast();
+        }
+    }
+
+    function showCopyToast() {
+        const toast = document.createElement('div');
+        toast.className = 'position-fixed top-0 end-0 m-3 alert alert-success shadow';
+        toast.style.zIndex = '9999';
+        toast.innerHTML = '<i class="bi bi-check-circle"></i> Tracking link copied!';
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+    }
+</script>
+
 {% endblock %}

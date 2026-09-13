@@ -31,6 +31,7 @@ urlpatterns = [
 
     # Staff / Accounting URLs (Login, Register, Dashboard, etc.)
     path('', include(('accounting.urls', 'accounting'))),
+    path('tracking/', include('accounting.tracking_urls')),
 ]
 
 # Static & Media serving in Development
