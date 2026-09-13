@@ -2,94 +2,97 @@
 {% load static math_filters %}
 
 {% block content %}
-<div class="container-fluid px-4 py-3">
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
-        <div>
-            <h3 class="fw-semibold mb-0">
-                <i class="bi bi-tools text-primary me-2"></i>My Repairs
-            </h3>
-            <p class="text-muted small mt-1">Track all your repair jobs</p>
-        </div>
-        <div>
-            <div class="d-flex gap-2 flex-wrap">
-                <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> New Repair
-                </a>
-                <button class="btn btn-success"
-                        onclick="window.location.href='{% url 'customer:customer_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()"
-                        title="Download as Excel">
-                    <i class="bi bi-file-earmark-excel"></i> Export to Excel
-                </button>
-                <a href="{% url 'customer:customer_repairs' %}?print=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if search %}&search={{ search }}{% endif %}" class="btn btn-secondary" target="_blank">
-                    <i class="bi bi-printer"></i> Print List
-                </a>
-            </div>
-        </div>
+<!-- Header -->
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-semibold mb-0">
+            <i class="bi bi-tools text-primary me-2"></i>My Repairs
+        </h3>
+        <p class="text-muted small mt-1">Track all your repair jobs</p>
     </div>
-
-    <!-- Filters -->
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-body">
-            <form id="repair-filter-form" class="row g-3">
-                <div class="col-md-4">
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Search job #, device..." 
-                               name="search" value="{{ search }}"
-                               hx-get="{% url 'customer:customer_repairs' %}" 
-                               hx-trigger="keyup changed delay:300ms" 
-                               hx-target="#repair-list-container"
-                               hx-include="#repair-filter-form"
-                               hx-push-url="true">
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <select class="form-select" name="status" 
-                            hx-get="{% url 'customer:customer_repairs' %}" 
-                            hx-trigger="change" 
-                            hx-target="#repair-list-container"
-                            hx-include="#repair-filter-form"
-                            hx-push-url="true">
-                        <option value="">All Status</option>
-                        {% for value, label in repair_status_choices %}
-                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
-                           hx-get="{% url 'customer:customer_repairs' %}" 
-                           hx-trigger="change" 
-                           hx-target="#repair-list-container"
-                           hx-include="#repair-filter-form"
-                           hx-push-url="true">
-                </div>
-                <div class="col-md-2">
-                    <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
-                           hx-get="{% url 'customer:customer_repairs' %}" 
-                           hx-trigger="change" 
-                           hx-target="#repair-list-container"
-                           hx-include="#repair-filter-form"
-                           hx-push-url="true">
-                </div>
-                <div class="col-md-1">
-                    <button class="btn btn-secondary w-100" 
-                            hx-get="{% url 'customer:customer_repairs' %}" 
-                            hx-target="#repair-list-container"
-                            hx-include="#repair-filter-form"
-                            hx-vals='{"reset": "true"}'
-                            hx-push-url="true">
-                        <i class="bi bi-arrow-counterclockwise"></i>
-                    </button>
-                </div>
-            </form>
+    <div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> New Repair
+            </a>
+            <button type="button" class="btn btn-success"
+                    onclick="window.location.href='{% url 'customer:customer_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()"
+                    title="Download as Excel">
+                <i class="bi bi-file-earmark-excel"></i> Export to Excel
+            </button>
+            <button type="button" class="btn btn-secondary"
+                    onclick="window.open('{% url 'customer:customer_repairs' %}?print=1&' + new URLSearchParams(window.location.search).toString(), '_blank')"
+                    title="Print filtered list">
+                <i class="bi bi-printer"></i> Print List
+            </button>
         </div>
-    </div>
-
-    <!-- Table Container -->
-    <div id="repair-list-container">
-        {% include "customer/partials/repair_list_table.html" %}
     </div>
 </div>
-{% endblock %}
 
+<!-- Filters -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form id="repair-filter-form" class="row g-3">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Search job #, device..."
+                           name="search" value="{{ search }}"
+                           hx-get="{% url 'customer:customer_repairs' %}"
+                           hx-trigger="keyup changed delay:300ms"
+                           hx-target="#repair-list-container"
+                           hx-include="#repair-filter-form"
+                           hx-push-url="true">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="status"
+                        hx-get="{% url 'customer:customer_repairs' %}"
+                        hx-trigger="change"
+                        hx-target="#repair-list-container"
+                        hx-include="#repair-filter-form"
+                        hx-push-url="true">
+                    <option value="">All Status</option>
+                    {% for value, label in repair_status_choices %}
+                        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                       placeholder="From"
+                       hx-get="{% url 'customer:customer_repairs' %}"
+                       hx-trigger="change"
+                       hx-target="#repair-list-container"
+                       hx-include="#repair-filter-form"
+                       hx-push-url="true">
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                       placeholder="To"
+                       hx-get="{% url 'customer:customer_repairs' %}"
+                       hx-trigger="change"
+                       hx-target="#repair-list-container"
+                       hx-include="#repair-filter-form"
+                       hx-push-url="true">
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-secondary w-100"
+                        hx-get="{% url 'customer:customer_repairs' %}"
+                        hx-target="#repair-list-container"
+                        hx-include="#repair-filter-form"
+                        hx-vals='{"reset": "true"}'
+                        hx-push-url="true"
+                        title="Reset filters">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Table Container -->
+<div id="repair-list-container">
+    {% include "customer/partials/repair_list_table.html" %}
+</div>
+{% endblock %}
