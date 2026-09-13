@@ -493,9 +493,10 @@ class Contact(SoftDeleteModel):
         self.save(update_fields=['advance_balance'])
     
     def save(self, *args, **kwargs):
+        # Opening balance date auto-fill (agar balance hai aur date nahi)
         if self.opening_balance and not self.opening_balance_date:
             self.opening_balance_date = timezone.now().date()
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 # ============================================================
