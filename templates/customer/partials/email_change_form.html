@@ -1,34 +1,35 @@
 {% load static %}
 
-<form method="post" 
-      id="emailChangeForm"
-      hx-post="{% url 'customer:email_change_request' %}" 
-      hx-target="#profile-container"
-      hx-swap="innerHTML"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
-      hx-indicator="#email-spinner"
-      novalidate>
-    
-    {% csrf_token %}
-    
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <h5 class="fw-semibold mb-3">
-                <i class="bi bi-envelope me-2 text-info"></i>Change Email Address
-            </h5>
-            <p class="text-muted small">You will receive an OTP on your new email to verify it.</p>
-            
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger py-2">
-                    {% for error in form.non_field_errors %}{{ error }}{% endfor %}
-                </div>
-            {% endif %}
-            
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-info text-white">
+        <h4 class="mb-0 fw-semibold">
+            <i class="bi bi-envelope me-2"></i>Change Email Address
+        </h4>
+    </div>
+    <div class="card-body p-4">
+        <p class="text-muted small">You will receive an OTP on your new email to verify it.</p>
+
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+                {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post"
+              id="emailChangeForm"
+              hx-post="{% url 'customer:email_change_request' %}"
+              hx-target="#profile-container"
+              hx-swap="innerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-indicator="#email-spinner"
+              novalidate>
+            {% csrf_token %}
+
             <div class="mb-3">
                 <label for="id_new_email" class="form-label fw-semibold">New Email</label>
-                <input type="email" 
-                       name="new_email" 
-                       id="id_new_email" 
+                <input type="email"
+                       name="new_email"
+                       id="id_new_email"
                        class="form-control {% if form.new_email.errors %}is-invalid{% endif %}"
                        value="{{ form.new_email.value|default:'' }}"
                        placeholder="Enter your new email address"
@@ -36,25 +37,24 @@
                        required>
                 {% if form.new_email.errors %}
                     <div class="invalid-feedback d-block">
-                        {% for error in form.new_email.errors %}
-                            <div>{{ error }}</div>
-                        {% endfor %}
+                        {% for error in form.new_email.errors %}<div>{{ error }}</div>{% endfor %}
                     </div>
                 {% endif %}
                 <small class="text-muted">We'll send a 6-digit OTP to verify this email.</small>
             </div>
-        </div>
-        <div class="card-footer bg-white d-flex gap-2">
-            <button type="submit" class="btn btn-info text-white" id="email-submit-btn">
-                <span id="email-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
-                <i class="bi bi-send me-1"></i> Send OTP
-            </button>
-            <button type="button" class="btn btn-secondary" 
-                    hx-get="{% url 'customer:customer_profile' %}" 
-                    hx-target="#profile-container"
-                    hx-swap="innerHTML">
-                Cancel
-            </button>
-        </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-info text-white" id="email-submit-btn">
+                    <span id="email-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                    <i class="bi bi-send me-1"></i> Send OTP
+                </button>
+                <button type="button" class="btn btn-secondary"
+                        hx-get="{% url 'customer:customer_profile' %}"
+                        hx-target="#profile-container"
+                        hx-swap="innerHTML">
+                    Cancel
+                </button>
+            </div>
+        </form>
     </div>
-</form>
+</div>

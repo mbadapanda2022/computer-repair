@@ -4,27 +4,7 @@
 {% block title %}Verify Email – Customer Portal{% endblock %}
 
 {% block content %}
-<!-- Container with ID for HTMX target -->
 <div id="profile-container">
-    <div class="container py-4">
-        <div class="row justify-content-center">
-            <div class="col-lg-6 col-md-8">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-warning text-dark">
-                        <h4 class="mb-0 fw-semibold">
-                            <i class="bi bi-shield-lock me-2"></i>Verify New Email
-                        </h4>
-                    </div>
-                    <div class="card-body p-4">
-                        <p class="text-muted">
-                            We've sent a 6-digit OTP to <strong>{{ email }}</strong>. 
-                            Please enter it below to confirm your new email.
-                        </p>
-                        {% include 'customer/partials/email_change_otp.html' %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    {% include 'customer/partials/email_change_otp.html' %}
 </div>
 {% endblock %}

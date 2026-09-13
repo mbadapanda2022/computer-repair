@@ -266,14 +266,19 @@ def dashboard_stats_json(request):
 def refresh_dashboard_stats(request):
     """Refresh dashboard stats via HTMX."""
     customer = get_object_or_404(Contact, user=request.user)
-    
+
     today = date.today()
     month_start = today.replace(day=1)
-    
+
     invoices = Invoice.objects.filter(customer=customer)
     repairs = RepairJob.objects.filter(customer=customer)
     payments = Payment.objects.filter(contact=customer, direction='received')
-    
+
+    # Month stats
+    month_invoices = invoices.filter(date__gte=month_start)
+    month_sales = month_invoices.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
+    month_payments = payments.filter(date__gte=month_start).aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+
     context = {
         'customer': customer,
         'total_invoices': invoices.count(),
@@ -281,10 +286,13 @@ def refresh_dashboard_stats(request):
         'total_due': invoices.aggregate(Sum('balance_due'))['balance_due__sum'] or Decimal('0'),
         'paid_invoices': invoices.filter(payment_status='paid').count(),
         'unpaid_invoices': invoices.filter(payment_status__in=['unpaid', 'partial']).count(),
-        'pending_repairs': repairs.filter(status__in=['pending', 'diagnosis', 'repairing']).count(),
+        'pending_repairs': repairs.filter(status__in=['pending', 'received', 'diagnosis', 'repairing']).count(),
         'ready_repairs': repairs.filter(status='ready').count(),
         'completed_repairs': repairs.filter(status='delivered').count(),
+        'total_repairs': repairs.count(),
         'total_payments': payments.aggregate(Sum('amount'))['amount__sum'] or Decimal('0'),
+        'month_sales': month_sales,
+        'month_payments': month_payments,
         'unread_count': request.user.notifications.filter(is_read=False).count(),
     }
     return render(request, 'customer/partials/dashboard_stats.html', context)
@@ -822,11 +830,14 @@ def payment_list(request):
         payments = payments.filter(method=method)
     if search:
         payments = payments.filter(
-            Q(invoices__invoice_number__icontains=search) |
+            Q(allocations__invoice__invoice_number__icontains=search) |
             Q(reference__icontains=search) |
             Q(upi_ref__icontains=search) |
             Q(description__icontains=search)
         ).distinct()
+
+    # Prefetch for performance (n+1 query avoid karne ke liye)
+    payments = payments.prefetch_related('allocations__invoice')
     
     # Excel Export
     if is_excel:
@@ -882,20 +893,20 @@ def payment_list(request):
 
 
 # ============================================================
-# PAYMENTS - EXCEL EXPORT
+# PAYMENTS - EXCEL EXPORT (allocations + advance support)
 # ============================================================
 def customer_payments_excel(request, payments, customer):
-    """Export payment list to Excel."""
+    """Export payment list to Excel. Handles advance, partial, discount payments."""
     if openpyxl is None:
         return toast_only_response(
             {'level': 'danger', 'message': 'Openpyxl library is not installed.'},
             status=400
         )
-    
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Payments"
-    
+
     # Styles
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
@@ -905,10 +916,10 @@ def customer_payments_excel(request, payments, customer):
     )
     center_align = Alignment(horizontal='center', vertical='center')
     money_format = '#,##0.00'
-    
+
     company = CompanyProfile.get_instance()
     ws.merge_cells('A1:G1')
-    ws['A1'] = company.name
+    ws['A1'] = company.name or "A1 Computer Solutions"
     ws['A1'].font = Font(bold=True, size=14)
     ws.merge_cells('A2:G2')
     ws['A2'] = f"Payment History – {customer.name}"
@@ -916,23 +927,45 @@ def customer_payments_excel(request, payments, customer):
     ws.merge_cells('A3:G3')
     ws['A3'] = f"Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}"
     ws['A3'].alignment = Alignment(horizontal="center")
-    
-    headers = ['Date', 'Invoice', 'Amount (₹)', 'Method', 'UPI Ref', 'Reference', 'Description']
+
+    headers = ['Date', 'Invoice / Reference', 'Amount (₹)', 'Method', 'UPI Ref', 'Reference', 'Description']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=5, column=col, value=header)
         cell.font = header_font
         cell.fill = header_fill
         cell.alignment = center_align
         cell.border = thin_border
-    
+
     row = 6
     total = Decimal('0')
     for payment in payments:
-        invoice_numbers = ', '.join([inv.invoice_number for inv in payment.invoices.all()])
+        # ============================================================
+        # BUILD INVOICE REFERENCE
+        # Case 1: Payment has allocations -> list all invoice numbers
+        # Case 2: Advance payment -> "Advance"
+        # Case 3: No allocations + not advance -> "Direct"
+        # ============================================================
+        allocations = list(payment.allocations.all())  # prefetched
+
+        if allocations:
+            invoice_parts = []
+            for alloc in allocations:
+                if alloc.invoice:
+                    invoice_parts.append(alloc.invoice.invoice_number)
+            invoice_display = ', '.join(invoice_parts) if invoice_parts else '—'
+        elif payment.is_advance:
+            invoice_display = 'Advance Payment'
+        else:
+            invoice_display = 'Direct Payment'
+
+        # Discount indicator
+        if payment.discount_amount and payment.discount_amount > 0:
+            invoice_display += f' (Disc: ₹{payment.discount_amount})'
+
         total += payment.amount
-        
+
         ws.cell(row=row, column=1, value=payment.date.strftime("%d-%m-%Y"))
-        ws.cell(row=row, column=2, value=invoice_numbers)
+        ws.cell(row=row, column=2, value=invoice_display)
         ws.cell(row=row, column=3, value=float(payment.amount))
         ws.cell(row=row, column=3).number_format = money_format
         ws.cell(row=row, column=4, value=payment.get_method_display())
@@ -942,7 +975,7 @@ def customer_payments_excel(request, payments, customer):
         for col in range(1, 8):
             ws.cell(row=row, column=col).border = thin_border
         row += 1
-    
+
     # Total row
     ws.cell(row=row, column=2, value="Total")
     ws.cell(row=row, column=3, value=float(total))
@@ -950,17 +983,17 @@ def customer_payments_excel(request, payments, customer):
     for col in range(1, 8):
         ws.cell(row=row, column=col).border = thin_border
         ws.cell(row=row, column=col).font = Font(bold=True)
-    
+
     # Column widths
     ws.column_dimensions['A'].width = 15
-    ws.column_dimensions['B'].width = 18
+    ws.column_dimensions['B'].width = 25
     ws.column_dimensions['C'].width = 15
     ws.column_dimensions['D'].width = 15
     ws.column_dimensions['E'].width = 20
     ws.column_dimensions['F'].width = 18
     ws.column_dimensions['G'].width = 35
     ws.freeze_panes = 'A6'
-    
+
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
@@ -1675,12 +1708,14 @@ def repair_delete(request, pk):
         )
 
         if is_htmx(request):
-            return htmx_response(
-                request,
-                'customer/partials/repair_list_table.html',
-                context={'repairs': RepairJob.objects.filter(customer=customer).order_by('-date_in')[:10]},
-                toast={'level': 'success', 'message': f'Repair job {job_number} deleted.'},
-            )
+            response = render(request, 'customer/partials/repair_list_table.html', {
+                'repairs': RepairJob.objects.filter(customer=customer).order_by('-date_in')[:10]
+            })
+            response['HX-Trigger'] = json.dumps({
+                'showToast': {'level': 'success', 'message': f'Repair job {job_number} deleted.'},
+                'closeModal': ''
+            })
+            return response
         return redirect_to_customer('customer_repairs')
 
     return render(request, 'customer/repair_confirm_delete.html', {'repair': repair})
@@ -1923,7 +1958,6 @@ def email_change_request(request):
     # Resend OTP (AJAX)
     if request.method == 'POST' and request.headers.get('Content-Type') == 'application/json':
         try:
-            import json
             data = json.loads(request.body)
             if data.get('resend'):
                 new_email = request.session.get('pending_new_email')

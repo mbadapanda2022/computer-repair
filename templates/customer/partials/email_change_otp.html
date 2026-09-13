@@ -1,78 +1,77 @@
 {% load static %}
 
-<form method="post" 
-      id="emailOtpForm"
-      hx-post="{% url 'customer:email_change_verify' %}" 
-      hx-target="#profile-container"
-      hx-swap="innerHTML"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
-      hx-indicator="#otp-spinner"
-      novalidate>
-    
-    {% csrf_token %}
-    
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <h5 class="fw-semibold mb-3">
-                <i class="bi bi-shield-lock me-2 text-warning"></i>Verify New Email
-            </h5>
-            <p class="text-muted small">
-                We've sent a 6-digit OTP to <strong>{{ email }}</strong>. 
-                Please enter it below to confirm your new email.
-            </p>
-            
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-warning text-dark">
+        <h4 class="mb-0 fw-semibold">
+            <i class="bi bi-shield-lock me-2"></i>Verify New Email
+        </h4>
+    </div>
+    <div class="card-body p-4">
+        <p class="text-muted small">
+            We've sent a 6-digit OTP to <strong>{{ email }}</strong>.
+            Please enter it below to confirm your new email.
+        </p>
+
+        <form method="post"
+              id="emailOtpForm"
+              hx-post="{% url 'customer:email_change_verify' %}"
+              hx-target="#profile-container"
+              hx-swap="innerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              hx-indicator="#otp-spinner"
+              novalidate>
+            {% csrf_token %}
+
             <div class="mb-3">
                 <label for="otp-input" class="form-label fw-semibold">OTP</label>
                 <div class="input-group">
-                    <input type="text" 
-                           name="otp" 
-                           id="otp-input" 
-                           class="form-control" 
-                           placeholder="Enter 6-digit OTP" 
-                           maxlength="6" 
+                    <input type="text"
+                           name="otp"
+                           id="otp-input"
+                           class="form-control"
+                           placeholder="Enter 6-digit OTP"
+                           maxlength="6"
                            pattern="[0-9]{6}"
                            inputmode="numeric"
                            autocomplete="one-time-code"
                            oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                            required>
-                    <button type="button" id="resend-otp-btn" 
-                            class="btn btn-outline-primary" 
+                    <button type="button" id="resend-otp-btn"
+                            class="btn btn-outline-primary"
                             disabled>
                         <span id="resend-timer">60</span>s
                     </button>
                 </div>
                 <div id="otp-errors" class="invalid-feedback d-block mt-1">
                     {% if form.otp.errors %}
-                        {% for error in form.otp.errors %}
-                            <div>{{ error }}</div>
-                        {% endfor %}
+                        {% for error in form.otp.errors %}<div>{{ error }}</div>{% endfor %}
                     {% endif %}
                 </div>
                 <small class="text-muted">OTP expires in 5 minutes.</small>
             </div>
-        </div>
-        <div class="card-footer bg-white d-flex gap-2">
-            <button type="submit" class="btn btn-warning" id="otp-submit-btn">
-                <span id="otp-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
-                <i class="bi bi-check-circle me-1"></i> Verify & Update
-            </button>
-            <button type="button" class="btn btn-secondary" 
-                    hx-get="{% url 'customer:email_change_request' %}" 
-                    hx-target="#profile-container"
-                    hx-swap="innerHTML">
-                <i class="bi bi-arrow-left me-1"></i> Back
-            </button>
-        </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-warning" id="otp-submit-btn">
+                    <span id="otp-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                    <i class="bi bi-check-circle me-1"></i> Verify & Update
+                </button>
+                <button type="button" class="btn btn-secondary"
+                        hx-get="{% url 'customer:email_change_request' %}"
+                        hx-target="#profile-container"
+                        hx-swap="innerHTML">
+                    <i class="bi bi-arrow-left me-1"></i> Back
+                </button>
+            </div>
+        </form>
     </div>
-</form>
+</div>
 
 <script>
+// ============================================================
+// ⚠️ DOMContentLoaded HTMX-loaded content pe fire NAHI hota
+// इसलिए IIFE (immediately-invoked function) use करें
+// ============================================================
 (function() {
-    // ============================================================
-    // ⚠️ IMPORTANT: HTMX-loaded content ke liye DOMContentLoaded
-    // kaam nahi karta. Isliye turant execute karo (IIFE).
-    // ============================================================
-    
     const timerDisplay = document.getElementById('resend-timer');
     const resendBtn = document.getElementById('resend-otp-btn');
     let timerInterval = null;
@@ -125,7 +124,7 @@
             return response.json().catch(() => ({}));
         })
         .then(data => {
-            if (data === null) return;  // redirecting
+            if (data === null) return;
             startTimer();
             if (window.showToast) {
                 window.showToast('success', 'New OTP sent to your email.', 'OTP Resent');
@@ -142,30 +141,9 @@
         });
     }
 
-    // ---- Attach click handler ----
     if (resendBtn) {
         resendBtn.addEventListener('click', resendOTP);
     }
-
-    // ---- Start timer immediately ----
     startTimer();
-
-    // ===== SPINNER =====
-    document.addEventListener('htmx:beforeRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#profile-container')) {
-            const spinner = document.getElementById('otp-spinner');
-            const btn = document.getElementById('otp-submit-btn');
-            if (spinner) spinner.classList.remove('d-none');
-            if (btn) btn.disabled = true;
-        }
-    });
-    document.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#profile-container')) {
-            const spinner = document.getElementById('otp-spinner');
-            const btn = document.getElementById('otp-submit-btn');
-            if (spinner) spinner.classList.add('d-none');
-            if (btn) btn.disabled = false;
-        }
-    });
 })();
 </script>
