@@ -19,14 +19,26 @@
                     <tr>
                         <td>{{ payment.date|date:"d M Y" }}</td>
                         <td>
-                            {% for inv in payment.invoices.all %}
-                                <a href="{% url 'customer:customer_invoice_detail' inv.id %}" class="text-decoration-none">
-                                    {{ inv.invoice_number }}
-                                </a>
-                                {% if not forloop.last %}, {% endif %}
-                            {% empty %}
-                                <span class="text-muted">—</span>
-                            {% endfor %}
+                            {% if payment.allocations.all %}
+                                {% for alloc in payment.allocations.all %}
+                                    <a href="{% url 'customer:customer_invoice_detail' alloc.invoice.id %}" class="text-decoration-none">
+                                        {{ alloc.invoice.invoice_number }}
+                                    </a>
+                                    <small class="text-muted">(₹{{ alloc.amount|floatformat:2 }})</small>
+                                    {% if not forloop.last %}, {% endif %}
+                                {% endfor %}
+                            {% elif payment.is_advance %}
+                                <span class="badge bg-info text-white">
+                                    <i class="bi bi-arrow-up-circle"></i> Advance
+                                </span>
+                            {% else %}
+                                <span class="text-muted">Direct</span>
+                            {% endif %}
+                            {% if payment.discount_amount and payment.discount_amount > 0 %}
+                                <br><small class="text-danger">
+                                    <i class="bi bi-tag"></i> Discount: ₹{{ payment.discount_amount|floatformat:2 }}
+                                </small>
+                            {% endif %}
                         </td>
                         <td class="text-end fw-bold">₹{{ payment.amount|floatformat:2 }}</td>
                         <td>

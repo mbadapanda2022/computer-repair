@@ -5,60 +5,138 @@
     <meta charset="UTF-8">
     <title>Payment History – {{ customer.name }}</title>
     <style>
-        @media print { body { font-size: 10pt; margin: 1.5cm; } .no-print { display: none !important; } }
-        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 20px; background: #fff; }
-        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        .filters-box { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; font-size: 10pt; }
-        .table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-        .table th, .table td { border: 1px solid #ddd; padding: 5px 8px; }
-        .table th { background: #e9ecef; font-weight: 600; }
+        @media print {
+            body { font-size: 10pt; margin: 1.5cm; }
+            .no-print { display: none !important; }
+        }
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            color: #333;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .header h2 { margin: 5px 0; }
+        .header h4 {
+            margin: 15px 0 5px 0;
+            color: #1a1a2e;
+        }
+        .filters-box {
+            background: #f8f9fa;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 10pt;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10pt;
+        }
+        .table th, .table td {
+            border: 1px solid #ddd;
+            padding: 5px 8px;
+            vertical-align: top;
+        }
+        .table th {
+            background: #e9ecef;
+            font-weight: 600;
+            text-align: left;
+        }
         .text-end { text-align: right; }
         .text-center { text-align: center; }
         .fw-bold { font-weight: bold; }
-        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
-        .summary-row td { background: #e9ecef !important; font-weight: bold; border-top: 2px solid #333; }
-        .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+        .text-muted { color: #6c757d; }
+        .text-danger { color: #dc3545; }
+        .footer {
+            text-align: center;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+            margin-top: 20px;
+            font-size: 9pt;
+            color: #6c757d;
+        }
+        .summary-row td {
+            background: #e9ecef !important;
+            font-weight: bold;
+            border-top: 2px solid #333;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 8pt;
+            font-weight: 600;
+        }
+        .badge-advance { background: #17a2b8; color: #fff; }
+        .badge-cash { background: #198754; color: #fff; }
+        .badge-bank { background: #0d6efd; color: #fff; }
+        .badge-upi { background: #0dcaf0; color: #000; }
+        .btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 11pt;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 0 4px;
+        }
         .btn-primary { background: #0d6efd; color: #fff; }
         .btn-secondary { background: #6c757d; color: #fff; }
         .company-logo { max-height: 60px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
+
+    <!-- ===== HEADER ===== -->
     <div class="header">
         {% if logo_exists %}
             <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
         {% endif %}
         <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
         <p>
-            {% if company.address %}{{ company.address }}<br>{% endif %}
+            {{ company.address|default:"" }}<br>
             {% if company.phone %}Phone: {{ company.phone }} | {% endif %}
-            {% if company.email %}Email: {{ company.email }}{% endif %}
+            {% if company.email %}Email: {{ company.email }} | {% endif %}
+            {% if company.gstin %}GST: {{ company.gstin }}{% endif %}
         </p>
-        <h4 style="margin-top: 15px;">Payment History</h4>
-        <p><strong>Customer:</strong> {{ customer.name }}
+        <h4>Payment History</h4>
+        <p>
+            <strong>Customer:</strong> {{ customer.name }}
             {% if customer.phone %} | <strong>Phone:</strong> {{ customer.phone }}{% endif %}
         </p>
     </div>
 
+    <!-- ===== FILTERS ===== -->
     <div class="filters-box">
         <strong>Filters:</strong>
         {% if search %}<span>Search: {{ search }}</span>{% endif %}
-        {% if method %}<span>Method: {{ method|title }}</span>{% endif %}
-        {% if date_from %}<span>From: {{ date_from }}</span>{% endif %}
-        {% if date_to %}<span>To: {{ date_to }}</span>{% endif %}
+        {% if method %}<span> | Method: {{ method|title }}</span>{% endif %}
+        {% if date_from %}<span> | From: {{ date_from }}</span>{% endif %}
+        {% if date_to %}<span> | To: {{ date_to }}</span>{% endif %}
         {% if not search and not method and not date_from and not date_to %}<span>All Records</span>{% endif %}
         <br><small>Generated: {% now "d M Y, h:i A" %}</small>
     </div>
 
+    <!-- ===== TABLE ===== -->
     <table class="table">
         <thead>
             <tr>
-                <th>Date</th>
-                <th>Invoice</th>
-                <th class="text-end">Amount (₹)</th>
-                <th>Method</th>
-                <th>Reference</th>
-                <th>Description</th>
+                <th style="width:12%;">Date</th>
+                <th style="width:25%;">Invoice</th>
+                <th class="text-end" style="width:13%;">Amount (₹)</th>
+                <th style="width:12%;">Method</th>
+                <th style="width:18%;">Reference</th>
+                <th style="width:20%;">Description</th>
             </tr>
         </thead>
         <tbody>
@@ -66,19 +144,47 @@
             <tr>
                 <td>{{ payment.date|date:"d M Y" }}</td>
                 <td>
-                    {% for inv in payment.invoices.all %}
-                        {{ inv.invoice_number }}{% if not forloop.last %}, {% endif %}
-                    {% empty %}
-                        —
-                    {% endfor %}
+                    {% if payment.allocations.all %}
+                        {% for alloc in payment.allocations.all %}
+                            {{ alloc.invoice.invoice_number }}
+                            <small class="text-muted">(₹{{ alloc.amount|floatformat:2 }})</small>{% if not forloop.last %}, {% endif %}
+                        {% endfor %}
+                    {% elif payment.is_advance %}
+                        <span class="badge badge-advance">Advance</span>
+                    {% else %}
+                        <span class="text-muted">Direct</span>
+                    {% endif %}
+                    {% if payment.discount_amount and payment.discount_amount > 0 %}
+                        <br><small class="text-danger">
+                            Discount: ₹{{ payment.discount_amount|floatformat:2 }}
+                        </small>
+                    {% endif %}
                 </td>
                 <td class="text-end fw-bold">₹{{ payment.amount|floatformat:2 }}</td>
-                <td>{{ payment.get_method_display }}</td>
-                <td>{% if payment.upi_ref %}{{ payment.upi_ref }}{% elif payment.reference %}{{ payment.reference }}{% else %}—{% endif %}</td>
+                <td>
+                    <span class="badge 
+                        {% if payment.method == 'cash' %}badge-cash
+                        {% elif payment.method == 'bank' %}badge-bank
+                        {% elif payment.method == 'upi' %}badge-upi
+                        {% endif %}">
+                        {{ payment.get_method_display }}
+                    </span>
+                </td>
+                <td>
+                    {% if payment.upi_ref %}
+                        UPI: {{ payment.upi_ref }}
+                    {% elif payment.reference %}
+                        {{ payment.reference }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
                 <td>{{ payment.description|default:"—" }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="text-center">No payments found.</td></tr>
+            <tr>
+                <td colspan="6" class="text-center">No payments found.</td>
+            </tr>
             {% endfor %}
             {% if payments %}
             <tr class="summary-row">
@@ -90,15 +196,18 @@
         </tbody>
     </table>
 
+    <!-- ===== FOOTER ===== -->
     <div class="footer">
         <p>This is a computer-generated statement. No signature required.</p>
         <p>© {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.</p>
     </div>
 
+    <!-- ===== ACTION BUTTONS (Screen Only) ===== -->
     <div class="no-print">
         <hr>
         <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
         <button onclick="window.close()" class="btn btn-secondary">❌ Close</button>
     </div>
+
 </body>
 </html>
