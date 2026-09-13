@@ -1,4 +1,4 @@
-<!-- templates/customer/statement_print -->
+<!-- templates/customer/statement_print.html -->
 {% load static math_filters %}
 <!DOCTYPE html>
 <html>
@@ -7,7 +7,7 @@
     <title>Statement – {{ customer.name }}</title>
     <style>
         @media print { body { font-size: 10pt; margin: 1.5cm; } .no-print { display: none !important; } }
-        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 20px; }
+        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 20px; background: #fff; }
         .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
         .filters-box { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; font-size: 10pt; }
         .table { width: 100%; border-collapse: collapse; font-size: 10pt; }
@@ -18,6 +18,7 @@
         .fw-bold { font-weight: bold; }
         .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
         .summary-row td { background: #e9ecef !important; font-weight: bold; border-top: 2px solid #333; }
+        .closing-row td { background: #d1e7dd !important; font-weight: bold; }
         .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
         .btn-primary { background: #0d6efd; color: #fff; }
         .btn-secondary { background: #6c757d; color: #fff; }
@@ -55,16 +56,17 @@
         </thead>
         <tbody>
             <tr class="fw-bold">
-                <td colspan="4">Opening Balance</td>
+                <td colspan="4">
+                    {% if opening_label %}{{ opening_label }}{% else %}Opening Balance{% endif %}
+                    {% if opening_as_on_date %}(as on {{ opening_as_on_date|date:"d M Y" }}){% endif %}
+                </td>
                 <td class="text-end">{{ opening_balance|floatformat:2 }}</td>
             </tr>
             {% for row in statement_rows %}
             <tr>
                 <td>{{ row.date|date:"d M Y" }}</td>
                 <td>
-                    <!-- Bold: Description (Invoice + Device) -->
                     <strong>{{ row.description }}</strong>
-                    <!-- Muted: Action taken (truncated) -->
                     {% if row.action %}
                         <br><span style="font-size:9pt; color:#6c757d;">{{ row.action|truncatechars:80 }}</span>
                     {% endif %}
@@ -83,6 +85,13 @@
                 <td class="text-end">₹{{ total_credit|floatformat:2 }}</td>
                 <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
             </tr>
+            <tr class="closing-row">
+                <td colspan="4" class="text-end">
+                    Closing Balance
+                    {% if closing_as_on_date %}(as on {{ closing_as_on_date|date:"d M Y" }}){% endif %}
+                </td>
+                <td class="text-end" style="font-size: 12pt;">₹{{ closing_balance|floatformat:2 }}</td>
+            </tr>
             {% endif %}
         </tbody>
     </table>
@@ -99,4 +108,3 @@
     </div>
 </body>
 </html>
-

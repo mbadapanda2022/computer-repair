@@ -990,7 +990,27 @@ def statement(request):
     if is_excel:
         return customer_statement_excel(request, customer)
 
-    opening_balance = customer.opening_balance
+    # ============================================================
+    # CARRY-FORWARD OPENING BALANCE
+    # Agar date_from set hai, to uss date se PEHLE ke
+    # transactions add karke actual opening nikalo
+    # ============================================================
+    opening_balance = customer.opening_balance or Decimal('0')
+    opening_as_on_date = customer.opening_balance_date
+    opening_label = "Opening Balance"
+
+    if date_from:
+        prior_lines = LedgerLine.objects.filter(contact=customer) \
+            .exclude(ledger_entry__entry_type='opening') \
+            .filter(ledger_entry__date__lt=date_from)
+
+        prior_debit = prior_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
+        prior_credit = prior_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
+
+        # Customer: +ve = owes you. Debit increases, credit decreases
+        opening_balance = opening_balance + prior_debit - prior_credit
+        opening_as_on_date = date_from
+        opening_label = "Opening Balance (Carried Forward)"
 
     lines = LedgerLine.objects.filter(contact=customer) \
         .exclude(ledger_entry__entry_type='opening') \
@@ -1058,7 +1078,7 @@ def statement(request):
             debit = Decimal('0')
             credit = line.credit
 
-        # Skip zero-amount rows (ghost entries)
+        # Skip zero-amount rows
         if debit == 0 and credit == 0:
             continue
 
@@ -1086,7 +1106,10 @@ def statement(request):
             'customer': customer,
             'statement_rows': rows,
             'opening_balance': opening_balance,
+            'opening_as_on_date': opening_as_on_date,
+            'opening_label': opening_label,
             'closing_balance': closing_balance,
+            'closing_as_on_date': date_to,
             'total_debit': total_debit,
             'total_credit': total_credit,
             'date_from': date_from,
@@ -1111,7 +1134,10 @@ def statement(request):
         'statement_rows': rows_page,
         'page_obj': rows_page,
         'opening_balance': opening_balance,
+        'opening_as_on_date': opening_as_on_date,
+        'opening_label': opening_label,
         'closing_balance': closing_balance,
+        'closing_as_on_date': date_to,
         'total_debit': total_debit,
         'total_credit': total_credit,
         'date_from': date_from,
@@ -1128,6 +1154,7 @@ def statement(request):
 # ============================================================
 # STATEMENT – EXCEL EXPORT
 # ============================================================
+
 def customer_statement_excel(request, customer):
     if openpyxl is None:
         return toast_only_response(
@@ -1139,6 +1166,24 @@ def customer_statement_excel(request, customer):
     date_to = request.GET.get('date_to', '')
     txn_type = request.GET.get('txn_type', '')
     search = request.GET.get('search', '')
+
+    # ============================================================
+    # CARRY-FORWARD OPENING BALANCE
+    # ============================================================
+    opening = customer.opening_balance or Decimal('0')
+    opening_as_on_date = customer.opening_balance_date
+    opening_label = "Opening Balance"
+
+    if date_from:
+        prior_lines = LedgerLine.objects.filter(contact=customer) \
+            .exclude(ledger_entry__entry_type='opening') \
+            .filter(ledger_entry__date__lt=date_from)
+
+        prior_debit = prior_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
+        prior_credit = prior_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
+        opening = opening + prior_debit - prior_credit
+        opening_as_on_date = date_from
+        opening_label = "Opening Balance (Carried Forward)"
 
     lines = LedgerLine.objects.filter(contact=customer) \
         .exclude(ledger_entry__entry_type='opening') \
@@ -1158,7 +1203,6 @@ def customer_statement_excel(request, customer):
     if search:
         lines = lines.filter(ledger_entry__description__icontains=search)
 
-    opening = customer.opening_balance
     running_balance = opening
 
     wb = openpyxl.Workbook()
@@ -1186,7 +1230,7 @@ def customer_statement_excel(request, customer):
     ws['A3'] = f"Period: {date_from if date_from else 'Start'} to {date_to if date_to else 'Today'}"
     ws['A3'].alignment = Alignment(horizontal="center")
 
-    # Headers with Action column
+    # Headers
     headers = ['Date', 'Description', 'Action', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=5, column=col, value=header)
@@ -1196,8 +1240,14 @@ def customer_statement_excel(request, customer):
         cell.border = thin_border
 
     row = 6
+    # Opening balance with label and date
+    if opening_as_on_date:
+        opening_display = f"{opening_label} (as on {opening_as_on_date.strftime('%d-%m-%Y')})"
+    else:
+        opening_display = opening_label
+
     ws.cell(row=row, column=1, value="")
-    ws.cell(row=row, column=2, value="Opening Balance")
+    ws.cell(row=row, column=2, value=opening_display)
     ws.cell(row=row, column=3, value="")
     ws.cell(row=row, column=4, value="")
     ws.cell(row=row, column=5, value="")
@@ -1261,7 +1311,13 @@ def customer_statement_excel(request, customer):
             ws.cell(row=row, column=col).border = thin_border
         row += 1
 
-    ws.cell(row=row, column=2, value="Closing Balance")
+    # Closing balance
+    if date_to:
+        closing_display = f"Closing Balance (as on {date_to})"
+    else:
+        closing_display = "Closing Balance"
+
+    ws.cell(row=row, column=2, value=closing_display)
     ws.cell(row=row, column=6, value=float(running_balance))
     ws.cell(row=row, column=6).number_format = money_format
     for col in range(1, 7):
@@ -1269,7 +1325,7 @@ def customer_statement_excel(request, customer):
         ws.cell(row=row, column=col).font = Font(bold=True)
 
     ws.column_dimensions['A'].width = 15
-    ws.column_dimensions['B'].width = 35
+    ws.column_dimensions['B'].width = 40
     ws.column_dimensions['C'].width = 40
     ws.column_dimensions['D'].width = 15
     ws.column_dimensions['E'].width = 15
@@ -1282,7 +1338,6 @@ def customer_statement_excel(request, customer):
     response['Content-Disposition'] = f'attachment; filename="statement_{customer.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
-
 
 # ============================================================
 # PROFILE 
