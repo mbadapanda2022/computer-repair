@@ -7,7 +7,6 @@
       hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' 
       hx-indicator="#otp-spinner"
-      hx-on:submit="htmx.trigger('#otp-input', 'htmx:abort');"
       novalidate>
     
     {% csrf_token %}
@@ -32,6 +31,9 @@
                            placeholder="Enter 6-digit OTP" 
                            maxlength="6" 
                            pattern="[0-9]{6}"
+                           inputmode="numeric"
+                           autocomplete="one-time-code"
+                           oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                            required>
                     <button type="button" id="resend-otp-btn" 
                             class="btn btn-outline-primary" 
@@ -65,14 +67,18 @@
 </form>
 
 <script>
-    // ===== TIMER & RESEND =====
-    let timer = 60;
-    let timerInterval = null;
+(function() {
+    // ============================================================
+    // ⚠️ IMPORTANT: HTMX-loaded content ke liye DOMContentLoaded
+    // kaam nahi karta. Isliye turant execute karo (IIFE).
+    // ============================================================
+    
     const timerDisplay = document.getElementById('resend-timer');
     const resendBtn = document.getElementById('resend-otp-btn');
+    let timerInterval = null;
 
     function startTimer() {
-        timer = 60;
+        let timer = 60;
         if (timerDisplay) timerDisplay.textContent = timer;
         if (resendBtn) {
             resendBtn.disabled = true;
@@ -81,7 +87,8 @@
         if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(function() {
             timer -= 1;
-            if (timerDisplay) timerDisplay.textContent = timer;
+            const el = document.getElementById('resend-timer');
+            if (el) el.textContent = timer;
             if (resendBtn) {
                 resendBtn.innerHTML = `<span id="resend-timer">${timer}</span>s`;
             }
@@ -100,6 +107,7 @@
         if (resendBtn && resendBtn.disabled) return;
         resendBtn.disabled = true;
         resendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Sending...';
+
         fetch("{% url 'customer:email_change_request' %}", {
             method: 'POST',
             headers: {
@@ -112,11 +120,12 @@
         .then(response => {
             if (response.redirected) {
                 window.location.href = response.url;
-                return;
+                return null;
             }
             return response.json().catch(() => ({}));
         })
         .then(data => {
+            if (data === null) return;  // redirecting
             startTimer();
             if (window.showToast) {
                 window.showToast('success', 'New OTP sent to your email.', 'OTP Resent');
@@ -124,7 +133,7 @@
         })
         .catch(() => {
             if (window.showToast) {
-                window.showToast('error', 'Failed to resend OTP. Please try again.', 'Error');
+                window.showToast('danger', 'Failed to resend OTP. Please try again.', 'Error');
             }
             if (resendBtn) {
                 resendBtn.disabled = false;
@@ -133,10 +142,13 @@
         });
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        if (resendBtn) resendBtn.addEventListener('click', resendOTP);
-        startTimer();
-    });
+    // ---- Attach click handler ----
+    if (resendBtn) {
+        resendBtn.addEventListener('click', resendOTP);
+    }
+
+    // ---- Start timer immediately ----
+    startTimer();
 
     // ===== SPINNER =====
     document.addEventListener('htmx:beforeRequest', function(evt) {
@@ -155,14 +167,5 @@
             if (btn) btn.disabled = false;
         }
     });
-
-    // ===== OTP ONLY DIGITS =====
-    document.addEventListener('DOMContentLoaded', function() {
-        const otpInput = document.getElementById('otp-input');
-        if (otpInput) {
-            otpInput.addEventListener('input', function() {
-                this.value = this.value.replace(/[^0-9]/g, '');
-            });
-        }
-    });
+})();
 </script>

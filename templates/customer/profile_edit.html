@@ -35,7 +35,7 @@
                                hx-get="{% url 'customer:validate_customer_profile_field' %}"
                                hx-trigger="blur, keyup changed delay:300ms"
                                hx-target="#field-name"
-                               hx-swap="outerHTML"
+                               hx-swap="innerHTML"
                                hx-include="#id_name"
                                required>
                         <div id="field-name" class="invalid-feedback d-block">
