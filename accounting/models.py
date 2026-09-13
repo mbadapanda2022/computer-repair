@@ -446,7 +446,14 @@ class Contact(SoftDeleteModel):
     address = models.TextField(blank=True)
     gstin = models.CharField(max_length=15, blank=True)
     state = models.CharField(max_length=100, blank=True)
-    opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    opening_balance = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Opening balance: Customer (+ve = owes you, -ve = advance), Vendor (+ve = you owe, -ve = advance)"
+    )
+    opening_balance_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date when opening balance was recorded (defaults to today)"
+    )
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     advance_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Net advance balance (Customer: positive = advance received, Vendor: positive = advance paid)")
     notes = models.TextField(blank=True)
@@ -460,6 +467,7 @@ class Contact(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.name} ({self.get_contact_type_display()})"
+    
 
     def recalc_balance(self):
         dr = self.ledger_lines.aggregate(total=Sum('debit'))['total'] or Decimal('0')
@@ -470,6 +478,7 @@ class Contact(SoftDeleteModel):
             new_bal = cr - dr
         Contact.objects.filter(pk=self.pk).update(balance=new_bal.quantize(TAX_PRECISION))
         self.balance = new_bal.quantize(TAX_PRECISION)
+        
 
     def recalc_advance_balance(self):
         """Recalculate advance balance from advance payment entries."""
@@ -482,6 +491,11 @@ class Contact(SoftDeleteModel):
             total_settled = AdvanceAdjustment.objects.filter(payment__contact=self, payment__is_advance=True).aggregate(total=Sum('amount'))['total'] or Decimal('0')
             self.advance_balance = (total_advance - total_settled).quantize(TAX_PRECISION)
         self.save(update_fields=['advance_balance'])
+    
+    def save(self, *args, **kwargs):
+        if self.opening_balance and not self.opening_balance_date:
+            self.opening_balance_date = timezone.now().date()
+            super().save(*args, **kwargs)
 
 
 # ============================================================
@@ -1904,40 +1918,84 @@ class EmailOTP(models.Model):
 
 @receiver(post_save, sender=Contact)
 def create_or_update_opening_balance_ledger(sender, instance, **kwargs):
-    """Create opening balance ledger entry for Contact."""
-    LedgerEntry.objects.filter(entry_type='opening', reference_id=instance.id).delete()
-    if instance.opening_balance == 0:
+    """
+    Opening balance ledger entry management.
+    
+    Smart behavior:
+    - Naya Contact -> create entry
+    - Existing Contact, opening_balance changed -> delete old + create new
+    - Existing Contact, opening_balance same -> kuch mat karo (skip)
+    - opening_balance = 0 -> delete entry
+    """
+    # Original value DB se lo (agar existing contact hai)
+    original_balance = Decimal('0')
+    is_new = not instance.pk  # post_save me pk hamesha hoga, isliye created check
+    
+    # Purani opening entry dhundo
+    existing_entry = LedgerEntry.objects.filter(
+        entry_type='opening',
+        reference_id=instance.id,
+    ).first()
+    
+    # Agar entry pehle se hai aur amount same hai -> kuch nahi karna
+    if existing_entry and existing_entry.total_amount == abs(instance.opening_balance or Decimal('0')):
+        # Sirf description update karo (name change hua ho sakta hai)
+        new_description = f"Opening balance for {instance.name}"
+        if existing_entry.description != new_description:
+            existing_entry.description = new_description
+            existing_entry.save(update_fields=['description'])
         return
     
+    # Amount change hua hai YA entry nahi hai -> delete + recreate
+    if existing_entry:
+        existing_entry.delete()
+    
+    # Agar opening_balance 0 hai -> kuch nahi banana
+    if not instance.opening_balance or instance.opening_balance == 0:
+        instance.recalc_balance()
+        return
+    
+    # Naya entry banao
+    abs_bal = abs(instance.opening_balance)
+    entry_date = instance.opening_balance_date or timezone.now().date()
     entry = LedgerEntry.objects.create(
-        date=timezone.now().date(),
+        date=entry_date,
         entry_type='opening',
         reference_id=instance.id,
         description=f"Opening balance for {instance.name}",
-        total_amount=abs(instance.opening_balance)
+        total_amount=abs_bal,
     )
-    abs_bal = abs(instance.opening_balance)
     
     if instance.contact_type in ('customer', 'both'):
         customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
+        opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
         if instance.opening_balance > 0:
-            LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance, debit=instance.opening_balance, credit=0)
-            opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc, debit=0, credit=instance.opening_balance)
+            # Customer owes us
+            LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance,
+                                       debit=instance.opening_balance, credit=0)
+            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                       debit=0, credit=instance.opening_balance)
         else:
-            LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance, debit=0, credit=abs_bal)
-            opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc, debit=abs_bal, credit=0)
+            # Customer paid us in advance
+            LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance,
+                                       debit=0, credit=abs_bal)
+            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                       debit=abs_bal, credit=0)
     else:  # vendor
         vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
+        opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
         if instance.opening_balance > 0:
-            LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance, debit=0, credit=instance.opening_balance)
-            opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc, debit=instance.opening_balance, credit=0)
+            # We owe vendor
+            LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance,
+                                       debit=0, credit=instance.opening_balance)
+            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                       debit=instance.opening_balance, credit=0)
         else:
-            LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance, debit=abs_bal, credit=0)
-            opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc, debit=0, credit=abs_bal)
+            # Vendor owes us
+            LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance,
+                                       debit=abs_bal, credit=0)
+            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                       debit=0, credit=abs_bal)
     
     instance.recalc_balance()
 

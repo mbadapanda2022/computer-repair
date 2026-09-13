@@ -528,7 +528,7 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
         fields = [
             'contact_type', 'name', 'company_name', 'phone',
             'email', 'address', 'gstin', 'state',
-            'opening_balance', 'notes'
+            'opening_balance', 'opening_balance_date', 'notes'
         ]
         widgets = {
             'contact_type': BS_SELECT,
@@ -540,13 +540,27 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
             'gstin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'GSTIN'}),
             'state': BS_TEXT,
             'opening_balance': BS_NUMBER,
+            'opening_balance_date': BS_DATE,
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+        labels = {
+            'opening_balance': 'Opening Balance (₹)',
+            'opening_balance_date': 'Opening Balance Date',
+        }
+        help_texts = {
+            'opening_balance': 'Customer: +ve = owes you, -ve = advance',
+            'opening_balance_date': 'Leave blank for today',
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        if not self.instance.pk and 'opening_balance_date' in self.fields:
+            if not self.initial.get('opening_balance_date'):
+                self.fields['opening_balance_date'].initial = timezone.now().date()
+
         self.add_htmx_validation(
-            validate_url=reverse('accounting:validate_contact_field'),  
+            validate_url=reverse('accounting:validate_contact_field'),
             include_id_field='contact_id'
         )
 
@@ -566,7 +580,38 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
         return phone
 
     def clean_opening_balance(self):
+        """
+        Opening balance validation:
+        - Naya contact -> free to set
+        - Existing contact with transactions -> cannot change
+        - Reason: opening balance is a one-time setup, not for adjustments
+        """
         balance = self.cleaned_data.get('opening_balance', Decimal('0'))
+
+        # Existing contact check karo
+        if self.instance and self.instance.pk:
+            # Original value DB se lo
+            try:
+                original = Contact.objects.get(pk=self.instance.pk).opening_balance
+            except Contact.DoesNotExist:
+                original = Decimal('0')
+
+            # Agar value change ho rahi hai
+            if balance != original:
+                # Check for any transaction
+                has_transactions = (
+                    self.instance.sales_invoices.exists()
+                    or self.instance.purchases.exists()
+                    or self.instance.payments.exists()
+                    or self.instance.repair_jobs.exists()
+                )
+
+                if has_transactions:
+                    raise ValidationError(
+                        "Opening balance cannot be changed after transactions exist. "
+                        "Please use a Journal Entry to adjust the balance instead."
+                    )
+
         return balance
 
 
