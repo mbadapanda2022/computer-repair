@@ -16,22 +16,30 @@
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="{% url 'accounting:customer_statement_excel' contact.id %}?{{ request.GET.urlencode }}" 
-               class="btn btn-success" title="Download Excel">
+            <button type="button" class="btn btn-success" 
+                    onclick="downloadWithFilters('excel')" title="Download Excel">
                 <i class="bi bi-file-earmark-excel"></i> Excel
-            </a>
-            <a href="{% url 'accounting:customer_statement_whatsapp' contact.id %}?{{ request.GET.urlencode }}" 
-               class="btn btn-warning" title="Send via WhatsApp" target="_blank">
+            </button>
+            <button type="button" class="btn btn-warning" 
+                    onclick="downloadWithFilters('whatsapp')" title="Send via WhatsApp">
                 <i class="bi bi-whatsapp"></i> WhatsApp
-            </a>
-            <a href="{% url 'accounting:customer_statement_print' contact.id %}?{{ request.GET.urlencode }}" 
-               class="btn btn-secondary" target="_blank">
+            </button>
+            <button type="button" class="btn btn-secondary" 
+                    onclick="downloadWithFilters('print')" title="Print Statement">
                 <i class="bi bi-printer"></i> Print
-            </a>
+            </button>
             <a href="{% url 'accounting:contact_list' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
         </div>
+    </div>
+
+    <!-- Active Filters Display -->
+    <div id="active-filters" class="alert alert-info py-2 mb-3 d-none">
+        <small>
+            <i class="bi bi-funnel-fill"></i> <strong>Active Filters:</strong>
+            <span id="active-filters-text"></span>
+        </small>
     </div>
 
     <!-- Summary Cards -->
@@ -103,7 +111,8 @@
                                hx-trigger="keyup changed delay:300ms" 
                                hx-target="#statement-table-container"
                                hx-include="#statement-filter-form"
-                               hx-push-url="true">
+                               hx-push-url="true"
+                               onkeyup="updateActiveFilters()">
                     </div>
                 </div>
                 <div class="col-md-2">
@@ -112,7 +121,8 @@
                             hx-trigger="change" 
                             hx-target="#statement-table-container"
                             hx-include="#statement-filter-form"
-                            hx-push-url="true">
+                            hx-push-url="true"
+                            onchange="updateActiveFilters()">
                         <option value="">All Types</option>
                         <option value="invoice" {% if txn_type == 'invoice' %}selected{% endif %}>Invoices</option>
                         <option value="payment" {% if txn_type == 'payment' %}selected{% endif %}>Payments</option>
@@ -122,27 +132,27 @@
                 </div>
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                           placeholder="From Date"
                            hx-get="{% url 'accounting:customer_statement' contact.id %}" 
                            hx-trigger="change" 
                            hx-target="#statement-table-container"
                            hx-include="#statement-filter-form"
-                           hx-push-url="true">
+                           hx-push-url="true"
+                           onchange="updateActiveFilters()">
                 </div>
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                           placeholder="To Date"
                            hx-get="{% url 'accounting:customer_statement' contact.id %}" 
                            hx-trigger="change" 
                            hx-target="#statement-table-container"
                            hx-include="#statement-filter-form"
-                           hx-push-url="true">
+                           hx-push-url="true"
+                           onchange="updateActiveFilters()">
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-secondary w-100" 
-                            hx-get="{% url 'accounting:customer_statement' contact.id %}" 
-                            hx-target="#statement-table-container"
-                            hx-include="#statement-filter-form"
-                            hx-vals='{"reset": "true"}'
-                            hx-push-url="true">
+                    <button type="button" class="btn btn-secondary w-100" 
+                            onclick="resetFilters()">
                         <i class="bi bi-arrow-counterclockwise"></i> Reset
                     </button>
                 </div>
@@ -155,5 +165,114 @@
         {% include "statements/partials/customer_statement_table.html" %}
     </div>
 </div>
-{% endblock %}
 
+<script>
+// ============================================================
+// Build current filter params from form
+// ============================================================
+function getCurrentFilterParams() {
+    const form = document.getElementById('statement-filter-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    
+    for (const [key, value] of formData.entries()) {
+        if (value && value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    return params;
+}
+
+// ============================================================
+// Download (Print / Excel / WhatsApp) with current filters
+// ============================================================
+function downloadWithFilters(type) {
+    const params = getCurrentFilterParams();
+    const queryString = params.toString();
+    const baseParams = queryString ? '?' + queryString : '';
+
+    let url = '';
+    let target = '_blank';
+
+    if (type === 'print') {
+        url = "{% url 'accounting:customer_statement_print' contact.id %}" + baseParams;
+    } else if (type === 'excel') {
+        url = "{% url 'accounting:customer_statement_excel' contact.id %}" + baseParams;
+        target = '_self';
+    } else if (type === 'whatsapp') {
+        url = "{% url 'accounting:customer_statement_whatsapp' contact.id %}" + baseParams;
+        target = '_blank';
+    }
+
+    // Show toast about what filters are applied
+    if (queryString) {
+        showInfoToast('Statement will be generated with current filters');
+    }
+
+    window.open(url, target);
+}
+
+// ============================================================
+// Reset filters
+// ============================================================
+function resetFilters() {
+    const form = document.getElementById('statement-filter-form');
+    form.reset();
+    
+    // Clear date inputs explicitly
+    form.querySelector('[name="date_from"]').value = '';
+    form.querySelector('[name="date_to"]').value = '';
+    form.querySelector('[name="search"]').value = '';
+    form.querySelector('[name="txn_type"]').value = '';
+    
+    // Reload table via HTMX with empty filters
+    htmx.ajax('GET', "{% url 'accounting:customer_statement' contact.id %}", {
+        target: '#statement-table-container',
+        swap: 'innerHTML'
+    });
+    
+    // Update URL and hide filter indicator
+    window.history.pushState({}, '', "{% url 'accounting:customer_statement' contact.id %}");
+    updateActiveFilters();
+}
+
+// ============================================================
+// Show active filters indicator
+// ============================================================
+function updateActiveFilters() {
+    const params = getCurrentFilterParams();
+    const container = document.getElementById('active-filters');
+    const textEl = document.getElementById('active-filters-text');
+    
+    if (params.toString() === '') {
+        container.classList.add('d-none');
+        return;
+    }
+    
+    const parts = [];
+    if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
+    if (params.get('txn_type')) parts.push('Type: ' + params.get('txn_type'));
+    if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
+    if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
+    
+    textEl.textContent = parts.join(' • ') + ' — Print/Excel/WhatsApp will use these filters';
+    container.classList.remove('d-none');
+}
+
+// ============================================================
+// Toast helper
+// ============================================================
+function showInfoToast(message) {
+    if (typeof window.showToast === 'function') {
+        window.showToast('info', message);
+    }
+}
+
+// ============================================================
+// Initialize on page load
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    updateActiveFilters();
+});
+</script>
+{% endblock %}

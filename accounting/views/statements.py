@@ -1,4 +1,4 @@
-# accounting/views/staments.py
+# accounting/views/statements.py
 import csv
 import logging
 from datetime import datetime
@@ -55,7 +55,6 @@ def get_statement_lines(contact, date_from=None, date_to=None, txn_type=None, se
 # ============================================================
 # CUSTOMER STATEMENT - EXCEL
 # ============================================================
-
 @handle_errors(default_redirect='accounting:contact_list')
 def customer_statement_excel(request, contact_id):
     if openpyxl is None:
@@ -134,12 +133,10 @@ def customer_statement_excel(request, contact_id):
 
     closing_balance = running_balance
 
-    # Create workbook
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Customer Statement"
 
-    # Styles (unchanged)
     header_font = Font(bold=True, color="FFFFFF", size=12)
     header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
     header_alignment = Alignment(horizontal="center", vertical="center")
@@ -150,7 +147,7 @@ def customer_statement_excel(request, contact_id):
     money_format = '#,##0.00'
 
     company = CompanyProfile.get_instance()
-    ws.merge_cells('A1:H1')  # changed to 8 columns
+    ws.merge_cells('A1:H1')
     ws['A1'] = company.name
     ws['A1'].font = Font(bold=True, size=14)
     ws.merge_cells('A2:H2')
@@ -161,7 +158,6 @@ def customer_statement_excel(request, contact_id):
     ws['A3'] = period
     ws['A3'].alignment = Alignment(horizontal="center")
 
-    # Headers with new Action column
     headers = ['Date', 'Transaction Type', 'Reference', 'Description', 'Action', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=5, column=col, value=header)
@@ -171,14 +167,11 @@ def customer_statement_excel(request, contact_id):
         cell.border = border
 
     row = 6
-    # Opening balance row (same but adjust columns)
-    ws.cell(row=row, column=1, value="")
-    ws.cell(row=row, column=2, value="")
-    ws.cell(row=row, column=3, value="")
-    ws.cell(row=row, column=4, value="Opening Balance")
-    ws.cell(row=row, column=5, value="")  # Action empty
-    ws.cell(row=row, column=6, value="")
-    ws.cell(row=row, column=7, value="")
+    # Opening balance row with date
+    opening_text = "Opening Balance"
+    if contact.opening_balance_date:
+        opening_text = f"Opening Balance (as on {contact.opening_balance_date.strftime('%d-%m-%Y')})"
+    ws.cell(row=row, column=4, value=opening_text)
     ws.cell(row=row, column=8, value=float(opening))
     ws.cell(row=row, column=8).number_format = money_format
     for col in range(1, 9):
@@ -190,12 +183,10 @@ def customer_statement_excel(request, contact_id):
         ws.cell(row=row, column=2, value=trans['type'])
         ws.cell(row=row, column=3, value=trans['reference'])
         ws.cell(row=row, column=4, value=trans['description'])
-        # Action column (truncated)
         action = trans.get('action', '')
         if action and len(action) > 80:
             action = action[:80] + '...'
         ws.cell(row=row, column=5, value=action)
-        # Debit/Credit/Balance shifted
         ws.cell(row=row, column=6, value=float(trans['debit']) if trans['debit'] else "")
         if trans['debit']:
             ws.cell(row=row, column=6).number_format = money_format
@@ -208,7 +199,6 @@ def customer_statement_excel(request, contact_id):
             ws.cell(row=row, column=col).border = border
         row += 1
 
-    # Closing balance row (shift columns)
     ws.cell(row=row, column=4, value="Closing Balance")
     ws.cell(row=row, column=8, value=float(closing_balance))
     ws.cell(row=row, column=8).number_format = money_format
@@ -217,7 +207,6 @@ def customer_statement_excel(request, contact_id):
         ws.cell(row=row, column=col).font = Font(bold=True)
     row += 1
 
-    # Totals row (shift columns)
     ws.cell(row=row, column=4, value="Total")
     ws.cell(row=row, column=6, value=float(total_debit))
     ws.cell(row=row, column=6).number_format = money_format
@@ -227,12 +216,11 @@ def customer_statement_excel(request, contact_id):
         ws.cell(row=row, column=col).border = border
         ws.cell(row=row, column=col).font = Font(bold=True)
 
-    # Column widths (updated)
     ws.column_dimensions['A'].width = 12
     ws.column_dimensions['B'].width = 18
     ws.column_dimensions['C'].width = 18
     ws.column_dimensions['D'].width = 35
-    ws.column_dimensions['E'].width = 40   
+    ws.column_dimensions['E'].width = 40
     ws.column_dimensions['F'].width = 15
     ws.column_dimensions['G'].width = 15
     ws.column_dimensions['H'].width = 15
@@ -245,6 +233,7 @@ def customer_statement_excel(request, contact_id):
     response['Content-Disposition'] = f'attachment; filename="customer_statement_{contact.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
+
 
 # ============================================================
 # CUSTOMER STATEMENT - WHATSAPP
@@ -259,7 +248,6 @@ def customer_statement_whatsapp(request, contact_id):
         messages.error(request, "Customer phone number not available.")
         return redirect_to_staff('customer_statement', contact_id=contact_id)
 
-    # Clean phone number
     phone_clean = phone.replace(' ', '').replace('-', '').replace('+', '')
     if not phone_clean:
         messages.error(request, "Invalid phone number.")
@@ -267,10 +255,11 @@ def customer_statement_whatsapp(request, contact_id):
 
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
+    txn_type = request.GET.get('txn_type', '')
+    search = request.GET.get('search', '')
 
-    # Get opening and closing balances
     opening = contact.opening_balance
-    lines = get_statement_lines(contact, date_from, date_to)
+    lines = get_statement_lines(contact, date_from, date_to, txn_type, search)
 
     running_balance = opening
     for line in lines:
@@ -282,7 +271,6 @@ def customer_statement_whatsapp(request, contact_id):
 
     period = f"{date_from if date_from else 'Start'} to {date_to if date_to else 'Today'}"
 
-    # Clean message without exposing all transactions in URL
     message = f"""📊 *Customer Statement*
 
 👤 Customer: {contact.name}
@@ -304,14 +292,22 @@ Thank you,
 # ============================================================
 # CUSTOMER STATEMENT - HTML VIEW (With Pagination)
 # ============================================================
-
 @handle_errors(default_redirect='accounting:contact_list')
 def customer_statement(request, contact_id):
     contact = get_object_or_404(Contact, pk=contact_id)
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    txn_type = request.GET.get('txn_type', '')
-    search = request.GET.get('search', '')
+
+    # If reset requested — clear all filters
+    if request.GET.get('reset'):
+        date_from = ''
+        date_to = ''
+        txn_type = ''
+        search = ''
+    else:
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        txn_type = request.GET.get('txn_type', '')
+        search = request.GET.get('search', '')
+
     page_number = request.GET.get('page', 1)
 
     lines = get_statement_lines(contact, date_from, date_to, txn_type, search)
@@ -357,7 +353,14 @@ def customer_statement(request, contact_id):
 
         if search:
             s = search.lower()
-            if not (invoice_no and s in invoice_no.lower()) and not (issue_text and s in issue_text.lower()) and not (action_text and s in action_text.lower()):
+            match = (
+                (invoice_no and s in invoice_no.lower())
+                or (issue_text and s in issue_text.lower())
+                or (action_text and s in action_text.lower())
+                or (desc and s in desc.lower())
+                or (device_model and s in device_model.lower())
+            )
+            if not match:
                 continue
 
         if line.debit > 0:
@@ -369,9 +372,6 @@ def customer_statement(request, contact_id):
             debit_amt = Decimal('0')
             credit_amt = line.credit
 
-        # ============================================================
-        # SKIP ZERO-AMOUNT ROWS
-        # ============================================================
         if debit_amt == 0 and credit_amt == 0:
             continue
 
@@ -393,7 +393,6 @@ def customer_statement(request, contact_id):
     cr_total = sum(l['credit'] for l in statement_lines) if statement_lines else Decimal('0')
     closing = running_balance
 
-    # Pagination
     paginator = Paginator(statement_lines, 25)
     try:
         page_obj = paginator.page(page_number)
@@ -434,7 +433,6 @@ def customer_statement_print(request, contact_id):
     txn_type = request.GET.get('txn_type', '')
     search = request.GET.get('search', '')
 
-    # Order chronologically for statement (oldest to newest)
     lines = get_statement_lines(contact, date_from, date_to, txn_type, search)
 
     opening = contact.opening_balance
@@ -457,10 +455,8 @@ def customer_statement_print(request, contact_id):
                 pass
 
         desc = entry.description
-        invoice_no = None
 
         if invoice:
-            invoice_no = invoice.invoice_number
             if repair_job:
                 device_model = repair_job.device_model
                 issue_text = repair_job.issue_description
@@ -475,13 +471,13 @@ def customer_statement_print(request, contact_id):
 
         if search:
             s = search.lower()
-            match = False
-            if invoice_no and s in invoice_no.lower():
-                match = True
-            elif issue_text and s in issue_text.lower():
-                match = True
-            elif action_text and s in action_text.lower():
-                match = True
+            match = (
+                (invoice and s in invoice.invoice_number.lower())
+                or (issue_text and s in issue_text.lower())
+                or (action_text and s in action_text.lower())
+                or (desc and s in desc.lower())
+                or (device_model and s in device_model.lower())
+            )
             if not match:
                 continue
 
@@ -527,17 +523,46 @@ def customer_statement_print(request, contact_id):
 
 
 # ============================================================
+# HELPER: Get vendor statement opening balance
+# ============================================================
+def _get_vendor_opening_balance(contact, date_from=None):
+    """
+    Vendor statement ke liye opening balance nikaalo.
+    - Contact ka opening_balance (manually set) se shuru karo
+    - Agar date_from diya hai to uss date se PEHLE ke ledger lines add karo
+    """
+    opening_balance = contact.opening_balance or Decimal('0')
+
+    if date_from:
+        prior_lines = LedgerLine.objects.filter(contact=contact) \
+            .exclude(ledger_entry__entry_type='opening') \
+            .filter(ledger_entry__date__lt=date_from)
+
+        prior_debit = prior_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
+        prior_credit = prior_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
+        # Vendor: +ve = you owe. Credit increases liability, debit decreases
+        opening_balance = opening_balance + prior_credit - prior_debit
+
+    return opening_balance
+
+
+# ============================================================
 # VENDOR STATEMENT - HTML (With Pagination)
 # ============================================================
 @handle_errors(default_redirect='accounting:contact_list')
 def vendor_statement(request, contact_id):
     contact = get_object_or_404(Contact, pk=contact_id, contact_type__in=['vendor', 'both'])
 
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
+    # If reset requested — clear all filters
+    if request.GET.get('reset'):
+        date_from = ''
+        date_to = ''
+    else:
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+
     page_number = request.GET.get('page', 1)
 
-    # Order chronologically (oldest to newest) for proper statement
     lines = LedgerLine.objects.filter(contact=contact) \
         .exclude(ledger_entry__entry_type='opening') \
         .select_related('ledger_entry') \
@@ -548,15 +573,8 @@ def vendor_statement(request, contact_id):
     if date_to:
         lines = lines.filter(ledger_entry__date__lte=date_to)
 
-    # Calculate opening balance correctly
-    opening_lines = LedgerLine.objects.filter(contact=contact) \
-        .exclude(ledger_entry__entry_type='opening')
-    if date_from:
-        opening_lines = opening_lines.filter(ledger_entry__date__lt=date_from)
-
-    total_debit_opening = opening_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
-    total_credit_opening = opening_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
-    opening_balance = total_credit_opening - total_debit_opening
+    # Correct opening balance
+    opening_balance = _get_vendor_opening_balance(contact, date_from)
 
     running_balance = opening_balance
     statement_lines = []
@@ -590,7 +608,6 @@ def vendor_statement(request, contact_id):
     total_debit = sum(l['debit'] for l in statement_lines) if statement_lines else Decimal('0')
     total_credit = sum(l['credit'] for l in statement_lines) if statement_lines else Decimal('0')
 
-    # Pagination
     paginator = Paginator(statement_lines, 25)
     try:
         page_obj = paginator.page(page_number)
@@ -626,7 +643,6 @@ def vendor_statement_csv(request, contact_id):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
 
-    # Order chronologically (oldest to newest)
     lines = LedgerLine.objects.filter(contact=contact) \
         .exclude(ledger_entry__entry_type='opening') \
         .select_related('ledger_entry') \
@@ -637,21 +653,19 @@ def vendor_statement_csv(request, contact_id):
     if date_to:
         lines = lines.filter(ledger_entry__date__lte=date_to)
 
-    opening_lines = LedgerLine.objects.filter(contact=contact) \
-        .exclude(ledger_entry__entry_type='opening')
-    if date_from:
-        opening_lines = opening_lines.filter(ledger_entry__date__lt=date_from)
-
-    total_debit_opening = opening_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
-    total_credit_opening = opening_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
-    opening_balance = total_credit_opening - total_debit_opening
+    opening_balance = _get_vendor_opening_balance(contact, date_from)
 
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = f'attachment; filename="vendor_statement_{contact.name}_{datetime.now().strftime("%Y%m%d")}.csv"'
     response.write('\ufeff')
     writer = csv.writer(response)
     writer.writerow(['Date', 'Transaction Type', 'Reference', 'Description', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)'])
-    writer.writerow(['', 'Opening Balance', '', '', '', '', f'{opening_balance:.2f}'])
+
+    # Opening balance with date
+    opening_label = "Opening Balance"
+    if contact.opening_balance_date:
+        opening_label = f"Opening Balance (as on {contact.opening_balance_date.strftime('%d-%m-%Y')})"
+    writer.writerow(['', opening_label, '', '', '', '', f'{opening_balance:.2f}'])
 
     running_balance = opening_balance
     for line in lines:
@@ -680,7 +694,6 @@ def vendor_statement_print(request, contact_id):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
 
-    # Order chronologically (oldest to newest)
     lines = LedgerLine.objects.filter(contact=contact) \
         .exclude(ledger_entry__entry_type='opening') \
         .select_related('ledger_entry') \
@@ -691,14 +704,7 @@ def vendor_statement_print(request, contact_id):
     if date_to:
         lines = lines.filter(ledger_entry__date__lte=date_to)
 
-    opening_lines = LedgerLine.objects.filter(contact=contact) \
-        .exclude(ledger_entry__entry_type='opening')
-    if date_from:
-        opening_lines = opening_lines.filter(ledger_entry__date__lt=date_from)
-
-    total_debit_opening = opening_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
-    total_credit_opening = opening_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
-    opening_balance = total_credit_opening - total_debit_opening
+    opening_balance = _get_vendor_opening_balance(contact, date_from)
 
     running_balance = opening_balance
     statement_lines = []
@@ -743,7 +749,7 @@ def vendor_statement_print(request, contact_id):
         'total_credit': total_credit,
         'date_from': date_from,
         'date_to': date_to,
-        'company': company,                     
+        'company': company,
         'logo_exists': logo_exists,
     }
     return render(request, 'statements/print_vendor_statement.html', context)
@@ -762,7 +768,6 @@ def vendor_statement_excel(request, contact_id):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
 
-    # Order chronologically (oldest to newest)
     lines = LedgerLine.objects.filter(contact=contact) \
         .exclude(ledger_entry__entry_type='opening') \
         .select_related('ledger_entry') \
@@ -773,16 +778,8 @@ def vendor_statement_excel(request, contact_id):
     if date_to:
         lines = lines.filter(ledger_entry__date__lte=date_to)
 
-    opening_lines = LedgerLine.objects.filter(contact=contact) \
-        .exclude(ledger_entry__entry_type='opening')
-    if date_from:
-        opening_lines = opening_lines.filter(ledger_entry__date__lt=date_from)
+    opening_balance = _get_vendor_opening_balance(contact, date_from)
 
-    total_debit_opening = opening_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
-    total_credit_opening = opening_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
-    opening_balance = total_credit_opening - total_debit_opening
-
-    # Create workbook
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Vendor Statement"
@@ -817,12 +814,11 @@ def vendor_statement_excel(request, contact_id):
         cell.border = border
 
     row = 6
-    ws.cell(row=row, column=1, value="")
-    ws.cell(row=row, column=2, value="")
-    ws.cell(row=row, column=3, value="")
-    ws.cell(row=row, column=4, value="Opening Balance")
-    ws.cell(row=row, column=5, value="")
-    ws.cell(row=row, column=6, value="")
+    # Opening balance with date
+    opening_text = "Opening Balance"
+    if contact.opening_balance_date:
+        opening_text = f"Opening Balance (as on {contact.opening_balance_date.strftime('%d-%m-%Y')})"
+    ws.cell(row=row, column=4, value=opening_text)
     ws.cell(row=row, column=7, value=float(opening_balance))
     ws.cell(row=row, column=7).number_format = money_format
     for col in range(1, 8):
@@ -900,4 +896,3 @@ def vendor_statement_excel(request, contact_id):
     response['Content-Disposition'] = f'attachment; filename="vendor_statement_{contact.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
-
