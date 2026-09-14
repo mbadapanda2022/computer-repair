@@ -29,7 +29,9 @@ from ..forms import CustomerProfileForm, CustomerRepairForm, EmailChangeRequestF
 from ..utils.notification_helpers import send_notification_to_staff, send_notification_sse
 from ..utils.otp_helpers import create_and_send_otp, verify_otp
 from .utils import is_htmx, htmx_response, redirect_to_customer, redirect_to_staff, toast_only_response
+from .statements import _get_combined_opening_balances, _build_combined_rows
 from ..decorators import handle_errors
+
 
 # Excel Export
 try:
@@ -298,14 +300,58 @@ def refresh_dashboard_stats(request):
     return render(request, 'customer/partials/dashboard_stats.html', context)
 
 
-# ============================================================
-# INVOICES (With Pagination)
-# ============================================================
 @login_required
 @handle_errors(default_redirect='customer:customer_dashboard')
 def invoice_list(request):
+    """Customer invoice list with filters, pagination, HTMX, Print, Excel."""
     customer = get_object_or_404(Contact, user=request.user)
+
+    status_filter = request.GET.get('status', '')
+    search = request.GET.get('search', '').strip()
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    is_print = request.GET.get('print') == '1'
+    is_excel = request.GET.get('excel') == '1'
+
     invoices = Invoice.objects.filter(customer=customer).order_by('-date')
+
+    if status_filter:
+        invoices = invoices.filter(payment_status=status_filter)
+    if search:
+        invoices = invoices.filter(
+            Q(invoice_number__icontains=search)
+        )
+    if date_from:
+        invoices = invoices.filter(date__gte=date_from)
+    if date_to:
+        invoices = invoices.filter(date__lte=date_to)
+
+    # Excel export
+    if is_excel:
+        return customer_invoices_excel(request, invoices, customer)
+
+    # Summary stats
+    total_invoiced = invoices.aggregate(t=Sum('grand_total'))['t'] or Decimal('0')
+    total_paid = invoices.aggregate(t=Sum('paid_amount'))['t'] or Decimal('0')
+    total_due = invoices.aggregate(t=Sum('balance_due'))['t'] or Decimal('0')
+
+    # Print mode
+    if is_print:
+        company = CompanyProfile.get_instance()
+        context = {
+            'customer': customer,
+            'invoices': invoices,
+            'total_invoiced': total_invoiced,
+            'total_paid': total_paid,
+            'total_due': total_due,
+            'company': company,
+            'logo_exists': bool(company.logo and company.logo.name),
+            'status_filter': status_filter,
+            'search': search,
+            'date_from': date_from,
+            'date_to': date_to,
+        }
+        return render(request, 'customer/invoice_list_print.html', context)
 
     paginator = Paginator(invoices, 10)
     page = request.GET.get('page', 1)
@@ -319,6 +365,13 @@ def invoice_list(request):
         'page_obj': invoices_page,
         'total_count': paginator.count,
         'customer': customer,
+        'status_filter': status_filter,
+        'search': search,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_invoiced': total_invoiced,
+        'total_paid': total_paid,
+        'total_due': total_due,
     }
 
     if is_htmx(request):
@@ -406,8 +459,31 @@ def invoice_print(request, pk):
 def repair_list(request):
     customer = get_object_or_404(Contact, user=request.user)
 
-    # Reset handling — filters clear karke redirect
-    if request.GET.get('reset'):
+    # Reset handling — clear filters
+    reset = request.GET.get('reset')
+    if reset:
+        # For HTMX: render clean list directly
+        if is_htmx(request):
+            repairs = RepairJob.objects.filter(customer=customer).order_by('-date_in')
+            paginator = Paginator(repairs, 10)
+            page_obj = paginator.page(1)
+            filtered_total = repairs.aggregate(total=Sum('final_amount'))['total'] or Decimal('0')
+            context = {
+                'repairs': page_obj,
+                'page_obj': page_obj,
+                'status_filter': '',
+                'search': '',
+                'date_from': '',
+                'date_to': '',
+                'total_count': paginator.count,
+                'filtered_total': filtered_total,
+                'repair_status_choices': RepairJob.STATUS_CHOICES,
+                'customer': customer,
+            }
+            response = render(request, 'customer/partials/repair_list_table.html', context)
+            # Update URL via HTMX push
+            return response
+        # Non-HTMX: redirect to clean URL
         return redirect('customer:customer_repairs')
 
     repairs = RepairJob.objects.filter(customer=customer).order_by('-date_in')
@@ -1003,246 +1079,20 @@ def customer_payments_excel(request, payments, customer):
 
 
 # ============================================================
-# STATEMENT (With Filters, Pagination, Print, Excel)
+# INVOICES - EXCEL EXPORT
 # ============================================================
-
-@login_required
-@handle_errors(default_redirect='customer:customer_dashboard')
-def statement(request):
-    """Customer statement with filters, pagination, print, and Excel export."""
-    customer = get_object_or_404(Contact, user=request.user)
-
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    txn_type = request.GET.get('txn_type', '')
-    search = request.GET.get('search', '').strip()
-    is_print = request.GET.get('print') == '1'
-    is_excel = request.GET.get('excel') == '1'
-
-    # Excel Export
-    if is_excel:
-        return customer_statement_excel(request, customer)
-
-    # ============================================================
-    # CARRY-FORWARD OPENING BALANCE
-    # Agar date_from set hai, to uss date se PEHLE ke
-    # transactions add karke actual opening nikalo
-    # ============================================================
-    opening_balance = customer.opening_balance or Decimal('0')
-    opening_as_on_date = customer.opening_balance_date
-    opening_label = "Opening Balance"
-
-    if date_from:
-        prior_lines = LedgerLine.objects.filter(contact=customer) \
-            .exclude(ledger_entry__entry_type='opening') \
-            .filter(ledger_entry__date__lt=date_from)
-
-        prior_debit = prior_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
-        prior_credit = prior_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
-
-        # Customer: +ve = owes you. Debit increases, credit decreases
-        opening_balance = opening_balance + prior_debit - prior_credit
-        opening_as_on_date = date_from
-        opening_label = "Opening Balance (Carried Forward)"
-
-    lines = LedgerLine.objects.filter(contact=customer) \
-        .exclude(ledger_entry__entry_type='opening') \
-        .select_related('ledger_entry') \
-        .order_by('ledger_entry__date', 'ledger_entry__id')
-
-    if date_from:
-        lines = lines.filter(ledger_entry__date__gte=date_from)
-    if date_to:
-        lines = lines.filter(ledger_entry__date__lte=date_to)
-    if txn_type == 'invoice':
-        lines = lines.filter(ledger_entry__entry_type='sales')
-    elif txn_type == 'payment':
-        lines = lines.filter(ledger_entry__entry_type='payment')
-    elif txn_type == 'journal':
-        lines = lines.filter(ledger_entry__entry_type='journal')
-    if search:
-        lines = lines.filter(ledger_entry__description__icontains=search)
-
-    running_balance = opening_balance
-    rows = []
-
-    for line in lines:
-        entry = line.ledger_entry
-
-        invoice = None
-        repair = None
-        invoice_no = None
-        device_model = None
-        action_taken = None
-        invoice_id = None
-        repair_job_id = None
-
-        if entry.entry_type == 'sales' and entry.reference_id:
-            try:
-                invoice = Invoice.objects.get(pk=entry.reference_id)
-                invoice_id = invoice.id
-                invoice_no = invoice.invoice_number
-                repair = RepairJob.objects.filter(invoice=invoice).first()
-                if repair:
-                    repair_job_id = repair.id
-                    device_model = repair.device_model
-                    action_taken = repair.action_taken or ''
-            except Invoice.DoesNotExist:
-                pass
-
-        # Build description
-        if invoice_no and device_model:
-            if repair and repair.job_number:
-                main_desc = f"Inv: {invoice_no} | {repair.job_number} | Device: {device_model}"
-            else:
-                main_desc = f"Inv: {invoice_no} | Device: {device_model}"
-        elif invoice_no:
-            main_desc = f"Invoice {invoice_no}"
-        else:
-            main_desc = entry.description
-
-        # Debit / Credit
-        if line.debit > 0:
-            running_balance += line.debit
-            debit = line.debit
-            credit = Decimal('0')
-        else:
-            running_balance -= line.credit
-            debit = Decimal('0')
-            credit = line.credit
-
-        # Skip zero-amount rows
-        if debit == 0 and credit == 0:
-            continue
-
-        rows.append({
-            'date': entry.date,
-            'description': main_desc,
-            'action': action_taken or '',
-            'debit': debit,
-            'credit': credit,
-            'balance': running_balance,
-            'invoice_id': invoice_id,
-            'repair_job_id': repair_job_id,
-        })
-
-    rows.reverse()
-
-    total_debit = sum(row['debit'] for row in rows)
-    total_credit = sum(row['credit'] for row in rows)
-    closing_balance = running_balance
-
-    # Print mode
-    if is_print:
-        company = CompanyProfile.get_instance()
-        context = {
-            'customer': customer,
-            'statement_rows': rows,
-            'opening_balance': opening_balance,
-            'opening_as_on_date': opening_as_on_date,
-            'opening_label': opening_label,
-            'closing_balance': closing_balance,
-            'closing_as_on_date': date_to,
-            'total_debit': total_debit,
-            'total_credit': total_credit,
-            'date_from': date_from,
-            'date_to': date_to,
-            'txn_type': txn_type,
-            'search': search,
-            'company': company,
-            'logo_exists': bool(company.logo and company.logo.name and company.logo.storage.exists(company.logo.name)),
-        }
-        return render(request, 'customer/statement_print.html', context)
-
-    # Pagination
-    paginator = Paginator(rows, 10)
-    page = request.GET.get('page', 1)
-    try:
-        rows_page = paginator.page(page)
-    except (PageNotAnInteger, EmptyPage):
-        rows_page = paginator.page(1)
-
-    context = {
-        'customer': customer,
-        'statement_rows': rows_page,
-        'page_obj': rows_page,
-        'opening_balance': opening_balance,
-        'opening_as_on_date': opening_as_on_date,
-        'opening_label': opening_label,
-        'closing_balance': closing_balance,
-        'closing_as_on_date': date_to,
-        'total_debit': total_debit,
-        'total_credit': total_credit,
-        'date_from': date_from,
-        'date_to': date_to,
-        'txn_type': txn_type,
-        'search': search,
-    }
-
-    if is_htmx(request):
-        return render(request, 'customer/partials/statement_table.html', context)
-    return render(request, 'customer/statement.html', context)
-
-
-# ============================================================
-# STATEMENT – EXCEL EXPORT
-# ============================================================
-
-def customer_statement_excel(request, customer):
+def customer_invoices_excel(request, invoices, customer):
+    """Export customer invoices to Excel with current filters."""
     if openpyxl is None:
         return toast_only_response(
             {'level': 'danger', 'message': 'Openpyxl library is not installed.'},
             status=400
         )
 
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    txn_type = request.GET.get('txn_type', '')
-    search = request.GET.get('search', '')
-
-    # ============================================================
-    # CARRY-FORWARD OPENING BALANCE
-    # ============================================================
-    opening = customer.opening_balance or Decimal('0')
-    opening_as_on_date = customer.opening_balance_date
-    opening_label = "Opening Balance"
-
-    if date_from:
-        prior_lines = LedgerLine.objects.filter(contact=customer) \
-            .exclude(ledger_entry__entry_type='opening') \
-            .filter(ledger_entry__date__lt=date_from)
-
-        prior_debit = prior_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
-        prior_credit = prior_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
-        opening = opening + prior_debit - prior_credit
-        opening_as_on_date = date_from
-        opening_label = "Opening Balance (Carried Forward)"
-
-    lines = LedgerLine.objects.filter(contact=customer) \
-        .exclude(ledger_entry__entry_type='opening') \
-        .select_related('ledger_entry') \
-        .order_by('ledger_entry__date', 'ledger_entry__id')
-
-    if date_from:
-        lines = lines.filter(ledger_entry__date__gte=date_from)
-    if date_to:
-        lines = lines.filter(ledger_entry__date__lte=date_to)
-    if txn_type == 'invoice':
-        lines = lines.filter(ledger_entry__entry_type='sales')
-    elif txn_type == 'payment':
-        lines = lines.filter(ledger_entry__entry_type='payment')
-    elif txn_type == 'journal':
-        lines = lines.filter(ledger_entry__entry_type='journal')
-    if search:
-        lines = lines.filter(ledger_entry__description__icontains=search)
-
-    running_balance = opening
-
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Statement"
+    ws.title = "My Invoices"
 
-    # Styles
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     thin_border = Border(
@@ -1253,18 +1103,18 @@ def customer_statement_excel(request, customer):
     money_format = '#,##0.00'
 
     company = CompanyProfile.get_instance()
-    ws.merge_cells('A1:F1')
-    ws['A1'] = company.name
+    ws.merge_cells('A1:H1')
+    ws['A1'] = company.name or "A1 Computer Solutions"
     ws['A1'].font = Font(bold=True, size=14)
-    ws.merge_cells('A2:F2')
-    ws['A2'] = f"Customer Statement – {customer.name}"
+    ws.merge_cells('A2:H2')
+    ws['A2'] = f"My Invoices – {customer.name}"
     ws['A2'].font = Font(bold=True, size=12)
-    ws.merge_cells('A3:F3')
-    ws['A3'] = f"Period: {date_from if date_from else 'Start'} to {date_to if date_to else 'Today'}"
+    ws.merge_cells('A3:H3')
+    ws['A3'] = f"Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}"
     ws['A3'].alignment = Alignment(horizontal="center")
 
-    # Headers
-    headers = ['Date', 'Description', 'Action', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)']
+    headers = ['Invoice #', 'Date', 'Due Date', 'GST Type', 'Subtotal',
+               'Tax', 'Grand Total', 'Status']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=5, column=col, value=header)
         cell.font = header_font
@@ -1273,104 +1123,421 @@ def customer_statement_excel(request, customer):
         cell.border = thin_border
 
     row = 6
-    # Opening balance with label and date
-    if opening_as_on_date:
-        opening_display = f"{opening_label} (as on {opening_as_on_date.strftime('%d-%m-%Y')})"
-    else:
-        opening_display = opening_label
-
-    ws.cell(row=row, column=1, value="")
-    ws.cell(row=row, column=2, value=opening_display)
-    ws.cell(row=row, column=3, value="")
-    ws.cell(row=row, column=4, value="")
-    ws.cell(row=row, column=5, value="")
-    ws.cell(row=row, column=6, value=float(opening))
-    ws.cell(row=row, column=6).number_format = money_format
-    for col in range(1, 7):
-        ws.cell(row=row, column=col).border = thin_border
-    row += 1
-
-    for line in lines:
-        entry = line.ledger_entry
-
-        invoice = None
-        repair = None
-        invoice_no = None
-        device_model = None
-        action_taken = None
-
-        if entry.entry_type == 'sales' and entry.reference_id:
-            try:
-                invoice = Invoice.objects.get(pk=entry.reference_id)
-                invoice_no = invoice.invoice_number
-                repair = RepairJob.objects.filter(invoice=invoice).first()
-                if repair:
-                    device_model = repair.device_model
-                    action_taken = repair.action_taken or ''
-            except Invoice.DoesNotExist:
-                pass
-
-        desc = entry.description
-        if invoice_no and device_model:
-            desc = f"Inv: {invoice_no} | Device: {device_model}"
-        elif invoice_no:
-            desc = f"Invoice {invoice_no}"
-
-        if line.debit > 0:
-            running_balance += line.debit
-            debit = float(line.debit)
-            credit = ""
-        else:
-            running_balance -= line.credit
-            debit = ""
-            credit = float(line.credit)
-
-        action = action_taken or ''
-        if action and len(action) > 80:
-            action = action[:80] + '...'
-
-        ws.cell(row=row, column=1, value=entry.date.strftime("%d-%m-%Y"))
-        ws.cell(row=row, column=2, value=desc)
-        ws.cell(row=row, column=3, value=action)
-        ws.cell(row=row, column=4, value=debit if debit else "")
-        if debit:
-            ws.cell(row=row, column=4).number_format = money_format
-        ws.cell(row=row, column=5, value=credit if credit else "")
-        if credit:
-            ws.cell(row=row, column=5).number_format = money_format
-        ws.cell(row=row, column=6, value=float(running_balance))
-        ws.cell(row=row, column=6).number_format = money_format
-        for col in range(1, 7):
+    total_grand = Decimal('0')
+    for inv in invoices:
+        total_grand += inv.grand_total
+        ws.cell(row=row, column=1, value=inv.invoice_number)
+        ws.cell(row=row, column=2, value=inv.date.strftime("%d-%m-%Y"))
+        ws.cell(row=row, column=3,
+                value=inv.due_date.strftime("%d-%m-%Y") if inv.due_date else '')
+        ws.cell(row=row, column=4, value=inv.get_gst_type_display())
+        ws.cell(row=row, column=5, value=float(inv.subtotal)).number_format = money_format
+        ws.cell(row=row, column=6, value=float(inv.tax_amount)).number_format = money_format
+        ws.cell(row=row, column=7, value=float(inv.grand_total)).number_format = money_format
+        ws.cell(row=row, column=8, value=inv.get_payment_status_display())
+        for col in range(1, 9):
             ws.cell(row=row, column=col).border = thin_border
+            if col in (5, 6, 7):
+                ws.cell(row=row, column=col).alignment = Alignment(horizontal='right')
         row += 1
 
-    # Closing balance
-    if date_to:
-        closing_display = f"Closing Balance (as on {date_to})"
-    else:
-        closing_display = "Closing Balance"
-
-    ws.cell(row=row, column=2, value=closing_display)
-    ws.cell(row=row, column=6, value=float(running_balance))
-    ws.cell(row=row, column=6).number_format = money_format
-    for col in range(1, 7):
+    # Total row
+    ws.cell(row=row, column=1, value="Total").font = Font(bold=True)
+    ws.cell(row=row, column=7, value=float(total_grand)).number_format = money_format
+    ws.cell(row=row, column=7).font = Font(bold=True)
+    for col in range(1, 9):
         ws.cell(row=row, column=col).border = thin_border
-        ws.cell(row=row, column=col).font = Font(bold=True)
 
-    ws.column_dimensions['A'].width = 15
-    ws.column_dimensions['B'].width = 40
-    ws.column_dimensions['C'].width = 40
-    ws.column_dimensions['D'].width = 15
-    ws.column_dimensions['E'].width = 15
-    ws.column_dimensions['F'].width = 15
+    widths = [18, 14, 14, 18, 14, 14, 16, 14]
+    for idx, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(idx)].width = w
     ws.freeze_panes = 'A6'
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="statement_{customer.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="invoices_{customer.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
+
+
+# ============================================================
+# STATEMENT (With Filters, Pagination, Print, Excel)
+# ============================================================
+
+@login_required
+@handle_errors(default_redirect='customer:customer_dashboard')
+def statement(request):
+    """
+    Customer portal statement.
+
+    For 'customer' type → shows receivable side only.
+    For 'both' type      → shows receivable + payable (combined), with net position.
+
+    Uses the same combined builder as the staff combined_statement view.
+    """
+    customer = get_object_or_404(Contact, user=request.user)
+
+    # Reset handling
+    if request.GET.get('reset'):
+        return redirect('customer:customer_statement')
+
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    txn_type = request.GET.get('txn_type', '')
+    search = request.GET.get('search', '').strip()
+    is_print = request.GET.get('print') == '1'
+    is_excel = request.GET.get('excel') == '1'
+
+    # Excel export
+    if is_excel:
+        return customer_statement_excel(request, customer)
+
+    # Build combined rows (both sides)
+    data = _build_combined_rows(
+        customer,
+        date_from or None,
+        date_to or None,
+        txn_type or None,
+        search or None,
+    )
+    rows = data.pop('rows')
+
+    # Which side to show in the simple (non-dual) view?
+    # 'both'      -> dual columns
+    # 'customer'  -> receivable only
+    # 'vendor'    -> payable only
+    show_dual = (customer.contact_type == 'both')
+    show_payable_only = (customer.contact_type == 'vendor')
+
+    if not show_dual:
+        if show_payable_only:
+            # Zero out receivable side for pure vendors
+            data['opening_recv'] = Decimal('0')
+            data['closing_recv'] = Decimal('0')
+            data['total_recv_dr'] = Decimal('0')
+            data['total_recv_cr'] = Decimal('0')
+            data['net_position'] = -data['closing_pay']
+        else:
+            # Zero out payable side for pure customers
+            data['opening_pay'] = Decimal('0')
+            data['closing_pay'] = Decimal('0')
+            data['total_pay_dr'] = Decimal('0')
+            data['total_pay_cr'] = Decimal('0')
+            data['net_position'] = data['closing_recv']
+
+    # Pass to context
+    context_extra = {'show_payable_only': show_payable_only}
+
+    page_number = request.GET.get('page', 1)
+    paginator = Paginator(rows, 10)
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    company = CompanyProfile.get_instance()
+
+    context = {
+        'customer': customer,
+        'company': company,
+        'logo_exists': bool(company.logo and company.logo.name),
+        'statement_rows': page_obj.object_list,
+        'page_obj': page_obj,
+        'date_from': date_from,
+        'date_to': date_to,
+        'txn_type': txn_type,
+        'search': search,
+        'show_dual': show_dual,
+        'show_payable_only': show_payable_only,
+        **data,
+    }
+
+    # Print mode
+    if is_print:
+        return render(request, 'customer/statement_print.html', context)
+
+    # HTMX partial
+    if is_htmx(request):
+        return render(request, 'customer/partials/statement_table.html', context)
+
+    return render(request, 'customer/statement.html', context)
+
+
+# ============================================================
+# STATEMENT – EXCEL EXPORT
+# ============================================================
+
+def customer_statement_excel(request, customer):
+    """Export customer statement to Excel (combined view for 'both' type)."""
+    if openpyxl is None:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Openpyxl library is not installed.'},
+            status=400
+        )
+
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    txn_type = request.GET.get('txn_type', '')
+    search = request.GET.get('search', '').strip()
+
+    data = _build_combined_rows(
+        customer,
+        date_from or None,
+        date_to or None,
+        txn_type or None,
+        search or None,
+    )
+    rows = data.pop('rows')
+
+    show_dual = (customer.contact_type == 'both')
+    show_payable_only = (customer.contact_type == 'vendor')
+
+    if not show_dual:
+        if show_payable_only:
+            data['opening_recv'] = Decimal('0')
+            data['closing_recv'] = Decimal('0')
+            data['total_recv_dr'] = Decimal('0')
+            data['total_recv_cr'] = Decimal('0')
+            data['net_position'] = -data['closing_pay']
+        else:
+            data['opening_pay'] = Decimal('0')
+            data['closing_pay'] = Decimal('0')
+            data['total_pay_dr'] = Decimal('0')
+            data['total_pay_cr'] = Decimal('0')
+            data['net_position'] = data['closing_recv']
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Statement"
+
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    green_fill = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
+    yellow_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    net_fill = PatternFill(start_color="E8F0FE", end_color="E8F0FE", fill_type="solid")
+
+    thin = Side(style='thin', color="BFBFBF")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right = Alignment(horizontal='right', vertical='center')
+    money_fmt = '#,##0.00'
+
+    company = CompanyProfile.get_instance()
+    total_cols = 9 if show_dual else 6
+    last_col = get_column_letter(total_cols)
+
+    ws.merge_cells(f'A1:{last_col}1')
+    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = center
+
+    ws.merge_cells(f'A2:{last_col}2')
+    ws['A2'] = f"Statement – {customer.name}"
+    ws['A2'].font = Font(bold=True, size=12)
+    ws['A2'].alignment = center
+
+    ws.merge_cells(f'A3:{last_col}3')
+    ws['A3'] = f"Period: {date_from or 'Start'} to {date_to or 'Today'}"
+    ws['A3'].alignment = center
+
+    if show_dual:
+        # 2-tier headers
+        # Top-left merged block: A5:B6
+        ws.merge_cells('A5:B6')
+        ws['A5'] = 'Date / Particulars'
+        ws['A5'].font = header_font
+        ws['A5'].fill = header_fill
+        ws['A5'].alignment = center
+        ws['A5'].border = border
+        ws['B5'].border = border
+        ws['A6'].border = border
+        ws['B6'].border = border
+
+        # Receivable block: C5:E5
+        ws.merge_cells('C5:E5')
+        ws['C5'] = 'Receivable (You Owe Us)'
+        ws['C5'].font = header_font
+        ws['C5'].fill = green_fill
+        ws['C5'].alignment = center
+        for col in ['C5', 'D5', 'E5']:
+            ws[col].fill = green_fill
+            ws[col].border = border
+
+        # Payable block: F5:H5
+        ws.merge_cells('F5:H5')
+        ws['F5'] = 'Payable (We Owe You)'
+        ws['F5'].font = header_font
+        ws['F5'].fill = yellow_fill
+        ws['F5'].alignment = center
+        for col in ['F5', 'G5', 'H5']:
+            ws[col].fill = yellow_fill
+            ws[col].border = border
+
+        # Net block: I5:I6
+        ws.merge_cells('I5:I6')
+        ws['I5'] = 'Net'
+        ws['I5'].font = header_font
+        ws['I5'].fill = net_fill
+        ws['I5'].alignment = center
+        ws['I5'].border = border
+        ws['I6'].border = border
+        ws['I6'].fill = net_fill
+
+        # Row 6 sub-headers — ONLY write to non-merged cells (C6:H6)
+        sub_headers = {
+            3: 'Dr', 4: 'Cr', 5: 'Balance',
+            6: 'Dr', 7: 'Cr', 8: 'Balance',
+        }
+        for col_idx, header_text in sub_headers.items():
+            c = ws.cell(row=6, column=col_idx, value=header_text)
+            c.font = Font(bold=True, size=10)
+            c.alignment = center
+            c.border = border
+            if 3 <= col_idx <= 5:
+                c.fill = green_fill
+            else:
+                c.fill = yellow_fill
+
+        row = 7
+        # Opening
+        ws.cell(row=row, column=1, value='—')
+        ws.cell(row=row, column=2, value='Opening Balance').font = Font(bold=True)
+        ws.cell(row=row, column=3, value=float(data['opening_recv']) if data['opening_recv'] > 0 else '')
+        ws.cell(row=row, column=4, value=float(abs(data['opening_recv'])) if data['opening_recv'] < 0 else '')
+        ws.cell(row=row, column=5, value=float(data['opening_recv']))
+        ws.cell(row=row, column=6, value=float(abs(data['opening_pay'])) if data['opening_pay'] < 0 else '')
+        ws.cell(row=row, column=7, value=float(data['opening_pay']) if data['opening_pay'] > 0 else '')
+        ws.cell(row=row, column=8, value=float(data['opening_pay']))
+        ws.cell(row=row, column=9, value=float(data['opening_recv'] - data['opening_pay']))
+        for col in range(1, 10):
+            c = ws.cell(row=row, column=col)
+            c.border = border
+            c.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            if col in (3, 4, 5, 6, 7, 8, 9):
+                c.number_format = money_fmt
+                c.alignment = right
+        row += 1
+
+        # Data rows
+        for r in rows:
+            ws.cell(row=row, column=1, value=r['date'].strftime('%d-%m-%Y'))
+            desc = r['description']
+            if r['reference']:
+                desc += f"  [{r['reference']}]"
+            ws.cell(row=row, column=2, value=desc)
+            ws.cell(row=row, column=3, value=float(r['recv_dr']) if r['recv_dr'] else '')
+            ws.cell(row=row, column=4, value=float(r['recv_cr']) if r['recv_cr'] else '')
+            ws.cell(row=row, column=5, value=float(r['running_recv']))
+            ws.cell(row=row, column=6, value=float(r['pay_dr']) if r['pay_dr'] else '')
+            ws.cell(row=row, column=7, value=float(r['pay_cr']) if r['pay_cr'] else '')
+            ws.cell(row=row, column=8, value=float(r['running_pay']))
+            ws.cell(row=row, column=9, value=float(r['net']))
+            for col in range(1, 10):
+                c = ws.cell(row=row, column=col)
+                c.border = border
+                if col in (3, 4, 5, 6, 7, 8, 9):
+                    c.number_format = money_fmt
+                    c.alignment = right
+                elif col == 1:
+                    c.alignment = center
+                else:
+                    c.alignment = left
+            row += 1
+
+        # Totals
+        ws.cell(row=row, column=2, value='Period Totals').font = Font(bold=True)
+        ws.cell(row=row, column=3, value=float(data['total_recv_dr'])).number_format = money_fmt
+        ws.cell(row=row, column=4, value=float(data['total_recv_cr'])).number_format = money_fmt
+        ws.cell(row=row, column=6, value=float(data['total_pay_dr'])).number_format = money_fmt
+        ws.cell(row=row, column=7, value=float(data['total_pay_cr'])).number_format = money_fmt
+        for col in range(1, 10):
+            c = ws.cell(row=row, column=col)
+            c.border = border
+            c.font = Font(bold=True)
+            if col in (3, 4, 6, 7):
+                c.alignment = right
+        row += 1
+
+        # Closing
+        ws.cell(row=row, column=2, value='Closing Balance').font = Font(bold=True)
+        ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=5)
+        ws.cell(row=row, column=3, value=float(data['closing_recv'])).number_format = money_fmt
+        ws.cell(row=row, column=3).font = Font(bold=True)
+        ws.cell(row=row, column=3).alignment = right
+        ws.merge_cells(start_row=row, start_column=6, end_row=row, end_column=8)
+        ws.cell(row=row, column=6, value=float(data['closing_pay'])).number_format = money_fmt
+        ws.cell(row=row, column=6).font = Font(bold=True)
+        ws.cell(row=row, column=6).alignment = right
+        ws.cell(row=row, column=9, value=float(data['net_position'])).number_format = money_fmt
+        ws.cell(row=row, column=9).font = Font(bold=True)
+        for col in range(1, 10):
+            c = ws.cell(row=row, column=col)
+            c.border = border
+            c.fill = net_fill
+
+        widths = [12, 42, 13, 13, 14, 13, 13, 14, 14]
+        for idx, w in enumerate(widths, 1):
+            ws.column_dimensions[get_column_letter(idx)].width = w
+        ws.freeze_panes = 'A7'
+
+    else:
+        # Simple view (customer only) — receivable side
+        headers = ['Date', 'Particulars', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)']
+        for col, h in enumerate(headers, 1):
+            c = ws.cell(row=5, column=col, value=h)
+            c.font = header_font
+            c.fill = header_fill
+            c.alignment = center
+            c.border = border
+
+        row = 6
+        ws.cell(row=row, column=2, value='Opening Balance').font = Font(bold=True)
+        ws.cell(row=row, column=5, value=float(data['opening_recv'])).number_format = money_fmt
+        for col in range(1, 6):
+            ws.cell(row=row, column=col).border = border
+        row += 1
+
+        for r in rows:
+            ws.cell(row=row, column=1, value=r['date'].strftime('%d-%m-%Y'))
+            desc = r['description']
+            if r['reference']:
+                desc += f"  [{r['reference']}]"
+            ws.cell(row=row, column=2, value=desc)
+            ws.cell(row=row, column=3, value=float(r['recv_dr']) if r['recv_dr'] else '')
+            ws.cell(row=row, column=4, value=float(r['recv_cr']) if r['recv_cr'] else '')
+            ws.cell(row=row, column=5, value=float(r['running_recv']))
+            for col in range(1, 6):
+                c = ws.cell(row=row, column=col)
+                c.border = border
+                if col in (3, 4, 5):
+                    c.number_format = money_fmt
+                    c.alignment = right
+            row += 1
+
+        ws.cell(row=row, column=2, value='Closing Balance').font = Font(bold=True)
+        ws.cell(row=row, column=5, value=float(data['closing_recv'])).number_format = money_fmt
+        for col in range(1, 6):
+            ws.cell(row=row, column=col).border = border
+            ws.cell(row=row, column=col).font = Font(bold=True)
+
+        widths = [15, 50, 15, 15, 15]
+        for idx, w in enumerate(widths, 1):
+            ws.column_dimensions[get_column_letter(idx)].width = w
+        ws.freeze_panes = 'A6'
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    safe = customer.name.replace(' ', '_').replace('/', '_')
+    response['Content-Disposition'] = f'attachment; filename="statement_{safe}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+
 
 # ============================================================
 # PROFILE 
@@ -1590,18 +1757,15 @@ def repair_create(request):
                 )
 
                 if is_htmx(request):
-                    return htmx_response(
-                        request,
-                        'customer/partials/repair_list_table.html',
-                        context={'repairs': RepairJob.objects.filter(customer=customer).order_by('-date_in')[:10]},
-                        toast={'level': 'success', 'message': f'Repair job {job.job_number} submitted. Please bring your device to the shop.'}
-                    )
-
-                messages.success(
-                    request,
-                    f"Repair request {job.job_number} submitted. Please bring your device to the shop."
-                )
-                return redirect_to_customer('customer_repairs')
+                    response = HttpResponse()
+                    response['HX-Redirect'] = reverse('customer:customer_repair_detail', args=[job.pk])
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {
+                            'level': 'success',
+                            'message': f'Repair job {job.job_number} submitted. Please bring your device to the shop.',
+                        },
+                    })
+                    return response
         else:
             if is_htmx(request):
                 return render(request, 'customer/repair_create.html', {'form': form})
@@ -1649,12 +1813,15 @@ def repair_update(request, pk):
             )
 
             if is_htmx(request):
-                return htmx_response(
-                    request,
-                    'customer/repair_detail.html',
-                    context={'repair': repair, 'parts': repair.parts.all()},
-                    toast={'level': 'success', 'message': f'Repair job {repair.job_number} updated.'},
-                )
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('customer:customer_repair_detail', args=[repair.pk])
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Repair job {repair.job_number} updated.',
+                    },
+                })
+                return response
             return redirect_to_customer('customer_repair_detail', pk=repair.pk)
         else:
             if is_htmx(request):
@@ -1708,12 +1875,12 @@ def repair_delete(request, pk):
         )
 
         if is_htmx(request):
-            response = render(request, 'customer/partials/repair_list_table.html', {
-                'repairs': RepairJob.objects.filter(customer=customer).order_by('-date_in')[:10]
-            })
+            # Trigger a reload of the repair list (with filters preserved)
+            response = HttpResponse()
             response['HX-Trigger'] = json.dumps({
                 'showToast': {'level': 'success', 'message': f'Repair job {job_number} deleted.'},
-                'closeModal': ''
+                'closeModal': '',
+                'reloadCustomerRepairs': '',
             })
             return response
         return redirect_to_customer('customer_repairs')
@@ -1756,12 +1923,13 @@ def repair_estimate_approve(request, pk):
         messages.success(request, f"Estimate for job {repair.job_number} approved.")
 
     if is_htmx(request):
-        return htmx_response(
-            request,
-            'customer/repair_detail.html',
-            context={'repair': repair, 'parts': repair.parts.all()},
-            toast={'level': 'success', 'message': 'Estimate approved.'}
-        )
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('customer:customer_repair_detail', args=[repair.pk])
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'success', 'message': 'Estimate approved.'},
+        })
+        return response
+    return redirect_to_customer('customer_repair_detail', pk=repair.pk)
     return redirect_to_customer('customer_repair_detail', pk=repair.pk)
 
 
@@ -1792,12 +1960,12 @@ def repair_estimate_hold(request, pk):
     messages.info(request, f"Estimate for job {repair.job_number} is on hold.")
 
     if is_htmx(request):
-        return htmx_response(
-            request,
-            'customer/repair_detail.html',
-            context={'repair': repair, 'parts': repair.parts.all()},
-            toast={'level': 'info', 'message': 'Estimate put on hold.'}
-        )
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('customer:customer_repair_detail', args=[repair.pk])
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'info', 'message': 'Estimate put on hold.'},
+        })
+        return response
     return redirect_to_customer('customer_repair_detail', pk=repair.pk)
 
 
@@ -1828,12 +1996,12 @@ def repair_estimate_reject(request, pk):
     messages.warning(request, f"Estimate for job {repair.job_number} has been rejected.")
 
     if is_htmx(request):
-        return htmx_response(
-            request,
-            'customer/repair_detail.html',
-            context={'repair': repair, 'parts': repair.parts.all()},
-            toast={'level': 'warning', 'message': 'Estimate rejected.'}
-        )
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('customer:customer_repair_detail', args=[repair.pk])
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'warning', 'message': 'Estimate rejected.'},
+        })
+        return response
     return redirect_to_customer('customer_repair_detail', pk=repair.pk)
 
 
@@ -1954,8 +2122,6 @@ def unread_count_text(request):
 def email_change_request(request):
     """Step 1: User requests email change by entering new email."""
     customer = get_object_or_404(Contact, user=request.user)
-    
-    # Resend OTP (AJAX)
     if request.method == 'POST' and request.headers.get('Content-Type') == 'application/json':
         try:
             data = json.loads(request.body)
@@ -1988,7 +2154,6 @@ def email_change_request(request):
                 
                 if is_htmx(request):
                     response = render(request, 'customer/partials/email_change_otp.html', {'email': new_email})
-                    # ✅ CRITICAL: Target और Swap Headers Set करें
                     response['HX-Retarget'] = '#profile-container'
                     response['HX-Reswap'] = 'innerHTML'
                     response['HX-Trigger'] = json.dumps({

@@ -9,8 +9,8 @@
 </div>
 <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-    <form method="post" 
-          hx-post="{% url 'customer:customer_repair_delete' repair.pk %}" 
+    <form method="post"
+          hx-post="{% url 'customer:customer_repair_delete' repair.pk %}"
           hx-target="#repair-list-container"
           hx-swap="innerHTML"
           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>

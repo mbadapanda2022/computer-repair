@@ -10,8 +10,8 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">Total Invoices</small>
-                    <h5 class="mb-0 fw-bold text-primary">{{ total_invoices }}</h5>
-                    <small class="text-muted">{{ paid_invoices }} paid, {{ unpaid_invoices }} pending</small>
+                    <h5 class="mb-0 fw-bold text-primary">{{ total_invoices|default:0 }}</h5>
+                    <small class="text-muted">{{ paid_invoices|default:0 }} paid, {{ unpaid_invoices|default:0 }} pending</small>
                 </div>
             </div>
         </div>
@@ -26,7 +26,7 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">Total Payments</small>
-                    <h5 class="mb-0 fw-bold text-success">₹{{ total_payments|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold text-success">₹{{ total_payments|default:0|floatformat:2 }}</h5>
                     <small class="text-muted">Received from you</small>
                 </div>
             </div>
@@ -42,7 +42,7 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">Total Due</small>
-                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_due|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_due|default:0|floatformat:2 }}</h5>
                     <small class="text-muted">Outstanding balance</small>
                 </div>
             </div>
@@ -58,8 +58,8 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">Pending Repairs</small>
-                    <h5 class="mb-0 fw-bold text-warning">{{ pending_repairs }}</h5>
-                    <small class="text-muted">{{ ready_repairs }} ready for delivery</small>
+                    <h5 class="mb-0 fw-bold text-warning">{{ pending_repairs|default:0 }}</h5>
+                    <small class="text-muted">{{ ready_repairs|default:0 }} ready for delivery</small>
                 </div>
             </div>
         </div>
@@ -74,7 +74,7 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">Completed Repairs</small>
-                    <h5 class="mb-0 fw-bold text-info">{{ completed_repairs }}</h5>
+                    <h5 class="mb-0 fw-bold text-info">{{ completed_repairs|default:0 }}</h5>
                     <small class="text-muted">Delivered successfully</small>
                 </div>
             </div>
@@ -90,7 +90,7 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">This Month's Invoices</small>
-                    <h5 class="mb-0 fw-bold text-primary">₹{{ month_sales|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold text-primary">₹{{ month_sales|default:0|floatformat:2 }}</h5>
                     <small class="text-muted">Invoiced this month</small>
                 </div>
             </div>
@@ -106,7 +106,7 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">This Month's Payments</small>
-                    <h5 class="mb-0 fw-bold text-success">₹{{ month_payments|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold text-success">₹{{ month_payments|default:0|floatformat:2 }}</h5>
                     <small class="text-muted">Paid this month</small>
                 </div>
             </div>
@@ -122,8 +122,8 @@
                 </div>
                 <div>
                     <small class="text-muted d-block">Total Repairs</small>
-                    <h5 class="mb-0 fw-bold text-secondary">{{ total_repairs }}</h5>
-                    <small class="text-muted">{{ pending_repairs }} pending</small>
+                    <h5 class="mb-0 fw-bold text-secondary">{{ total_repairs|default:0 }}</h5>
+                    <small class="text-muted">{{ pending_repairs|default:0 }} pending</small>
                 </div>
             </div>
         </div>

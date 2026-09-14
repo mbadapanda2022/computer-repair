@@ -1,5 +1,4 @@
 # accounting/views/journal.py
-
 import json
 import logging
 from decimal import Decimal
@@ -7,7 +6,7 @@ from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.contrib import messages
-from django.db.models import Q
+from django.db.models import Q, Sum, Prefetch
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
@@ -17,7 +16,7 @@ from ..models import LedgerEntry, LedgerLine, Contact
 from ..forms import JournalForm
 from .utils import is_htmx, htmx_response, redirect_to_staff
 from ..decorators import handle_errors
-from ..utils import create_journal_lines  
+from ..utils import create_journal_lines
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +28,12 @@ def detect_journal_type(entry):
     """Detect journal_type from description/accounts (only for old data)."""
     if entry.journal_type:
         return entry.journal_type
-        
-    description = entry.description.lower()
-    accounts = [line.account.lower() for line in entry.lines.all()]
-    combined = ' '.join(accounts)
-    
+
+    description = (entry.description or '').lower()
+    # FIXED: line.account is FK → use .name
+    account_names = [line.account.name.lower() for line in entry.lines.all() if line.account]
+    combined = ' '.join(account_names)
+
     if 'discount' in description or 'discount' in combined:
         return 'discount'
     if 'advance received' in description or 'advance_received' in description:
@@ -48,7 +48,7 @@ def detect_journal_type(entry):
 
 
 # ============================================================
-# LIST JOURNALS (with filters & pagination)
+# LIST JOURNALS
 # ============================================================
 @handle_errors(default_redirect='accounting:journal_list')
 def journal_list(request):
@@ -62,29 +62,32 @@ def journal_list(request):
     if reset:
         return redirect('accounting:journal_list')
 
-    # Use journal_type field instead of string matching
-    journals = LedgerEntry.objects.filter(entry_type='journal').order_by('-date', '-id')
+    # Prefetch lines with contact & account to avoid N+1
+    lines_prefetch = Prefetch(
+        'lines',
+        queryset=LedgerLine.objects.select_related('contact', 'account')
+    )
+
+    journals = LedgerEntry.objects.filter(entry_type='journal') \
+        .prefetch_related(lines_prefetch) \
+        .order_by('-date', '-id')
 
     if search:
+        # FIXED: use lines__account__name (not lines__account)
         journals = journals.filter(
             Q(description__icontains=search) |
-            Q(lines__account__icontains=search)
+            Q(lines__account__name__icontains=search) |
+            Q(lines__account__code__icontains=search) |
+            Q(lines__contact__name__icontains=search)
         ).distinct()
-    
-    # Clean filter using journal_type
+
     if entry_type:
         journals = journals.filter(journal_type=entry_type)
 
     if date_from:
-        try:
-            journals = journals.filter(date__gte=date_from)
-        except ValueError:
-            pass
+        journals = journals.filter(date__gte=date_from)
     if date_to:
-        try:
-            journals = journals.filter(date__lte=date_to)
-        except ValueError:
-            pass
+        journals = journals.filter(date__lte=date_to)
 
     paginator = Paginator(journals, 20)
     try:
@@ -112,9 +115,13 @@ def journal_list(request):
 # CREATE JOURNAL (general)
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:journal_list', htmx_template='journal/partials/journal_form_modal.html')
+@handle_errors(default_redirect='accounting:journal_list',
+               htmx_template='journal/partials/journal_form_modal.html')
 def journal_create(request):
-    template_name = 'journal/partials/journal_form_modal.html' if is_htmx(request) else 'journal/journal_form.html'
+    template_name = (
+        'journal/partials/journal_form_modal.html'
+        if is_htmx(request) else 'journal/journal_form.html'
+    )
 
     if request.method == 'POST':
         form = JournalForm(request.POST)
@@ -122,38 +129,42 @@ def journal_create(request):
             try:
                 contact = form.cleaned_data['contact']
                 amount = form.cleaned_data['amount']
-                entry_type = form.cleaned_data['entry_type']  
+                entry_type = form.cleaned_data['entry_type']
                 narration = form.cleaned_data['narration']
                 date_val = form.cleaned_data['date'] or timezone.now().date()
 
-                # Create entry with journal_type stored
                 entry = LedgerEntry.objects.create(
                     date=date_val,
                     entry_type='journal',
-                    journal_type=entry_type,  
+                    journal_type=entry_type,
                     description=narration or f"{entry_type} for {contact.name}",
                     total_amount=amount,
                 )
-
-                # Use helper to create lines (supports all scenarios)
                 create_journal_lines(entry, contact, amount, entry_type)
 
                 logger.info(f"Journal entry created: {entry.id} by {request.user.username}")
 
                 if is_htmx(request):
-                    journals = LedgerEntry.objects.filter(entry_type='journal').order_by('-date', '-id')
+                    # Reload list with pagination context
+                    journals = LedgerEntry.objects.filter(entry_type='journal') \
+                        .select_related().order_by('-date', '-id')
+                    paginator = Paginator(journals, 20)
+                    page_obj = paginator.page(1)
                     return htmx_response(
                         request,
                         'journal/partials/journal_table.html',
-                        context={'journals': journals[:20]},
+                        context={
+                            'journals': page_obj.object_list,
+                            'page_obj': page_obj,
+                        },
                         toast={'level': 'success', 'message': 'Journal entry recorded.'},
                         close_modal=True
                     )
                 messages.success(request, "Journal entry recorded.")
                 return redirect('accounting:journal_list')
             except Exception as e:
-                logger.error(f"Journal create error: {e}")
-                messages.error(request, "Failed to create journal entry.")
+                logger.error(f"Journal create error: {e}", exc_info=True)
+                messages.error(request, f"Failed to create journal entry: {e}")
                 if is_htmx(request):
                     return render(request, 'journal/partials/journal_form_modal.html', {'form': form})
         else:
@@ -161,7 +172,7 @@ def journal_create(request):
                 return render(request, 'journal/partials/journal_form_modal.html', {'form': form})
     else:
         form = JournalForm()
-    
+
     return render(request, template_name, {'form': form})
 
 
@@ -169,10 +180,11 @@ def journal_create(request):
 # CREATE JOURNAL FOR SPECIFIC CONTACT
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:journal_list', htmx_template='journal/partials/journal_form_modal.html')
+@handle_errors(default_redirect='accounting:journal_list',
+               htmx_template='journal/partials/journal_form_modal.html')
 def journal_create_for_contact(request, contact_id):
     contact = get_object_or_404(Contact, pk=contact_id)
-    
+
     # Dynamic choices based on contact type
     if contact.contact_type in ('vendor', 'both'):
         entry_type_choices = [
@@ -187,13 +199,15 @@ def journal_create_for_contact(request, contact_id):
             ('discount', 'Discount Allowed'),
         ]
 
-    template_name = 'journal/partials/journal_form_modal.html' if is_htmx(request) else 'journal/journal_form.html'
+    template_name = (
+        'journal/partials/journal_form_modal.html'
+        if is_htmx(request) else 'journal/journal_form.html'
+    )
 
     if request.method == 'POST':
         form = JournalForm(request.POST)
-        # Override choices dynamically
         form.fields['entry_type'].choices = entry_type_choices
-        
+
         if form.is_valid():
             try:
                 amount = form.cleaned_data['amount']
@@ -204,43 +218,57 @@ def journal_create_for_contact(request, contact_id):
                 entry = LedgerEntry.objects.create(
                     date=date_val,
                     entry_type='journal',
-                    journal_type=entry_type, 
+                    journal_type=entry_type,
                     description=narration or f"{entry_type} for {contact.name}",
                     total_amount=amount,
                 )
-
-                # Helper (supports all scenarios)
                 create_journal_lines(entry, contact, amount, entry_type)
 
-                logger.info(f"Journal entry for contact {contact.id} created: {entry.id} by {request.user.username}")
+                logger.info(
+                    f"Journal entry for contact {contact.id} created: {entry.id} "
+                    f"by {request.user.username}"
+                )
 
                 if is_htmx(request):
-                    journals = LedgerEntry.objects.filter(entry_type='journal').order_by('-date', '-id')
+                    journals = LedgerEntry.objects.filter(entry_type='journal') \
+                        .order_by('-date', '-id')
+                    paginator = Paginator(journals, 20)
+                    page_obj = paginator.page(1)
                     return htmx_response(
                         request,
                         'journal/partials/journal_table.html',
-                        context={'journals': journals[:20]},
+                        context={
+                            'journals': page_obj.object_list,
+                            'page_obj': page_obj,
+                        },
                         toast={'level': 'success', 'message': 'Transaction recorded.'},
                         close_modal=True
                     )
+
                 messages.success(request, "Transaction recorded.")
-                if contact.contact_type in ('customer', 'both'):
+
+                # FIXED: 'both' type → combined statement
+                if contact.contact_type == 'both':
+                    return redirect('accounting:combined_statement', contact_id=contact.pk)
+                elif contact.contact_type == 'customer':
                     return redirect('accounting:customer_statement', contact_id=contact.pk)
                 else:
                     return redirect('accounting:vendor_statement', contact_id=contact.pk)
+
             except Exception as e:
-                logger.error(f"Journal create for contact error: {e}")
+                logger.error(f"Journal create for contact error: {e}", exc_info=True)
                 messages.error(request, "Failed to record transaction.")
                 if is_htmx(request):
-                    return render(request, 'journal/partials/journal_form_modal.html', {'form': form, 'contact': contact})
+                    return render(request, 'journal/partials/journal_form_modal.html', {
+                        'form': form, 'contact': contact
+                    })
         else:
             if is_htmx(request):
-                return render(request, 'journal/partials/journal_form_modal.html', {'form': form, 'contact': contact})
+                return render(request, 'journal/partials/journal_form_modal.html', {
+                    'form': form, 'contact': contact
+                })
     else:
-        initial = {
-            'contact': contact,
-            'date': timezone.now().date()
-        }
+        initial = {'contact': contact, 'date': timezone.now().date()}
         form = JournalForm(initial=initial)
         form.fields['entry_type'].choices = entry_type_choices
         if entry_type_choices:
@@ -250,18 +278,23 @@ def journal_create_for_contact(request, contact_id):
 
 
 # ============================================================
-# UPDATE JOURNAL (Edit)
+# UPDATE JOURNAL
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:journal_list', htmx_template='journal/partials/journal_form_modal.html')
+@handle_errors(default_redirect='accounting:journal_list',
+               htmx_template='journal/partials/journal_form_modal.html')
 def journal_update(request, pk):
     entry = get_object_or_404(LedgerEntry, pk=pk, entry_type='journal')
-    
-    # Read journal_type directly from DB
-    current_type = entry.journal_type or detect_journal_type(entry)
-    contact = entry.lines.filter(contact__isnull=False).first().contact if entry.lines.filter(contact__isnull=False).exists() else None
 
-    template_name = 'journal/partials/journal_form_modal.html' if is_htmx(request) else 'journal/journal_form.html'
+    current_type = entry.journal_type or detect_journal_type(entry)
+    # Get contact from first line that has it
+    first_contact_line = entry.lines.filter(contact__isnull=False).first()
+    contact = first_contact_line.contact if first_contact_line else None
+
+    template_name = (
+        'journal/partials/journal_form_modal.html'
+        if is_htmx(request) else 'journal/journal_form.html'
+    )
 
     if request.method == 'POST':
         form = JournalForm(request.POST)
@@ -278,7 +311,7 @@ def journal_update(request, pk):
                     ('advance_received', 'Advance Received'),
                     ('discount', 'Discount Allowed'),
                 ]
-                
+
         if form.is_valid():
             try:
                 contact = form.cleaned_data['contact']
@@ -287,38 +320,46 @@ def journal_update(request, pk):
                 narration = form.cleaned_data['narration']
                 date_val = form.cleaned_data['date'] or timezone.now().date()
 
-                # Update entry
                 entry.date = date_val
-                entry.journal_type = entry_type  # Update type
+                entry.journal_type = entry_type
                 entry.description = narration or f"{entry_type} for {contact.name}"
                 entry.total_amount = amount
                 entry.save()
-                
-                # Delete old lines and recreate
+
                 entry.lines.all().delete()
                 create_journal_lines(entry, contact, amount, entry_type)
 
                 logger.info(f"Journal entry {pk} updated by {request.user.username}")
 
                 if is_htmx(request):
-                    journals = LedgerEntry.objects.filter(entry_type='journal').order_by('-date', '-id')
+                    journals = LedgerEntry.objects.filter(entry_type='journal') \
+                        .order_by('-date', '-id')
+                    paginator = Paginator(journals, 20)
+                    page_obj = paginator.page(1)
                     return htmx_response(
                         request,
                         'journal/partials/journal_table.html',
-                        context={'journals': journals[:20]},
+                        context={
+                            'journals': page_obj.object_list,
+                            'page_obj': page_obj,
+                        },
                         toast={'level': 'success', 'message': 'Journal updated.'},
                         close_modal=True
                     )
                 messages.success(request, "Journal updated.")
                 return redirect('accounting:journal_list')
             except Exception as e:
-                logger.error(f"Journal update error: {e}")
+                logger.error(f"Journal update error: {e}", exc_info=True)
                 messages.error(request, "Failed to update journal entry.")
                 if is_htmx(request):
-                    return render(request, 'journal/partials/journal_form_modal.html', {'form': form, 'entry': entry})
+                    return render(request, 'journal/partials/journal_form_modal.html', {
+                        'form': form, 'entry': entry
+                    })
         else:
             if is_htmx(request):
-                return render(request, 'journal/partials/journal_form_modal.html', {'form': form, 'entry': entry})
+                return render(request, 'journal/partials/journal_form_modal.html', {
+                    'form': form, 'entry': entry
+                })
     else:
         initial = {
             'contact': contact,
@@ -357,55 +398,55 @@ def journal_delete(request, pk):
     try:
         entry.delete()
         logger.info(f"Journal entry {pk} deleted by {request.user.username}")
-        journals = LedgerEntry.objects.filter(entry_type='journal').order_by('-date', '-id')
+
+        journals = LedgerEntry.objects.filter(entry_type='journal') \
+            .order_by('-date', '-id')
+        paginator = Paginator(journals, 20)
+        page_obj = paginator.page(1)
+
         return htmx_response(
             request,
             'journal/partials/journal_table.html',
-            context={'journals': journals[:20]},
+            context={'journals': page_obj.object_list, 'page_obj': page_obj},
             toast={'level': 'success', 'message': 'Journal deleted.'}
         )
     except Exception as e:
-        logger.error(f"Journal delete error: {e}")
+        logger.error(f"Journal delete error: {e}", exc_info=True)
+        journals = LedgerEntry.objects.filter(entry_type='journal') \
+            .order_by('-date', '-id')[:20]
         return htmx_response(
             request,
             'journal/partials/journal_table.html',
-            context={'journals': LedgerEntry.objects.filter(entry_type='journal').order_by('-date', '-id')[:20]},
+            context={'journals': journals},
             toast={'level': 'danger', 'message': 'Failed to delete journal entry.'}
         )
 
 
 # ============================================================
-# REAL-TIME FIELD VALIDATION (HTMX) — PROFESSIONAL
+# REAL-TIME FIELD VALIDATION
 # ============================================================
 @require_http_methods(["GET"])
 def validate_journal_field(request):
-    """Real-time validation using the form (no string matching)."""
     field_name = request.GET.get('field')
     if not field_name:
         return HttpResponse("")
 
     value = request.GET.get(field_name, '')
-    
-    # Use the form for validation
-    from ..forms import JournalForm
-    
-    # Build data dict
-    data = {field_name: value}
-    # For contact validation, we need the actual contact object, but we just validate the ID
+
     if field_name == 'contact':
         try:
             Contact.objects.get(pk=value)
         except (Contact.DoesNotExist, ValueError):
-            errors = ["Please select a valid contact."]
-            html = f'<div id="field-{field_name}" class="invalid-feedback d-block">{"".join(f"<div>{e}</div>" for e in errors)}</div>'
-            return HttpResponse(html)
-        return HttpResponse("")  # Valid
-    
-    # For other fields, use the form
-    form = JournalForm(data)
+            return HttpResponse(
+                f'<div id="field-{field_name}" class="invalid-feedback d-block">'
+                f'<div><i class="bi bi-exclamation-circle me-1"></i>Please select a valid contact.</div></div>'
+            )
+        return HttpResponse("")
+
+    form = JournalForm(data={field_name: value})
     form.is_valid()
     errors = form.errors.get(field_name, [])
-    
+
     error_html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
     for err in errors:
         error_html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'

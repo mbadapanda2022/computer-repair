@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="fw-semibold mb-0"><i class="bi bi-list-ul text-primary me-2"></i>All Bank Transactions</h3>
+        <p class="text-muted small mb-0">Across all bank accounts</p>
+    </div>
+    <a href="{% url 'accounting:bank_account_list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to Accounts
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <form id="txn-filter" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">Search</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control"
+                           value="{{ search }}"
+                           hx-get="{% url 'accounting:bank_transaction_list' %}"
+                           hx-trigger="keyup changed delay:400ms"
+                           hx-target="#txn-table"
+                           hx-include="#txn-filter">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">Account</label>
+                <select name="account" class="form-select form-select-sm"
+                        hx-get="{% url 'accounting:bank_transaction_list' %}"
+                        hx-trigger="change"
+                        hx-target="#txn-table"
+                        hx-include="#txn-filter">
+                    <option value="">All Accounts</option>
+                    {% for acc in accounts %}
+                        <option value="{{ acc.id }}" {% if account_id == acc.id|stringformat:"s" %}selected{% endif %}>{{ acc.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">Type</label>
+                <select name="txn_type" class="form-select form-select-sm"
+                        hx-get="{% url 'accounting:bank_transaction_list' %}"
+                        hx-trigger="change"
+                        hx-target="#txn-table"
+                        hx-include="#txn-filter">
+                    <option value="">All</option>
+                    <option value="deposit" {% if txn_type == 'deposit' %}selected{% endif %}>Deposits</option>
+                    <option value="withdrawal" {% if txn_type == 'withdrawal' %}selected{% endif %}>Withdrawals</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">From</label>
+                <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}"
+                       hx-get="{% url 'accounting:bank_transaction_list' %}"
+                       hx-trigger="change"
+                       hx-target="#txn-table"
+                       hx-include="#txn-filter">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">To</label>
+                <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}"
+                       hx-get="{% url 'accounting:bank_transaction_list' %}"
+                       hx-trigger="change"
+                       hx-target="#txn-table"
+                       hx-include="#txn-filter">
+            </div>
+            <div class="col-md-1">
+                <a href="{% url 'accounting:bank_transaction_list' %}" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="txn-table">
+    {% include "bank/partials/bank_transaction_table.html" %}
+</div>
+{% endblock %}

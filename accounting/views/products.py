@@ -2,6 +2,7 @@
 import json
 import logging
 from decimal import Decimal
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.contrib import messages
@@ -12,60 +13,71 @@ from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
+
 from ..models import Product, ProductCategory, StockMovement, CompanyProfile
 from ..forms import ProductForm, ProductCategoryForm
 from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
-# Excel Export Imports
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, numbers
-from openpyxl.utils import get_column_letter
+try:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, numbers
+    from openpyxl.utils import get_column_letter
+except ImportError:
+    Workbook = None
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# HELPER: GET PAGINATED PRODUCTS CONTEXT (with STATS)
+# HELPER: Paginated products context with stats
 # ============================================================
 def get_paginated_products_context(request, queryset=None):
-    """
-    Shared logic to filter, paginate, and prepare product list context.
-    Also computes summary stats (total, low stock, service, active).
-    """
     if queryset is None:
         queryset = Product.objects.select_related('category').all()
 
-    # Filters
     search = request.GET.get('search', '').strip()
     category_id = request.GET.get('category', '')
     is_active = request.GET.get('is_active', '')
+    stock_filter = request.GET.get('stock_filter', '')  # low | out | ok
     page_number = request.GET.get('page', 1)
 
-    # Apply filters to the full queryset for stats
     filtered_qs = queryset.all()
     if search:
         filtered_qs = filtered_qs.filter(
-            Q(name__icontains=search) |
-            Q(hsn_code__icontains=search)
+            Q(name__icontains=search) | Q(hsn_code__icontains=search)
         )
     if category_id:
         filtered_qs = filtered_qs.filter(category_id=category_id)
     if is_active != '':
-        is_active_bool = is_active.lower() == 'true'
-        filtered_qs = filtered_qs.filter(is_active=is_active_bool)
+        filtered_qs = filtered_qs.filter(is_active=(is_active.lower() == 'true'))
+    if stock_filter == 'low':
+        filtered_qs = filtered_qs.filter(
+            is_service=False, current_stock__lte=F('low_stock_threshold')
+        )
+    elif stock_filter == 'out':
+        filtered_qs = filtered_qs.filter(is_service=False, current_stock=0)
+    elif stock_filter == 'ok':
+        filtered_qs = filtered_qs.filter(
+            is_service=False, current_stock__gt=F('low_stock_threshold')
+        )
 
-    # Stats (from filtered queryset)
+    # Stats from filtered queryset
     total_products = filtered_qs.count()
     low_stock_count = filtered_qs.filter(
-        is_service=False,
-        current_stock__lte=F('low_stock_threshold')
+        is_service=False, current_stock__lte=F('low_stock_threshold')
     ).count()
     service_count = filtered_qs.filter(is_service=True).count()
     active_count = filtered_qs.filter(is_active=True).count()
 
-    # Pagination (20 per page) – on filtered queryset
-    paginator = Paginator(filtered_qs, 20)
+    # Total stock value (physical only)
+    stock_value_data = filtered_qs.filter(is_service=False).aggregate(
+        total_value=Sum(F('current_stock') * F('purchase_price'))
+    )
+    total_stock_value = stock_value_data.get('total_value') or Decimal('0')
+
+    # Pagination
+    paginator = Paginator(filtered_qs.order_by('name'), 20)
     try:
         page_obj = paginator.page(page_number)
     except PageNotAnInteger:
@@ -73,23 +85,22 @@ def get_paginated_products_context(request, queryset=None):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # All categories for filter dropdown
     categories = ProductCategory.objects.all().order_by('name')
 
-    context = {
+    return {
         'products': page_obj.object_list,
         'page_obj': page_obj,
         'categories': categories,
         'search': search,
         'selected_category_id': category_id,
         'is_active_filter': is_active,
-        # Stats
+        'stock_filter': stock_filter,
         'total_products': total_products,
         'low_stock_count': low_stock_count,
         'service_count': service_count,
         'active_count': active_count,
+        'total_stock_value': total_stock_value,
     }
-    return context
 
 
 # ============================================================
@@ -98,8 +109,6 @@ def get_paginated_products_context(request, queryset=None):
 @login_required
 @handle_errors(default_redirect='accounting:product_list')
 def product_list(request):
-    """List products with search, category filters, and pagination."""
-    # Reset handling
     if request.GET.get('reset'):
         return redirect('accounting:product_list')
 
@@ -110,11 +119,50 @@ def product_list(request):
 
 
 # ============================================================
+# 1b. PRODUCT LIST — PRINT
+# ============================================================
+@login_required
+@handle_errors(default_redirect='accounting:product_list')
+def product_list_print(request):
+    """Print-friendly products list with current filters."""
+    context = get_paginated_products_context(request)
+    company = CompanyProfile.get_instance()
+
+    # Get all (no pagination) — reuse filtered qs
+    qs = Product.objects.select_related('category').all()
+    search = request.GET.get('search', '').strip()
+    category_id = request.GET.get('category', '')
+    is_active = request.GET.get('is_active', '')
+    stock_filter = request.GET.get('stock_filter', '')
+
+    if search:
+        qs = qs.filter(Q(name__icontains=search) | Q(hsn_code__icontains=search))
+    if category_id:
+        qs = qs.filter(category_id=category_id)
+    if is_active != '':
+        qs = qs.filter(is_active=(is_active.lower() == 'true'))
+    if stock_filter == 'low':
+        qs = qs.filter(is_service=False, current_stock__lte=F('low_stock_threshold'))
+    elif stock_filter == 'out':
+        qs = qs.filter(is_service=False, current_stock=0)
+    elif stock_filter == 'ok':
+        qs = qs.filter(is_service=False, current_stock__gt=F('low_stock_threshold'))
+
+    return render(request, 'products/product_list_print.html', {
+        **context,
+        'products': qs.order_by('name'),
+        'company': company,
+        'logo_exists': bool(company.logo and company.logo.name),
+    })
+
+
+# ============================================================
 # 2. PRODUCT CREATE
 # ============================================================
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:product_list', htmx_template='products/product_form.html')
+@handle_errors(default_redirect='accounting:product_list',
+               htmx_template='products/product_form.html')
 def product_create(request):
     if request.method == 'POST':
         form = ProductForm(request.POST)
@@ -128,15 +176,13 @@ def product_create(request):
                     'products/partials/product_table.html',
                     context=context,
                     toast={'level': 'success', 'message': f'Product "{product.name}" created.'},
-                    close_modal=True
+                    close_modal=True,
                 )
             messages.success(request, f"Product '{product.name}' created.")
             return redirect_to_staff('product_list')
         else:
             if is_htmx(request):
-                response = render(request, 'products/product_form.html', {'form': form})
-                response['HX-Retarget'] = '#mainModalContent'
-                return response
+                return render(request, 'products/product_form.html', {'form': form})
     else:
         form = ProductForm()
     return render(request, 'products/product_form.html', {'form': form})
@@ -147,7 +193,8 @@ def product_create(request):
 # ============================================================
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:product_list', htmx_template='products/product_form.html')
+@handle_errors(default_redirect='accounting:product_list',
+               htmx_template='products/product_form.html')
 def product_update(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
@@ -162,15 +209,15 @@ def product_update(request, pk):
                     'products/partials/product_table.html',
                     context=context,
                     toast={'level': 'success', 'message': f'Product "{product.name}" updated.'},
-                    close_modal=True
+                    close_modal=True,
                 )
             messages.success(request, f"Product '{product.name}' updated.")
             return redirect_to_staff('product_list')
         else:
             if is_htmx(request):
-                response = render(request, 'products/product_form.html', {'form': form, 'product': product})
-                response['HX-Retarget'] = '#mainModalContent'
-                return response
+                return render(request, 'products/product_form.html', {
+                    'form': form, 'product': product,
+                })
     else:
         form = ProductForm(instance=product)
     return render(request, 'products/product_form.html', {'form': form, 'product': product})
@@ -185,22 +232,26 @@ def product_update(request, pk):
 @handle_errors(default_redirect='accounting:product_list')
 def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    if (product.invoiceitem_set.exists() or
-        product.purchaseitem_set.exists() or
-        product.repairpart_set.exists()):
+
+    # Correct FK check (using related_name)
+    if (product.invoiceitem_set.exists()
+            or product.purchaseitem_set.exists()
+            or product.repairpart_set.exists()):
         return toast_only_response(
-            {'level': 'danger', 'message': 'Product has transactions, cannot delete.'},
-            status=400
+            {'level': 'danger', 'message': 'Product has transactions. Cannot delete.'},
+            status=400,
         )
-    product_name = product.name
+
+    name = product.name
     product.delete()
-    logger.info(f"Product '{product_name}' deleted by {request.user.username}")
+    logger.info(f"Product '{name}' deleted by {request.user.username}")
+
     context = get_paginated_products_context(request)
     return htmx_response(
         request,
         'products/partials/product_table.html',
         context=context,
-        toast={'level': 'success', 'message': f'Product "{product_name}" deleted.'}
+        toast={'level': 'success', 'message': f'Product "{name}" deleted.'},
     )
 
 
@@ -210,17 +261,20 @@ def product_delete(request, pk):
 @login_required
 def product_detail_modal(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    recent_movements = StockMovement.objects.filter(product=product).order_by('-date')[:10]
+    recent_movements = StockMovement.objects.filter(
+        product=product
+    ).order_by('-date')[:10]
     return render(request, 'products/partials/product_detail_modal.html', {
         'product': product,
         'recent_movements': recent_movements,
     })
-    
+
+
+# ============================================================
+# 6. CATEGORY FIELD VALIDATION (HTMX)
+# ============================================================
 @require_http_methods(["GET"])
 def validate_category_field(request):
-    """
-    Real-time validation for category name (uniqueness, required, etc.)
-    """
     field_name = request.GET.get('field')
     if not field_name:
         return HttpResponse("")
@@ -228,69 +282,79 @@ def validate_category_field(request):
     value = request.GET.get(field_name, '').strip()
     errors = []
 
-    # Only validate the 'name' field (since category form only has name)
     if field_name == 'name':
         if not value:
             errors.append("Category name is required.")
-        else:
-            # Check uniqueness (case-insensitive)
-            if ProductCategory.objects.filter(name__iexact=value).exists():
-                errors.append("A category with this name already exists.")
+        elif ProductCategory.objects.filter(name__iexact=value).exists():
+            errors.append("A category with this name already exists.")
 
     if errors:
-        error_html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
+        html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
         for err in errors:
-            error_html += f'<div>{err}</div>'
-        error_html += '</div>'
-        return HttpResponse(error_html)
-    else:
-        # No errors: return an empty div (or a success message if needed)
-        return HttpResponse(f'<div id="field-{field_name}" class="invalid-feedback"></div>')
+            html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
+        html += '</div>'
+        return HttpResponse(html)
+    return HttpResponse(f'<div id="field-{field_name}" class="invalid-feedback"></div>')
 
 
 # ============================================================
-# 6. INLINE CATEGORY ADD
+# 7. INLINE CATEGORY ADD (with Cancel support)
 # ============================================================
 @login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:product_list')
 def add_category_inline(request):
+    """
+    GET  -> show inline form (or dropdown if cancel=1)
+    POST -> create category, return dropdown
+    """
     if request.method == 'POST':
         form = ProductCategoryForm(request.POST)
         if form.is_valid():
             new_cat = form.save()
             categories = ProductCategory.objects.all().order_by('name')
-            # Return just the dropdown content (select + button)
             html = render_to_string('products/partials/category_dropdown.html', {
                 'categories': categories,
                 'selected_category_id': new_cat.id,
             }, request=request)
             response = HttpResponse(html)
             response['HX-Trigger'] = json.dumps({
-                'showToast': {'level': 'success', 'message': f'Category "{new_cat.name}" added!'}
+                'showToast': {
+                    'level': 'success',
+                    'message': f'Category "{new_cat.name}" added!',
+                },
             })
             return response
         else:
-            # ❌ Form invalid – return form with errors
             return render(request, 'products/partials/category_inline_form.html', {'form': form})
-    else:
-        # GET – show the form (when "+" button clicked)
-        form = ProductCategoryForm()
-        return render(request, 'products/partials/category_inline_form.html', {'form': form})
+
+    # GET
+    cancel = request.GET.get('cancel')
+    if cancel == '1':
+        # Return the dropdown view (used by Cancel button)
+        categories = ProductCategory.objects.all().order_by('name')
+        return render(request, 'products/partials/category_dropdown.html', {
+            'categories': categories,
+            'selected_category_id': '',
+        })
+
+    form = ProductCategoryForm()
+    return render(request, 'products/partials/category_inline_form.html', {'form': form})
 
 
 # ============================================================
-# 7. REAL-TIME VALIDATION (HTMX)
+# 8. REAL-TIME FIELD VALIDATION (HTMX)
 # ============================================================
+@require_http_methods(["GET"])
 def validate_product_field(request):
     field_name = request.GET.get('field')
     if not field_name:
         return HttpResponse("")
+
     value = request.GET.get(field_name, '')
     product_id = request.GET.get('product_id')
     errors = []
 
-    # Validation logic
     if field_name == 'name':
         if not value:
             errors.append("Product name is required.")
@@ -300,9 +364,11 @@ def validate_product_field(request):
                 qs = qs.exclude(pk=product_id)
             if qs.exists():
                 errors.append("A product with this name already exists.")
+
     elif field_name == 'hsn_code':
-        if value and (not value.isdigit() or len(value) not in [4, 6, 8]):
+        if value and (not value.isdigit() or len(value) not in (4, 6, 8)):
             errors.append("HSN code should be 4, 6, or 8 digits.")
+
     elif field_name == 'purchase_price':
         if not value:
             errors.append("Purchase price is required.")
@@ -313,6 +379,7 @@ def validate_product_field(request):
                     errors.append("Purchase price cannot be negative.")
             except (ValueError, TypeError):
                 errors.append("Enter a valid number.")
+
     elif field_name == 'selling_price':
         if not value:
             errors.append("Selling price is required.")
@@ -321,56 +388,56 @@ def validate_product_field(request):
                 price = Decimal(value)
                 if price < 0:
                     errors.append("Selling price cannot be negative.")
-                purchase_price = request.GET.get('purchase_price')
-                if purchase_price:
+                pp = request.GET.get('purchase_price')
+                if pp:
                     try:
-                        pp = Decimal(purchase_price)
-                        if price < pp:
+                        if price < Decimal(pp):
                             errors.append("Selling price should not be less than purchase price.")
-                    except:
+                    except (ValueError, TypeError):
                         pass
             except (ValueError, TypeError):
                 errors.append("Enter a valid number.")
+
     elif field_name == 'tax_rate':
         if value:
             try:
                 rate = Decimal(value)
                 if rate < 0 or rate > 100:
                     errors.append("Tax rate must be between 0 and 100.")
-            except:
+            except (ValueError, TypeError):
                 errors.append("Enter a valid tax rate.")
+
     elif field_name == 'current_stock':
         if value:
             try:
                 stock = Decimal(value)
                 if stock < 0:
                     errors.append("Stock cannot be negative.")
-                is_service = request.GET.get('is_service')
-                if is_service == 'on' and stock > 0:
+                if request.GET.get('is_service') == 'on' and stock > 0:
                     errors.append("Service items cannot have physical stock.")
             except (ValueError, TypeError):
                 errors.append("Enter a valid number.")
+
     elif field_name == 'low_stock_threshold':
         if value:
             try:
                 threshold = int(value)
                 if threshold < 0:
                     errors.append("Threshold cannot be negative.")
-            except:
+            except (ValueError, TypeError):
                 errors.append("Enter a valid integer.")
 
     if errors:
-        error_html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
+        html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
         for err in errors:
-            error_html += f'<div>{err}</div>'
-        error_html += '</div>'
-        return HttpResponse(error_html)
-    else:
-        return HttpResponse(f'<div id="field-{field_name}" class="invalid-feedback"></div>')
+            html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
+        html += '</div>'
+        return HttpResponse(html)
+    return HttpResponse(f'<div id="field-{field_name}" class="invalid-feedback"></div>')
 
 
 # ============================================================
-# 8. GET PRODUCT PRICE (AJAX)
+# 9. GET PRODUCT PRICE (JSON API)
 # ============================================================
 @login_required
 def get_product_price(request):
@@ -380,11 +447,13 @@ def get_product_price(request):
     try:
         product = Product.objects.get(pk=product_id)
         return JsonResponse({
+            'id': product.id,
+            'name': product.name,
             'selling_price': float(product.selling_price),
             'purchase_price': float(product.purchase_price),
             'tax_rate': float(product.tax_rate),
-            'name': product.name,
             'unit': product.unit,
+            'unit_display': product.get_unit_display(),
             'is_service': product.is_service,
             'current_stock': float(product.current_stock),
         })
@@ -396,34 +465,52 @@ def get_product_price(request):
 
 
 # ============================================================
-# 9. STOCK HISTORY
+# 10. STOCK HISTORY (fixed template path)
 # ============================================================
 @login_required
 def product_stock_history(request, pk):
     product = get_object_or_404(Product, pk=pk)
-    movements = StockMovement.objects.filter(product=product).order_by('-date')[:50]
+
+    page_number = request.GET.get('page', 1)
+    movements_qs = StockMovement.objects.filter(product=product).order_by('-date')
+
+    paginator = Paginator(movements_qs, 50)
+    try:
+        page_obj = paginator.page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    context = {
+        'product': product,
+        'movements': page_obj.object_list,
+        'page_obj': page_obj,
+        'total_count': paginator.count,
+    }
+
     if is_htmx(request):
-        return render(request, 'products/partials/stock_history.html', {'movements': movements, 'product': product})
-    return render(request, 'products/stock_history.html', {'movements': movements, 'product': product})
+        return render(request, 'products/partials/stock_history.html', context)
+    return render(request, 'products/partials/stock_history.html', context)
 
 
 # ============================================================
-# 10. PRODUCT SEARCH (Autocomplete)
+# 11. PRODUCT SEARCH — autocomplete (fixed template)
 # ============================================================
 @login_required
 def product_search(request):
     q = request.GET.get('q', '').strip()
     if len(q) < 2:
-        return render(request, 'purchases/partials/product_suggestions.html', {'products': []})
+        return render(request, 'products/partials/product_suggestions.html', {'products': []})
     products = Product.objects.filter(
         Q(name__icontains=q) | Q(hsn_code__icontains=q),
-        is_active=True
+        is_active=True,
     )[:10]
-    return render(request, 'purchases/partials/product_suggestions.html', {'products': products})
+    return render(request, 'products/partials/product_suggestions.html', {'products': products})
 
 
 # ============================================================
-# 11. QUICK ADD PRODUCT (for Purchase)
+# 12. QUICK ADD PRODUCT
 # ============================================================
 @login_required
 @csrf_protect
@@ -433,55 +520,50 @@ def product_quick_add(request):
         form = ProductForm(request.POST)
         if form.is_valid():
             product = form.save()
-            return render(request, 'products/partials/product_quick_add_success.html', {'product': product})
+            return render(request, 'products/partials/product_quick_add_success.html', {
+                'product': product,
+            })
         else:
             return render(request, 'products/partials/product_quick_add_form.html', {'form': form})
-    else:
-        form = ProductForm()
-        return render(request, 'products/partials/product_quick_add_form.html', {'form': form})
-    
-    
+    form = ProductForm()
+    return render(request, 'products/partials/product_quick_add_form.html', {'form': form})
+
 
 # ============================================================
-# 12. EXPORT PRODUCTS TO EXCEL (Professional)
+# 13. EXPORT PRODUCTS TO EXCEL (filter-aware)
 # ============================================================
 @login_required
 @require_http_methods(["GET"])
 @handle_errors(default_redirect='accounting:product_list')
 def export_products_excel(request):
-    """Export filtered products to a professional Excel file."""
-    try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-    except ImportError:
+    if Workbook is None:
         messages.error(request, "Openpyxl library is not installed on the server.")
         return redirect('accounting:product_list')
 
-    # === Filters (same as product_list) ===
     search = request.GET.get('search', '').strip()
     category_id = request.GET.get('category', '')
     is_active = request.GET.get('is_active', '')
+    stock_filter = request.GET.get('stock_filter', '')
 
     products = Product.objects.select_related('category').all().order_by('name')
-
     if search:
-        products = products.filter(
-            Q(name__icontains=search) | Q(hsn_code__icontains=search)
-        )
+        products = products.filter(Q(name__icontains=search) | Q(hsn_code__icontains=search))
     if category_id:
         products = products.filter(category_id=category_id)
     if is_active != '':
         products = products.filter(is_active=(is_active.lower() == 'true'))
+    if stock_filter == 'low':
+        products = products.filter(is_service=False, current_stock__lte=F('low_stock_threshold'))
+    elif stock_filter == 'out':
+        products = products.filter(is_service=False, current_stock=0)
+    elif stock_filter == 'ok':
+        products = products.filter(is_service=False, current_stock__gt=F('low_stock_threshold'))
 
     company = CompanyProfile.get_instance()
-
-    # === Create Workbook ===
-    wb = openpyxl.Workbook()
+    wb = Workbook()
     ws = wb.active
     ws.title = "Products"
 
-    # === Styles ===
     title_font = Font(bold=True, size=16, color="FFFFFF")
     title_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     subtitle_font = Font(bold=True, size=12, color="FFFFFF")
@@ -501,11 +583,9 @@ def export_products_excel(request):
     left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
     right_align = Alignment(horizontal='right', vertical='center')
 
-    # 14 columns
     TOTAL_COLS = 14
     last_col = get_column_letter(TOTAL_COLS)
 
-    # === Row 1: Company Name ===
     ws.merge_cells(f'A1:{last_col}1')
     ws['A1'] = company.name or "A1 Computer Solutions"
     ws['A1'].font = title_font
@@ -513,19 +593,17 @@ def export_products_excel(request):
     ws['A1'].alignment = center_align
     ws.row_dimensions[1].height = 30
 
-    # === Row 2: Company Details ===
     ws.merge_cells(f'A2:{last_col}2')
-    addr_parts = []
-    if company.address: addr_parts.append(company.address)
-    if company.phone: addr_parts.append(f"Phone: {company.phone}")
-    if company.email: addr_parts.append(f"Email: {company.email}")
-    if company.gstin: addr_parts.append(f"GSTIN: {company.gstin}")
-    ws['A2'] = " | ".join(addr_parts)
+    parts = []
+    if company.address: parts.append(company.address)
+    if company.phone: parts.append(f"Phone: {company.phone}")
+    if company.email: parts.append(f"Email: {company.email}")
+    if company.gstin: parts.append(f"GSTIN: {company.gstin}")
+    ws['A2'] = " | ".join(parts)
     ws['A2'].font = Font(size=10, italic=True)
     ws['A2'].alignment = center_align
     ws.row_dimensions[2].height = 20
 
-    # === Row 3: Report Title ===
     ws.merge_cells(f'A3:{last_col}3')
     ws['A3'] = "PRODUCT INVENTORY REPORT"
     ws['A3'].font = subtitle_font
@@ -533,48 +611,32 @@ def export_products_excel(request):
     ws['A3'].alignment = center_align
     ws.row_dimensions[3].height = 25
 
-    # === Row 4: Filters Bar ===
     ws.merge_cells(f'A4:{last_col}4')
-    filter_parts = [f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')}"]
-    if search:
-        filter_parts.append(f"Search: {search}")
+    fparts = [f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')}"]
+    if search: fparts.append(f"Search: {search}")
     if category_id:
         try:
             cat = ProductCategory.objects.get(pk=category_id)
-            filter_parts.append(f"Category: {cat.name}")
+            fparts.append(f"Category: {cat.name}")
         except ProductCategory.DoesNotExist:
             pass
-    if is_active == 'true':
-        filter_parts.append("Status: Active Only")
-    elif is_active == 'false':
-        filter_parts.append("Status: Inactive Only")
-    filter_parts.append(f"Total Records: {products.count()}")
-    ws['A4'] = " | ".join(filter_parts)
+    if is_active == 'true': fparts.append("Status: Active Only")
+    elif is_active == 'false': fparts.append("Status: Inactive Only")
+    if stock_filter: fparts.append(f"Stock: {stock_filter}")
+    fparts.append(f"Total Records: {products.count()}")
+    ws['A4'] = " | ".join(fparts)
     ws['A4'].font = Font(size=10, italic=True, color="555555")
     ws['A4'].alignment = center_align
     ws.row_dimensions[4].height = 20
-
-    # === Row 5: spacer ===
     ws.row_dimensions[5].height = 5
 
-    # === Row 6: Table Headers ===
     headers = [
-        ('#', 6),
-        ('Product Name', 32),
-        ('HSN/SAC', 12),
-        ('Category', 20),
-        ('Unit', 10),
-        ('Type', 10),
-        ('Purchase Price (₹)', 16),
-        ('Selling Price (₹)', 16),
-        ('Tax Rate (%)', 12),
-        ('Current Stock', 14),
-        ('Low Stock Alert', 14),
-        ('Stock Status', 14),
-        ('Stock Value (₹)', 16),
-        ('Active', 10),
+        ('#', 6), ('Product Name', 32), ('HSN/SAC', 12), ('Category', 20),
+        ('Unit', 10), ('Type', 10), ('Purchase Price (₹)', 16),
+        ('Selling Price (₹)', 16), ('Tax Rate (%)', 12), ('Current Stock', 14),
+        ('Low Stock Alert', 14), ('Stock Status', 14),
+        ('Stock Value (₹)', 16), ('Active', 10),
     ]
-
     for col_num, (header, width) in enumerate(headers, 1):
         cell = ws.cell(row=6, column=col_num, value=header)
         cell.font = header_font
@@ -582,17 +644,14 @@ def export_products_excel(request):
         cell.alignment = center_align
         cell.border = border_header
         ws.column_dimensions[get_column_letter(col_num)].width = width
-
     ws.row_dimensions[6].height = 30
 
-    # === Data Rows ===
     row_num = 7
     total_stock_value = Decimal('0')
     total_physical_stock = Decimal('0')
     low_stock_rows = 0
 
     for idx, product in enumerate(products, 1):
-        # Stock status
         if product.is_service:
             stock_status = "Service"
             stock_value = Decimal('0')
@@ -628,21 +687,15 @@ def export_products_excel(request):
             cell.border = border_all
             cell.alignment = left_align
 
-        # Money columns
-        for col_idx in [7, 8, 13]:
+        for col_idx in (7, 8, 13):
             ws.cell(row=row_num, column=col_idx).alignment = right_align
             ws.cell(row=row_num, column=col_idx).number_format = money_format
-
-        # Number columns
-        for col_idx in [9, 10, 11]:
+        for col_idx in (9, 10, 11):
             ws.cell(row=row_num, column=col_idx).alignment = center_align
             ws.cell(row=row_num, column=col_idx).number_format = number_format
-
-        # Center align
-        for col_idx in [1, 3, 5, 6, 12, 14]:
+        for col_idx in (1, 3, 5, 6, 12, 14):
             ws.cell(row=row_num, column=col_idx).alignment = center_align
 
-        # Colour code stock status
         status_cell = ws.cell(row=row_num, column=12)
         if stock_status == "LOW":
             status_cell.font = Font(bold=True, color="C00000")
@@ -651,7 +704,6 @@ def export_products_excel(request):
         else:
             status_cell.font = Font(color="666666", italic=True)
 
-        # Inactive row = grey
         if not product.is_active:
             grey = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
             for c in range(1, TOTAL_COLS + 1):
@@ -663,21 +715,18 @@ def export_products_excel(request):
 
         row_num += 1
 
-    # === Grand Total Row ===
+    # Grand total row
     ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=9)
-    total_label = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
-    total_label.font = total_font
-    total_label.fill = total_fill
-    total_label.alignment = right_align
-    total_label.border = border_header
-
-    # Fill merged cells' backgrounds and borders
+    tl = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
+    tl.font = total_font
+    tl.fill = total_fill
+    tl.alignment = right_align
+    tl.border = border_header
     for col_idx in range(2, 10):
         c = ws.cell(row=row_num, column=col_idx)
         c.fill = total_fill
         c.border = border_header
 
-    # Total physical stock in col 10
     c = ws.cell(row=row_num, column=10, value=float(total_physical_stock))
     c.font = total_font
     c.fill = total_fill
@@ -685,19 +734,16 @@ def export_products_excel(request):
     c.number_format = number_format
     c.border = border_header
 
-    # Low stock count in col 11
     c = ws.cell(row=row_num, column=11, value=f"{low_stock_rows} LOW")
     c.font = total_font
     c.fill = total_fill
     c.alignment = center_align
     c.border = border_header
 
-    # Status column empty
     c = ws.cell(row=row_num, column=12, value="")
     c.fill = total_fill
     c.border = border_header
 
-    # Total stock value
     c = ws.cell(row=row_num, column=13, value=float(total_stock_value))
     c.font = total_font
     c.fill = total_fill
@@ -711,30 +757,24 @@ def export_products_excel(request):
 
     ws.row_dimensions[row_num].height = 24
 
-    # === Footer ===
     footer_row = row_num + 2
     ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=TOTAL_COLS)
-    footer_text = (
-        f"Auto-generated by {company.name or 'A1 Computer Solutions'} on "
-        f"{timezone.now().strftime('%d-%m-%Y %H:%M')}. "
-        f"Total Products: {products.count()} | Total Stock Value: ₹{total_stock_value:,.2f}"
-    )
-    fc = ws.cell(row=footer_row, column=1, value=footer_text)
+    txt = (f"Auto-generated by {company.name or 'A1 Computer Solutions'} on "
+           f"{timezone.now().strftime('%d-%m-%Y %H:%M')}. "
+           f"Total Products: {products.count()} | "
+           f"Total Stock Value: ₹{total_stock_value:,.2f}")
+    fc = ws.cell(row=footer_row, column=1, value=txt)
     fc.font = Font(size=9, italic=True, color="777777")
     fc.alignment = center_align
 
-    # === Freeze Panes & Auto-filter ===
     ws.freeze_panes = 'A7'
     ws.auto_filter.ref = f"A6:{last_col}6"
-
-    # === Page setup for printing ===
     ws.page_setup.orientation = 'landscape'
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
-    # === Response ===
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
@@ -742,4 +782,3 @@ def export_products_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
-

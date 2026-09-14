@@ -43,6 +43,7 @@ urlpatterns = [
 
     # ===== Products =====
     path('products/', products.product_list, name='product_list'),
+    path('products/print/', products.product_list_print, name='product_list_print'),
     path('products/create/', products.product_create, name='product_create'),
     path('products/<int:pk>/update/', products.product_update, name='product_update'),
     path('products/<int:pk>/delete/', products.product_delete, name='product_delete'),
@@ -58,12 +59,13 @@ urlpatterns = [
 
     # ===== Sales / Invoices =====
     path('sales/', sales.invoice_list, name='invoice_list'),
+    path('sales/print/', sales.invoice_list_print, name='invoice_list_print'),
+    path('sales/export/excel/', sales.invoice_list_excel, name='invoice_list_excel'),
     path('sales/create/', sales.invoice_create, name='invoice_create'),
     path('sales/<int:pk>/', sales.invoice_detail, name='invoice_detail'),
     path('sales/<int:pk>/print/', sales.invoice_print, name='invoice_print'),
     path('sales/<int:pk>/update/', sales.invoice_update, name='invoice_update'),
     path('sales/<int:pk>/delete/', sales.invoice_delete, name='invoice_delete'),
-    # path('sales/<int:pk>/add-payment/', sales.add_payment, name='add_payment'),
     path('sales/<int:pk>/add-payment/', payments.payment_create, name='add_payment'),
     path('sales/add-item/', sales.add_invoice_item, name='add_invoice_item'),
     path('sales/remove-item/<int:index>/', sales.remove_invoice_item, name='remove_invoice_item'),
@@ -71,6 +73,8 @@ urlpatterns = [
 
     # ===== Purchase Module =====
     path('purchases/', purchases.purchase_list, name='purchase_list'),
+    path('purchases/print/', purchases.purchase_list_print, name='purchase_list_print'),
+    path('purchases/export/excel/', purchases.purchase_list_excel, name='purchase_list_excel'),
     path('purchases/create/', purchases.purchase_create, name='purchase_create'),
     path('purchases/<int:pk>/', purchases.purchase_detail, name='purchase_detail'),
     path('purchases/<int:pk>/print/', purchases.purchase_print, name='purchase_print'),
@@ -81,7 +85,6 @@ urlpatterns = [
     path('purchases/validate-field/', purchases.validate_purchase_field, name='validate_purchase_field'),
     path('purchase/product-search/', purchases.purchase_product_search, name='purchase_product_search'),
     path('purchase/product-quick-add/', purchases.purchase_product_quick_add, name='purchase_product_quick_add'),
-    path('purchases/export/excel/', purchases.export_purchases_excel, name='export_purchases_excel'),
 
     # ===== Repairs =====
     path('repairs/', repairs.repair_list, name='repair_list'),
@@ -116,6 +119,13 @@ urlpatterns = [
     path('payments/<int:pk>/update/', payments.payment_update, name='payment_update'),
     path('payments/<int:pk>/delete/', payments.payment_delete, name='payment_delete'),
     path('payments/<int:pk>/reconcile/', payments.reconcile_payment, name='reconcile_payment'),
+    path('payments/load-unpaid-invoices/', payments.load_unpaid_invoices, name='load_unpaid_invoices'),
+    
+     # ===== Combined Statement (for 'both' type contacts) =====
+    path('statements/combined/<int:contact_id>/', statements.combined_statement, name='combined_statement',),
+    path('statements/combined/<int:contact_id>/print/', statements.combined_statement, {'is_print': '1'}, name='combined_statement_print',),
+    path('statements/combined/<int:contact_id>/excel/', statements.combined_statement_excel, name='combined_statement_excel',),
+    path('statements/combined/<int:contact_id>/whatsapp/', statements.combined_statement_whatsapp, name='combined_statement_whatsapp',),
 
     # ===== Statements =====
     path('statements/customer/<int:contact_id>/excel/', statements.customer_statement_excel, name='customer_statement_excel'),
@@ -150,7 +160,11 @@ urlpatterns = [
     path('bank/accounts/<int:pk>/edit/', bank_account_edit, name='bank_account_edit'),
     path('bank/accounts/<int:pk>/delete/', bank_account_delete, name='bank_account_delete'),
     path('bank/statement/<int:pk>/', bank_statement, name='bank_statement'),
+    path('bank/statement/<int:pk>/excel/', bank_statement_excel, name='bank_statement_excel'),
+    path('bank/transactions/', bank_transaction_list, name='bank_transaction_list'),
     path('bank/transaction/<int:account_pk>/add/', bank_transaction_add, name='bank_transaction_add'),
+    path('bank/transaction/<int:pk>/edit/', bank_transaction_edit, name='bank_transaction_edit'),
+    path('bank/transaction/<int:pk>/delete/', bank_transaction_delete, name='bank_transaction_delete'),
 
     # ===== Settings =====
     path('settings/', company_settings, name='company_settings'),

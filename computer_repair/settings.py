@@ -29,8 +29,6 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'honeypot',
-    'channels',
-    'django_eventstream',
     'django_htmx',
     'django_cleanup.apps.CleanupConfig',
     'anymail',
@@ -91,17 +89,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'computer_repair.wsgi.application'
-# ASGI_APPLICATION = 'computer_repair.asgi.application'  # Disabled
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer"
-    }
-}
-EVENTSTREAM_CHANNEL_LAYER = "default"
-EVENTSTREAM_MAX_CONNECTIONS = 100
-# Commented out the wrong storage class
-# EVENTSTREAM_STORAGE_CLASS = 'django_eventstream.storage.MemoryStorage'
 
 # ============================================================
 # DATABASE CONFIGURATION (Secure – Using Environment Variables)
@@ -140,6 +128,8 @@ LANGUAGE_CODE = 'en-in'
 TIME_ZONE = 'Asia/Kolkata'
 USE_I18N = True
 USE_TZ = True
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
@@ -205,7 +195,7 @@ if not DEBUG:
     EMAIL_USE_TLS = True
     EMAIL_HOST_USER = 'b49739001@smtp-brevo.com'
     EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_KEY', '')
-    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'solutionsmanojtech@gmail.com')
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.gmail.com'
@@ -213,7 +203,7 @@ else:
     EMAIL_USE_TLS = True
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-    DEFAULT_FROM_EMAIL = 'solutionsmanojtech@gmail.com'
+    DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER', 'solutionsmanojtech@gmail.com')
 
 MESSAGE_TAGS = {
     messages.DEBUG: 'secondary',

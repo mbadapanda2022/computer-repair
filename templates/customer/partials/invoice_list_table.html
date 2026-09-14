@@ -1,3 +1,4 @@
+<!-- templates/customer/partials/invoice_list_table.html -->
 {% load math_filters %}
 
 <div class="card border-0 shadow-sm">
@@ -8,7 +9,9 @@
                     <tr>
                         <th>Invoice #</th>
                         <th>Date</th>
-                        <th>Grand Total</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-end">Paid</th>
+                        <th class="text-end">Due</th>
                         <th>Status</th>
                         <th class="text-center">Action</th>
                     </tr>
@@ -18,26 +21,33 @@
                     <tr>
                         <td><strong>{{ invoice.invoice_number }}</strong></td>
                         <td>{{ invoice.date|date:"d M Y" }}</td>
-                        <td class="fw-bold">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                        <td class="text-end fw-semibold">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                        <td class="text-end text-success">₹{{ invoice.paid_amount|floatformat:2 }}</td>
+                        <td class="text-end text-danger">₹{{ invoice.balance_due|floatformat:2 }}</td>
                         <td>
-                            <span class="badge {% if invoice.payment_status == 'paid' %}bg-success{% elif invoice.payment_status == 'partial' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                            <span class="badge
+                                {% if invoice.payment_status == 'paid' %}bg-success
+                                {% elif invoice.payment_status == 'partial' %}bg-warning text-dark
+                                {% else %}bg-danger{% endif %}">
                                 {{ invoice.get_payment_status_display }}
                             </span>
                         </td>
                         <td class="text-center">
-                            <a href="{% url 'customer:customer_invoice_detail' invoice.pk %}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i> View
+                            <a href="{% url 'customer:customer_invoice_detail' invoice.pk %}"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
                             </a>
-                            <a href="{% url 'customer:customer_invoice_print' invoice.pk %}" class="btn btn-sm btn-outline-secondary" target="_blank">
+                            <a href="{% url 'customer:customer_invoice_print' invoice.pk %}"
+                               class="btn btn-sm btn-outline-secondary" target="_blank">
                                 <i class="bi bi-printer"></i>
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center py-4 text-muted">
-                            <i class="bi bi-inbox display-6 d-block mb-2"></i>
-                            <p>You don't have any invoices yet.</p>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox display-6 d-block mb-2 opacity-50"></i>
+                            <p class="mb-0">No invoices match your filters.</p>
                         </td>
                     </tr>
                     {% endfor %}
@@ -46,7 +56,6 @@
         </div>
     </div>
 
-    <!-- Pagination -->
     {% if page_obj and page_obj.has_other_pages %}
     <div class="card-footer bg-white border-0">
         <nav aria-label="Invoice pagination">
@@ -54,33 +63,35 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page=1"
+                       hx-get="{% url 'customer:customer_invoices' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.previous_page_number }}"
+                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
                 {% endif %}
 
-                <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
 
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.next_page_number }}"
+                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.paginator.num_pages }}"
+                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

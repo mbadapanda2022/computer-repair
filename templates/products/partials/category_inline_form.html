@@ -1,74 +1,68 @@
 <!-- templates/products/partials/category_inline_form.html -->
 {% load static %}
 
-<form method="post" 
+<form method="post"
       id="categoryInlineForm"
-      hx-post="{% url 'accounting:add_category_inline' %}" 
+      hx-post="{% url 'accounting:add_category_inline' %}"
       hx-target="#category-field-container"
       hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       novalidate>
     {% csrf_token %}
-    
+
     <div class="d-flex align-items-center gap-2">
         <div class="flex-grow-1">
             <div class="input-group">
                 <span class="input-group-text bg-primary text-white">
                     <i class="bi bi-tag"></i>
                 </span>
-                <input type="text" 
-                       name="name" 
-                       id="id_name" 
-                       class="form-control {% if form.name.errors %}is-invalid{% endif %}" 
+                <input type="text"
+                       name="name"
+                       id="id_category_name"
+                       class="form-control {% if form.name.errors %}is-invalid{% endif %}"
                        placeholder="New category name..."
                        value="{{ form.name.value|default:'' }}"
-                       hx-get="{% url 'accounting:validate_category_field' %}" 
-                       hx-trigger="blur, keyup changed delay:300ms" 
-                       hx-target="#category-name-error" 
+                       hx-get="{% url 'accounting:validate_category_field' %}"
+                       hx-trigger="blur, keyup changed delay:300ms"
+                       hx-target="#category-name-error"
                        hx-swap="innerHTML"
-                       hx-include="#id_name"
+                       hx-include="#id_category_name"
+                       autofocus
                        required>
                 <button type="submit" class="btn btn-success" id="category-submit-btn">
                     <i class="bi bi-check-circle"></i>
                 </button>
-                <button type="button" class="btn btn-secondary" id="category-cancel-btn">
+                <button type="button" class="btn btn-secondary"
+                        id="category-cancel-btn"
+                        hx-get="{% url 'accounting:add_category_inline' %}?cancel=1"
+                        hx-target="#category-field-container"
+                        hx-swap="innerHTML">
                     <i class="bi bi-x-circle"></i>
                 </button>
             </div>
-            <!-- Real-time Error Display -->
             <div id="category-name-error" class="invalid-feedback d-block">
-                {% for error in form.name.errors %}
-                    <div>{{ error }}</div>
-                {% endfor %}
+                {% for error in form.name.errors %}<div>{{ error }}</div>{% endfor %}
             </div>
         </div>
     </div>
 </form>
 
 <script>
-    (function() {
-        // Cancel button: Go back to dropdown
-        const cancelBtn = document.getElementById('category-cancel-btn');
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', function() {
-                htmx.ajax('GET', "{% url 'accounting:add_category_inline' %}", {
-                    target: '#category-field-container',
-                    swap: 'innerHTML'
-                });
-            });
-        }
+(function() {
+    'use strict';
 
-        // Real-time validation: add/remove is-invalid class
-        document.addEventListener('htmx:afterSwap', function(evt) {
-            if (evt.detail.target && evt.detail.target.id === 'category-name-error') {
-                const errorText = evt.detail.target.innerText.trim();
-                const input = document.getElementById('id_name');
-                if (input && errorText) {
-                    input.classList.add('is-invalid');
-                } else if (input) {
-                    input.classList.remove('is-invalid');
-                }
+    // Live invalid class toggle
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target && evt.detail.target.id === 'category-name-error') {
+            const input = document.getElementById('id_category_name');
+            if (!input) return;
+            const errText = (evt.detail.target.innerText || '').trim();
+            if (errText) {
+                input.classList.add('is-invalid');
+            } else {
+                input.classList.remove('is-invalid');
             }
-        });
-    })();
+        }
+    });
+})();
 </script>

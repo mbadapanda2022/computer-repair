@@ -1,114 +1,192 @@
+<!-- templates/contacts/contact_form.html -->
 {% load static %}
-<form method="post" 
-    {% if contact %} hx-post="{% url 'accounting:contact_update' contact.pk %}" 
-    {% else %} hx-post="{% url 'accounting:contact_create' %}" 
-    {% endif %}
-    hx-target="#contacts-table-container"
-    hx-swap="innerHTML"
-    id="contactForm"
-    novalidate>
+<form method="post"
+      {% if contact %}
+          hx-post="{% url 'accounting:contact_update' contact.pk %}"
+      {% else %}
+          hx-post="{% url 'accounting:contact_create' %}"
+      {% endif %}
+      hx-target="#contacts-table-container"
+      hx-swap="innerHTML"
+      id="contactForm"
+      novalidate>
     {% csrf_token %}
-    
+
     <div class="modal-header">
-        <h5 class="modal-title">{% if contact %}Edit Contact{% else %}New Contact{% endif %}</h5>
+        <h5 class="modal-title">
+            <i class="bi bi-person-plus me-2"></i>
+            {% if contact %}Edit Contact{% else %}New Contact{% endif %}
+        </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
     </div>
-    
+
     <div class="modal-body">
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Basic Info -->
+        <h6 class="text-primary border-bottom pb-2 mb-3">
+            <i class="bi bi-person-badge me-2"></i>Basic Information
+        </h6>
+
         <div class="row g-3">
             <div class="col-md-6">
-                <label for="id_contact_type" class="form-label">Contact Type</label>
+                <label for="id_contact_type" class="form-label fw-semibold">
+                    Contact Type <span class="text-danger">*</span>
+                </label>
                 <select name="contact_type" id="id_contact_type" class="form-select">
                     <option value="customer" {% if form.contact_type.value == "customer" %}selected{% endif %}>Customer</option>
                     <option value="vendor" {% if form.contact_type.value == "vendor" %}selected{% endif %}>Vendor</option>
-                    <option value="both" {% if form.contact_type.value == "both" %}selected{% endif %}>Both</option>
+                    <option value="both" {% if form.contact_type.value == "both" %}selected{% endif %}>Both (Customer + Vendor)</option>
                 </select>
-                <div id="field-contact_type" class="invalid-feedback"></div>
+                <div id="field-contact_type" class="invalid-feedback d-block">
+                    {{ form.contact_type.errors|join:", " }}
+                </div>
+                <small class="text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    "Both" for parties who are both customer and vendor (e.g., Mukta Infotech).
+                </small>
             </div>
+
             <div class="col-md-6">
-                <label for="id_name" class="form-label">Name *</label>
-                <input type="text" name="name" id="id_name" class="form-control" value="{{ form.name.value|default:'' }}">
-                <div id="field-name" class="invalid-feedback"></div>
+                <label for="id_name" class="form-label fw-semibold">
+                    Name <span class="text-danger">*</span>
+                </label>
+                <input type="text" name="name" id="id_name" class="form-control"
+                       value="{{ form.name.value|default:'' }}"
+                       placeholder="e.g., Mukta Infotech" required>
+                <div id="field-name" class="invalid-feedback d-block">
+                    {{ form.name.errors|join:", " }}
+                </div>
             </div>
         </div>
 
-        <div class="row g-3 mt-2">
+        <div class="row g-3 mt-1">
             <div class="col-md-6">
-                <label for="id_company_name" class="form-label">Company</label>
-                <input type="text" name="company_name" id="id_company_name" class="form-control" value="{{ form.company_name.value|default:'' }}">
-                <div id="field-company_name" class="invalid-feedback"></div>
+                <label for="id_company_name" class="form-label fw-semibold">Company Name</label>
+                <input type="text" name="company_name" id="id_company_name" class="form-control"
+                       value="{{ form.company_name.value|default:'' }}">
+                <div id="field-company_name" class="invalid-feedback d-block"></div>
             </div>
             <div class="col-md-6">
-                <label for="id_phone" class="form-label">Phone</label>
-                <input type="text" name="phone" id="id_phone" class="form-control" value="{{ form.phone.value|default:'' }}">
-                <div id="field-phone" class="invalid-feedback"></div>
-            </div>
-        </div>
-
-        <div class="row g-3 mt-2">
-            <div class="col-md-6">
-                <label for="id_email" class="form-label">Email</label>
-                <input type="email" name="email" id="id_email" class="form-control" value="{{ form.email.value|default:'' }}">
-                <div id="field-email" class="invalid-feedback"></div>
-            </div>
-            <div class="col-md-6">
-                <label for="id_gstin" class="form-label">GSTIN</label>
-                <input type="text" name="gstin" id="id_gstin" class="form-control" value="{{ form.gstin.value|default:'' }}">
-                <div id="field-gstin" class="invalid-feedback"></div>
+                <label for="id_phone" class="form-label fw-semibold">Phone</label>
+                <input type="text" name="phone" id="id_phone" class="form-control"
+                       value="{{ form.phone.value|default:'' }}"
+                       placeholder="10-digit mobile number">
+                <div id="field-phone" class="invalid-feedback d-block"></div>
+                <small class="text-muted">Last 10 digits saved (Indian mobile).</small>
             </div>
         </div>
 
-        <div class="row g-3 mt-2">
+        <div class="row g-3 mt-1">
             <div class="col-md-6">
-                <label for="id_state" class="form-label">State</label>
-                <input type="text" name="state" id="id_state" class="form-control" value="{{ form.state.value|default:'' }}">
-                <div id="field-state" class="invalid-feedback"></div>
+                <label for="id_email" class="form-label fw-semibold">Email</label>
+                <input type="email" name="email" id="id_email" class="form-control"
+                       value="{{ form.email.value|default:'' }}">
+                <div id="field-email" class="invalid-feedback d-block"></div>
             </div>
             <div class="col-md-6">
-                <label for="id_opening_balance" class="form-label">Opening Balance</label>
-                <input type="number" name="opening_balance" id="id_opening_balance" class="form-control" step="0.01" value="{{ form.opening_balance.value|default:'0' }}">
-                <div id="field-opening_balance" class="invalid-feedback"></div>
+                <label for="id_gstin" class="form-label fw-semibold">GSTIN</label>
+                <input type="text" name="gstin" id="id_gstin" class="form-control"
+                       value="{{ form.gstin.value|default:'' }}"
+                       placeholder="22AAAAA0000A1Z5">
+                <div id="field-gstin" class="invalid-feedback d-block"></div>
             </div>
         </div>
-        
+
+        <div class="row g-3 mt-1">
+            <div class="col-md-6">
+                <label for="id_state" class="form-label fw-semibold">State</label>
+                <input type="text" name="state" id="id_state" class="form-control"
+                       value="{{ form.state.value|default:'' }}"
+                       placeholder="e.g., West Bengal">
+                <div id="field-state" class="invalid-feedback d-block"></div>
+            </div>
+        </div>
+
         <!-- Address -->
         <div class="mt-3">
-            <label for="id_address" class="form-label">Address</label>
-            <textarea name="address" id="id_address" class="form-control" rows="2">{{ form.address.value|default:'' }}</textarea>
-            <div id="field-address" class="invalid-feedback"></div>
+            <label for="id_address" class="form-label fw-semibold">Address</label>
+            <textarea name="address" id="id_address" class="form-control" rows="2"
+                      placeholder="Full address">{{ form.address.value|default:'' }}</textarea>
+            <div id="field-address" class="invalid-feedback d-block"></div>
         </div>
-        
+
+        <!-- Opening Balance -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+            <i class="bi bi-wallet2 me-2"></i>Opening Balance
+        </h6>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_opening_balance" class="form-label fw-semibold">Opening Balance (₹)</label>
+                <input type="number" name="opening_balance" id="id_opening_balance"
+                       class="form-control" step="0.01"
+                       value="{{ form.opening_balance.value|default:'0' }}">
+                <div id="field-opening_balance" class="invalid-feedback d-block"></div>
+                <small class="text-muted">
+                    Customer: +ve = owes you, −ve = advance.<br>
+                    Vendor: +ve = you owe, −ve = advance received.
+                </small>
+            </div>
+            <div class="col-md-6">
+                <label for="id_opening_balance_date" class="form-label fw-semibold">Opening Balance Date</label>
+                <input type="date" name="opening_balance_date" id="id_opening_balance_date"
+                       class="form-control"
+                       value="{{ form.opening_balance_date.value|date:'Y-m-d'|default:'' }}">
+                <div id="field-opening_balance_date" class="invalid-feedback d-block"></div>
+                <small class="text-muted">Leave blank for today.</small>
+            </div>
+        </div>
+
+        {% if contact %}
+            <!-- Auto-calculated balances (read-only) -->
+            <div class="alert alert-light border mt-3">
+                <small class="text-muted d-block mb-1">
+                    <i class="bi bi-info-circle me-1"></i>Auto-calculated from ledger (read-only)
+                </small>
+                <div class="d-flex gap-3 flex-wrap">
+                    <div><strong>Receivable:</strong> ₹{{ contact.receivable_balance|floatformat:2 }}</div>
+                    <div><strong>Payable:</strong> ₹{{ contact.payable_balance|floatformat:2 }}</div>
+                    <div><strong>Net:</strong> ₹{{ contact.balance|floatformat:2 }}</div>
+                </div>
+            </div>
+        {% endif %}
+
         <!-- Notes -->
         <div class="mt-3">
-            <label for="id_notes" class="form-label">Notes</label>
+            <label for="id_notes" class="form-label fw-semibold">Notes</label>
             <textarea name="notes" id="id_notes" class="form-control" rows="2">{{ form.notes.value|default:'' }}</textarea>
-            <div id="field-notes" class="invalid-feedback"></div>
+            <div id="field-notes" class="invalid-feedback d-block"></div>
         </div>
     </div>
-    
+
     <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save Contact</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i>Save Contact
+        </button>
     </div>
 </form>
 
 <script>
 (function() {
+    'use strict';
     const form = document.getElementById('contactForm');
     if (!form) return;
 
-    // Remove required attributes to avoid browser validation
+    // Remove HTML5 required to use HTMX validation
     form.querySelectorAll('[required]').forEach(el => el.removeAttribute('required'));
 
-    // Prevent default form submission (let HTMX handle)
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-    });
-
-    // Real-time validation on blur for all fields except contact_type
+    // Live validation on blur
     const fields = form.querySelectorAll('input, select, textarea');
     fields.forEach(field => {
-        if (field.name === 'contact_type') return; // skip
+        if (field.name === 'contact_type') return;
 
         field.addEventListener('blur', function() {
             const fieldName = this.name;
@@ -118,14 +196,16 @@
             htmx.ajax('GET', '{% url "accounting:validate_contact_field" %}', {
                 target: '#field-' + fieldName,
                 swap: 'innerHTML',
-                values: { field: fieldName, [fieldName]: value, contact_id: contactId }
+                values: { field: fieldName, [fieldName]: value, contact_id: contactId },
             });
         });
     });
 
-    // After HTMX swap, listen for closeModal event
-    document.addEventListener('closeModal', function() {
-        const modal = bootstrap.Modal.getInstance(document.getElementById('mainModal'));
+    // Close modal on custom event
+    document.body.addEventListener('closeModal', function() {
+        const modalEl = document.getElementById('mainModal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getInstance(modalEl);
         if (modal) modal.hide();
     });
 })();

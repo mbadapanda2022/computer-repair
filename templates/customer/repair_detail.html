@@ -3,10 +3,6 @@
 
 {% block extra_head %}
 <style>
-    /* ============================================================ */
-    /* CUSTOM STYLES FOR REPAIR DETAIL PAGE                         */
-    /* ============================================================ */
-    
     .repair-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 16px;
@@ -15,40 +11,31 @@
         position: relative;
         overflow: hidden;
     }
-    
     .repair-header::before {
         content: '';
         position: absolute;
-        top: -50%;
-        right: -20%;
-        width: 300px;
-        height: 300px;
+        top: -50%; right: -20%;
+        width: 300px; height: 300px;
         background: rgba(255,255,255,0.05);
         border-radius: 50%;
     }
-    
     .repair-header::after {
         content: '';
         position: absolute;
-        bottom: -30%;
-        left: -10%;
-        width: 200px;
-        height: 200px;
+        bottom: -30%; left: -10%;
+        width: 200px; height: 200px;
         background: rgba(255,255,255,0.03);
         border-radius: 50%;
     }
-    
     .repair-header .job-number {
         font-size: 1.5rem;
         font-weight: 700;
         letter-spacing: 1px;
     }
-    
     .repair-header .job-meta {
         opacity: 0.85;
         font-size: 0.9rem;
     }
-    
     .repair-header .status-badge-large {
         padding: 0.5rem 1.5rem;
         border-radius: 50px;
@@ -58,7 +45,6 @@
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255,255,255,0.3);
     }
-    
     .stat-card {
         background: white;
         border-radius: 16px;
@@ -68,22 +54,18 @@
         transition: all 0.3s ease;
         height: 100%;
     }
-    
     .stat-card:hover {
         transform: translateY(-4px);
         box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     }
-    
     .stat-card .stat-icon {
-        width: 48px;
-        height: 48px;
+        width: 48px; height: 48px;
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 1.5rem;
     }
-    
     .stat-card .stat-label {
         font-size: 0.8rem;
         color: #6c757d;
@@ -91,13 +73,11 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
-    
     .stat-card .stat-value {
         font-size: 1.3rem;
         font-weight: 700;
         margin-top: 0.25rem;
     }
-    
     .detail-card {
         border: none;
         border-radius: 16px;
@@ -106,11 +86,9 @@
         overflow: hidden;
         margin-bottom: 1.5rem;
     }
-    
     .detail-card:hover {
         box-shadow: 0 8px 24px rgba(0,0,0,0.10);
     }
-    
     .detail-card .card-header {
         background: white;
         border-bottom: 1px solid rgba(0,0,0,0.06);
@@ -120,43 +98,24 @@
         align-items: center;
         gap: 0.5rem;
     }
-    
-    .detail-card .card-header .header-icon {
-        color: #667eea;
-    }
-    
-    .detail-card .card-body {
-        padding: 1.5rem;
-    }
-    
+    .detail-card .card-header .header-icon { color: #667eea; }
+    .detail-card .card-body { padding: 1.5rem; }
     .info-row {
         display: flex;
         padding: 0.5rem 0;
         border-bottom: 1px solid rgba(0,0,0,0.04);
     }
-    
-    .info-row:last-child {
-        border-bottom: none;
-    }
-    
+    .info-row:last-child { border-bottom: none; }
     .info-row .info-label {
         width: 40%;
         color: #6c757d;
         font-size: 0.9rem;
         font-weight: 500;
     }
-    
     .info-row .info-value {
         width: 60%;
         font-weight: 500;
     }
-    
-    .info-row .info-value .badge {
-        font-size: 0.8rem;
-        padding: 0.35rem 0.8rem;
-    }
-    
-    /* Financial Summary - Premium Cards */
     .amount-card {
         border-radius: 12px;
         padding: 1rem 1.25rem;
@@ -164,16 +123,8 @@
         transition: all 0.3s ease;
         border: 1px solid rgba(0,0,0,0.06);
     }
-    
-    .amount-card:hover {
-        transform: scale(1.02);
-    }
-    
-    .amount-card .amount {
-        font-size: 1.4rem;
-        font-weight: 700;
-    }
-    
+    .amount-card:hover { transform: scale(1.02); }
+    .amount-card .amount { font-size: 1.4rem; font-weight: 700; }
     .amount-card .label {
         font-size: 0.75rem;
         text-transform: uppercase;
@@ -181,36 +132,22 @@
         color: #6c757d;
         font-weight: 600;
     }
-    
     .amount-card.primary {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
     }
-    
-    .amount-card.primary .label {
-        color: rgba(255,255,255,0.8);
-    }
-    
+    .amount-card.primary .label { color: rgba(255,255,255,0.8); }
     .amount-card.success {
         background: #d4edda;
         border-color: #28a745;
     }
-    
-    .amount-card.success .amount {
-        color: #155724;
-    }
-    
+    .amount-card.success .amount { color: #155724; }
     .amount-card.warning {
         background: #fff3cd;
         border-color: #ffc107;
     }
-    
-    .amount-card.warning .amount {
-        color: #856404;
-    }
-    
-    /* Estimate Status Badge */
+    .amount-card.warning .amount { color: #856404; }
     .estimate-badge {
         padding: 0.4rem 1.2rem;
         border-radius: 50px;
@@ -220,28 +157,10 @@
         align-items: center;
         gap: 0.4rem;
     }
-    
-    .estimate-badge.pending {
-        background: #fff3cd;
-        color: #856404;
-    }
-    
-    .estimate-badge.approved {
-        background: #d4edda;
-        color: #155724;
-    }
-    
-    .estimate-badge.rejected {
-        background: #f8d7da;
-        color: #721c24;
-    }
-    
-    .estimate-badge.on-hold {
-        background: #e2e3e5;
-        color: #383d41;
-    }
-    
-    /* Action Buttons */
+    .estimate-badge.pending { background: #fff3cd; color: #856404; }
+    .estimate-badge.approved { background: #d4edda; color: #155724; }
+    .estimate-badge.rejected { background: #f8d7da; color: #721c24; }
+    .estimate-badge.on-hold { background: #e2e3e5; color: #383d41; }
     .action-btn {
         border-radius: 50px;
         padding: 0.5rem 1.5rem;
@@ -251,13 +170,10 @@
         align-items: center;
         gap: 0.5rem;
     }
-    
     .action-btn:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
-    
-    /* Parts Table */
     .parts-table thead th {
         font-weight: 600;
         text-transform: uppercase;
@@ -266,158 +182,42 @@
         color: #6c757d;
         border-bottom: 2px solid #e9ecef;
     }
-    
-    .parts-table tbody tr {
-        transition: all 0.2s ease;
-    }
-    
     .parts-table tbody tr:hover {
         background: rgba(102, 126, 234, 0.04);
     }
-    
-    .parts-table tfoot {
-        border-top: 2px solid #e9ecef;
-    }
-    
-    /* Status Timeline */
-    .status-timeline {
+    .parts-table tfoot { border-top: 2px solid #e9ecef; }
+    .timeline-bar {
         display: flex;
-        align-items: center;
-        gap: 0.5rem;
         flex-wrap: wrap;
-        margin-top: 0.5rem;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        background: rgba(255,255,255,0.15);
+        border-radius: 8px;
+        font-size: 0.85rem;
     }
-    
-    .status-timeline .step {
-        display: flex;
-        align-items: center;
-        gap: 0.3rem;
-        font-size: 0.75rem;
-        color: #6c757d;
-        opacity: 0.5;
-    }
-    
-    .status-timeline .step.active {
-        opacity: 1;
-        font-weight: 600;
-        color: #667eea;
-    }
-    
-    .status-timeline .step.completed {
-        opacity: 1;
-        color: #28a745;
-    }
-    
-    .status-timeline .step-line {
-        width: 30px;
-        height: 2px;
-        background: #dee2e6;
-    }
-    
-    .status-timeline .step-line.completed {
-        background: #28a745;
-    }
-    
-    /* Dark Mode Overrides */
+    .timeline-bar .item { display: inline-flex; align-items: center; gap: 0.3rem; }
     [data-bs-theme="dark"] .repair-header {
         background: linear-gradient(135deg, #2d1b4e 0%, #1a1a2e 100%);
     }
-    
-    [data-bs-theme="dark"] .stat-card {
-        background: #2c3034;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-    }
-    
+    [data-bs-theme="dark"] .stat-card,
     [data-bs-theme="dark"] .detail-card {
         background: #2c3034;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.3);
     }
-    
     [data-bs-theme="dark"] .detail-card .card-header {
         background: #2c3034;
         border-bottom-color: rgba(255,255,255,0.08);
     }
-    
     [data-bs-theme="dark"] .info-row {
         border-bottom-color: rgba(255,255,255,0.06);
     }
-    
-    [data-bs-theme="dark"] .amount-card.success {
-        background: #1e3a2a;
-        border-color: #28a745;
-    }
-    
-    [data-bs-theme="dark"] .amount-card.success .amount {
-        color: #7bdc9e;
-    }
-    
-    [data-bs-theme="dark"] .amount-card.warning {
-        background: #3d3a1a;
-        border-color: #ffc107;
-    }
-    
-    [data-bs-theme="dark"] .amount-card.warning .amount {
-        color: #ffd75e;
-    }
-    
-    [data-bs-theme="dark"] .estimate-badge.pending {
-        background: #3d3a1a;
-        color: #ffd75e;
-    }
-    
-    [data-bs-theme="dark"] .estimate-badge.approved {
-        background: #1e3a2a;
-        color: #7bdc9e;
-    }
-    
-    [data-bs-theme="dark"] .estimate-badge.rejected {
-        background: #3d1a1a;
-        color: #f5a5a5;
-    }
-    
-    [data-bs-theme="dark"] .estimate-badge.on-hold {
-        background: #2c3034;
-        color: #adb5bd;
-    }
-    
-    [data-bs-theme="dark"] .parts-table thead th {
-        color: #adb5bd;
-        border-bottom-color: rgba(255,255,255,0.08);
-    }
-    
-    [data-bs-theme="dark"] .parts-table tbody tr:hover {
-        background: rgba(255,255,255,0.04);
-    }
-    
-    [data-bs-theme="dark"] .parts-table tfoot {
-        border-top-color: rgba(255,255,255,0.08);
-    }
-    
-    /* Responsive */
     @media (max-width: 768px) {
-        .repair-header {
-            padding: 1.25rem;
-        }
-        .repair-header .job-number {
-            font-size: 1.1rem;
-        }
-        .info-row {
-            flex-direction: column;
-            padding: 0.75rem 0;
-        }
+        .repair-header { padding: 1.25rem; }
+        .repair-header .job-number { font-size: 1.1rem; }
+        .info-row { flex-direction: column; padding: 0.75rem 0; }
         .info-row .info-label,
-        .info-row .info-value {
-            width: 100%;
-        }
-        .info-row .info-label {
-            margin-bottom: 0.25rem;
-        }
-        .status-timeline .step-line {
-            width: 15px;
-        }
-        .amount-card .amount {
-            font-size: 1.1rem;
-        }
+        .info-row .info-value { width: 100%; }
+        .info-row .info-label { margin-bottom: 0.25rem; }
+        .amount-card .amount { font-size: 1.1rem; }
     }
 </style>
 {% endblock %}
@@ -425,33 +225,60 @@
 {% block content %}
 <div class="container py-4">
 
-    <!-- ============================================================ -->
-    <!-- HERO HEADER                                                  -->
-    <!-- ============================================================ -->
+    <!-- HERO HEADER -->
     <div class="repair-header mb-4">
         <div class="row align-items-center position-relative" style="z-index: 1;">
             <div class="col-md-7">
-                <div class="d-flex align-items-center gap-3 mb-2">
+                <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                     <span class="status-badge-large">
                         <i class="bi 
-                            {% if repair.status == 'delivered' %}bi-check-circle-fill
-                            {% elif repair.status == 'cancelled' %}bi-x-circle-fill
-                            {% elif repair.status == 'ready' %}bi-check-circle
-                            {% elif repair.status == 'repairing' %}bi-arrow-repeat
+                            {% if repair.status == 'pending' %}bi-hourglass-split
+                            {% elif repair.status == 'received' %}bi-box-arrow-in-down
                             {% elif repair.status == 'diagnosis' %}bi-search
+                            {% elif repair.status == 'repairing' %}bi-arrow-repeat
+                            {% elif repair.status == 'ready' %}bi-check-circle
+                            {% elif repair.status == 'delivered' %}bi-check-circle-fill
+                            {% elif repair.status == 'cancelled' %}bi-x-circle-fill
                             {% else %}bi-clock{% endif %} me-2">
                         </i>
                         {{ repair.get_status_display }}
                     </span>
                     <span class="job-number">{{ repair.job_number }}</span>
                 </div>
-                <h2 class="fw-bold mb-1">{{ repair.device_model }}</h2>
-                <p class="job-meta mb-0">
-                    <i class="bi bi-calendar3 me-1"></i> {{ repair.date_in|date:"d M Y" }}
-                    {% if repair.delivery_date %}
-                    | <i class="bi bi-check-circle me-1"></i> Delivered: {{ repair.delivery_date|date:"d M Y" }}
+                <h2 class="fw-bold mb-2">{{ repair.device_model }}</h2>
+
+                <!-- TIMELINE BAR -->
+                <div class="timeline-bar">
+                    {% if repair.submitted_at %}
+                    <span class="item">
+                        <i class="bi bi-cloud-upload"></i>
+                        Submitted: {{ repair.submitted_at|date:"d M Y" }}
+                    </span>
                     {% endif %}
-                </p>
+                    {% if repair.received_at %}
+                    <span class="item">
+                        <i class="bi bi-box-arrow-in-down"></i>
+                        Received: {{ repair.received_at|date:"d M Y" }}
+                    </span>
+                    {% else %}
+                    <span class="item">
+                        <i class="bi bi-hourglass-split"></i>
+                        Awaiting device at shop
+                    </span>
+                    {% endif %}
+                    {% if repair.ready_at %}
+                    <span class="item">
+                        <i class="bi bi-check2-circle"></i>
+                        Ready: {{ repair.ready_at|date:"d M Y" }}
+                    </span>
+                    {% endif %}
+                    {% if repair.delivery_date %}
+                    <span class="item">
+                        <i class="bi bi-truck"></i>
+                        Delivered: {{ repair.delivery_date|date:"d M Y" }}
+                    </span>
+                    {% endif %}
+                </div>
             </div>
             <div class="col-md-5 text-md-end mt-3 mt-md-0">
                 <div class="d-flex flex-wrap gap-2 justify-content-md-end">
@@ -471,9 +298,7 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- STATS CARDS (Quick Overview)                                 -->
-    <!-- ============================================================ -->
+    <!-- STATS CARDS -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
             <div class="stat-card">
@@ -529,12 +354,10 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- MAIN CONTENT (Two Columns)                                   -->
-    <!-- ============================================================ -->
+    <!-- MAIN CONTENT -->
     <div class="row g-4">
 
-        <!-- ===================== LEFT COLUMN ===================== -->
+        <!-- LEFT COLUMN -->
         <div class="col-lg-7">
 
             <!-- Job Details Card -->
@@ -558,20 +381,39 @@
                         </span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label"><i class="bi bi-calendar3 me-2"></i>Date In</span>
-                        <span class="info-value">{{ repair.date_in|date:"d M Y" }}</span>
+                        <span class="info-label"><i class="bi bi-cloud-upload me-2"></i>Submitted</span>
+                        <span class="info-value">
+                            {% if repair.submitted_at %}
+                                {{ repair.submitted_at|date:"d M Y, h:i A" }}
+                            {% else %}
+                                {{ repair.date_in|date:"d M Y" }}
+                            {% endif %}
+                        </span>
                     </div>
+                    {% if repair.received_at %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-box-arrow-in-down me-2"></i>Received at Shop</span>
+                        <span class="info-value">{{ repair.received_at|date:"d M Y" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if repair.received_remarks %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-clipboard-check me-2"></i>Reception Remarks</span>
+                        <span class="info-value">{{ repair.received_remarks }}</span>
+                    </div>
+                    {% endif %}
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-arrow-repeat me-2"></i>Status</span>
                         <span class="info-value">
                             <span class="badge 
-                                {% if repair.status == 'pending' %}bg-secondary
+                                {% if repair.status == 'pending' %}bg-warning text-dark
+                                {% elif repair.status == 'received' %}bg-secondary
                                 {% elif repair.status == 'diagnosis' %}bg-info text-dark
                                 {% elif repair.status == 'repairing' %}bg-warning text-dark
                                 {% elif repair.status == 'ready' %}bg-primary
                                 {% elif repair.status == 'delivered' %}bg-success
                                 {% elif repair.status == 'cancelled' %}bg-danger
-                                {% endif %}">
+                                {% else %}bg-secondary{% endif %}">
                                 {{ repair.get_status_display }}
                             </span>
                         </span>
@@ -588,12 +430,6 @@
                         <span class="info-label"><i class="bi bi-tools me-2"></i>Action Taken</span>
                         <span class="info-value">{{ repair.action_taken|default:"—" }}</span>
                     </div>
-                    {% if repair.notes %}
-                    <div class="info-row">
-                        <span class="info-label"><i class="bi bi-sticky-fill me-2"></i>Notes</span>
-                        <span class="info-value">{{ repair.notes }}</span>
-                    </div>
-                    {% endif %}
                     {% if repair.invoice %}
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-receipt me-2"></i>Invoice</span>
@@ -608,7 +444,7 @@
                 </div>
             </div>
 
-            <!-- Delivery Details Card (Conditional) -->
+            <!-- Delivery Details Card -->
             {% if repair.delivered_to_name or repair.delivery_date or repair.delivered_by %}
             <div class="detail-card">
                 <div class="card-header">
@@ -653,7 +489,7 @@
             {% endif %}
         </div>
 
-        <!-- ===================== RIGHT COLUMN ===================== -->
+        <!-- RIGHT COLUMN -->
         <div class="col-lg-5">
 
             <!-- Financial Summary Card -->
@@ -663,7 +499,6 @@
                     Financial Summary
                 </div>
                 <div class="card-body">
-                    <!-- Amount Cards -->
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <div class="amount-card warning">
@@ -679,15 +514,11 @@
                         </div>
                     </div>
 
-                    <!-- Final Amount -->
                     <div class="amount-card primary mb-3">
                         <div class="label">Final Amount</div>
                         <div class="amount" style="font-size: 1.8rem;">₹{{ repair.final_amount|floatformat:2 }}</div>
                     </div>
 
-                    <!-- ============================================================ -->
-                    <!-- ESTIMATE STATUS (Show only if estimated_cost > 0)             -->
-                    <!-- ============================================================ -->
                     {% if repair.estimated_cost and repair.estimated_cost > 0 %}
                         <hr>
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -709,80 +540,62 @@
                             </span>
                         </div>
 
-                            <!-- ============================================================ -->
-                            <!-- APPROVAL DETAILS (Only if approved)                          -->
-                            <!-- ============================================================ -->
-                            {% if repair.estimate_status == 'approved' %}
-                                <div class="mt-2 p-3 bg-light rounded-3" style="border-left: 4px solid #28a745;">
-                                    <div class="row g-2">
-                                        <div class="col-12">
-                                            <small class="text-muted d-block">Approved At</small>
-                                            <span class="fw-semibold">{{ repair.estimate_approved_at|date:"d M Y, h:i A"|default:"—" }}</span>
-                                        </div>
-                                        <div class="col-12">
-                                            <small class="text-muted d-block">Approved By</small>
-                                            <span class="fw-semibold">
-                                                {% if repair.estimate_approved_by %}
-                                                    {{ repair.estimate_approved_by.get_full_name|default:repair.estimate_approved_by.username }}
-                                                {% else %}
-                                                    <span class="text-muted">—</span>
-                                                {% endif %}
-                                            </span>
-                                        </div>
-                                        {% if repair.approval_source %}
-                                        <div class="col-12">
-                                            <small class="text-muted d-block">Approval Method</small>
-                                            <span class="fw-semibold">{{ repair.get_approval_source_display }}</span>
-                                            {% if repair.approval_source == 'portal' %}
-                                                <span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> Customer Portal</span>
-                                            {% elif repair.approval_source == 'staff_phone' %}
-                                                <span class="badge bg-info ms-2"><i class="bi bi-telephone"></i> Staff (Phone)</span>
-                                            {% elif repair.approval_source == 'staff_whatsapp' %}
-                                                <span class="badge bg-success ms-2"><i class="bi bi-whatsapp"></i> Staff (WhatsApp)</span>
-                                            {% elif repair.approval_source == 'staff_inperson' %}
-                                                <span class="badge bg-warning ms-2"><i class="bi bi-person"></i> Staff (In-Person)</span>
-                                            {% endif %}
-                                        </div>
-                                        {% endif %}
-                                        {% if repair.approval_remarks %}
-                                        <div class="col-12">
-                                            <small class="text-muted d-block">Remarks</small>
-                                            <span class="fw-semibold">{{ repair.approval_remarks }}</span>
-                                        </div>
-                                        {% endif %}
+                        {% if repair.estimate_status == 'approved' %}
+                            <div class="mt-2 p-3 bg-light rounded-3" style="border-left: 4px solid #28a745;">
+                                <div class="row g-2">
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Approved At</small>
+                                        <span class="fw-semibold">{{ repair.estimate_approved_at|date:"d M Y, h:i A"|default:"—" }}</span>
                                     </div>
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Approved By</small>
+                                        <span class="fw-semibold">
+                                            {% if repair.estimate_approved_by %}
+                                                {{ repair.estimate_approved_by.get_full_name|default:repair.estimate_approved_by.username }}
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% if repair.approval_source %}
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Approval Method</small>
+                                        <span class="fw-semibold">{{ repair.get_approval_source_display }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if repair.approval_remarks %}
+                                    <div class="col-12">
+                                        <small class="text-muted d-block">Remarks</small>
+                                        <span class="fw-semibold">{{ repair.approval_remarks }}</span>
+                                    </div>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
-
-                            <!-- ============================================================ -->
-                            <!-- APPROVE/HOLD/REJECT BUTTONS (Only if pending)                -->
-                            <!-- ============================================================ -->
-                            {% if repair.estimate_status == 'pending' %}
-                                <div class="d-flex gap-2 flex-wrap mt-2">
-                                    <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}" class="flex-grow-1">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-success w-100 action-btn">
-                                            <i class="bi bi-check-circle"></i> Approve
-                                        </button>
-                                    </form>
-                                    <form method="post" action="{% url 'customer:customer_estimate_hold' repair.pk %}" class="flex-grow-1">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-warning w-100 action-btn" style="color: #212529;">
-                                            <i class="bi bi-pause-circle"></i> Hold
-                                        </button>
-                                    </form>
-                                    <form method="post" action="{% url 'customer:customer_estimate_reject' repair.pk %}" class="flex-grow-1">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-danger w-100 action-btn">
-                                            <i class="bi bi-x-circle"></i> Reject
-                                        </button>
-                                    </form>
-                                </div>
-                            {% endif %}
+                            </div>
                         {% endif %}
-                    <!-- ============================================================ -->
-                    <!-- END ESTIMATE STATUS                                          -->
-                    <!-- ============================================================ -->
+
+                        {% if repair.estimate_status == 'pending' %}
+                            <div class="d-flex gap-2 flex-wrap mt-2">
+                                <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}" class="flex-grow-1">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success w-100 action-btn">
+                                        <i class="bi bi-check-circle"></i> Approve
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'customer:customer_estimate_hold' repair.pk %}" class="flex-grow-1">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-warning w-100 action-btn" style="color: #212529;">
+                                        <i class="bi bi-pause-circle"></i> Hold
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'customer:customer_estimate_reject' repair.pk %}" class="flex-grow-1">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger w-100 action-btn">
+                                        <i class="bi bi-x-circle"></i> Reject
+                                    </button>
+                                </form>
+                            </div>
+                        {% endif %}
+                    {% endif %}
                 </div>
             </div>
 
@@ -811,9 +624,7 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PARTS SECTION (Bottom Full Width)                            -->
-    <!-- ============================================================ -->
+    <!-- PARTS SECTION -->
     <div class="detail-card mt-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>

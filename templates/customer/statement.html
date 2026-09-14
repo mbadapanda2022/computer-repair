@@ -4,131 +4,353 @@
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
+
+    <!-- ============================================================
+         HEADER
+         ============================================================ -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>
             <h3 class="fw-semibold mb-0">
                 <i class="bi bi-file-text text-primary me-2"></i>My Statement
             </h3>
-            <p class="text-muted small mt-1">{{ customer.name }} ({{ customer.phone|default:"No phone" }})</p>
+            <p class="text-muted small mt-1 mb-0">
+                {{ customer.name }}
+                {% if customer.phone %} · {{ customer.phone }}{% endif %}
+                {% if customer.gstin %} · GSTIN: {{ customer.gstin }}{% endif %}
+                · <span class="badge
+                    {% if customer.contact_type == 'both' %}bg-info text-dark
+                    {% elif customer.contact_type == 'vendor' %}bg-warning text-dark
+                    {% else %}bg-primary{% endif %}">
+                    {{ customer.get_contact_type_display }}
+                  </span>
+            </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="{% url 'customer:customer_statement' %}?{{ request.GET.urlencode }}&excel=1" class="btn btn-success">
-                <i class="bi bi-file-earmark-excel"></i> Excel
-            </a>
-            <a href="{% url 'customer:customer_statement' %}?{{ request.GET.urlencode }}&print=1" class="btn btn-secondary" target="_blank">
-                <i class="bi bi-printer"></i> Print
-            </a>
+            <button type="button" class="btn btn-success"
+                    onclick="downloadWithFilters('excel')"
+                    title="Download Excel with current filters">
+                <i class="bi bi-file-earmark-excel me-1"></i>Excel
+            </button>
+            <button type="button" class="btn btn-secondary"
+                    onclick="downloadWithFilters('print')"
+                    title="Print with current filters">
+                <i class="bi bi-printer me-1"></i>Print
+            </button>
         </div>
     </div>
 
-    <!-- Summary Cards -->
+    <!-- Active Filters Indicator -->
+    <div id="active-filters" class="alert alert-info py-2 mb-3 d-none">
+        <small>
+            <i class="bi bi-funnel-fill"></i> <strong>Active Filters:</strong>
+            <span id="active-filters-text"></span>
+        </small>
+    </div>
+
+    <!-- ============================================================
+         SUMMARY CARDS
+         ============================================================ -->
+    {% if show_dual %}
+    <!-- === CASE 1: BOTH TYPE — Dual (Receivable + Payable + Net) === -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <small class="text-muted text-uppercase fw-semibold">Receivable</small>
+                            <h3 class="mb-0 text-success fw-bold">₹{{ closing_recv|floatformat:2 }}</h3>
+                            <small class="text-muted">You owe us</small>
+                        </div>
+                        <i class="bi bi-arrow-down-circle text-success fs-2 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm border-start border-4 border-warning h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <small class="text-muted text-uppercase fw-semibold">Payable</small>
+                            <h3 class="mb-0 text-warning fw-bold">₹{{ closing_pay|floatformat:2 }}</h3>
+                            <small class="text-muted">We owe you</small>
+                        </div>
+                        <i class="bi bi-arrow-up-circle text-warning fs-2 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm border-start border-4 {% if net_position >= 0 %}border-primary{% else %}border-danger{% endif %} h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <small class="text-muted text-uppercase fw-semibold">Net Position</small>
+                            <h3 class="mb-0 {% if net_position >= 0 %}text-primary{% else %}text-danger{% endif %} fw-bold">
+                                ₹{{ net_position|floatformat:2 }}
+                            </h3>
+                            <small class="text-muted">
+                                {% if net_position > 0 %}You owe us
+                                {% elif net_position < 0 %}We owe you
+                                {% else %}Settled{% endif %}
+                            </small>
+                        </div>
+                        <i class="bi bi-balance-scale fs-2 opacity-50 {% if net_position >= 0 %}text-primary{% else %}text-danger{% endif %}"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% elif show_payable_only %}
+    <!-- === CASE 2: VENDOR TYPE — Payable only === -->
     <div class="row g-3 mb-4">
         <div class="col-md-4 col-sm-6">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
                 <div class="card-body d-flex align-items-center">
                     <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-currency-rupee fs-4 text-primary"></i>
+                        <i class="bi bi-wallet2 fs-4 text-primary"></i>
                     </div>
                     <div>
-                        <small class="text-muted d-block">Opening Balance</small>
-                        <h5 class="mb-0 fw-bold">₹{{ opening_balance|floatformat:2 }}</h5>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Opening</small>
+                        <h5 class="mb-0 fw-bold">₹{{ opening_pay|floatformat:2 }}</h5>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-md-4 col-sm-6">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
                 <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-arrow-down-circle fs-4 text-success"></i>
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-arrow-up-circle fs-4 text-warning"></i>
                     </div>
                     <div>
-                        <small class="text-muted d-block">Total Debit</small>
-                        <h5 class="mb-0 fw-bold">₹{{ total_debit|floatformat:2 }}</h5>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Credit</small>
+                        <h5 class="mb-0 fw-bold text-warning">₹{{ total_pay_cr|floatformat:2 }}</h5>
                     </div>
                 </div>
             </div>
         </div>
         <div class="col-md-4 col-sm-6">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
                 <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-cash-stack fs-4 text-info"></i>
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-cash-stack fs-4 text-danger"></i>
                     </div>
                     <div>
-                        <small class="text-muted d-block">Closing Balance</small>
-                        <h5 class="mb-0 fw-bold">₹{{ closing_balance|floatformat:2 }}</h5>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Closing Payable</small>
+                        <h5 class="mb-0 fw-bold text-danger">₹{{ closing_pay|floatformat:2 }}</h5>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Filters -->
+    {% else %}
+    <!-- === CASE 3: CUSTOMER TYPE — Receivable only === -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-wallet2 fs-4 text-primary"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Opening</small>
+                        <h5 class="mb-0 fw-bold">₹{{ opening_recv|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-arrow-down-circle fs-4 text-danger"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Debit</small>
+                        <h5 class="mb-0 fw-bold text-danger">₹{{ total_recv_dr|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-cash-stack fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Closing Balance</small>
+                        <h5 class="mb-0 fw-bold text-success">₹{{ closing_recv|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================
+         FILTERS
+         ============================================================ -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form id="statement-filter-form" class="row g-3">
                 <div class="col-md-3">
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Search..." 
+                        <input type="text" class="form-control" placeholder="Invoice, device, reference..."
                                name="search" value="{{ search }}"
-                               hx-get="{% url 'customer:customer_statement' %}" 
-                               hx-trigger="keyup changed delay:300ms" 
+                               hx-get="{% url 'customer:customer_statement' %}"
+                               hx-trigger="keyup changed delay:300ms"
                                hx-target="#statement-table-container"
                                hx-include="#statement-filter-form"
-                               hx-push-url="true">
+                               hx-push-url="true"
+                               onkeyup="updateActiveFilters()">
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" name="txn_type" 
-                            hx-get="{% url 'customer:customer_statement' %}" 
-                            hx-trigger="change" 
+                    <select class="form-select" name="txn_type"
+                            hx-get="{% url 'customer:customer_statement' %}"
+                            hx-trigger="change"
                             hx-target="#statement-table-container"
                             hx-include="#statement-filter-form"
-                            hx-push-url="true">
+                            hx-push-url="true"
+                            onchange="updateActiveFilters()">
                         <option value="">All Types</option>
                         <option value="invoice" {% if txn_type == 'invoice' %}selected{% endif %}>Invoices</option>
+                        <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>Purchases</option>
                         <option value="payment" {% if txn_type == 'payment' %}selected{% endif %}>Payments</option>
-                        <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>Journal</option>
+                        <option value="discount" {% if txn_type == 'discount' %}selected{% endif %}>Discounts</option>
+                        <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>Journals</option>
                     </select>
                 </div>
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
-                           hx-get="{% url 'customer:customer_statement' %}" 
-                           hx-trigger="change" 
+                           title="From Date"
+                           hx-get="{% url 'customer:customer_statement' %}"
+                           hx-trigger="change"
                            hx-target="#statement-table-container"
                            hx-include="#statement-filter-form"
-                           hx-push-url="true">
+                           hx-push-url="true"
+                           onchange="updateActiveFilters()">
                 </div>
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
-                           hx-get="{% url 'customer:customer_statement' %}" 
-                           hx-trigger="change" 
+                           title="To Date"
+                           hx-get="{% url 'customer:customer_statement' %}"
+                           hx-trigger="change"
                            hx-target="#statement-table-container"
                            hx-include="#statement-filter-form"
-                           hx-push-url="true">
+                           hx-push-url="true"
+                           onchange="updateActiveFilters()">
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-secondary w-100" 
-                            hx-get="{% url 'customer:customer_statement' %}" 
-                            hx-target="#statement-table-container"
-                            hx-include="#statement-filter-form"
-                            hx-vals='{"reset": "true"}'
-                            hx-push-url="true">
-                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    <button type="button" class="btn btn-secondary w-100"
+                            onclick="resetFilters()"
+                            title="Reset filters">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
                     </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Statement Table -->
+    <!-- ============================================================
+         TABLE CONTAINER
+         ============================================================ -->
     <div id="statement-table-container">
         {% include "customer/partials/statement_table.html" %}
     </div>
 </div>
+
+<script>
+// ============================================================
+// Build current filter params from form
+// ============================================================
+function getCurrentFilterParams() {
+    const form = document.getElementById('statement-filter-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+
+    for (const [key, value] of formData.entries()) {
+        if (value && value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    return params;
+}
+
+// ============================================================
+// Download / Print with current filters
+// ============================================================
+function downloadWithFilters(type) {
+    const params = getCurrentFilterParams();
+    const queryString = params.toString();
+
+    let url = '';
+    let target = '_blank';
+
+    if (type === 'print') {
+        url = "{% url 'customer:customer_statement' %}?print=1";
+        if (queryString) url += '&' + queryString;
+    } else if (type === 'excel') {
+        url = "{% url 'customer:customer_statement' %}?excel=1";
+        if (queryString) url += '&' + queryString;
+        target = '_self';
+    }
+
+    window.open(url, target);
+}
+
+// ============================================================
+// Reset filters
+// ============================================================
+function resetFilters() {
+    const form = document.getElementById('statement-filter-form');
+    form.reset();
+
+    form.querySelector('[name="search"]').value = '';
+    form.querySelector('[name="txn_type"]').value = '';
+    form.querySelector('[name="date_from"]').value = '';
+    form.querySelector('[name="date_to"]').value = '';
+
+    htmx.ajax('GET', "{% url 'customer:customer_statement' %}", {
+        target: '#statement-table-container',
+        swap: 'innerHTML'
+    });
+
+    window.history.pushState({}, '', "{% url 'customer:customer_statement' %}");
+    updateActiveFilters();
+}
+
+// ============================================================
+// Active filters indicator
+// ============================================================
+function updateActiveFilters() {
+    const params = getCurrentFilterParams();
+    const container = document.getElementById('active-filters');
+    const textEl = document.getElementById('active-filters-text');
+
+    if (params.toString() === '') {
+        container.classList.add('d-none');
+        return;
+    }
+
+    const parts = [];
+    if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
+    if (params.get('txn_type')) parts.push('Type: ' + params.get('txn_type'));
+    if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
+    if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
+
+    textEl.textContent = parts.join(' • ') + ' — Excel/Print will use these filters';
+    container.classList.remove('d-none');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateActiveFilters();
+});
+</script>
 {% endblock %}
-
-
-

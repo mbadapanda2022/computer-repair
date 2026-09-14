@@ -1,0 +1,175 @@
+<!-- templates/payments/partials/unpaid_invoices.html -->
+{% load static %}
+
+{% if unpaid_invoices %}
+    <div class="table-responsive border rounded">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 110px;">Invoice #</th>
+                    <th style="width: 90px;">Date</th>
+                    <th class="text-end" style="width: 100px;">Total</th>
+                    <th class="text-end" style="width: 100px;">Due</th>
+                    <th class="text-end" style="width: 150px;">Allocate (₹)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in unpaid_invoices %}
+                <tr>
+                    <td>
+                        <a href="{% url 'accounting:invoice_detail' inv.pk %}"
+                           target="_blank"
+                           class="fw-bold text-decoration-none">
+                            {{ inv.invoice_number }}
+                        </a>
+                    </td>
+                    <td class="text-nowrap small">{{ inv.date|date:"d M Y" }}</td>
+                    <td class="text-end">₹{{ inv.grand_total|floatformat:2 }}</td>
+                    <td class="text-end text-danger fw-bold">₹{{ inv.balance_due|floatformat:2 }}</td>
+                    <td class="text-end">
+                        <input type="number"
+                               class="form-control form-control-sm text-end allocation-input"
+                               name="allocation_amount_{{ inv.pk }}"
+                               data-invoice-id="{{ inv.pk }}"
+                               data-balance="{{ inv.balance_due }}"
+                               step="0.01"
+                               min="0"
+                               max="{{ inv.balance_due }}"
+                               placeholder="0.00"
+                               {% if payment %}
+                                   {% for alloc in payment.allocations.all %}
+                                       {% if alloc.invoice_id == inv.pk %}value="{{ alloc.amount }}"{% endif %}
+                                   {% endfor %}
+                               {% endif %}>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+                <tr>
+                    <td colspan="4" class="text-end fw-bold small">Total Allocated:</td>
+                    <td class="text-end fw-bold">
+                        ₹<span id="total-allocated">0.00</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="4" class="text-end small text-muted">Remaining Unallocated:</td>
+                    <td class="text-end small">
+                        <span id="remaining-unallocated" class="text-muted">0.00</span>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+        <small class="text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            Leave blank or 0 for invoices you don't want to allocate to.
+        </small>
+        <div class="btn-group btn-group-sm">
+            <button type="button" class="btn btn-outline-primary" id="btn-auto-allocate">
+                <i class="bi bi-magic me-1"></i>Auto-Allocate
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btn-clear-allocations">
+                <i class="bi bi-x-circle me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const allocatedSpan = document.getElementById('total-allocated');
+        const remainingSpan = document.getElementById('remaining-unallocated');
+        const amountInput = document.getElementById('id_amount');
+        const discountInput = document.getElementById('id_discount_amount');
+        const inputs = document.querySelectorAll('.allocation-input');
+
+        function recalc() {
+            let total = 0;
+
+            inputs.forEach(el => {
+                let v = parseFloat(el.value) || 0;
+                const bal = parseFloat(el.dataset.balance) || 0;
+
+                // Cap at balance
+                if (v > bal) {
+                    v = bal;
+                    el.value = bal.toFixed(2);
+                }
+                if (v < 0) {
+                    v = 0;
+                    el.value = '';
+                }
+                total += v;
+            });
+
+            if (allocatedSpan) allocatedSpan.textContent = total.toFixed(2);
+
+            if (remainingSpan && amountInput) {
+                const amount = parseFloat(amountInput.value) || 0;
+                const discount = parseFloat(discountInput?.value) || 0;
+                const net = Math.max(0, amount - discount);
+                const remaining = net - total;
+
+                remainingSpan.classList.remove('text-muted', 'text-success', 'text-danger', 'fw-bold');
+
+                if (remaining < -0.01) {
+                    remainingSpan.classList.add('text-danger', 'fw-bold');
+                    remainingSpan.textContent = '₹' + Math.abs(remaining).toFixed(2) + ' over';
+                } else if (Math.abs(remaining) < 0.01) {
+                    remainingSpan.classList.add('text-success', 'fw-bold');
+                    remainingSpan.textContent = '₹0.00 (exact)';
+                } else {
+                    remainingSpan.classList.add('text-muted');
+                    remainingSpan.textContent = '₹' + remaining.toFixed(2);
+                }
+            }
+        }
+
+        inputs.forEach(el => el.addEventListener('input', recalc));
+
+        // Auto-allocate: distribute net amount oldest-first
+        const autoBtn = document.getElementById('btn-auto-allocate');
+        if (autoBtn) {
+            autoBtn.addEventListener('click', function() {
+                const amount = parseFloat(amountInput?.value) || 0;
+                const discount = parseFloat(discountInput?.value) || 0;
+                let remaining = Math.max(0, amount - discount);
+
+                inputs.forEach(el => {
+                    const bal = parseFloat(el.dataset.balance) || 0;
+                    if (remaining <= 0) {
+                        el.value = '';
+                        return;
+                    }
+                    const allocate = Math.min(remaining, bal);
+                    el.value = allocate.toFixed(2);
+                    remaining -= allocate;
+                });
+
+                recalc();
+            });
+        }
+
+        // Clear all
+        const clearBtn = document.getElementById('btn-clear-allocations');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function() {
+                inputs.forEach(el => { el.value = ''; });
+                recalc();
+            });
+        }
+
+        amountInput?.addEventListener('input', recalc);
+        discountInput?.addEventListener('input', recalc);
+
+        recalc();
+    })();
+    </script>
+{% else %}
+    <div class="alert alert-light border text-center py-4 mb-0">
+        <i class="bi bi-check-circle text-success me-2 fs-5"></i>
+        <strong>{{ contact.name|default:"This customer" }}</strong> has no unpaid invoices.
+    </div>
+{% endif %}

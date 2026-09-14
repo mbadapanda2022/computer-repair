@@ -1,25 +1,62 @@
-<form method="post" 
-    hx-post="{% url 'accounting:bank_transaction_add' account.pk %}" 
-    hx-target="#mainModalContent"
-    hx-swap="innerHTML">
+<form method="post"
+      hx-post="{% if txn %}{% url 'accounting:bank_transaction_edit' txn.pk %}{% else %}{% url 'accounting:bank_transaction_add' account.pk %}{% endif %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML">
     {% csrf_token %}
+
     <div class="modal-header">
-        <h5 class="modal-title">Add Transaction - {{ account.name }}</h5>
+        <h5 class="modal-title">
+            <i class="bi bi-{% if txn %}pencil{% else %}plus-circle{% endif %} me-2"></i>
+            {% if txn %}Edit{% else %}Add{% endif %} Transaction — {{ account.name }}
+        </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
     </div>
+
     <div class="modal-body">
-        {% for field in form %}
-        <div class="mb-3">
-            {{ field.label_tag }}
-            {{ field }}
-            <div class="invalid-feedback d-block">
-                {% for error in field.errors %}{{ error }}{% endfor %}
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+                {% for err in form.non_field_errors %}<div>{{ err }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Transaction Type *</label>
+                {{ form.transaction_type }}
+                {% if form.transaction_type.errors %}<div class="invalid-feedback d-block">{{ form.transaction_type.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Amount (₹) *</label>
+                {{ form.amount }}
+                {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Date *</label>
+                {{ form.date }}
+                {% if form.date.errors %}<div class="invalid-feedback d-block">{{ form.date.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Source Type</label>
+                {{ form.source_type }}
+                {% if form.source_type.errors %}<div class="invalid-feedback d-block">{{ form.source_type.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="col-md-12">
+                <label class="form-label fw-semibold">Description</label>
+                {{ form.description }}
+                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors|join:", " }}</div>{% endif %}
+            </div>
+            <div class="col-md-12">
+                <label class="form-label fw-semibold">Reference</label>
+                {{ form.reference }}
+                {% if form.reference.errors %}<div class="invalid-feedback d-block">{{ form.reference.errors|join:", " }}</div>{% endif %}
             </div>
         </div>
-        {% endfor %}
     </div>
+
     <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i>{% if txn %}Update{% else %}Save{% endif %}
+        </button>
     </div>
 </form>

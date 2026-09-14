@@ -60,7 +60,7 @@
             </div>
             <div class="col-md-2">
                 <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
-                       placeholder="From"
+                       title="From Date"
                        hx-get="{% url 'customer:customer_repairs' %}"
                        hx-trigger="change"
                        hx-target="#repair-list-container"
@@ -69,22 +69,18 @@
             </div>
             <div class="col-md-2">
                 <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
-                       placeholder="To"
+                       title="To Date"
                        hx-get="{% url 'customer:customer_repairs' %}"
                        hx-trigger="change"
                        hx-target="#repair-list-container"
                        hx-include="#repair-filter-form"
                        hx-push-url="true">
             </div>
-            <div class="col-md-1">
+            <div class="col-md-2">
                 <button type="button" class="btn btn-secondary w-100"
-                        hx-get="{% url 'customer:customer_repairs' %}"
-                        hx-target="#repair-list-container"
-                        hx-include="#repair-filter-form"
-                        hx-vals='{"reset": "true"}'
-                        hx-push-url="true"
+                        onclick="resetRepairFilters()"
                         title="Reset filters">
-                    <i class="bi bi-arrow-counterclockwise"></i>
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
                 </button>
             </div>
         </form>
@@ -95,4 +91,45 @@
 <div id="repair-list-container">
     {% include "customer/partials/repair_list_table.html" %}
 </div>
+
+<script>
+// ============================================================
+// Reload repairs list preserving current filters
+// Triggered by delete/create via HX-Trigger
+// ============================================================
+document.body.addEventListener('reloadCustomerRepairs', function() {
+    const form = document.getElementById('repair-filter-form');
+    const params = new URLSearchParams();
+    if (form) {
+        const fd = new FormData(form);
+        for (const [k, v] of fd.entries()) {
+            if (v && v.trim() !== '') params.append(k, v);
+        }
+    }
+    const qs = params.toString();
+    htmx.ajax('GET', "{% url 'customer:customer_repairs' %}" + (qs ? '?' + qs : ''), {
+        target: '#repair-list-container',
+        swap: 'innerHTML',
+    });
+});
+
+// ============================================================
+// Reset filters
+// ============================================================
+function resetRepairFilters() {
+    const form = document.getElementById('repair-filter-form');
+    if (!form) return;
+    form.reset();
+    form.querySelector('[name="search"]').value = '';
+    form.querySelector('[name="status"]').value = '';
+    form.querySelector('[name="date_from"]').value = '';
+    form.querySelector('[name="date_to"]').value = '';
+
+    htmx.ajax('GET', "{% url 'customer:customer_repairs' %}", {
+        target: '#repair-list-container',
+        swap: 'innerHTML',
+    });
+    window.history.pushState({}, '', "{% url 'customer:customer_repairs' %}");
+}
+</script>
 {% endblock %}

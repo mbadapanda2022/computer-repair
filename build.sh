@@ -2,20 +2,25 @@
 
 set -o errexit
 
-echo "Upgrading pip..."
+echo "=========================================="
+echo "  Build Started: $(date)"
+echo "=========================================="
 
+echo "→ Upgrading pip..."
 pip install --upgrade pip
 
-echo "Installing dependencies..."
-
+echo "→ Installing dependencies..."
 pip install -r requirements.txt
 
-echo "Collecting Static Files..."
-
+echo "→ Collecting static files..."
 python manage.py collectstatic --no-input --clear
 
-echo "Running Migrations..."
+echo "→ Making migrations (if any pending)..."
+python manage.py makemigrations --no-input
 
-python manage.py migrate --verbosity 2
+echo "→ Running migrations on production DB..."
+python manage.py migrate --no-input --verbosity 2
 
-echo "Build completed!"
+echo "=========================================="
+echo "  Build Completed: $(date)"
+echo "=========================================="

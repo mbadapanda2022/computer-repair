@@ -1,0 +1,147 @@
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width:110px;">Date</th>
+                        <th>Description</th>
+                        <th style="width:150px;">Reference</th>
+                        <th class="text-end" style="width:130px;">Deposit (₹)</th>
+                        <th class="text-end" style="width:130px;">Withdrawal (₹)</th>
+                        <th class="text-end" style="width:130px;">Balance (₹)</th>
+                        <th class="text-center" style="width:100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Opening Balance Row -->
+                    <tr class="table-light fw-semibold">
+                        <td>—</td>
+                        <td>
+                            <strong>Opening Balance</strong>
+                            {% if date_from %}<br><small class="text-muted">carried forward</small>{% endif %}
+                        </td>
+                        <td></td>
+                        <td class="text-end"></td>
+                        <td class="text-end"></td>
+                        <td class="text-end">₹{{ opening_balance|floatformat:2 }}</td>
+                        <td></td>
+                    </tr>
+
+                    {% for line in statement_lines %}
+                    <tr>
+                        <td>{{ line.date|date:"d M Y" }}</td>
+                        <td>
+                            {{ line.description }}
+                            {% if line.reconciled %}
+                                <span class="badge bg-success-subtle text-success border border-success ms-1">Reconciled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if line.reference and line.reference != '-' %}
+                                <small class="text-muted">{{ line.reference }}</small>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-end text-success fw-semibold">
+                            {% if line.deposit > 0 %}₹{{ line.deposit|floatformat:2 }}{% else %}—{% endif %}
+                        </td>
+                        <td class="text-end text-danger fw-semibold">
+                            {% if line.withdrawal > 0 %}₹{{ line.withdrawal|floatformat:2 }}{% else %}—{% endif %}
+                        </td>
+                        <td class="text-end fw-bold">₹{{ line.balance|floatformat:2 }}</td>
+                        <td class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button" data-bs-toggle="dropdown">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:bank_transaction_edit' line.id %}"
+                                                hx-target="#mainModalContent">
+                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button class="dropdown-item text-danger"
+                                                hx-delete="{% url 'accounting:bank_transaction_delete' line.id %}"
+                                                hx-confirm="Delete this transaction?">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox display-5 d-block mb-2 opacity-50"></i>
+                            No transactions found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-secondary fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-end">Period Totals →</td>
+                        <td class="text-end text-success">₹{{ total_deposit|floatformat:2 }}</td>
+                        <td class="text-end text-danger">₹{{ total_withdrawal|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    {% if page_obj and page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0">
+        <nav aria-label="Bank statement pagination">
+            <ul class="pagination justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page=1{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#bank-statement-table">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#bank-statement-table">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#bank-statement-table">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#bank-statement-table">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        <p class="text-center text-muted small mb-0 mt-2">
+            Showing {{ page_obj.object_list|length }} of {{ page_obj.paginator.count }} entries
+        </p>
+    </div>
+    {% endif %}
+</div>

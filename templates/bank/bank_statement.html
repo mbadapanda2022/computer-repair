@@ -1,36 +1,61 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
     <div>
-        <h3>{{ account.name }}</h3>
-        <p class="text-muted">{{ account.bank_name }} - {{ account.account_number|default:"UPI/Wallet" }}</p>
+        <h3 class="fw-semibold mb-0">
+            <i class="bi bi-bank text-primary me-2"></i>{{ account.name }}
+        </h3>
+        <p class="text-muted small mb-0">
+            {{ account.bank_name|default:"" }}
+            {% if account.account_number %} · A/C: {{ account.account_number }}{% endif %}
+            {% if account.ifsc_code %} · IFSC: {{ account.ifsc_code }}{% endif %}
+            · <span class="badge bg-secondary">{{ account.get_account_type_display }}</span>
+        </p>
     </div>
-    <div>
-        <button class="btn btn-success" 
-            hx-get="{% url 'accounting:bank_transaction_add' account.pk %}" 
-            hx-target="#mainModalContent" 
-            hx-trigger="click">
-            <i class="bi bi-plus-circle"></i> Add Transaction
+    <div class="d-flex gap-2">
+        <button class="btn btn-success"
+                hx-get="{% url 'accounting:bank_transaction_add' account.pk %}"
+                hx-target="#mainModalContent">
+            <i class="bi bi-plus-circle me-1"></i>Add Transaction
         </button>
-        <a href="{% url 'accounting:bank_account_list' %}" class="btn btn-secondary">Back</a>
+        <a href="{% url 'accounting:bank_account_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
     </div>
 </div>
 
+<!-- Summary Cards -->
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm border-start border-4 border-primary h-100">
             <div class="card-body">
-                <small class="text-muted">Opening Balance</small>
-                <h5>₹{{ opening_balance|floatformat:2 }}</h5>
+                <small class="text-muted text-uppercase fw-semibold">Opening</small>
+                <h5 class="mb-0 fw-bold">₹{{ opening_balance|floatformat:2 }}</h5>
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card border-0 shadow-sm">
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
             <div class="card-body">
-                <small class="text-muted">Closing Balance</small>
-                <h5 class="{% if closing_balance < 0 %}text-danger{% else %}text-success{% endif %}">
+                <small class="text-muted text-uppercase fw-semibold">Deposits</small>
+                <h5 class="mb-0 fw-bold text-success">₹{{ total_deposit|floatformat:2 }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm border-start border-4 border-danger h-100">
+            <div class="card-body">
+                <small class="text-muted text-uppercase fw-semibold">Withdrawals</small>
+                <h5 class="mb-0 fw-bold text-danger">₹{{ total_withdrawal|floatformat:2 }}</h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm border-start border-4 {% if closing_balance < 0 %}border-danger{% else %}border-info{% endif %} h-100">
+            <div class="card-body">
+                <small class="text-muted text-uppercase fw-semibold">Closing</small>
+                <h5 class="mb-0 fw-bold {% if closing_balance < 0 %}text-danger{% else %}text-info{% endif %}">
                     ₹{{ closing_balance|floatformat:2 }}
                 </h5>
             </div>
@@ -38,42 +63,81 @@
     </div>
 </div>
 
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white border-bottom d-flex justify-content-between">
-        <span class="fw-semibold">Statement</span>
-        <form method="get" class="d-flex gap-2">
-            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
-            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
-            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+<!-- Filters + Actions -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <form id="bank-statement-filter" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">Search</label>
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control"
+                           placeholder="Description, reference..."
+                           value="{{ search }}"
+                           hx-get="{% url 'accounting:bank_statement' account.pk %}"
+                           hx-trigger="keyup changed delay:400ms"
+                           hx-target="#bank-statement-table"
+                           hx-include="#bank-statement-filter"
+                           hx-push-url="true">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">Type</label>
+                <select name="txn_type" class="form-select form-select-sm"
+                        hx-get="{% url 'accounting:bank_statement' account.pk %}"
+                        hx-trigger="change"
+                        hx-target="#bank-statement-table"
+                        hx-include="#bank-statement-filter"
+                        hx-push-url="true">
+                    <option value="">All</option>
+                    <option value="deposit" {% if txn_type == 'deposit' %}selected{% endif %}>Deposits</option>
+                    <option value="withdrawal" {% if txn_type == 'withdrawal' %}selected{% endif %}>Withdrawals</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">From</label>
+                <input type="date" name="date_from" class="form-control form-control-sm"
+                       value="{{ date_from }}"
+                       hx-get="{% url 'accounting:bank_statement' account.pk %}"
+                       hx-trigger="change"
+                       hx-target="#bank-statement-table"
+                       hx-include="#bank-statement-filter"
+                       hx-push-url="true">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">To</label>
+                <input type="date" name="date_to" class="form-control form-control-sm"
+                       value="{{ date_to }}"
+                       hx-get="{% url 'accounting:bank_statement' account.pk %}"
+                       hx-trigger="change"
+                       hx-target="#bank-statement-table"
+                       hx-include="#bank-statement-filter"
+                       hx-push-url="true">
+            </div>
+            <div class="col-md-1">
+                <a href="{% url 'accounting:bank_statement' account.pk %}"
+                   class="btn btn-outline-secondary btn-sm w-100" title="Reset">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </a>
+            </div>
+            <div class="col-md-2 text-end">
+                <div class="btn-group btn-group-sm w-100">
+                    <a href="{% url 'accounting:bank_statement' account.pk %}?print=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+                       class="btn btn-outline-dark" target="_blank" title="Print">
+                        <i class="bi bi-printer"></i>
+                    </a>
+                    <a href="{% url 'accounting:bank_statement_excel' account.pk %}{% if date_from or date_to or txn_type or search %}?{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}{% if txn_type %}txn_type={{ txn_type }}&{% endif %}{% if search %}search={{ search }}{% endif %}{% endif %}"
+                       class="btn btn-success" title="Excel">
+                        <i class="bi bi-file-earmark-excel"></i>
+                    </a>
+                </div>
+            </div>
         </form>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Date</th>
-                        <th>Description</th>
-                        <th class="text-end">Deposit</th>
-                        <th class="text-end">Withdrawal</th>
-                        <th class="text-end">Balance</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for line in statement_lines %}
-                    <tr>
-                        <td>{{ line.date|date:"d-m-Y" }}</td>
-                        <td>{{ line.description }}{% if line.reference %} <small class="text-muted">({{ line.reference }})</small>{% endif %}</td>
-                        <td class="text-end text-success">{% if line.deposit > 0 %}₹{{ line.deposit|floatformat:2 }}{% else %}-{% endif %}</td>
-                        <td class="text-end text-danger">{% if line.withdrawal > 0 %}₹{{ line.withdrawal|floatformat:2 }}{% else %}-{% endif %}</td>
-                        <td class="text-end fw-bold">₹{{ line.balance|floatformat:2 }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="5" class="text-center">No transactions found.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+</div>
+
+<!-- Statement Table -->
+<div id="bank-statement-table">
+    {% include "bank/partials/bank_statement_table.html" %}
 </div>
 {% endblock %}

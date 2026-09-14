@@ -380,12 +380,11 @@
                     <h5 class="fw-bold mb-0">
                         <i class="bi bi-arrow-repeat text-primary me-2"></i>Update Status
                     </h5>
-                    <button class="btn btn-sm btn-outline-secondary" 
-                            hx-get="{% url 'accounting:update_repair_status' job.pk %}" 
-                            hx-target="#status-row-container"
-                            hx-swap="innerHTML">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
+                    <a href="{% url 'accounting:repair_detail' job.pk %}"
+                       class="btn btn-sm btn-outline-secondary"
+                       title="Refresh Page">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </a>
                 </div>
                 <div class="card-body" id="status-row-container">
                     {% include "repairs/partials/status_row.html" %}

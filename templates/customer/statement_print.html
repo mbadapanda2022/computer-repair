@@ -6,105 +6,307 @@
     <meta charset="UTF-8">
     <title>Statement – {{ customer.name }}</title>
     <style>
-        @media print { body { font-size: 10pt; margin: 1.5cm; } .no-print { display: none !important; } }
-        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 20px; background: #fff; }
-        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        .filters-box { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 15px; font-size: 10pt; }
-        .table { width: 100%; border-collapse: collapse; font-size: 10pt; }
-        .table th, .table td { border: 1px solid #ddd; padding: 5px 8px; }
-        .table th { background: #e9ecef; font-weight: 600; }
-        .text-end { text-align: right; }
-        .text-center { text-align: center; }
-        .fw-bold { font-weight: bold; }
-        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
-        .summary-row td { background: #e9ecef !important; font-weight: bold; border-top: 2px solid #333; }
-        .closing-row td { background: #d1e7dd !important; font-weight: bold; }
+        @page { size: A4 landscape; margin: 10mm; }
+        @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
+        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1200px; margin: 0 auto; padding: 15px; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 12px; }
+        .header h2 { margin: 5px 0; color: #1a1a2e; }
+        .company-logo { max-height: 50px; margin-bottom: 4px; }
+        .filters-box { background: #f8f9fa; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 12px; font-size: 10pt; }
+        .summary-cards { display: flex; gap: 8px; margin-bottom: 12px; }
+        .summary-card { flex: 1; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #ccc; }
+        .summary-card .label { font-size: 8pt; text-transform: uppercase; color: #6c757d; }
+        .summary-card .value { font-size: 12pt; font-weight: bold; }
+        .summary-card.green { background: #d4edda; border-left-color: #198754; }
+        .summary-card.yellow { background: #fff3cd; border-left-color: #b8860b; }
+        .summary-card.blue { background: #e7f1ff; border-left-color: #0d6efd; }
+        .summary-card.red { background: #f8d7da; border-left-color: #dc3545; }
+        .table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+        .table th, .table td { border: 1px solid #ddd; padding: 4px 6px; }
+        .table th { background: #1F4E78; color: #fff; font-weight: 600; text-align: left; }
+        .table .text-end { text-align: right; }
+        .table .text-center { text-align: center; }
+        .table .recv-head { background: #198754 !important; }
+        .table .pay-head { background: #b8860b !important; }
+        .table .net-head { background: #0d6efd !important; }
+        .table tfoot td { background: #e9ecef; font-weight: bold; }
+        .net-positive { color: #198754; font-weight: bold; }
+        .net-negative { color: #dc3545; font-weight: bold; }
+        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 6px; margin-top: 15px; font-size: 8pt; color: #6c757d; }
         .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
         .btn-primary { background: #0d6efd; color: #fff; }
         .btn-secondary { background: #6c757d; color: #fff; }
-        .company-logo { max-height: 60px; margin-bottom: 5px; }
+        .contact-type-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 8pt;
+            font-weight: 600;
+            background: #e7f1ff;
+            color: #0d6efd;
+            border: 1px solid #b6d4fe;
+        }
     </style>
 </head>
 <body>
+
+    <!-- ============================================================
+         HEADER
+         ============================================================ -->
     <div class="header">
-        {% if logo_exists %}
-            <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
-        {% endif %}
+        {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
         <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
-        <p>Statement – {{ customer.name }}</p>
+        <p style="margin:2px 0;">
+            Statement — <strong>{{ customer.name }}</strong>
+            <span class="contact-type-badge">{{ customer.get_contact_type_display }}</span>
+            {% if customer.phone %} | Phone: {{ customer.phone }}{% endif %}
+            {% if customer.gstin %} | GSTIN: {{ customer.gstin }}{% endif %}
+        </p>
+        <p style="margin:2px 0; font-size:9pt;">
+            Period: {{ date_from|default:"Beginning" }} → {{ date_to|default:"Today" }}
+        </p>
     </div>
 
+    <!-- ============================================================
+         FILTERS INFO
+         ============================================================ -->
     <div class="filters-box">
         <strong>Filters:</strong>
         {% if search %}<span>Search: {{ search }}</span>{% endif %}
-        {% if txn_type %}<span>Type: {{ txn_type|title }}</span>{% endif %}
-        {% if date_from %}<span>From: {{ date_from }}</span>{% endif %}
-        {% if date_to %}<span>To: {{ date_to }}</span>{% endif %}
+        {% if txn_type %}<span> | Type: {{ txn_type|title }}</span>{% endif %}
+        {% if date_from %}<span> | From: {{ date_from }}</span>{% endif %}
+        {% if date_to %}<span> | To: {{ date_to }}</span>{% endif %}
         {% if not search and not txn_type and not date_from and not date_to %}<span>All Records</span>{% endif %}
         <br><small>Generated: {% now "d M Y, h:i A" %}</small>
+    </div>
+
+    {% if show_dual %}
+    <!-- ============================================================
+         CASE 1: BOTH TYPE — Dual columns
+         ============================================================ -->
+    <div class="summary-cards">
+        <div class="summary-card green">
+            <div class="label">Receivable (You Owe Us)</div>
+            <div class="value">₹{{ closing_recv|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card yellow">
+            <div class="label">Payable (We Owe You)</div>
+            <div class="value">₹{{ closing_pay|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card blue">
+            <div class="label">Net Position</div>
+            <div class="value">₹{{ net_position|floatformat:2 }}</div>
+        </div>
     </div>
 
     <table class="table">
         <thead>
             <tr>
-                <th>Date</th>
-                <th>Description</th>
-                <th class="text-end">Debit (₹)</th>
-                <th class="text-end">Credit (₹)</th>
-                <th class="text-end">Balance (₹)</th>
+                <th rowspan="2" style="width:70px;">Date</th>
+                <th rowspan="2">Particulars</th>
+                <th colspan="3" class="recv-head text-center">Receivable (You Owe Us)</th>
+                <th colspan="3" class="pay-head text-center">Payable (We Owe You)</th>
+                <th rowspan="2" class="net-head text-end" style="width:85px;">Net</th>
+            </tr>
+            <tr>
+                <th class="recv-head text-end" style="width:65px;">Dr</th>
+                <th class="recv-head text-end" style="width:65px;">Cr</th>
+                <th class="recv-head text-end" style="width:70px;">Balance</th>
+                <th class="pay-head text-end" style="width:65px;">Dr</th>
+                <th class="pay-head text-end" style="width:65px;">Cr</th>
+                <th class="pay-head text-end" style="width:70px;">Balance</th>
             </tr>
         </thead>
         <tbody>
-            <tr class="fw-bold">
-                <td colspan="4">
-                    {% if opening_label %}{{ opening_label }}{% else %}Opening Balance{% endif %}
-                    {% if opening_as_on_date %}(as on {{ opening_as_on_date|date:"d M Y" }}){% endif %}
-                </td>
-                <td class="text-end">{{ opening_balance|floatformat:2 }}</td>
+            <tr style="background:#eef2f7; font-weight:bold;">
+                <td class="text-center">—</td>
+                <td>Opening Balance{% if date_from %} (carried forward as on {{ date_from }}){% endif %}</td>
+                <td class="text-end">{% if opening_recv > 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">{% if opening_recv < 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
+                <td class="text-end">{% if opening_pay < 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">{% if opening_pay > 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
+                <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
             </tr>
             {% for row in statement_rows %}
             <tr>
-                <td>{{ row.date|date:"d M Y" }}</td>
+                <td class="text-center">{{ row.date|date:"d-m-Y" }}</td>
                 <td>
-                    <strong>{{ row.description }}</strong>
-                    {% if row.action %}
-                        <br><span style="font-size:9pt; color:#6c757d;">{{ row.action|truncatechars:80 }}</span>
-                    {% endif %}
+                    {{ row.description }}
+                    {% if row.reference %}<br><small style="color:#666;">Ref: {{ row.reference }}</small>{% endif %}
                 </td>
-                <td class="text-end">{% if row.debit > 0 %}₹{{ row.debit|floatformat:2 }}{% else %}—{% endif %}</td>
-                <td class="text-end">{% if row.credit > 0 %}₹{{ row.credit|floatformat:2 }}{% else %}—{% endif %}</td>
-                <td class="text-end fw-bold">₹{{ row.balance|floatformat:2 }}</td>
+                <td class="text-end">{% if row.recv_dr %}₹{{ row.recv_dr|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">{% if row.recv_cr %}₹{{ row.recv_cr|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">{{ row.running_recv|floatformat:2 }}</td>
+                <td class="text-end">{% if row.pay_dr %}₹{{ row.pay_dr|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">{% if row.pay_cr %}₹{{ row.pay_cr|floatformat:2 }}{% endif %}</td>
+                <td class="text-end">{{ row.running_pay|floatformat:2 }}</td>
+                <td class="text-end {% if row.net >= 0 %}net-positive{% else %}net-negative{% endif %}">{{ row.net|floatformat:2 }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center">No transactions found.</td></tr>
+            <tr><td colspan="9" class="text-center" style="padding:20px;">No transactions found.</td></tr>
             {% endfor %}
-            {% if statement_rows %}
-            <tr class="summary-row">
-                <td colspan="2" class="text-end">Totals</td>
-                <td class="text-end">₹{{ total_debit|floatformat:2 }}</td>
-                <td class="text-end">₹{{ total_credit|floatformat:2 }}</td>
-                <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
-            </tr>
-            <tr class="closing-row">
-                <td colspan="4" class="text-end">
-                    Closing Balance
-                    {% if closing_as_on_date %}(as on {{ closing_as_on_date|date:"d M Y" }}){% endif %}
-                </td>
-                <td class="text-end" style="font-size: 12pt;">₹{{ closing_balance|floatformat:2 }}</td>
-            </tr>
-            {% endif %}
         </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2" class="text-end">Period Totals →</td>
+                <td class="text-end">₹{{ total_recv_dr|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_recv_cr|floatformat:2 }}</td>
+                <td></td>
+                <td class="text-end">₹{{ total_pay_dr|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_pay_cr|floatformat:2 }}</td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="2" class="text-end">Closing Balance →</td>
+                <td colspan="3" class="text-end">Receivable: ₹{{ closing_recv|floatformat:2 }}</td>
+                <td colspan="3" class="text-end">Payable: ₹{{ closing_pay|floatformat:2 }}</td>
+                <td class="text-end {% if net_position >= 0 %}net-positive{% else %}net-negative{% endif %}">₹{{ net_position|floatformat:2 }}</td>
+            </tr>
+        </tfoot>
     </table>
 
-    <div class="footer">
-        <p>This is a computer-generated statement. No signature required.</p>
-        <p>© {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.</p>
+    {% elif show_payable_only %}
+    <!-- ============================================================
+         CASE 2: VENDOR TYPE — Payable only
+         ============================================================ -->
+    <div class="summary-cards">
+        <div class="summary-card blue">
+            <div class="label">Opening Payable</div>
+            <div class="value">₹{{ opening_pay|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card red">
+            <div class="label">Credit (We Owe You)</div>
+            <div class="value">₹{{ total_pay_cr|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card yellow">
+            <div class="label">Closing Payable</div>
+            <div class="value">₹{{ closing_pay|floatformat:2 }}</div>
+        </div>
     </div>
 
-    <div class="no-print">
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width:90px;">Date</th>
+                <th>Description</th>
+                <th class="text-end" style="width:110px;">Debit (₹)</th>
+                <th class="text-end" style="width:110px;">Credit (₹)</th>
+                <th class="text-end" style="width:120px;">Balance (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background:#eef2f7; font-weight:bold;">
+                <td colspan="4">Opening Balance{% if date_from %} (carried forward as on {{ date_from }}){% endif %}</td>
+                <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
+            </tr>
+            {% for row in statement_rows %}
+            <tr>
+                <td class="text-center">{{ row.date|date:"d-m-Y" }}</td>
+                <td>
+                    {{ row.description }}
+                    {% if row.reference %}<br><small style="color:#666;">Ref: {{ row.reference }}</small>{% endif %}
+                </td>
+                <td class="text-end">{% if row.pay_dr > 0 %}₹{{ row.pay_dr|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="text-end">{% if row.pay_cr > 0 %}₹{{ row.pay_cr|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="text-end fw-bold">₹{{ row.running_pay|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center" style="padding:20px;">No transactions found.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2" class="text-end">Period Totals →</td>
+                <td class="text-end">₹{{ total_pay_dr|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_pay_cr|floatformat:2 }}</td>
+                <td class="text-end">—</td>
+            </tr>
+            <tr>
+                <td colspan="4" class="text-end">Closing Payable Balance →</td>
+                <td class="text-end">₹{{ closing_pay|floatformat:2 }}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    {% else %}
+    <!-- ============================================================
+         CASE 3: CUSTOMER TYPE — Receivable only
+         ============================================================ -->
+    <div class="summary-cards">
+        <div class="summary-card blue">
+            <div class="label">Opening Receivable</div>
+            <div class="value">₹{{ opening_recv|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card red">
+            <div class="label">Debit (You Owe Us)</div>
+            <div class="value">₹{{ total_recv_dr|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card green">
+            <div class="label">Closing Receivable</div>
+            <div class="value">₹{{ closing_recv|floatformat:2 }}</div>
+        </div>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width:90px;">Date</th>
+                <th>Description</th>
+                <th class="text-end" style="width:110px;">Debit (₹)</th>
+                <th class="text-end" style="width:110px;">Credit (₹)</th>
+                <th class="text-end" style="width:120px;">Balance (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="background:#eef2f7; font-weight:bold;">
+                <td colspan="4">Opening Balance{% if date_from %} (carried forward as on {{ date_from }}){% endif %}</td>
+                <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
+            </tr>
+            {% for row in statement_rows %}
+            <tr>
+                <td class="text-center">{{ row.date|date:"d-m-Y" }}</td>
+                <td>
+                    {{ row.description }}
+                    {% if row.reference %}<br><small style="color:#666;">Ref: {{ row.reference }}</small>{% endif %}
+                </td>
+                <td class="text-end">{% if row.recv_dr > 0 %}₹{{ row.recv_dr|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="text-end">{% if row.recv_cr > 0 %}₹{{ row.recv_cr|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="text-end fw-bold">₹{{ row.running_recv|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center" style="padding:20px;">No transactions found.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="2" class="text-end">Period Totals →</td>
+                <td class="text-end">₹{{ total_recv_dr|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_recv_cr|floatformat:2 }}</td>
+                <td class="text-end">—</td>
+            </tr>
+            <tr>
+                <td colspan="4" class="text-end">Closing Receivable Balance →</td>
+                <td class="text-end">₹{{ closing_recv|floatformat:2 }}</td>
+            </tr>
+        </tfoot>
+    </table>
+    {% endif %}
+
+    <!-- ============================================================
+         FOOTER
+         ============================================================ -->
+    <div class="footer">
+        <p>This is a computer-generated statement. No signature required.</p>
+        <p>© {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}</p>
+    </div>
+
+    <div class="no-print" style="text-align:center; margin-top:15px;">
         <hr>
         <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
-        <button onclick="window.close()" class="btn btn-secondary">❌ Close</button>
+        <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
     </div>
 </body>
 </html>

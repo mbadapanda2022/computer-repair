@@ -565,19 +565,24 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
         )
 
     def clean_phone(self):
-        phone = self.cleaned_data.get('phone')
-        if phone:
-            if not re.match(r'^\+?\d+$', phone):
-                raise ValidationError("Phone number must contain only digits (and optional leading '+').")
-            digits_only = phone.lstrip('+')
-            if len(digits_only) < 10 or len(digits_only) > 15:
-                raise ValidationError("Phone number must be between 10 and 15 digits.")
-            qs = Contact.objects.filter(phone=phone)
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError("This phone number is already in use.")
-        return phone
+        phone = self.cleaned_data.get('phone', '').strip()
+        if not phone:
+            return ''
+
+        # Normalize: keep only digits, take last 10 for Indian mobile
+        phone_clean = ''.join(filter(str.isdigit, phone))
+        if len(phone_clean) < 10:
+            raise ValidationError("Phone number must contain at least 10 digits.")
+        phone_clean = phone_clean[-10:]
+
+        # Uniqueness check on normalized number
+        qs = Contact.objects.filter(phone=phone_clean)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("This phone number is already in use.")
+
+        return phone_clean
 
     def clean_opening_balance(self):
         """
@@ -724,14 +729,21 @@ class ProductForm(forms.ModelForm):
 class InvoiceForm(forms.ModelForm):
     class Meta:
         model = Invoice
-        fields = ['customer', 'date', 'due_date', 'gst_type',
-                  'discount_amount', 'notes']
+        fields = [
+            'customer', 'date', 'due_date', 'gst_type',
+            'discount_amount', 'discount_type', 'discount_note',
+            'discount_date',
+            'notes'
+        ]
         widgets = {
             'customer': BS_SELECT,
             'date': BS_DATE,
             'due_date': BS_DATE,
             'gst_type': BS_SELECT,
             'discount_amount': BS_NUMBER,
+            'discount_type': BS_SELECT,
+            'discount_note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'discount_date': BS_DATE,
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
@@ -740,7 +752,6 @@ class InvoiceForm(forms.ModelForm):
         if disc < 0:
             raise ValidationError("Discount amount cannot be negative.")
         return disc
-
 
 class InvoiceItemForm(forms.ModelForm):
     class Meta:
@@ -794,14 +805,42 @@ class InvoiceItemForm(forms.ModelForm):
 class PurchaseForm(forms.ModelForm, HTMXValidationMixin):
     class Meta:
         model = Purchase
-        fields = ['vendor', 'date', 'gst_type', 'freight_charge', 'notes']
+        fields = [
+            'vendor', 'date', 'gst_type',
+            'discount_amount', 'freight_charge',
+            'discount_type', 'discount_note', 'discount_date',
+            'notes'
+        ]
         widgets = {
             'vendor': BS_SELECT,
             'date': BS_DATE,
             'gst_type': BS_SELECT,
-            'freight_charge': BS_NUMBER, 
+            'discount_amount': BS_NUMBER,
+            'freight_charge': BS_NUMBER,
+            'discount_type': BS_SELECT,
+            'discount_note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'discount_date': BS_DATE,
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_htmx_validation(
+            validate_url=reverse('accounting:validate_purchase_field'),
+            include_id_field='purchase_id',
+        )
+
+    def clean_discount_amount(self):
+        disc = self.cleaned_data.get('discount_amount', Decimal('0'))
+        if disc < 0:
+            raise ValidationError("Discount amount cannot be negative.")
+        return disc
+
+    def clean_freight_charge(self):
+        freight = self.cleaned_data.get('freight_charge', Decimal('0'))
+        if freight < 0:
+            raise ValidationError("Freight charge cannot be negative.")
+        return freight
 
 class PurchaseItemForm(forms.ModelForm):
     class Meta:
@@ -918,10 +957,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # date_in form se hata diya — model me auto-mirror hota hai
-        if 'date_in' in self.fields and not self.instance.pk:
-            self.fields['date_in'].initial = timezone.now().date()
-
         # Add HTMX validation to all fields except status (dynamic)
         field_names = [f for f in self.fields.keys() if f != 'status']
         self.add_htmx_validation(
@@ -1004,77 +1039,109 @@ class RepairPartForm(forms.ModelForm):
 # ============================================================
 
 class PaymentForm(forms.ModelForm):
-    contact_search = forms.CharField(
-        required=False,
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'id': 'contact-search',
-            'placeholder': 'Type customer/vendor name or phone...',
-            'autocomplete': 'off'
-        }),
-        label="Contact"
-    )
-
     class Meta:
         model = Payment
         fields = [
             'direction', 'contact', 'amount', 'date', 'method',
             'bank_account', 'upi_ref', 'reference', 'description',
-            'is_advance'
+            'is_advance',
+            'discount_amount', 'discount_type', 'discount_note',
         ]
         widgets = {
             'direction': BS_SELECT,
-            'contact': forms.HiddenInput(),   # Hidden – we use contact_search instead
+            'contact': forms.Select(attrs={
+                'class': 'form-select',
+                'id': 'id_contact',
+            }),
             'amount': BS_NUMBER,
             'date': BS_DATE,
             'method': BS_SELECT,
             'bank_account': forms.Select(attrs={'class': 'form-select'}),
-            'upi_ref': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'UPI TXN ID'}),
+            'upi_ref': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'UPI TXN ID (PhonePe / GPay)',
+            }),
             'reference': BS_TEXT,
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'is_advance': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'discount_amount': BS_NUMBER,
+            'discount_type': BS_SELECT,
+            'discount_note': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Reason for discount (optional)',
+            }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # ---- Contact dropdown: all active contacts, sorted by name ----
+        self.fields['contact'].queryset = Contact.objects.all().order_by('name')
+        self.fields['contact'].empty_label = "— Select Customer / Vendor —"
+        self.fields['contact'].required = True
+
+        # ---- Bank accounts ----
         self.fields['bank_account'].queryset = BankAccount.objects.filter(is_active=True)
-        
-        # Pre-populate contact_search if contact is set
-        if self.instance and self.instance.contact_id:
-            contact = self.instance.contact
-            self.fields['contact_search'].initial = f"{contact.name} ({contact.phone or 'No phone'})"
 
-        if self.data and 'contact' in self.data:
-            # If contact is set via hidden field, show the name in search
-            contact_id = self.data.get('contact')
-            if contact_id:
-                try:
-                    contact = Contact.objects.get(pk=contact_id)
-                    self.fields['contact_search'].initial = f"{contact.name} ({contact.phone or 'No phone'})"
-                except Contact.DoesNotExist:
-                    pass
+        # ---- Discount fields: optional ----
+        self.fields['discount_amount'].required = False
+        self.fields['discount_type'].required = False
+        self.fields['discount_note'].required = False
 
+        if not self.instance.pk and not self.initial.get('discount_amount'):
+            self.fields['discount_amount'].initial = Decimal('0.00')
 
-    def clean_contact_search(self):
-        # Validate that a contact is selected (hidden field must have a value)
-        contact_id = self.cleaned_data.get('contact')
-        if not contact_id:
-            raise ValidationError("Please select a contact from the search results.")
-        return contact_id
-
+    # ============================================================
+    # CLEAN METHODS
+    # ============================================================
     def clean_amount(self):
         amount = self.cleaned_data.get('amount')
-        if amount <= 0:
-            raise ValidationError("Amount must be positive.")
+        if amount is None or amount <= 0:
+            raise ValidationError("Amount must be greater than zero.")
         return amount
+
+    def clean_discount_amount(self):
+        disc = self.cleaned_data.get('discount_amount') or Decimal('0')
+        if disc < 0:
+            raise ValidationError("Discount amount cannot be negative.")
+        if disc > 0:
+            amount = self.cleaned_data.get('amount') or Decimal('0')
+            if disc >= amount:
+                raise ValidationError(
+                    "Discount cannot be equal to or greater than the amount."
+                )
+        return disc
 
     def clean(self):
         cleaned_data = super().clean()
         method = cleaned_data.get('method')
         bank_account = cleaned_data.get('bank_account')
-        if method in ['bank', 'upi'] and not bank_account:
-            self.add_error('bank_account', "Please select a bank account for bank/UPI payments.")
+        contact = cleaned_data.get('contact')
+        direction = cleaned_data.get('direction')
+
+        # Bank / UPI requires a bank account
+        if method in ('bank', 'upi') and not bank_account:
+            self.add_error(
+                'bank_account',
+                "Please select a bank account for bank/UPI payments."
+            )
+
+        # Contact type vs direction validation
+        if contact and direction:
+            if direction == 'received' and contact.contact_type not in ('customer', 'both'):
+                self.add_error(
+                    'direction',
+                    f"'{contact.name}' is not a customer. Please choose 'Paid to Supplier'."
+                )
+            elif direction == 'paid' and contact.contact_type not in ('vendor', 'both'):
+                self.add_error(
+                    'direction',
+                    f"'{contact.name}' is not a vendor. Please choose 'Received from Customer'."
+                )
+
         return cleaned_data
+
 
 # ============================================================
 # 9. STOCK MOVEMENT
@@ -1252,28 +1319,24 @@ class CustomerProfileForm(forms.ModelForm):
         }
 
     def clean_phone(self):
-        phone = self.cleaned_data.get('phone')
-        if phone:
-            # 1. Format validation
-            if not re.match(r'^\+?\d{10,15}$', phone):
-                raise ValidationError("Enter a valid phone number (10-15 digits, optional +).")
-            
-            # 2. Normalize: remove non-digits, keep last 10 digits (Indian mobile)
-            phone_clean = ''.join(filter(str.isdigit, phone))
-            if len(phone_clean) >= 10:
-                phone_clean = phone_clean[-10:]
-            else:
-                raise ValidationError("Phone number must contain at least 10 digits.")
-            
-            # 3. Uniqueness check (exclude self)
-            qs = Contact.objects.filter(phone=phone_clean)
-            if self.instance and self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise ValidationError("This phone number is already registered by another user.")
-            
-            return phone_clean
-        return phone
+        phone = self.cleaned_data.get('phone', '').strip()
+        if not phone:
+            return phone
+
+        # Normalize: keep only digits, take last 10 for Indian mobile
+        phone_clean = ''.join(filter(str.isdigit, phone))
+        if len(phone_clean) < 10:
+            raise ValidationError("Phone number must contain at least 10 digits.")
+        phone_clean = phone_clean[-10:]
+
+        # Uniqueness check (exclude self)
+        qs = Contact.objects.filter(phone=phone_clean)
+        if self.instance and self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError("This phone number is already registered by another user.")
+
+        return phone_clean
 
 
 class CustomerRepairForm(forms.ModelForm):

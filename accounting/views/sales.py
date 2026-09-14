@@ -14,7 +14,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
-
+from django.contrib.auth.models import User
 from ..models import *
 from ..forms import InvoiceForm, InvoiceItemForm
 from accounting.utils.notification_helpers import send_notification_to_customer, send_notification_sse
@@ -190,6 +190,26 @@ def invoice_create(request):
 
             logger.info(f"Invoice {invoice.invoice_number} created by {request.user.username}")
 
+            # ---- Notify customer ----
+            try:
+                if invoice.customer and invoice.customer.user:
+                    send_notification_to_customer(
+                        invoice.customer,
+                        title=f"New Invoice: {invoice.invoice_number}",
+                        message=(
+                            f"An invoice of ₹{invoice.grand_total} has been generated for you. "
+                            f"Due: ₹{invoice.balance_due}."
+                        ),
+                        link=reverse('customer:customer_invoice_detail', args=[invoice.pk]),
+                        notif_type='info',
+                        category='sales',
+                        send_email=False,
+                    )
+                for staff in User.objects.filter(is_staff=True):
+                    send_notification_sse(staff)
+            except Exception as notif_err:
+                logger.error(f"Invoice notification failed: {notif_err}", exc_info=True)
+
             if is_htmx(request):
                 messages.success(request, f"Invoice {invoice.invoice_number} created successfully.")
                 response = HttpResponse()
@@ -297,7 +317,7 @@ def invoice_update(request, pk):
 
 
 # ============================================================
-# 5. INVOICE DELETE (SINGLE VERSION – CORRECTED)
+# 5. INVOICE DELETE
 # ============================================================
 @csrf_protect
 @require_http_methods(["DELETE"])
@@ -305,6 +325,7 @@ def invoice_update(request, pk):
 def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     invoice_number = invoice.invoice_number
+    customer = invoice.customer
 
     # 1. Handle Repair Job (revert status and unlink invoice)
     repair_job = None
@@ -321,26 +342,59 @@ def invoice_delete(request, pk):
 
     # 2. Delete the invoice (cascades to items, which reverse stock automatically)
     invoice.delete()
-
     logger.info(f"Invoice {invoice_number} deleted by {request.user.username}")
 
-    # 3. Return HTMX response with updated table
-    context = get_paginated_invoices_context(request)
-    return htmx_response(
-        request,
-        'sales/partials/invoice_table.html',
-        context=context,
-        toast={
-            'level': 'success',
-            'message': f'Invoice {invoice_number} deleted. ' +
-                       (f'Repair #{repair_job.job_number} reverted to Ready.' if repair_job else '')
-        }
-    )
+    # 3. Notify customer (if they have a user account)
+    try:
+        if customer and customer.user:
+            send_notification_to_customer(
+                customer,
+                title=f"Invoice Deleted: {invoice_number}",
+                message=f"Invoice {invoice_number} has been removed from your account.",
+                link=reverse('customer:customer_invoices'),
+                notif_type='warning',
+                category='sales',
+                send_email=False,
+            )
+        for staff in User.objects.filter(is_staff=True):
+            send_notification_sse(staff)
+    except Exception as notif_err:
+        logger.error(f"Invoice delete notification failed: {notif_err}")
+
+    # 4. Return HTMX response: trigger client-side reload to preserve filters
+    message = f'Invoice {invoice_number} deleted.'
+    if repair_job:
+        message += f' Repair #{repair_job.job_number} reverted to Ready.'
+
+    if is_htmx(request):
+        response = HttpResponse()
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'success', 'message': message},
+            'reloadInvoices': ''
+        })
+        return response
+
+    messages.success(request, message)
+    return redirect_to_staff('invoice_list')
 
 
 # ============================================================
 # 6. ADD INVOICE ITEM (SESSION)
 # ============================================================
+
+def _safe_decimal(value, default=Decimal('0')):
+    """Safely parse a value to Decimal, returning default on empty/invalid."""
+    if value is None:
+        return default
+    value = str(value).strip()
+    if value == '':
+        return default
+    try:
+        return Decimal(value)
+    except (ValueError, TypeError, ArithmeticError):
+        return default
+
+
 @csrf_protect
 def add_invoice_item(request):
     if request.method != 'POST':
@@ -352,9 +406,9 @@ def add_invoice_item(request):
             return HttpResponse("Product is required.", status=400)
 
         product = get_object_or_404(Product, pk=product_id)
-        qty = Decimal(request.POST.get('quantity', 1))
-        price = Decimal(request.POST.get('unit_price', product.selling_price or 0))
-        tax = Decimal(request.POST.get('tax_rate', product.tax_rate or 0))
+        qty = _safe_decimal(request.POST.get('quantity'), Decimal('1'))
+        price = _safe_decimal(request.POST.get('unit_price'), product.selling_price or Decimal('0'))
+        tax = _safe_decimal(request.POST.get('tax_rate'), product.tax_rate or Decimal('0'))
 
         if qty <= 0:
             return HttpResponse("Quantity must be positive.", status=400)
@@ -401,8 +455,12 @@ def remove_invoice_item(request, index):
         else:
             return HttpResponse("Invalid index.", status=400)
 
-        items_total = sum(Decimal(i['line_total']) for i in items)
-        return render(request, 'sales/partials/invoice_items.html', {'items': items, 'items_total': items_total})
+        items_total = sum(
+            _safe_decimal(i.get('line_total')) for i in items
+        )
+        return render(request, 'sales/partials/invoice_items.html', {
+            'items': items, 'items_total': items_total
+        })
 
     except (ValueError, IndexError):
         return HttpResponse("Invalid index.", status=400)
@@ -438,3 +496,138 @@ def invoice_print(request, pk):
         'gst_breakup': gst_breakup,
     }
     return render(request, 'sales/invoice_print.html', context)
+
+# ============================================================
+# INVOICE LIST — PRINT
+# ============================================================
+@handle_errors(default_redirect='accounting:invoice_list')
+def invoice_list_print(request):
+    """Print-friendly invoice list with current filters."""
+    context = get_paginated_invoices_context(request)
+    # For print, fetch all matching (no pagination)
+    queryset = context.get('page_obj').paginator.object_list \
+        if context.get('page_obj') else Invoice.objects.none()
+
+    company = CompanyProfile.get_instance()
+    context.update({
+        'invoices': queryset,
+        'company': company,
+        'logo_exists': bool(company.logo and company.logo.name),
+    })
+    return render(request, 'sales/invoice_list_print.html', context)
+
+
+# ============================================================
+# INVOICE LIST — EXCEL EXPORT
+# ============================================================
+@handle_errors(default_redirect='accounting:invoice_list')
+def invoice_list_excel(request):
+    """Export filtered invoices to Excel."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Openpyxl is not installed.'},
+            status=400
+        )
+
+    # Reuse filter logic
+    queryset = Invoice.objects.select_related('customer').all().order_by('-date')
+    search = request.GET.get('search', '').strip()
+    customer_id = request.GET.get('customer', '')
+    status = request.GET.get('status', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    if search:
+        queryset = queryset.filter(
+            Q(invoice_number__icontains=search) | Q(customer__name__icontains=search)
+        )
+    if customer_id:
+        queryset = queryset.filter(customer_id=customer_id)
+    if status:
+        queryset = queryset.filter(payment_status=status)
+    if date_from:
+        queryset = queryset.filter(date__gte=date_from)
+    if date_to:
+        queryset = queryset.filter(date__lte=date_to)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Invoices"
+
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    thin = Side(style='thin', color="BFBFBF")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center')
+    left = Alignment(horizontal='left', vertical='center')
+    right = Alignment(horizontal='right', vertical='center')
+    money_fmt = '#,##0.00'
+
+    company = CompanyProfile.get_instance()
+    ws.merge_cells('A1:H1')
+    ws['A1'] = f"{company.name or 'A1 Computer Solutions'} — Invoice List"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = center
+    ws.merge_cells('A2:H2')
+    ws['A2'] = f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')} | Total: {queryset.count()}"
+    ws['A2'].alignment = center
+
+    headers = ['Invoice #', 'Date', 'Customer', 'Amount', 'Paid', 'Due',
+               'GST Type', 'Status']
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=4, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.alignment = center
+        c.border = border
+
+    row = 5
+    total_amt = Decimal('0')
+    total_paid = Decimal('0')
+    total_due = Decimal('0')
+
+    for inv in queryset:
+        total_amt += inv.grand_total
+        total_paid += inv.paid_amount
+        total_due += inv.balance_due
+
+        ws.cell(row=row, column=1, value=inv.invoice_number)
+        ws.cell(row=row, column=2, value=inv.date.strftime('%d-%m-%Y'))
+        ws.cell(row=row, column=3, value=inv.customer.name)
+        ws.cell(row=row, column=4, value=float(inv.grand_total)).number_format = money_fmt
+        ws.cell(row=row, column=5, value=float(inv.paid_amount)).number_format = money_fmt
+        ws.cell(row=row, column=6, value=float(inv.balance_due)).number_format = money_fmt
+        ws.cell(row=row, column=7, value=inv.get_gst_type_display())
+        ws.cell(row=row, column=8, value=inv.get_payment_status_display())
+
+        for col in range(1, 9):
+            ws.cell(row=row, column=col).border = border
+            if col in (4, 5, 6):
+                ws.cell(row=row, column=col).alignment = right
+        row += 1
+
+    # Totals row
+    ws.cell(row=row, column=3, value='Totals').font = Font(bold=True)
+    ws.cell(row=row, column=4, value=float(total_amt)).number_format = money_fmt
+    ws.cell(row=row, column=5, value=float(total_paid)).number_format = money_fmt
+    ws.cell(row=row, column=6, value=float(total_due)).number_format = money_fmt
+    for col in (4, 5, 6):
+        ws.cell(row=row, column=col).font = Font(bold=True)
+    for col in range(1, 9):
+        ws.cell(row=row, column=col).border = border
+
+    widths = [14, 12, 30, 14, 14, 14, 18, 12]
+    for idx, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(idx)].width = w
+    ws.freeze_panes = 'A5'
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="invoices_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+    wb.save(response)
+    return response

@@ -1,0 +1,129 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Products — {{ company.name }}</title>
+<style>
+    @page { size: A4 landscape; margin: 10mm; }
+    @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
+    body { font-family: Arial, sans-serif; color: #333; margin: 0 auto; max-width: 1300px; padding: 15px; background: #fff; }
+    .header { text-align: center; border-bottom: 2px solid #1F4E78; padding-bottom: 8px; margin-bottom: 12px; }
+    .header h2 { margin: 4px 0; color: #1F4E78; font-size: 18pt; }
+    .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+    .company-logo { max-height: 50px; }
+    .filters-box { background: #f8f9fa; padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 12px; font-size: 9pt; }
+    .summary { display: flex; gap: 10px; margin-bottom: 12px; }
+    .summary-card { flex: 1; padding: 8px 12px; border-radius: 4px; border-left: 4px solid #ccc; }
+    .summary-card.primary { border-left-color: #0d6efd; background: #e7f1ff; }
+    .summary-card.danger { border-left-color: #dc3545; background: #f8d7da; }
+    .summary-card.success { border-left-color: #198754; background: #d4edda; }
+    .summary-card .label { font-size: 8pt; text-transform: uppercase; color: #666; }
+    .summary-card .value { font-size: 12pt; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+    th, td { border: 1px solid #999; padding: 3px 5px; }
+    th { background: #1F4E78; color: #fff; text-align: left; }
+    .text-end { text-align: right; }
+    .text-center { text-align: center; }
+    tfoot td { background: #e9ecef; font-weight: bold; }
+    .status-low { color: #dc3545; font-weight: bold; }
+    .status-ok { color: #198754; }
+    .status-svc { color: #666; font-style: italic; }
+    .footer { text-align: center; margin-top: 15px; font-size: 8pt; color: #666; border-top: 1px solid #ddd; padding-top: 6px; }
+    .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
+    <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+    <p>Product Inventory Report — Generated on {% now "d M Y, h:i A" %}</p>
+</div>
+
+<div class="filters-box">
+    <strong>Filters:</strong>
+    {% if search %} Search: {{ search }}{% endif %}
+    {% if selected_category_id %} | Category ID: {{ selected_category_id }}{% endif %}
+    {% if is_active_filter %} | Status: {{ is_active_filter|title }}{% endif %}
+    {% if stock_filter %} | Stock: {{ stock_filter|title }}{% endif %}
+    {% if not search and not selected_category_id and not is_active_filter and not stock_filter %}All Products{% endif %}
+    | Total: {{ products|length }}
+</div>
+
+<div class="summary">
+    <div class="summary-card primary">
+        <div class="label">Total Products</div>
+        <div class="value">{{ total_products }}</div>
+    </div>
+    <div class="summary-card danger">
+        <div class="label">Low Stock</div>
+        <div class="value">{{ low_stock_count }}</div>
+    </div>
+    <div class="summary-card success">
+        <div class="label">Total Stock Value</div>
+        <div class="value">₹{{ total_stock_value|floatformat:2 }}</div>
+    </div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:30px;">#</th>
+            <th>Product</th>
+            <th style="width:70px;">HSN</th>
+            <th style="width:110px;">Category</th>
+            <th style="width:50px;">Type</th>
+            <th class="text-end" style="width:80px;">Purchase</th>
+            <th class="text-end" style="width:80px;">Selling</th>
+            <th class="text-center" style="width:50px;">Tax</th>
+            <th class="text-center" style="width:60px;">Stock</th>
+            <th class="text-center" style="width:60px;">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in products %}
+        <tr>
+            <td class="text-center">{{ forloop.counter }}</td>
+            <td>{{ p.name }}</td>
+            <td><code>{{ p.hsn_code|default:"—" }}</code></td>
+            <td>{{ p.category.name|default:"—" }}</td>
+            <td class="text-center">
+                {% if p.is_service %}Service{% else %}Product{% endif %}
+            </td>
+            <td class="text-end">₹{{ p.purchase_price|floatformat:2 }}</td>
+            <td class="text-end fw-bold">₹{{ p.selling_price|floatformat:2 }}</td>
+            <td class="text-center">{{ p.tax_rate|floatformat:0 }}%</td>
+            <td class="text-center">
+                {% if p.is_service %}—{% else %}{{ p.current_stock|floatformat:0 }}{% endif %}
+            </td>
+            <td class="text-center">
+                {% if p.is_service %}
+                    <span class="status-svc">SVC</span>
+                {% elif p.current_stock <= p.low_stock_threshold %}
+                    <span class="status-low">LOW</span>
+                {% else %}
+                    <span class="status-ok">OK</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10" class="text-center" style="padding:20px;">No products match filters.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="footer">
+    This is a computer-generated report. Generated by {{ company.name }}.
+</div>
+
+<div class="no-print" style="text-align:center; margin-top:15px;">
+    <hr>
+    <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+    <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+</div>
+
+</body>
+</html>

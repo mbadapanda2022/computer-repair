@@ -4,32 +4,31 @@
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
-                <th>#</th>
+                <th style="width:40px;">#</th>
                 <th>Product</th>
-                <th>Quantity</th>
-                <th class="text-end">Unit Price</th>
-                <th class="text-end">Total</th>
-                <th class="text-center">Action</th>
+                <th class="text-center" style="width:80px;">Qty</th>
+                <th class="text-end" style="width:120px;">Unit Price</th>
+                <th class="text-end" style="width:130px;">Total</th>
+                <th class="text-center" style="width:70px;">Action</th>
             </tr>
         </thead>
         <tbody>
             {% for part in parts %}
             <tr>
-                <td>{{ forloop.counter }}</td>
+                <td class="text-muted">{{ forloop.counter }}</td>
                 <td>
-                    <span class="fw-bold">{{ part.product.name }}</span>
-                    <br><small class="text-muted">{{ part.product.hsn_code|default:"" }}</small>
+                    <span class="fw-semibold">{{ part.product.name }}</span>
+                    {% if part.product.hsn_code %}
+                        <br><small class="text-muted">HSN: {{ part.product.hsn_code }}</small>
+                    {% endif %}
                 </td>
-                <td>{{ part.quantity }}</td>
+                <td class="text-center">{{ part.quantity }}</td>
                 <td class="text-end">₹{{ part.unit_price|floatformat:2 }}</td>
                 <td class="text-end fw-bold">₹{{ part.line_total|floatformat:2 }}</td>
                 <td class="text-center">
-                    <button class="btn btn-sm btn-outline-danger" 
-                            hx-delete="{% url 'accounting:remove_repair_part' part.pk %}" 
-                            hx-target="#parts-container"
-                            hx-swap="innerHTML"
-                            hx-confirm="Remove this part from the repair?"
-                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger remove-part-btn"
+                            data-url="{% url 'accounting:remove_repair_part' part.pk %}"
                             title="Remove Part">
                         <i class="bi bi-trash"></i>
                     </button>
@@ -38,25 +37,49 @@
             {% empty %}
             <tr>
                 <td colspan="6" class="text-center py-4 text-muted">
-                    <i class="bi bi-box display-6 d-block mb-2"></i>
+                    <i class="bi bi-box display-6 d-block mb-2 opacity-50"></i>
                     No parts added yet.
                 </td>
             </tr>
             {% endfor %}
         </tbody>
+        {% if parts %}
         <tfoot class="table-light fw-bold">
             <tr>
-                <td colspan="2" class="text-end">Totals</td>
-                <td>{{ parts|length }}</td>
-                <td></td>
+                <td colspan="4" class="text-end">Parts Total</td>
                 <td class="text-end">₹{{ parts_total|floatformat:2 }}</td>
                 <td></td>
             </tr>
+            <tr>
+                <td colspan="4" class="text-end">Labour Charge</td>
+                <td class="text-end">₹{{ job.labour_charge|floatformat:2 }}</td>
+                <td></td>
+            </tr>
             <tr class="table-primary">
-                <td colspan="4" class="text-end">Final Amount (Parts + Labour)</td>
+                <td colspan="4" class="text-end fs-6">Final Amount</td>
                 <td class="text-end fs-5">₹{{ job.final_amount|floatformat:2 }}</td>
                 <td></td>
             </tr>
         </tfoot>
+        {% endif %}
     </table>
 </div>
+
+<script>
+(function() {
+    'use strict';
+    document.body.addEventListener('click', function(e) {
+        const btn = e.target.closest('.remove-part-btn');
+        if (!btn) return;
+        e.preventDefault();
+
+        if (!confirm('Remove this part from the repair?')) return;
+
+        const url = btn.dataset.url;
+        htmx.ajax('POST', url, {
+            target: '#parts-container',
+            swap: 'innerHTML'
+        });
+    });
+})();
+</script>

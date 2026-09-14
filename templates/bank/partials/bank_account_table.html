@@ -1,5 +1,5 @@
 <div class="table-responsive">
-    <table class="table table-hover mb-0">
+    <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
                 <th>Account Name</th>
@@ -7,38 +7,75 @@
                 <th>Type</th>
                 <th class="text-end">Opening Balance</th>
                 <th class="text-end">Current Balance</th>
-                <th>Actions</th>
+                <th class="text-center">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for acc in accounts %}
             <tr>
-                <td>{{ acc.name }}</td>
-                <td>{{ acc.bank_name|default:"-" }}</td>
-                <td>{{ acc.get_account_type_display }}</td>
+                <td>
+                    <a href="{% url 'accounting:bank_statement' acc.pk %}" class="fw-semibold text-decoration-none">
+                        {{ acc.name }}
+                    </a>
+                    {% if acc.account_number %}
+                        <br><small class="text-muted">A/C: {{ acc.account_number }}</small>
+                    {% endif %}
+                </td>
+                <td>{{ acc.bank_name|default:"—" }}</td>
+                <td>
+                    <span class="badge bg-secondary">{{ acc.get_account_type_display }}</span>
+                </td>
                 <td class="text-end">₹{{ acc.opening_balance|floatformat:2 }}</td>
                 <td class="text-end fw-bold {% if acc.current_balance < 0 %}text-danger{% else %}text-success{% endif %}">
                     ₹{{ acc.current_balance|floatformat:2 }}
                 </td>
-                <td>
-                    <a href="{% url 'accounting:bank_statement' acc.pk %}" class="btn btn-sm btn-info">Statement</a>
-                    <button class="btn btn-sm btn-primary" 
-                        hx-get="{% url 'accounting:bank_account_edit' acc.pk %}" 
-                        hx-target="#mainModalContent">Edit</button>
-
-                    <button class="btn btn-sm btn-danger"
-                            hx-delete="{% url 'accounting:bank_account_delete' acc.pk %}"
-                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-                            hx-target="#bank-account-table"
-                            hx-swap="outerHTML"
-                            hx-confirm="Are you sure you want to delete this account?">
-                        <i class="bi bi-trash"></i>
-                    </button>
-
+                <td class="text-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'accounting:bank_statement' acc.pk %}">
+                                    <i class="bi bi-file-text me-2 text-primary"></i>View Statement
+                                </a>
+                            </li>
+                            <li>
+                                <button class="dropdown-item"
+                                        hx-get="{% url 'accounting:bank_transaction_add' acc.pk %}"
+                                        hx-target="#mainModalContent">
+                                    <i class="bi bi-plus-circle me-2 text-success"></i>Add Transaction
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item"
+                                        hx-get="{% url 'accounting:bank_account_edit' acc.pk %}"
+                                        hx-target="#mainModalContent">
+                                    <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item text-danger"
+                                        hx-delete="{% url 'accounting:bank_account_delete' acc.pk %}"
+                                        hx-target="#bank-account-table"
+                                        hx-swap="innerHTML"
+                                        hx-confirm="Delete this bank account? This cannot be undone.">
+                                    <i class="bi bi-trash me-2"></i>Delete
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="6" class="text-center">No bank accounts. Create one now.</td></tr>
+            <tr>
+                <td colspan="6" class="text-center text-muted py-5">
+                    <i class="bi bi-bank display-5 d-block mb-2 opacity-50"></i>
+                    No bank accounts found.
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

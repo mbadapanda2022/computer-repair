@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <title>Vendor Statement – {{ contact.name }}</title>
     <style>
-        /* Same as customer print – reuse styles */
         @media print { body { font-size: 10pt; margin: 1.5cm; } .no-print { display: none !important; } }
         body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 20px; background: #fff; }
         .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
@@ -21,6 +20,7 @@
         .fw-bold { font-weight: bold; }
         .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 15px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
         .summary-row td { background: #e9ecef !important; font-weight: bold; border-top: 2px solid #333; }
+        .closing-row td { background: #d1e7dd !important; font-weight: bold; }
         .company-logo { max-height: 60px; margin-bottom: 5px; }
         .no-print { margin-top: 20px; text-align: center; }
         .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
@@ -71,7 +71,10 @@
         </thead>
         <tbody>
             <tr class="fw-bold">
-                <td colspan="6">Opening Balance</td>
+                <td colspan="6">
+                    {% if opening_label %}{{ opening_label }}{% else %}Opening Balance{% endif %}
+                    {% if opening_as_on_date %}(as on {{ opening_as_on_date|date:"d M Y" }}){% endif %}
+                </td>
                 <td class="text-end">{{ opening_balance|floatformat:2 }}</td>
             </tr>
             {% for line in statement_lines %}
@@ -94,6 +97,13 @@
                 <td class="text-end">₹{{ total_credit|floatformat:2 }}</td>
                 <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
             </tr>
+            <tr class="closing-row">
+                <td colspan="6" class="text-end">
+                    Closing Balance
+                    {% if closing_as_on_date %}(as on {{ closing_as_on_date|date:"d M Y" }}){% endif %}
+                </td>
+                <td class="text-end" style="font-size: 12pt;">₹{{ closing_balance|floatformat:2 }}</td>
+            </tr>
             {% endif %}
         </tbody>
     </table>
@@ -113,4 +123,3 @@
     </div>
 </body>
 </html>
-

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bank Statement – {{ account.name }}</title>
+<style>
+    @page { size: A4; margin: 12mm; }
+    @media print { body { font-size: 10pt; } .no-print { display: none !important; } }
+    body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1000px; margin: 0 auto; padding: 15px; }
+    .header { border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h2 { margin: 5px 0 2px 0; color: #1a1a2e; font-size: 18pt; }
+    .header .meta { font-size: 9pt; color: #555; }
+    .company-logo { max-height: 50px; }
+    .summary { display: flex; gap: 8px; margin-bottom: 12px; }
+    .summary-card { flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-left: 4px solid #ccc; border-radius: 4px; }
+    .summary-card .label { font-size: 8pt; text-transform: uppercase; color: #6c757d; }
+    .summary-card .value { font-size: 12pt; font-weight: bold; margin-top: 2px; }
+    .summary-card.primary { border-left-color: #0d6efd; background: #e7f1ff; }
+    .summary-card.success { border-left-color: #198754; background: #d4edda; }
+    .summary-card.danger { border-left-color: #dc3545; background: #f8d7da; }
+    .summary-card.info { border-left-color: #0dcaf0; background: #cff4fc; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 9.5pt; }
+    th, td { border: 1px solid #999; padding: 4px 6px; }
+    th { background: #1F4E78; color: #fff; text-align: left; font-size: 9pt; }
+    .text-end { text-align: right; }
+    .text-center { text-align: center; }
+    tfoot td { background: #e9ecef; font-weight: bold; }
+    .footer { text-align: center; margin-top: 15px; font-size: 8pt; color: #6c757d; border-top: 1px solid #ddd; padding-top: 6px; }
+    .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
+        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <div class="meta">{{ account.name }}</div>
+    </div>
+    <div style="text-align:right;">
+        <div style="font-size:12pt; font-weight:bold; color:#1F4E78;">BANK STATEMENT</div>
+        <div class="meta">
+            {{ account.bank_name|default:"" }}
+            {% if account.account_number %} · A/C: {{ account.account_number }}{% endif %}
+            {% if account.ifsc_code %}<br>IFSC: {{ account.ifsc_code }}{% endif %}<br>
+            Period: {{ date_from|default:"Beginning" }} → {{ date_to|default:"Today" }}
+        </div>
+    </div>
+</div>
+
+<div class="summary">
+    <div class="summary-card primary">
+        <div class="label">Opening Balance</div>
+        <div class="value">₹{{ opening_balance|floatformat:2 }}</div>
+    </div>
+    <div class="summary-card success">
+        <div class="label">Total Deposits</div>
+        <div class="value">₹{{ total_deposit|floatformat:2 }}</div>
+    </div>
+    <div class="summary-card danger">
+        <div class="label">Total Withdrawals</div>
+        <div class="value">₹{{ total_withdrawal|floatformat:2 }}</div>
+    </div>
+    <div class="summary-card info">
+        <div class="label">Closing Balance</div>
+        <div class="value">₹{{ closing_balance|floatformat:2 }}</div>
+    </div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:90px;">Date</th>
+            <th>Description</th>
+            <th style="width:130px;">Reference</th>
+            <th class="text-end" style="width:100px;">Deposit (₹)</th>
+            <th class="text-end" style="width:100px;">Withdrawal (₹)</th>
+            <th class="text-end" style="width:110px;">Balance (₹)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr style="background:#eef2f7; font-weight:bold;">
+            <td class="text-center">—</td>
+            <td colspan="4">Opening Balance</td>
+            <td class="text-end">₹{{ opening_balance|floatformat:2 }}</td>
+        </tr>
+        {% for line in statement_lines %}
+        <tr>
+            <td>{{ line.date|date:"d-m-Y" }}</td>
+            <td>{{ line.description }}</td>
+            <td>{% if line.reference != '-' %}{{ line.reference }}{% else %}—{% endif %}</td>
+            <td class="text-end">{% if line.deposit > 0 %}₹{{ line.deposit|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td class="text-end">{% if line.withdrawal > 0 %}₹{{ line.withdrawal|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td class="text-end">₹{{ line.balance|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center" style="padding:20px;">No transactions found.</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="3" class="text-end">Totals →</td>
+            <td class="text-end">₹{{ total_deposit|floatformat:2 }}</td>
+            <td class="text-end">₹{{ total_withdrawal|floatformat:2 }}</td>
+            <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="footer">
+    This is a computer-generated statement. Generated on {% now "d M Y, h:i A" %} by {{ company.name }}.
+</div>
+
+<div class="no-print" style="text-align:center; margin-top:15px;">
+    <hr>
+    <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+    <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+</div>
+</body>
+</html>

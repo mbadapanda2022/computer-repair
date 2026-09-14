@@ -2,10 +2,12 @@
 
 import json
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.decorators.csrf import csrf_protect
@@ -14,19 +16,38 @@ from django.template.loader import render_to_string
 from django.contrib.auth.models import User
 from django.urls import reverse
 
-from ..models import Payment, BankTransaction, Contact, Invoice, PaymentAllocation
+from ..models import (
+    Payment, BankTransaction, Contact, Invoice, PaymentAllocation,
+)
 from ..forms import PaymentForm
 from .utils import is_htmx, htmx_response, redirect_to_staff
 from ..decorators import handle_errors
 
-# Notification Helpers
 from accounting.utils.notification_helpers import (
     send_notification_to_customer,
     send_notification_to_staff,
-    send_notification_sse
+    send_notification_sse,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# HELPER: Get unpaid invoices for a contact
+# ============================================================
+def get_unpaid_invoices_for_contact(contact, direction='received'):
+    """
+    Get unpaid or partially-paid invoices for a contact.
+    Only meaningful for customer-side payments (direction='received').
+    """
+    if direction == 'received' and contact and contact.contact_type in ('customer', 'both'):
+        return Invoice.objects.filter(
+            customer=contact,
+            balance_due__gt=0,
+        ).exclude(
+            payment_status='paid'
+        ).order_by('date', 'id')
+    return Invoice.objects.none()
 
 
 # ============================================================
@@ -35,27 +56,28 @@ logger = logging.getLogger(__name__)
 def get_paginated_payments_context(request, queryset=None):
     """Shared logic to filter, paginate, and annotate payments."""
     if queryset is None:
-        queryset = Payment.objects.select_related('contact', 'bank_account').all().order_by('-date')
+        queryset = Payment.objects.select_related(
+            'contact', 'bank_account'
+        ).prefetch_related(
+            'allocations__invoice'
+        ).all().order_by('-date', '-id')
 
-    # Filters
     search = request.GET.get('search', '').strip()
     direction = request.GET.get('direction', '')
     method = request.GET.get('method', '')
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
-    reset = request.GET.get('reset', '')
     page_number = request.GET.get('page', 1)
-
-    if reset:
-        search = direction = method = date_from = date_to = ''
 
     if search:
         queryset = queryset.filter(
             Q(contact__name__icontains=search) |
+            Q(contact__phone__icontains=search) |
             Q(reference__icontains=search) |
             Q(upi_ref__icontains=search) |
-            Q(description__icontains=search)
-        )
+            Q(description__icontains=search) |
+            Q(allocations__invoice__invoice_number__icontains=search)
+        ).distinct()
     if direction:
         queryset = queryset.filter(direction=direction)
     if method:
@@ -65,7 +87,6 @@ def get_paginated_payments_context(request, queryset=None):
     if date_to:
         queryset = queryset.filter(date__lte=date_to)
 
-    # Pagination (15 per page)
     paginator = Paginator(queryset, 15)
     try:
         page_obj = paginator.page(page_number)
@@ -74,9 +95,12 @@ def get_paginated_payments_context(request, queryset=None):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # Summary stats
-    total_received = queryset.filter(direction='received').aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
-    total_paid = queryset.filter(direction='paid').aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
+    total_received = queryset.filter(direction='received').aggregate(
+        Sum('amount')
+    )['amount__sum'] or Decimal('0')
+    total_paid = queryset.filter(direction='paid').aggregate(
+        Sum('amount')
+    )['amount__sum'] or Decimal('0')
     upi_count = queryset.filter(method='upi').count()
     pending_reconciliation = queryset.filter(reconciled=False).count()
     total_amount = queryset.aggregate(Sum('amount'))['amount__sum'] or Decimal('0')
@@ -110,161 +134,387 @@ def payment_list(request):
 
 
 # ============================================================
-# PAYMENT CREATE (with Notification & Allocation)
+# HELPER: Load Unpaid Invoices (HTMX endpoint for allocation UI)
+# ============================================================
+@require_http_methods(["GET"])
+def load_unpaid_invoices(request):
+    """
+    HTMX endpoint: return partial HTML with unpaid invoices for a contact.
+    Used by payment form to load allocation section when contact selected.
+    """
+    contact_id = request.GET.get('contact', '').strip()
+    direction = request.GET.get('direction', 'received').strip()
+
+    if not contact_id:
+        return HttpResponse('')
+
+    try:
+        contact = Contact.objects.get(pk=contact_id)
+    except (Contact.DoesNotExist, ValueError):
+        return HttpResponse('')
+
+    if direction == 'received':
+        unpaid_invoices = get_unpaid_invoices_for_contact(contact, 'received')
+    else:
+        unpaid_invoices = Invoice.objects.none()
+
+    return render(request, 'payments/partials/unpaid_invoices.html', {
+        'contact': contact,
+        'unpaid_invoices': unpaid_invoices,
+        'direction': direction,
+    })
+
+
+# ============================================================
+# PAYMENT CREATE (with multi-invoice allocation)
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:payment_list', htmx_template='payments/payment_form.html')
-def payment_create(request):
+def payment_create(request, pk=None):
+    """
+    Create a new payment.
+
+    Behavior:
+    - Pre-fills contact when ?contact=<id> is provided.
+    - Pre-fills from invoice when ?invoice=<id> or <pk> is provided.
+    - Supports multi-invoice allocation via `allocation_amount_<invoice_id>` POST fields.
+    - If is_advance=True, NO allocations are created (kept as advance).
+    - If payment.amount > sum of allocations, remaining is treated as unallocated (advance-like).
+    """
     initial = {}
     contact_id = request.GET.get('contact')
     invoice_id = request.GET.get('invoice')
 
+    if pk is not None and not invoice_id:
+        invoice_id = pk
+
+    # ---- Pre-fill contact from ?contact=<id> ----
     if contact_id:
         try:
             contact = Contact.objects.get(pk=contact_id)
             initial['contact'] = contact.id
-            if contact.contact_type in ['customer', 'both']:
+            if contact.contact_type in ('customer', 'both'):
                 initial['direction'] = 'received'
             else:
                 initial['direction'] = 'paid'
-        except Contact.DoesNotExist:
+        except (Contact.DoesNotExist, ValueError):
             pass
 
-    # We no longer set initial['invoices'] because it doesn't exist.
-    # We'll handle allocation after payment save.
+    # ---- Pre-fill from invoice context ----
+    target_invoice = None
+    if invoice_id:
+        try:
+            target_invoice = Invoice.objects.select_related('customer').get(pk=invoice_id)
+            initial['contact'] = target_invoice.customer.id
+            initial['direction'] = 'received'
+            initial['amount'] = target_invoice.balance_due
+        except (Invoice.DoesNotExist, ValueError):
+            pass
 
+    # ============================================================
+    # POST HANDLER
+    # ============================================================
     if request.method == 'POST':
         form = PaymentForm(request.POST)
         if form.is_valid():
-            payment = form.save()
-            logger.info(f"Payment #{payment.id} created by {request.user.username}")
+            with transaction.atomic():
+                payment = form.save()
 
-            # --- CREATE PAYMENT ALLOCATION IF INVOICE_ID PROVIDED ---
-            if invoice_id:
-                try:
-                    invoice = Invoice.objects.get(pk=invoice_id)
-                    # Create allocation for the full payment amount
-                    PaymentAllocation.objects.create(
-                        payment=payment,
-                        invoice=invoice,
-                        amount=payment.amount
-                    )
-                    # Update invoice paid status
-                    payment.update_invoices()
-                    logger.info(f"Payment #{payment.id} allocated to invoice {invoice.invoice_number}")
-                except Invoice.DoesNotExist:
-                    logger.warning(f"Invoice {invoice_id} not found for payment allocation")
+                # ---------------------------------------------------
+                # Allocations (only for non-advance payments)
+                # ---------------------------------------------------
+                allocations_made = []
 
-            # ============================================================
-            # 🔔 NOTIFICATIONS
-            # ============================================================
-            try:
-                if payment.direction == 'received' and payment.contact:
-                    send_notification_to_customer(
-                        payment.contact,
-                        title=f"Payment Received: ₹{payment.amount}",
-                        message=f"Your payment of ₹{payment.amount} has been recorded.",
-                        link=reverse('customer:customer_payments'),
-                        notif_type='success',
-                        category='payment',
-                        send_email=False
-                    )
+                if not payment.is_advance:
+                    # 1) Auto-allocate to target invoice (from ?invoice=)
+                    if target_invoice and target_invoice.customer_id == payment.contact_id:
+                        if not PaymentAllocation.objects.filter(
+                            payment=payment, invoice=target_invoice
+                        ).exists():
+                            alloc_amt = min(payment.amount, target_invoice.balance_due)
+                            if alloc_amt > 0:
+                                PaymentAllocation.objects.create(
+                                    payment=payment,
+                                    invoice=target_invoice,
+                                    amount=alloc_amt,
+                                )
+                                allocations_made.append(
+                                    f"{target_invoice.invoice_number} Rs.{alloc_amt}"
+                                )
 
-                send_notification_to_staff(
-                    title=f"New Payment #{payment.id}",
-                    message=f"{payment.get_direction_display()} of ₹{payment.amount} from {payment.contact.name}",
-                    link=reverse('accounting:payment_list'),
-                    notif_type='info',
-                    category='payment',
-                    send_email=False
+                    # 2) Multi-invoice allocation from POST
+                    #    POST fields: allocation_amount_<invoice_id> = "123.45"
+                    for key, value in request.POST.items():
+                        if not key.startswith('allocation_amount_'):
+                            continue
+                        if not value or not value.strip():
+                            continue
+
+                        try:
+                            inv_id = int(key.replace('allocation_amount_', ''))
+                            amt = Decimal(value.strip())
+                        except (ValueError, InvalidOperation):
+                            continue
+
+                        if amt <= 0:
+                            continue
+
+                        try:
+                            inv = Invoice.objects.get(pk=inv_id, customer=payment.contact)
+                        except Invoice.DoesNotExist:
+                            continue
+
+                        # Skip if already allocated
+                        if PaymentAllocation.objects.filter(payment=payment, invoice=inv).exists():
+                            continue
+
+                        alloc_amt = min(amt, inv.balance_due)
+                        if alloc_amt <= 0:
+                            continue
+
+                        PaymentAllocation.objects.create(
+                            payment=payment,
+                            invoice=inv,
+                            amount=alloc_amt,
+                        )
+                        allocations_made.append(f"{inv.invoice_number} Rs.{alloc_amt}")
+
+                    # 3) Update invoice statuses once
+                    if allocations_made:
+                        payment.update_invoices()
+
+                logger.info(
+                    f"Payment #{payment.id} created by {request.user.username} "
+                    f"(Rs.{payment.amount} {payment.direction}). "
+                    f"Allocations: {allocations_made or 'None'}"
                 )
 
-                for staff in User.objects.filter(is_staff=True):
-                    send_notification_sse(staff)
+                # ---------------------------------------------------
+                # Notifications
+                # ---------------------------------------------------
+                try:
+                    if payment.direction == 'received' and payment.contact:
+                        send_notification_to_customer(
+                            payment.contact,
+                            title=f"Payment Received: Rs.{payment.amount}",
+                            message=f"Your payment of Rs.{payment.amount} has been recorded.",
+                            link=reverse('customer:customer_payments'),
+                            notif_type='success',
+                            category='payment',
+                            send_email=False,
+                        )
 
-            except Exception as notif_error:
-                logger.error(f"Payment notification failed for #{payment.id}: {notif_error}", exc_info=True)
+                    send_notification_to_staff(
+                        title=f"New Payment #{payment.id}",
+                        message=(
+                            f"{payment.get_direction_display()} of "
+                            f"Rs.{payment.amount} with {payment.contact.name}"
+                        ),
+                        link=reverse('accounting:payment_list'),
+                        notif_type='info',
+                        category='payment',
+                        send_email=False,
+                    )
 
-            if is_htmx(request):
-                context = get_paginated_payments_context(request)
-                response = render(request, 'payments/partials/payment_table.html', context)
-                response['HX-Trigger'] = json.dumps({
-                    'showToast': {'level': 'success', 'message': 'Payment created successfully.'},
-                    'closeModal': ''
-                })
-                return response
-            messages.success(request, "Payment created successfully.")
-            return redirect_to_staff('payment_list')
+                    for staff in User.objects.filter(is_staff=True):
+                        send_notification_sse(staff)
+                except Exception as notif_error:
+                    logger.error(
+                        f"Payment notification failed for #{payment.id}: {notif_error}",
+                        exc_info=True,
+                    )
+
+                # ---------------------------------------------------
+                # Response
+                # ---------------------------------------------------
+                if is_htmx(request):
+                    context = get_paginated_payments_context(request)
+                    response = render(request, 'payments/partials/payment_table.html', context)
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {
+                            'level': 'success',
+                            'message': f'Payment Rs.{payment.amount} recorded successfully.',
+                        },
+                        'closeModal': '',
+                    })
+                    return response
+
+                messages.success(request, f"Payment Rs.{payment.amount} recorded successfully.")
+                return redirect_to_staff('payment_list')
         else:
+            # Invalid form
             if is_htmx(request):
-                response = render(request, 'payments/payment_form.html', {'form': form})
+                response = render(request, 'payments/payment_form.html', {
+                    'form': form,
+                    'payment': None,
+                    'target_invoice': target_invoice,
+                })
                 response['HX-Retarget'] = '#mainModalContent'
                 return response
+
     else:
         form = PaymentForm(initial=initial)
 
-    return render(request, 'payments/payment_form.html', {'form': form})
+    # ============================================================
+    # GET: Render form
+    # ============================================================
+    # Load unpaid invoices for the pre-selected contact (if any)
+    unpaid_invoices = Invoice.objects.none()
+    pre_contact = None
+
+    initial_contact_id = form.initial.get('contact')
+    if initial_contact_id:
+        try:
+            pre_contact = Contact.objects.get(pk=initial_contact_id)
+            if form.initial.get('direction') == 'received':
+                unpaid_invoices = get_unpaid_invoices_for_contact(pre_contact, 'received')
+        except (Contact.DoesNotExist, ValueError):
+            pass
+
+    context = {
+        'form': form,
+        'payment': None,
+        'target_invoice': target_invoice,
+        'unpaid_invoices': unpaid_invoices,
+        'pre_contact': pre_contact,
+    }
+    return render(request, 'payments/payment_form.html', context)
 
 
 # ============================================================
-# PAYMENT UPDATE (with Notification)
+# PAYMENT UPDATE
 # ============================================================
 @csrf_protect
 @handle_errors(default_redirect='accounting:payment_list', htmx_template='payments/payment_form.html')
 def payment_update(request, pk):
+    """Update an existing payment."""
     payment = get_object_or_404(Payment, pk=pk)
+
     if request.method == 'POST':
         form = PaymentForm(request.POST, instance=payment)
         if form.is_valid():
-            form.save()
-            logger.info(f"Payment #{pk} updated by {request.user.username}")
+            with transaction.atomic():
+                # Save payment (this triggers model-level ledger sync)
+                payment = form.save()
 
-            # --- Update related invoice statuses ---
-            payment.update_invoices()
+                # Handle allocation changes ONLY if amount changed
+                # (For simplicity: recompute allocations to match new amount)
+                # Delete old allocations and re-create from POST if provided
+                if not payment.is_advance and 'reset_allocations' in request.POST:
+                    payment.allocations.all().delete()
 
-            # ============================================================
-            # 🔔 NOTIFICATIONS
-            # ============================================================
-            try:
-                if payment.direction == 'received' and payment.contact:
-                    send_notification_to_customer(
-                        payment.contact,
-                        title=f"Payment Updated: ₹{payment.amount}",
-                        message=f"Your payment of ₹{payment.amount} has been updated.",
-                        link=reverse('customer:customer_payments'),
-                        notif_type='info',
-                        category='payment',
-                        send_email=False
+                    for key, value in request.POST.items():
+                        if not key.startswith('allocation_amount_'):
+                            continue
+                        if not value or not value.strip():
+                            continue
+
+                        try:
+                            inv_id = int(key.replace('allocation_amount_', ''))
+                            amt = Decimal(value.strip())
+                        except (ValueError, InvalidOperation):
+                            continue
+
+                        if amt <= 0:
+                            continue
+
+                        try:
+                            inv = Invoice.objects.get(pk=inv_id, customer=payment.contact)
+                        except Invoice.DoesNotExist:
+                            continue
+
+                        alloc_amt = min(amt, inv.balance_due)
+                        if alloc_amt > 0:
+                            PaymentAllocation.objects.create(
+                                payment=payment,
+                                invoice=inv,
+                                amount=alloc_amt,
+                            )
+
+                    payment.update_invoices()
+
+                logger.info(f"Payment #{pk} updated by {request.user.username}")
+
+                # Notifications
+                try:
+                    if payment.direction == 'received' and payment.contact:
+                        send_notification_to_customer(
+                            payment.contact,
+                            title=f"Payment Updated: Rs.{payment.amount}",
+                            message=f"Your payment of Rs.{payment.amount} has been updated.",
+                            link=reverse('customer:customer_payments'),
+                            notif_type='info',
+                            category='payment',
+                            send_email=False,
+                        )
+                    for staff in User.objects.filter(is_staff=True):
+                        send_notification_sse(staff)
+                except Exception as notif_error:
+                    logger.error(
+                        f"Payment update notification failed for #{pk}: {notif_error}",
+                        exc_info=True,
                     )
 
-                for staff in User.objects.filter(is_staff=True):
-                    send_notification_sse(staff)
+                if is_htmx(request):
+                    context = get_paginated_payments_context(request)
+                    response = render(request, 'payments/partials/payment_table.html', context)
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {'level': 'success', 'message': 'Payment updated successfully.'},
+                        'closeModal': '',
+                    })
+                    return response
 
-            except Exception as notif_error:
-                logger.error(f"Payment update notification failed for #{pk}: {notif_error}", exc_info=True)
-
-            if is_htmx(request):
-                context = get_paginated_payments_context(request)
-                response = render(request, 'payments/partials/payment_table.html', context)
-                response['HX-Trigger'] = json.dumps({
-                    'showToast': {'level': 'success', 'message': 'Payment updated successfully.'},
-                    'closeModal': ''
-                })
-                return response
-            messages.success(request, "Payment updated successfully.")
-            return redirect_to_staff('payment_list')
+                messages.success(request, "Payment updated successfully.")
+                return redirect_to_staff('payment_list')
         else:
             if is_htmx(request):
-                response = render(request, 'payments/payment_form.html', {'form': form, 'payment': payment})
+                response = render(request, 'payments/payment_form.html', {
+                    'form': form,
+                    'payment': payment,
+                })
                 response['HX-Retarget'] = '#mainModalContent'
                 return response
+
     else:
         form = PaymentForm(instance=payment)
-    return render(request, 'payments/payment_form.html', {'form': form, 'payment': payment})
+
+    unpaid_invoices = Invoice.objects.none()
+    if payment.contact and payment.direction == 'received':
+        allocated_invoice_ids = list(
+            payment.allocations.values_list('invoice_id', flat=True)
+        )
+        unpaid_invoices = Invoice.objects.filter(
+            customer=payment.contact,
+        ).filter(
+            Q(balance_due__gt=0) | Q(pk__in=allocated_invoice_ids)
+        ).exclude(
+            payment_status='paid',
+            pk__in=[  
+                i for i in Invoice.objects.filter(
+                    customer=payment.contact,
+                    payment_status='paid',
+                ).values_list('pk', flat=True)
+                if i not in allocated_invoice_ids
+            ]
+        ).order_by('date', 'id')
+
+    # Also include already-allocated invoices (for display)
+    existing_allocations = payment.allocations.select_related('invoice').all()
+    allocation_map = {a.invoice_id: a.amount for a in existing_allocations}
+
+    context = {
+        'form': form,
+        'payment': payment,
+        'target_invoice': None,
+        'unpaid_invoices': unpaid_invoices,
+        'allocation_map': allocation_map,
+        'pre_contact': payment.contact,
+    }
+    return render(request, 'payments/payment_form.html', context)
 
 
 # ============================================================
-# PAYMENT DELETE (with Notification)
+# PAYMENT DELETE (soft delete with cleanup)
 # ============================================================
 @csrf_protect
 @require_http_methods(["DELETE"])
@@ -275,17 +525,17 @@ def payment_delete(request, pk):
     amount = payment.amount
     direction = payment.direction
 
-    payment.delete()  # soft delete; handles allocations, ledger, bank transaction
+    payment.delete()  # Soft delete + ledger/bank cleanup happens in model
     logger.info(f"Payment #{pk} deleted by {request.user.username}")
 
     try:
         send_notification_to_staff(
-            title=f"Payment Deleted: ₹{amount}",
-            message=f"{direction} payment of ₹{amount} from {contact.name if contact else 'Unknown'} was deleted.",
+            title=f"Payment Deleted: Rs.{amount}",
+            message=f"{direction} payment of Rs.{amount} from {contact.name if contact else 'Unknown'} was deleted.",
             link=reverse('accounting:payment_list'),
             notif_type='warning',
             category='payment',
-            send_email=False
+            send_email=False,
         )
         for staff in User.objects.filter(is_staff=True):
             send_notification_sse(staff)
@@ -299,6 +549,7 @@ def payment_delete(request, pk):
             'showToast': {'level': 'success', 'message': 'Payment deleted successfully.'}
         })
         return response
+
     messages.success(request, "Payment deleted.")
     return redirect_to_staff('payment_list')
 
@@ -311,9 +562,12 @@ def payment_delete(request, pk):
 def reconcile_payment(request, pk):
     payment = get_object_or_404(Payment, pk=pk)
     payment.reconciled = not payment.reconciled
-    payment.save()
-    BankTransaction.objects.filter(payment=payment).update(reconciled=payment.reconciled)
-    logger.info(f"Payment #{pk} reconciliation toggled to {payment.reconciled} by {request.user.username}")
+    payment.save()  # Model's update_bank_transaction() syncs BankTransaction.reconciled
+
+    logger.info(
+        f"Payment #{pk} reconciliation toggled to {payment.reconciled} "
+        f"by {request.user.username}"
+    )
 
     try:
         for staff in User.objects.filter(is_staff=True):
@@ -325,8 +579,12 @@ def reconcile_payment(request, pk):
         context = get_paginated_payments_context(request)
         response = render(request, 'payments/partials/payment_table.html', context)
         response['HX-Trigger'] = json.dumps({
-            'showToast': {'level': 'info', 'message': f"Payment #{payment.id} reconciliation updated."}
+            'showToast': {
+                'level': 'info',
+                'message': f"Payment #{payment.id} reconciliation updated."
+            }
         })
         return response
+
     messages.success(request, "Reconciliation status updated.")
     return redirect_to_staff('payment_list')

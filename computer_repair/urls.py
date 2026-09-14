@@ -26,9 +26,6 @@ urlpatterns = [
     # Customer URLs (Dashboard, Profile, etc.)
     path('customer/', include(('accounting.customer_urls', 'customer'))),
 
-    # Events (SSE)
-    path('events/', include('django_eventstream.urls')),
-
     # Staff / Accounting URLs (Login, Register, Dashboard, etc.)
     path('', include(('accounting.urls', 'accounting'))),
     path('tracking/', include('accounting.tracking_urls')),

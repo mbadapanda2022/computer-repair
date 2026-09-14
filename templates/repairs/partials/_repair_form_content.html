@@ -22,8 +22,9 @@
                 <div class="card-body">
                     <form method="post"
                           hx-post="{% if job %}{% url 'accounting:repair_update' job.pk %}{% else %}{% url 'accounting:repair_create' %}{% endif %}"
-                          hx-target="#mainModalContent"
+                          hx-target="{% if is_htmx %}#mainModalContent{% else %}#main-content{% endif %}"
                           hx-swap="innerHTML"
+                          hx-push-url="false"
                           id="repairForm"
                           novalidate>
                         {% csrf_token %}

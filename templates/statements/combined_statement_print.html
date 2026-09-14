@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Combined Statement — {{ contact.name }}</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10px;
+    color: #222;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid #1F4E78;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+  }
+  .company-name { font-size: 18px; font-weight: bold; color: #1F4E78; margin: 0; }
+  .company-info { font-size: 9px; color: #555; margin-top: 3px; }
+  .doc-title { font-size: 15px; font-weight: bold; margin: 0; text-align: right; color: #1F4E78; }
+  .party-info { font-size: 10px; margin-top: 4px; text-align: right; }
+
+  /* Summary Cards */
+  .summary { display: flex; gap: 8px; margin-bottom: 10px; }
+  .summary-card {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    border-left-width: 4px;
+    border-radius: 4px;
+  }
+  .summary-card.receivable { border-left-color: #198754; background: #d4edda; }
+  .summary-card.payable    { border-left-color: #ffc107; background: #fff3cd; }
+  .summary-card.net        { border-left-color: #0d6efd; background: #e7f1ff; }
+  .summary-label {
+    font-size: 9px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .summary-value { font-size: 15px; font-weight: bold; margin-top: 2px; }
+  .summary-value.green  { color: #198754; }
+  .summary-value.yellow { color: #b8860b; }
+  .summary-value.blue   { color: #0d6efd; }
+  .summary-value.red    { color: #dc3545; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th, td {
+    border: 1px solid #999;
+    padding: 4px 6px;
+    font-size: 9.5px;
+    vertical-align: top;
+  }
+  thead th {
+    background: #1F4E78;
+    color: #fff;
+    text-align: center;
+    font-size: 9px;
+    padding: 5px 4px;
+  }
+  .recv-head { background: #198754 !important; }
+  .pay-head  { background: #b8860b !important; }
+  .net-head  { background: #0d6efd !important; }
+  .text-end    { text-align: right; }
+  .text-center { text-align: center; }
+  .row-alt   { background: #f8f9fa; }
+  .opening-row { background: #eef2f7; font-weight: bold; }
+  .total-row { background: #e2e6ea; font-weight: bold; }
+  .closing-row { background: #d4edda; font-weight: bold; }
+  .ref-badge { color: #555; font-size: 8.5px; }
+  .footer-note {
+    margin-top: 12px;
+    font-size: 8.5px;
+    color: #666;
+    text-align: center;
+    border-top: 1px solid #ddd;
+    padding-top: 6px;
+  }
+  .net-positive { color: #198754; font-weight: bold; }
+  .net-negative { color: #dc3545; font-weight: bold; }
+
+  /* Print button hidden on print */
+  .print-actions {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .print-actions button {
+    padding: 6px 16px;
+    font-size: 12px;
+    cursor: pointer;
+    background: #1F4E78;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+  }
+  @media print {
+    .print-actions { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Print button (hidden when printing) -->
+<div class="print-actions">
+  <button onclick="window.print();">🖨️ Print</button>
+</div>
+
+<!-- Header -->
+<div class="header">
+  <div>
+    <p class="company-name">{{ company.name }}</p>
+    <div class="company-info">
+      {% if company.address %}{{ company.address }}<br>{% endif %}
+      {% if company.phone %}Phone: {{ company.phone }}{% endif %}
+      {% if company.email %} · {{ company.email }}{% endif %}
+      {% if company.gstin %}<br>GSTIN: {{ company.gstin }}{% endif %}
+    </div>
+  </div>
+  <div>
+    <p class="doc-title">COMBINED STATEMENT OF ACCOUNT</p>
+    <div class="party-info">
+      <strong>{{ contact.name }}</strong>
+      <span class="ref-badge">({{ contact.get_contact_type_display }})</span><br>
+      {% if contact.phone %}Phone: {{ contact.phone }}<br>{% endif %}
+      {% if contact.gstin %}GSTIN: {{ contact.gstin }}<br>{% endif %}
+      Period: {{ date_from|default:"Beginning" }} → {{ date_to|default:"Today" }}
+    </div>
+  </div>
+</div>
+
+<!-- Summary -->
+<div class="summary">
+  <div class="summary-card receivable">
+    <div class="summary-label">Receivable (They Owe Us)</div>
+    <div class="summary-value green">₹{{ closing_recv|floatformat:2 }}</div>
+  </div>
+  <div class="summary-card payable">
+    <div class="summary-label">Payable (We Owe Them)</div>
+    <div class="summary-value yellow">₹{{ closing_pay|floatformat:2 }}</div>
+  </div>
+  <div class="summary-card net">
+    <div class="summary-label">Net Position</div>
+    <div class="summary-value {% if net_position >= 0 %}blue{% else %}red{% endif %}">
+      ₹{{ net_position|floatformat:2 }}
+      {% if net_position > 0 %}<small style="font-size:9px;">(they owe us)</small>
+      {% elif net_position < 0 %}<small style="font-size:9px;">(we owe them)</small>
+      {% else %}<small style="font-size:9px;">(settled)</small>{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Main Table -->
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2" style="width: 70px;">Date</th>
+      <th rowspan="2">Particulars</th>
+      <th colspan="3" class="recv-head">Receivable (They Owe Us)</th>
+      <th colspan="3" class="pay-head">Payable (We Owe Them)</th>
+      <th rowspan="2" class="net-head" style="width: 85px;">Net</th>
+    </tr>
+    <tr>
+      <th class="recv-head text-end" style="width: 65px;">Dr</th>
+      <th class="recv-head text-end" style="width: 65px;">Cr</th>
+      <th class="recv-head text-end" style="width: 70px;">Balance</th>
+      <th class="pay-head text-end" style="width: 65px;">Dr</th>
+      <th class="pay-head text-end" style="width: 65px;">Cr</th>
+      <th class="pay-head text-end" style="width: 70px;">Balance</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Opening -->
+    <tr class="opening-row">
+      <td class="text-center">—</td>
+      <td>
+        Opening Balance
+        {% if date_from %}(carried forward as on {{ date_from }}){% endif %}
+      </td>
+      <td class="text-end">
+        {% if opening_recv > 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}
+      </td>
+      <td class="text-end">
+        {% if opening_recv < 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}
+      </td>
+      <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
+      <td class="text-end">
+        {% if opening_pay < 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}
+      </td>
+      <td class="text-end">
+        {% if opening_pay > 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}
+      </td>
+      <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
+      <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
+    </tr>
+
+    <!-- Transactions -->
+    {% for row in rows %}
+    <tr {% if forloop.counter|divisibleby:2 %}class="row-alt"{% endif %}>
+      <td class="text-center">{{ row.date|date:"d-m-Y" }}</td>
+      <td>
+        {{ row.description }}
+        {% if row.reference %}<br><span class="ref-badge">Ref: {{ row.reference }}</span>{% endif %}
+      </td>
+      <td class="text-end">{% if row.recv_dr %}₹{{ row.recv_dr|floatformat:2 }}{% endif %}</td>
+      <td class="text-end">{% if row.recv_cr %}₹{{ row.recv_cr|floatformat:2 }}{% endif %}</td>
+      <td class="text-end">{{ row.running_recv|floatformat:2 }}</td>
+      <td class="text-end">{% if row.pay_dr %}₹{{ row.pay_dr|floatformat:2 }}{% endif %}</td>
+      <td class="text-end">{% if row.pay_cr %}₹{{ row.pay_cr|floatformat:2 }}{% endif %}</td>
+      <td class="text-end">{{ row.running_pay|floatformat:2 }}</td>
+      <td class="text-end {% if row.net >= 0 %}net-positive{% else %}net-negative{% endif %}">
+        {{ row.net|floatformat:2 }}
+      </td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="9" class="text-center" style="padding: 20px;">
+        No transactions found for the selected period.
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="total-row">
+      <td colspan="2" class="text-end">Period Totals →</td>
+      <td class="text-end">₹{{ total_recv_dr|floatformat:2 }}</td>
+      <td class="text-end">₹{{ total_recv_cr|floatformat:2 }}</td>
+      <td></td>
+      <td class="text-end">₹{{ total_pay_dr|floatformat:2 }}</td>
+      <td class="text-end">₹{{ total_pay_cr|floatformat:2 }}</td>
+      <td></td>
+      <td></td>
+    </tr>
+    <tr class="closing-row">
+      <td colspan="2" class="text-end">Closing Balance →</td>
+      <td colspan="3" class="text-end">Receivable: ₹{{ closing_recv|floatformat:2 }}</td>
+      <td colspan="3" class="text-end">Payable: ₹{{ closing_pay|floatformat:2 }}</td>
+      <td class="text-end {% if net_position >= 0 %}net-positive{% else %}net-negative{% endif %}">
+        ₹{{ net_position|floatformat:2 }}
+      </td>
+    </tr>
+  </tfoot>
+</table>
+
+<div class="footer-note">
+  This is a computer-generated statement.
+  Generated on {{ "now"|date:"d-M-Y H:i" }} by {{ company.name }}.
+  <br>
+  Net Position = Receivable − Payable.
+  {% if net_position > 0 %}
+    <strong>{{ contact.name }} owes us ₹{{ net_position|floatformat:2 }}.</strong>
+  {% elif net_position < 0 %}
+    <strong>We owe {{ contact.name }} ₹{{ net_position|floatformat:2|slice:"1:" }}.</strong>
+  {% else %}
+    <strong>Account is fully settled.</strong>
+  {% endif %}
+</div>
+
+</body>
+</html>

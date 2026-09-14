@@ -17,7 +17,9 @@ from .models import (
     Purchase, PurchaseItem, RepairJob, RepairPart,
     Payment, StockMovement,
     Notification, NotificationPreference, ContactMessage, 
-    FAQ, Testimonial, Service, EmailOTP  
+    FAQ, Testimonial, Service, EmailOTP,
+    BankAccount, BankTransaction, PaymentAllocation, AdvanceAdjustment,
+    Account, AccountGroup,
 )
 
 from .models import sync_invoice_ledger
@@ -180,7 +182,15 @@ class FAQAdmin(admin.ModelAdmin):
 class LedgerLineInline(admin.TabularInline):
     model = LedgerLine
     extra = 1
-    fields = ['account', 'contact', 'debit', 'credit']
+    fields = ['account', 'contact', 'subledger_type', 'debit', 'credit']
+
+
+@admin.register(LedgerLine)
+class LedgerLineAdmin(admin.ModelAdmin):
+    list_display = ['ledger_entry', 'account', 'contact', 'subledger_type', 'debit', 'credit']
+    list_filter = ['ledger_entry__entry_type', 'account', 'subledger_type']
+    search_fields = ['account__name', 'contact__name']
+    raw_id_fields = ['ledger_entry', 'contact']
 
 
 @admin.register(LedgerEntry)
@@ -207,12 +217,6 @@ class LedgerEntryAdmin(admin.ModelAdmin):
             obj.save(update_fields=['total_amount'])
 
 
-@admin.register(LedgerLine)
-class LedgerLineAdmin(admin.ModelAdmin):
-    list_display = ['ledger_entry', 'account', 'contact', 'debit', 'credit']
-    list_filter = ['ledger_entry__entry_type', 'account']
-    search_fields = ['account', 'contact__name']
-    raw_id_fields = ['ledger_entry', 'contact']
 
 
 # ============================================================
@@ -221,7 +225,10 @@ class LedgerLineAdmin(admin.ModelAdmin):
 
 @admin.register(Contact)
 class ContactAdmin(admin.ModelAdmin):
-    list_display = ['name', 'contact_type', 'phone', 'email', 'user', 'opening_balance', 'current_balance']
+    list_display = [
+        'name', 'contact_type', 'phone', 'email', 'user',
+        'opening_balance', 'receivable_display', 'payable_display', 'net_balance_display'
+    ]
     list_filter = ['contact_type']
     search_fields = ['name', 'company_name', 'phone', 'email', 'gstin']
     fieldsets = (
@@ -234,19 +241,52 @@ class ContactAdmin(admin.ModelAdmin):
         ('GST & State', {
             'fields': ('gstin', 'state')
         }),
-        ('Accounting', {
-            'fields': ('opening_balance', 'notes')
+        ('Opening Balance', {
+            'fields': ('opening_balance', 'opening_balance_date')
+        }),
+        ('Balances (Auto-calculated)', {
+            'fields': ('receivable_balance', 'payable_balance', 'advance_balance', 'balance'),
+            'classes': ('collapse',),
+            'description': 'These are recalculated automatically from ledger entries.'
+        }),
+        ('Notes', {
+            'fields': ('notes',)
         }),
         ('User Account (Customer Portal)', {
             'fields': ('user',)
         }),
     )
-    readonly_fields = ['created_at']
+    readonly_fields = [
+        'created_at',
+        'receivable_balance',
+        'payable_balance',
+        'advance_balance',
+        'balance',
+    ]
 
-    def current_balance(self, obj):
-        return obj.balance
-    current_balance.short_description = "Current Balance"
+    def receivable_display(self, obj):
+        color = 'red' if obj.receivable_balance > 0 else 'gray'
+        return format_html(
+            '<span style="color:{};">Rs.{}</span>',
+            color, obj.receivable_balance
+        )
+    receivable_display.short_description = "Receivable"
 
+    def payable_display(self, obj):
+        color = 'orange' if obj.payable_balance > 0 else 'gray'
+        return format_html(
+            '<span style="color:{};">Rs.{}</span>',
+            color, obj.payable_balance
+        )
+    payable_display.short_description = "Payable"
+
+    def net_balance_display(self, obj):
+        color = 'green' if obj.balance >= 0 else 'red'
+        return format_html(
+            '<strong style="color:{};">Rs.{}</strong>',
+            color, obj.balance
+        )
+    net_balance_display.short_description = "Net Position"
 
 # ============================================================
 # PRODUCTS
@@ -349,8 +389,7 @@ class InvoiceAdmin(admin.ModelAdmin):
     view_invoice_link.short_description = "Link"
 
     def save_model(self, request, obj, form, change):
-        obj.save()
-        sync_invoice_ledger(obj)
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(InvoiceItem)
@@ -367,7 +406,10 @@ class PurchaseItemInline(admin.TabularInline):
     model = PurchaseItem
     extra = 1
     readonly_fields = ['line_total', 'tax_amount']
-    fields = ['product', 'quantity', 'unit_price', 'tax_rate', 'tax_amount', 'line_total']
+    fields = [
+        'product', 'quantity', 'unit_price', 'tax_rate',
+        'tax_amount', 'line_total', 'is_office_use'
+    ]
 
 
 @admin.register(Purchase)
@@ -381,11 +423,15 @@ class PurchaseAdmin(admin.ModelAdmin):
         ('Header', {
             'fields': ('purchase_number', 'vendor', 'date')
         }),
-        ('GST', {
-            'fields': ('gst_type',)
+        ('GST & Charges', {
+            'fields': ('gst_type', 'discount_amount', 'freight_charge')
         }),
         ('Totals', {
             'fields': ('subtotal', 'tax_amount', 'grand_total', 'paid')
+        }),
+        ('Discount Audit Trail', {
+            'fields': ('discount_note', 'discount_date', 'discount_type', 'discount_approved_by'),
+            'classes': ('collapse',)
         }),
         ('Notes', {
             'fields': ('notes',)
@@ -396,8 +442,7 @@ class PurchaseAdmin(admin.ModelAdmin):
     )
 
     def save_model(self, request, obj, form, change):
-        obj.save()
-        obj.update_stock_from_items()
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(PurchaseItem)
@@ -445,8 +490,14 @@ class RepairJobAdmin(admin.ModelAdmin):
             'fields': ('estimated_cost', 'estimate_status', 'estimate_approved_at', 'estimate_approved_by', 
                     'labour_charge', 'final_amount', 'approval_source', 'approval_remarks')  
         }),
-        ('Dates & Delivery', {
-            'fields': ('date_in', 'delivery_date', 'received_by', 'delivered_by')
+        ('Timeline', {
+            'fields': ('submitted_at', 'received_at', 'received_remarks', 
+                      'ready_at', 'delivered_at', 'date_in')
+        }),
+        ('Delivery Details', {
+            'fields': ('delivery_date', 'received_by', 'delivered_by',
+                      'delivered_to_name', 'delivered_to_phone',
+                      'delivered_to_designation', 'delivery_remarks')
         }),
         ('Invoice & Notes', {
             'fields': ('invoice', 'notes')
@@ -476,15 +527,30 @@ class RepairJobAdmin(admin.ModelAdmin):
 # ============================================================
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ['date', 'direction', 'contact', 'amount', 'method', 'reference', 'linked_invoices']
-    list_filter = ['direction', 'method', 'date']
-    search_fields = ['contact__name', 'reference', 'description']
+    list_display = [
+        'date', 'direction', 'contact', 'amount', 'method',
+        'bank_account', 'is_advance', 'reference', 'linked_invoices'
+    ]
+    list_filter = ['direction', 'method', 'is_advance', 'date', 'bank_account']
+    search_fields = ['contact__name', 'reference', 'upi_ref', 'description']
     readonly_fields = ['created_at']
     fieldsets = (
-        (None, {
-            'fields': ('direction', 'contact', 'amount', 'date', 'method', 'reference', 'description')
+        ('Payment Info', {
+            'fields': ('direction', 'contact', 'amount', 'date', 'method')
         }),
-
+        ('Bank / UPI Details', {
+            'fields': ('bank_account', 'upi_ref', 'reference', 'account_name')
+        }),
+        ('Classification', {
+            'fields': ('is_advance', 'reconciled')
+        }),
+        ('Discount (if any)', {
+            'fields': ('discount_amount', 'discount_note', 'discount_type', 'discount_approved_by'),
+            'classes': ('collapse',)
+        }),
+        ('Notes', {
+            'fields': ('description',)
+        }),
         ('Meta', {
             'fields': ('created_at',)
         }),
@@ -509,6 +575,243 @@ class StockMovementAdmin(admin.ModelAdmin):
         return obj.notes[:50] + "..." if len(obj.notes) > 50 else obj.notes
     notes_preview.short_description = "Notes"
 
+
+# ============================================================
+# BANK ACCOUNTS
+# ============================================================
+@admin.register(BankAccount)
+class BankAccountAdmin(admin.ModelAdmin):
+    list_display = [
+        'name', 'bank_name', 'account_type', 'account_number_masked',
+        'opening_balance', 'current_balance_display', 'is_active'
+    ]
+    list_filter = ['account_type', 'is_active', 'bank_name']
+    search_fields = ['name', 'bank_name', 'account_number', 'ifsc_code']
+    readonly_fields = ['current_balance', 'created_at', 'updated_at']
+    list_editable = ['is_active']
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('name', 'bank_name', 'account_type', 'is_active')
+        }),
+        ('Account Details', {
+            'fields': ('account_number', 'ifsc_code')
+        }),
+        ('Balances', {
+            'fields': ('opening_balance', 'current_balance'),
+            'description': 'Current balance is auto-calculated from transactions.'
+        }),
+        ('Meta', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def account_number_masked(self, obj):
+        if not obj.account_number:
+            return '-'
+        if len(obj.account_number) <= 4:
+            return obj.account_number
+        return '****' + obj.account_number[-4:]
+    account_number_masked.short_description = "Account #"
+
+    def current_balance_display(self, obj):
+        color = 'green' if obj.current_balance >= 0 else 'red'
+        return format_html(
+            '<strong style="color:{};">Rs.{}</strong>',
+            color, obj.current_balance
+        )
+    current_balance_display.short_description = "Current Balance"
+
+
+# ============================================================
+# BANK TRANSACTIONS
+# ============================================================
+@admin.register(BankTransaction)
+class BankTransactionAdmin(admin.ModelAdmin):
+    list_display = [
+        'date', 'bank_account', 'transaction_type_badge', 'amount_display',
+        'source_type', 'linked_payment', 'reconciled', 'reference'
+    ]
+    list_filter = ['transaction_type', 'source_type', 'reconciled', 'bank_account', 'date']
+    search_fields = ['description', 'reference', 'bank_account__name']
+    readonly_fields = ['created_at']
+    date_hierarchy = 'date'
+    raw_id_fields = ['payment', 'invoice', 'purchase']
+    fieldsets = (
+        ('Transaction Info', {
+            'fields': ('bank_account', 'transaction_type', 'source_type', 'amount', 'date')
+        }),
+        ('Reference', {
+            'fields': ('description', 'reference')
+        }),
+        ('Linked Documents', {
+            'fields': ('payment', 'invoice', 'purchase'),
+            'classes': ('collapse',)
+        }),
+        ('Reconciliation', {
+            'fields': ('reconciled',)
+        }),
+        ('Meta', {
+            'fields': ('created_at',)
+        }),
+    )
+
+    def transaction_type_badge(self, obj):
+        if obj.transaction_type == 'deposit':
+            return format_html(
+                '<span style="color:green; font-weight:bold;">&darr; Deposit</span>'
+            )
+        return format_html(
+            '<span style="color:red; font-weight:bold;">&uarr; Withdrawal</span>'
+        )
+    transaction_type_badge.short_description = "Type"
+
+    def amount_display(self, obj):
+        if obj.transaction_type == 'deposit':
+            return format_html('<span style="color:green;">+Rs.{}</span>', obj.amount)
+        return format_html('<span style="color:red;">-Rs.{}</span>', obj.amount)
+    amount_display.short_description = "Amount"
+
+    def linked_payment(self, obj):
+        if obj.payment:
+            url = reverse('admin:accounting_payment_change', args=[obj.payment.id])
+            return format_html('<a href="{}">PMT-{:04d}</a>', url, obj.payment.id)
+        return '-'
+    linked_payment.short_description = "Payment"
+
+
+# ============================================================
+# PAYMENT ALLOCATIONS
+# ============================================================
+@admin.register(PaymentAllocation)
+class PaymentAllocationAdmin(admin.ModelAdmin):
+    list_display = [
+        'id', 'payment_link', 'invoice_link', 'amount',
+        'payment_date', 'payment_direction'
+    ]
+    list_filter = ['payment__direction', 'payment__date']
+    search_fields = [
+        'payment__contact__name',
+        'invoice__invoice_number',
+        'payment__reference'
+    ]
+    raw_id_fields = ['payment', 'invoice']
+    date_hierarchy = 'payment__date'
+
+    def payment_link(self, obj):
+        url = reverse('admin:accounting_payment_change', args=[obj.payment.id])
+        return format_html(
+            '<a href="{}">PMT-{:04d}</a> <small>({})</small>',
+            url, obj.payment.id, obj.payment.contact.name
+        )
+    payment_link.short_description = "Payment"
+
+    def invoice_link(self, obj):
+        url = reverse('admin:accounting_invoice_change', args=[obj.invoice.id])
+        return format_html(
+            '<a href="{}">{}</a>',
+            url, obj.invoice.invoice_number
+        )
+    invoice_link.short_description = "Invoice"
+
+    def payment_date(self, obj):
+        return obj.payment.date
+    payment_date.short_description = "Date"
+    payment_date.admin_order_field = 'payment__date'
+
+    def payment_direction(self, obj):
+        return obj.payment.get_direction_display()
+    payment_direction.short_description = "Direction"
+
+
+# ============================================================
+# ADVANCE ADJUSTMENTS
+# ============================================================
+@admin.register(AdvanceAdjustment)
+class AdvanceAdjustmentAdmin(admin.ModelAdmin):
+    list_display = [
+        'id', 'date', 'payment_link', 'invoice_link',
+        'amount', 'contact_name'
+    ]
+    list_filter = ['date']
+    search_fields = [
+        'payment__contact__name',
+        'invoice__invoice_number',
+        'notes'
+    ]
+    raw_id_fields = ['payment', 'invoice']
+    date_hierarchy = 'date'
+    readonly_fields = ['created_at']
+    fieldsets = (
+        ('Adjustment Info', {
+            'fields': ('payment', 'invoice', 'amount', 'date')
+        }),
+        ('Notes', {
+            'fields': ('notes',)
+        }),
+        ('Meta', {
+            'fields': ('created_at',)
+        }),
+    )
+
+    def payment_link(self, obj):
+        url = reverse('admin:accounting_payment_change', args=[obj.payment.id])
+        return format_html('<a href="{}">PMT-{:04d}</a>', url, obj.payment.id)
+    payment_link.short_description = "Advance Payment"
+
+    def invoice_link(self, obj):
+        url = reverse('admin:accounting_invoice_change', args=[obj.invoice.id])
+        return format_html('<a href="{}">{}</a>', url, obj.invoice.invoice_number)
+    invoice_link.short_description = "Applied To Invoice"
+
+    def contact_name(self, obj):
+        return obj.payment.contact.name if obj.payment and obj.payment.contact else '-'
+    contact_name.short_description = "Contact"
+
+
+# ============================================================
+# CHART OF ACCOUNTS — ACCOUNT GROUPS
+# ============================================================
+@admin.register(AccountGroup)
+class AccountGroupAdmin(admin.ModelAdmin):
+    list_display = ['code', 'name', 'parent', 'is_active', 'account_count']
+    list_filter = ['is_active']
+    search_fields = ['code', 'name']
+    list_editable = ['is_active']
+    ordering = ['code']
+
+    def account_count(self, obj):
+        return obj.accounts.count()
+    account_count.short_description = "Accounts"
+
+
+# ============================================================
+# CHART OF ACCOUNTS — ACCOUNTS
+# ============================================================
+@admin.register(Account)
+class AccountAdmin(admin.ModelAdmin):
+    list_display = [
+        'code', 'name', 'account_type', 'group',
+        'default_tax_rate', 'is_system', 'is_active'
+    ]
+    list_filter = ['account_type', 'group', 'is_system', 'is_active']
+    search_fields = ['code', 'name']
+    list_editable = ['is_active']
+    readonly_fields = ['created_at', 'updated_at']
+    ordering = ['code']
+    fieldsets = (
+        ('Basic Info', {
+            'fields': ('code', 'name', 'account_type', 'group', 'parent')
+        }),
+        ('Settings', {
+            'fields': ('default_tax_rate', 'is_active', 'is_system'),
+            'description': 'System accounts cannot be renamed.'
+        }),
+        ('Meta', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
 
 # ============================================================

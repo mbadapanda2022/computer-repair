@@ -1,3 +1,4 @@
+<!-- templates/payment/payment_list.html-->
 {% extends "base.html" %}
 
 {% block content %}
@@ -134,14 +135,14 @@
                            hx-push-url="true">
                 </div>
                 <div class="col-md-1">
-                    <button class="btn btn-secondary w-100" 
-                            hx-get="{% url 'accounting:payment_list' %}" 
-                            hx-target="#payment-table-container"
-                            hx-include="#payment-filter-form"
-                            hx-vals='{"reset": "true"}'
-                            hx-push-url="true">
+                    <a href="{% url 'accounting:payment_list' %}"
+                       class="btn btn-secondary w-100"
+                       hx-get="{% url 'accounting:payment_list' %}"
+                       hx-target="#payment-table-container"
+                       hx-push-url="true"
+                       title="Reset all filters">
                         <i class="bi bi-arrow-counterclockwise"></i>
-                    </button>
+                    </a>
                 </div>
             </form>
         </div>

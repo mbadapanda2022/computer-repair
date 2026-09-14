@@ -85,7 +85,7 @@
                                 </a>
                             </div>
                             <div>
-                                <span class="badge {% if invoice.payment_status == 'paid' %}bg-success{% else %}bg-warning{% endif %}">
+                                <span class="badge {% if invoice.payment_status == 'paid' %}bg-success{% else %}bg-warning text-dark{% endif %}">
                                     {{ invoice.get_payment_status_display }}
                                 </span>
                                 <span class="fw-bold ms-2">₹{{ invoice.grand_total|floatformat:2 }}</span>
@@ -107,12 +107,14 @@
                             </div>
                             <div>
                                 <span class="badge 
-                                    {% if repair.status == 'delivered' %}bg-success
-                                    {% elif repair.status == 'pending' %}bg-secondary
-                                    {% elif repair.status == 'diagnosis' %}bg-info
-                                    {% elif repair.status == 'repairing' %}bg-warning
+                                    {% if repair.status == 'pending' %}bg-warning text-dark
+                                    {% elif repair.status == 'received' %}bg-secondary
+                                    {% elif repair.status == 'diagnosis' %}bg-info text-dark
+                                    {% elif repair.status == 'repairing' %}bg-warning text-dark
                                     {% elif repair.status == 'ready' %}bg-primary
-                                    {% else %}bg-danger{% endif %}">
+                                    {% elif repair.status == 'delivered' %}bg-success
+                                    {% elif repair.status == 'cancelled' %}bg-danger
+                                    {% else %}bg-secondary{% endif %}">
                                     {{ repair.get_status_display }}
                                 </span>
                             </div>
@@ -191,8 +193,6 @@
                 return response.json();
             })
             .then(data => {
-                console.log('Dashboard Stats Data:', data); 
-
                 if (data.error) {
                     console.error('Server Error:', data.error);
                     showChartError('Error loading chart data. Please try again.');
@@ -204,7 +204,6 @@
                 // =============================================================
                 const ctx1 = document.getElementById('invoiceChart');
                 if (ctx1) {
-                    // Destroy existing chart if any
                     if (window.invoiceChartInstance) {
                         window.invoiceChartInstance.destroy();
                     }
@@ -275,7 +274,6 @@
                             }
                         });
                     } else {
-                        // No data – show message
                         ctx2.parentElement.innerHTML = `
                             <div class="text-center py-4 text-muted">
                                 <i class="bi bi-inbox fs-1 d-block mb-2"></i>
@@ -294,7 +292,7 @@
                         window.repairStatusChartInstance.destroy();
                     }
                     if (data.repair_status_labels.length > 0) {
-                        const colors = ['#ffc107', '#17a2b8', '#007bff', '#28a745', '#dc3545', '#6c757d'];
+                        const colors = ['#ffc107', '#6c757d', '#17a2b8', '#ffc107', '#007bff', '#28a745', '#dc3545'];
                         window.repairStatusChartInstance = new Chart(ctx3, {
                             type: 'bar',
                             data: {
@@ -333,7 +331,6 @@
             });
     });
 
-    // Helper function to show error message on charts
     function showChartError(message) {
         document.querySelectorAll('.card-body canvas').forEach(canvas => {
             canvas.parentElement.innerHTML = `

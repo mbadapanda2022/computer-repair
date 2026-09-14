@@ -15,8 +15,7 @@
                 <div class="card-body">
                     <form method="post" 
                           id="repairCreateForm" 
-                          novalidate
-                          hx-disabled-elt="find button[type='submit']">
+                          novalidate>
                         {% csrf_token %}
 
                         {% if form.non_field_errors %}
@@ -86,4 +85,15 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.getElementById('repairCreateForm').addEventListener('submit', function() {
+        const btn = this.querySelector('button[type="submit"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Submitting...';
+        }
+    });
+</script>
+
 {% endblock %}

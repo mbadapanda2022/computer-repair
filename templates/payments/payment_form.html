@@ -1,113 +1,144 @@
+<!-- templates/payments/payment_form.html -->
 {% load static %}
-<form method="post" 
-      hx-post="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}" 
-      hx-target="#payment-table-container" 
+
+<!-- Tom Select CSS (self-contained) -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+
+<form method="post"
+      hx-post="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}"
+      hx-target="#payment-table-container"
       hx-swap="innerHTML"
       id="paymentForm"
       novalidate>
     {% csrf_token %}
-    
+
+    <input type="hidden" name="reset_allocations" id="reset_allocations" value="0">
+
     <div class="modal-header">
         <h5 class="modal-title">
+            <i class="bi bi-credit-card me-2"></i>
             {% if payment %}Edit{% else %}New{% endif %} Payment
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
     </div>
-    
+
     <div class="modal-body">
         <!-- Non-field errors -->
         {% if form.non_field_errors %}
             <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
                 {% for error in form.non_field_errors %}
-                    {{ error }}
+                    <div>{{ error }}</div>
                 {% endfor %}
             </div>
         {% endif %}
-        
+
+        <!-- ============================================================
+             SECTION 1: Payment Basics
+             ============================================================ -->
+        <h6 class="text-primary border-bottom pb-2 mb-3">
+            <i class="bi bi-cash-stack me-2"></i>Payment Details
+        </h6>
+
         <div class="row g-3">
             <!-- Direction -->
             <div class="col-md-4">
-                <label for="id_direction" class="form-label fw-semibold">Direction</label>
-                <select name="direction" id="id_direction" class="form-select" required>
+                <label for="id_direction" class="form-label fw-semibold">
+                    Direction <span class="text-danger">*</span>
+                </label>
+                <select name="direction" id="id_direction" class="form-select">
                     {% for value, label in form.direction.field.choices %}
                         <option value="{{ value }}" {% if form.direction.value == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
-                <div class="invalid-feedback">{{ form.direction.errors|join:", " }}</div>
+                {% if form.direction.errors %}
+                    <div class="invalid-feedback d-block">{{ form.direction.errors|join:", " }}</div>
+                {% endif %}
             </div>
-            
-            <!-- Contact Search (Autocomplete) -->
-            <div class="col-md-8">
-                <label for="contact-search" class="form-label fw-semibold">Contact</label>
-                <div class="position-relative">
-                    <input type="text" name="q" id="contact-search" 
-                        class="form-control {% if form.contact.errors %}is-invalid{% endif %}" 
-                        placeholder="Type name or phone..." 
-                        value="{{ form.contact_search.value|default:'' }}"
-                        hx-get="{% url 'accounting:contact_search' %}" 
-                        hx-trigger="keyup changed delay:300ms" 
-                        hx-target="#contact-suggestions" 
-                        hx-swap="innerHTML"
-                        autocomplete="off">
-                    <input type="hidden" name="contact" id="id_contact" 
-                        value="{{ form.contact.value|default:'' }}">
-                    <div id="contact-suggestions" class="position-absolute w-100" 
-                        style="z-index: 1050; display: block;"></div>
-                </div>
-                <div id="contact-error" class="invalid-feedback">
-                    {{ form.contact.errors|join:", " }}
-                </div>
-                <div id="selected-contact-display" class="mt-1 small text-muted">
 
-                </div>
+            <!-- Amount -->
+            <div class="col-md-4">
+                <label for="id_amount" class="form-label fw-semibold">
+                    Amount (₹) <span class="text-danger">*</span>
+                </label>
+                <input type="number" name="amount" id="id_amount"
+                       class="form-control {% if form.amount.errors %}is-invalid{% endif %}"
+                       step="0.01" min="0.01" required
+                       value="{{ form.amount.value|default:'' }}">
+                {% if form.amount.errors %}
+                    <div class="invalid-feedback">{{ form.amount.errors|join:", " }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Date -->
+            <div class="col-md-4">
+                <label for="id_date" class="form-label fw-semibold">
+                    Date <span class="text-danger">*</span>
+                </label>
+                <input type="date" name="date" id="id_date"
+                       class="form-control {% if form.date.errors %}is-invalid{% endif %}"
+                       value="{{ form.date.value|default:''|date:'Y-m-d' }}" required>
+                {% if form.date.errors %}
+                    <div class="invalid-feedback">{{ form.date.errors|join:", " }}</div>
+                {% endif %}
             </div>
         </div>
-        
-        <div class="row g-3 mt-1">
-            <div class="col-md-4">
-                <label for="id_amount" class="form-label fw-semibold">Amount (₹)</label>
-                <input type="number" name="amount" id="id_amount" 
-                       class="form-control {% if form.amount.errors %}is-invalid{% endif %}" 
-                       step="0.01" value="{{ form.amount.value|default:'' }}" required>
-                <div class="invalid-feedback">{{ form.amount.errors|join:", " }}</div>
-            </div>
-            
-            <div class="col-md-4">
-                <label for="id_date" class="form-label fw-semibold">Date</label>
-                <input type="date" name="date" id="id_date" 
-                       class="form-control {% if form.date.errors %}is-invalid{% endif %}" 
-                       value="{{ form.date.value|default:''|date:'Y-m-d' }}" required>
-                <div class="invalid-feedback">{{ form.date.errors|join:", " }}</div>
-            </div>
 
-            <!-- Advance Payment Checkbox -->
-            <div class="row g-3 mt-1">
-                <div class="col-md-12">
-                    <div class="form-check">
-                        {{ form.is_advance }}
-                        <label class="form-check-label fw-semibold" for="{{ form.is_advance.id_for_label }}">
-                            Is this an Advance Payment?
-                        </label>
-                        <small class="text-muted d-block">(The customer has made the payment before the invoice.)</small>
-                        <div class="invalid-feedback">{{ form.is_advance.errors|join:", " }}</div>
-                    </div>
-                </div>
+        <!-- ============================================================
+             SECTION 2: Contact (Tom Select Dropdown)
+             ============================================================ -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+            <i class="bi bi-person-circle me-2"></i>Contact
+        </h6>
+
+        <div class="row g-3">
+            <div class="col-12">
+                <label for="id_contact" class="form-label fw-semibold">
+                    Customer / Vendor <span class="text-danger">*</span>
+                </label>
+                <select name="contact" id="id_contact" class="form-select" required>
+                    <option value="">— Select Customer / Vendor —</option>
+                    {% for c in form.fields.contact.queryset %}
+                        <option value="{{ c.id }}"
+                                data-phone="{{ c.phone|default:'' }}"
+                                data-type="{{ c.contact_type }}"
+                                {% if form.contact.value|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>
+                            {{ c.name }}{% if c.phone %} — {{ c.phone }}{% endif %} ({{ c.get_contact_type_display }})
+                        </option>
+                    {% endfor %}
+                </select>
+                {% if form.contact.errors %}
+                    <div class="invalid-feedback d-block">{{ form.contact.errors|join:", " }}</div>
+                {% endif %}
+                <small class="text-muted d-block mt-1">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Type name or phone number to search.
+                </small>
             </div>
-            
+        </div>
+
+        <!-- ============================================================
+             SECTION 3: Payment Method
+             ============================================================ -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+            <i class="bi bi-bank me-2"></i>Payment Method
+        </h6>
+
+        <div class="row g-3">
             <div class="col-md-4">
-                <label for="id_method" class="form-label fw-semibold">Method</label>
-                <select name="method" id="id_method" class="form-select" required>
+                <label for="id_method" class="form-label fw-semibold">Method <span class="text-danger">*</span></label>
+                <select name="method" id="id_method" class="form-select">
                     {% for value, label in form.method.field.choices %}
                         <option value="{{ value }}" {% if form.method.value == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
-                <div class="invalid-feedback">{{ form.method.errors|join:", " }}</div>
+                {% if form.method.errors %}
+                    <div class="invalid-feedback d-block">{{ form.method.errors|join:", " }}</div>
+                {% endif %}
             </div>
-        </div>
-        
-        <div class="row g-3 mt-1">
-            <div class="col-md-6">
-                <label for="id_bank_account" class="form-label fw-semibold">Bank / Cash Account</label>
+
+            <div class="col-md-4">
+                <label for="id_bank_account" class="form-label fw-semibold">Bank Account</label>
                 <select name="bank_account" id="id_bank_account" class="form-select">
                     <option value="">---------</option>
                     {% for account in form.fields.bank_account.queryset %}
@@ -116,82 +147,289 @@
                         </option>
                     {% endfor %}
                 </select>
-                <div class="invalid-feedback">{{ form.bank_account.errors|join:", " }}</div>
+                {% if form.bank_account.errors %}
+                    <div class="invalid-feedback d-block">{{ form.bank_account.errors|join:", " }}</div>
+                {% endif %}
             </div>
-            
-            <div class="col-md-6">
-                <label for="id_upi_ref" class="form-label fw-semibold">UPI Reference (if any)</label>
-                <input type="text" name="upi_ref" id="id_upi_ref" 
-                       class="form-control {% if form.upi_ref.errors %}is-invalid{% endif %}" 
-                       value="{{ form.upi_ref.value|default:'' }}" placeholder="e.g., UPI123456789">
-                <div class="invalid-feedback">{{ form.upi_ref.errors|join:", " }}</div>
+
+            <div class="col-md-4">
+                <label for="id_upi_ref" class="form-label fw-semibold">UPI Reference</label>
+                <input type="text" name="upi_ref" id="id_upi_ref"
+                       class="form-control {% if form.upi_ref.errors %}is-invalid{% endif %}"
+                       value="{{ form.upi_ref.value|default:'' }}"
+                       placeholder="e.g., PhonePe Ref: 123456789">
+                {% if form.upi_ref.errors %}
+                    <div class="invalid-feedback">{{ form.upi_ref.errors|join:", " }}</div>
+                {% endif %}
             </div>
-        </div>
-        
-        <div class="row g-3 mt-1">
+
             <div class="col-md-6">
                 <label for="id_reference" class="form-label fw-semibold">Reference #</label>
-                <input type="text" name="reference" id="id_reference" 
-                       class="form-control {% if form.reference.errors %}is-invalid{% endif %}" 
-                       value="{{ form.reference.value|default:'' }}" placeholder="Cheque #, Payment ID">
-                <div class="invalid-feedback">{{ form.reference.errors|join:", " }}</div>
+                <input type="text" name="reference" id="id_reference"
+                       class="form-control {% if form.reference.errors %}is-invalid{% endif %}"
+                       value="{{ form.reference.value|default:'' }}"
+                       placeholder="Cheque #, NEFT ref, Transaction ID">
+                {% if form.reference.errors %}
+                    <div class="invalid-feedback">{{ form.reference.errors|join:", " }}</div>
+                {% endif %}
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label fw-semibold d-block">&nbsp;</label>
+                <div class="form-check form-switch mt-2">
+                    {{ form.is_advance }}
+                    <label class="form-check-label" for="{{ form.is_advance.id_for_label }}">
+                        <strong>Mark as Advance Payment</strong>
+                        <small class="d-block text-muted">Payment received/paid before invoice (no allocation).</small>
+                    </label>
+                </div>
             </div>
         </div>
-        
-        <div class="row g-3 mt-1">
-            <div class="col-12">
-                <label for="id_description" class="form-label fw-semibold">Description</label>
-                <textarea name="description" id="id_description" rows="2" 
-                          class="form-control {% if form.description.errors %}is-invalid{% endif %}"
-                          placeholder="Optional notes">{{ form.description.value|default:'' }}</textarea>
-                <div class="invalid-feedback">{{ form.description.errors|join:", " }}</div>
+
+        <!-- ============================================================
+             SECTION 4: Allocate to Unpaid Invoices
+             ============================================================ -->
+        <div id="allocation-section" class="mt-4">
+            <h6 class="text-primary border-bottom pb-2 mb-3">
+                <i class="bi bi-list-check me-2"></i>Allocate to Unpaid Invoices
+                <span class="text-muted small fw-normal">(optional)</span>
+            </h6>
+
+            <div id="unpaid-invoices-container">
+                {% if unpaid_invoices %}
+                    {% include 'payments/partials/unpaid_invoices.html' %}
+                {% else %}
+                    <div class="alert alert-light border text-center py-4 mb-0">
+                        <i class="bi bi-info-circle text-muted me-2"></i>
+                        Select a customer above to load their unpaid invoices.
+                    </div>
+                {% endif %}
             </div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 5: Discount
+             ============================================================ -->
+        <div class="mt-4">
+            <h6 class="text-primary border-bottom pb-2 mb-3">
+                <i class="bi bi-percent me-2"></i>Discount (Optional)
+            </h6>
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="id_discount_amount" class="form-label fw-semibold">Discount Amount (₹)</label>
+                    <input type="number" name="discount_amount" id="id_discount_amount"
+                           class="form-control {% if form.discount_amount.errors %}is-invalid{% endif %}"
+                           step="0.01" min="0"
+                           value="{{ form.discount_amount.value|default:'0' }}">
+                    {% if form.discount_amount.errors %}
+                        <div class="invalid-feedback">{{ form.discount_amount.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4">
+                    <label for="id_discount_type" class="form-label fw-semibold">Discount Type</label>
+                    <select name="discount_type" id="id_discount_type" class="form-select">
+                        <option value="">— None —</option>
+                        {% for value, label in form.discount_type.field.choices %}
+                            <option value="{{ value }}" {% if form.discount_type.value == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.discount_type.errors %}
+                        <div class="invalid-feedback d-block">{{ form.discount_type.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold d-block">Net Amount</label>
+                    <div class="form-control bg-light fw-bold" id="net-amount-display">₹0.00</div>
+                    <small class="text-muted">Amount − Discount</small>
+                </div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-12">
+                    <label for="id_discount_note" class="form-label fw-semibold">Discount Note / Reason</label>
+                    <textarea name="discount_note" id="id_discount_note" rows="2"
+                              class="form-control {% if form.discount_note.errors %}is-invalid{% endif %}"
+                              placeholder="Reason for discount (e.g., Early payment, Cash discount)">{{ form.discount_note.value|default:'' }}</textarea>
+                    {% if form.discount_note.errors %}
+                        <div class="invalid-feedback">{{ form.discount_note.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             SECTION 6: Description
+             ============================================================ -->
+        <div class="mt-4">
+            <label for="id_description" class="form-label fw-semibold">Description / Notes</label>
+            <textarea name="description" id="id_description" rows="2"
+                      class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                      placeholder="Optional notes about this payment">{{ form.description.value|default:'' }}</textarea>
+            {% if form.description.errors %}
+                <div class="invalid-feedback">{{ form.description.errors|join:", " }}</div>
+            {% endif %}
         </div>
     </div>
-    
+
     <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
         <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i>
             {% if payment %}Update{% else %}Create{% endif %} Payment
         </button>
     </div>
 </form>
 
-<script>
-    (function() {
-        const searchInput = document.getElementById('contact-search');
-        const hiddenContact = document.getElementById('id_contact');
-        const suggestionsDiv = document.getElementById('contact-suggestions');
-        const directionSelect = document.getElementById('id_direction');
-        const displayDiv = document.getElementById('selected-contact-display');
+<!-- Tom Select JS -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 
-        // Handle suggestion click
-        document.addEventListener('click', function(e) {
-            const item = e.target.closest('.contact-suggestion');
-            if (!item) return;
-            
-            const id = item.dataset.id;
-            const name = item.dataset.name;
-            const phone = item.dataset.phone;
-            const type = item.dataset.type;
-            
-            hiddenContact.value = id;
-            searchInput.value = name + ' (' + (phone || 'No phone') + ')';
-            suggestionsDiv.innerHTML = '';
-            displayDiv.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> Selected: <strong>' + 
-                                   name + '</strong> (' + (phone || 'No phone') + ')';
-            
-            if (type === 'customer' || type === 'both') {
-                directionSelect.value = 'received';
-            } else if (type === 'vendor') {
-                directionSelect.value = 'paid';
+<script>
+(function() {
+    'use strict';
+
+    const form = document.getElementById('paymentForm');
+    if (!form) return;
+
+    const directionSelect = document.getElementById('id_direction');
+    const amountInput = document.getElementById('id_amount');
+    const discountInput = document.getElementById('id_discount_amount');
+    const netDisplay = document.getElementById('net-amount-display');
+    const unpaidContainer = document.getElementById('unpaid-invoices-container');
+    const resetAllocFlag = document.getElementById('reset_allocations');
+
+    // ============================================================
+    // INIT TOM SELECT on contact dropdown
+    // ============================================================
+    function initTomSelect() {
+        const select = document.getElementById('id_contact');
+        if (!select) return null;
+        if (select.tomselect) return select.tomselect;
+
+        const ts = new TomSelect(select, {
+            placeholder: 'Search by name or phone...',
+            allowEmptyOption: true,
+            maxOptions: 500,
+            searchField: ['text'],
+            sortField: { field: 'text', direction: 'asc' },
+            render: {
+                no_results: function(data, escape) {
+                    return '<div class="no-results p-3 text-center text-muted">' +
+                           '<i class="bi bi-search me-1"></i>' +
+                           'No contacts found for "' + escape(data.input) + '"' +
+                           '</div>';
+                },
+                option: function(data, escape) {
+                    return '<div class="py-1">' +
+                           '<span>' + escape(data.text) + '</span>' +
+                           '</div>';
+                },
+                item: function(data, escape) {
+                    return '<div>' + escape(data.text) + '</div>';
+                }
+            },
+            onChange: function(value) {
+                // Auto-set direction based on contact type
+                if (value) {
+                    const opt = select.querySelector('option[value="' + value + '"]');
+                    const type = opt ? opt.dataset.type : '';
+                    if (type === 'customer' || type === 'both') {
+                        directionSelect.value = 'received';
+                    } else if (type === 'vendor') {
+                        directionSelect.value = 'paid';
+                    }
+                    loadUnpaidInvoices(value);
+                } else {
+                    // Clear allocation section
+                    unpaidContainer.innerHTML =
+                        '<div class="alert alert-light border text-center py-4 mb-0">' +
+                        '<i class="bi bi-info-circle text-muted me-2"></i>' +
+                        'Select a customer above to load their unpaid invoices.' +
+                        '</div>';
+                }
             }
         });
 
-        searchInput.addEventListener('blur', function() {
-            setTimeout(() => {
-                suggestionsDiv.innerHTML = '';
-            }, 200);
+        return ts;
+    }
+
+    // Init immediately (form is already in DOM after HTMX swap)
+    initTomSelect();
+
+    // ============================================================
+    // LOAD UNPAID INVOICES
+    // ============================================================
+    function loadUnpaidInvoices(contactId) {
+        if (!contactId) contactId = document.getElementById('id_contact').value;
+        const direction = directionSelect.value;
+
+        if (!contactId || direction !== 'received') {
+            unpaidContainer.innerHTML =
+                '<div class="alert alert-light border text-center py-4 mb-0">' +
+                '<i class="bi bi-info-circle text-muted me-2"></i>' +
+                (direction !== 'received'
+                    ? 'Invoice allocation is available only for "Received from Customer" payments.'
+                    : 'Select a customer above to load their unpaid invoices.') +
+                '</div>';
+            return;
+        }
+
+        unpaidContainer.innerHTML =
+            '<div class="text-center py-4">' +
+            '<div class="spinner-border text-primary" role="status"></div>' +
+            '<p class="text-muted mt-2 mb-0">Loading unpaid invoices...</p>' +
+            '</div>';
+
+        const url = '{% url "accounting:load_unpaid_invoices" %}?contact=' +
+                    encodeURIComponent(contactId) + '&direction=' + direction;
+
+        htmx.ajax('GET', url, {
+            target: '#unpaid-invoices-container',
+            swap: 'innerHTML'
         });
-    })();
+    }
+
+    directionSelect.addEventListener('change', function() {
+        loadUnpaidInvoices();
+    });
+
+    // ============================================================
+    // NET AMOUNT DISPLAY
+    // ============================================================
+    function updateNetAmount() {
+        const amount = parseFloat(amountInput?.value) || 0;
+        const discount = parseFloat(discountInput?.value) || 0;
+        const net = Math.max(0, amount - discount);
+        if (netDisplay) netDisplay.textContent = '₹' + net.toFixed(2);
+    }
+    amountInput?.addEventListener('input', updateNetAmount);
+    discountInput?.addEventListener('input', updateNetAmount);
+    updateNetAmount();
+
+    // ============================================================
+    // MARK RESET FLAG ON SUBMIT
+    // ============================================================
+    form.addEventListener('submit', function() {
+        if (resetAllocFlag) resetAllocFlag.value = '1';
+    });
+
+    // ============================================================
+    // CLOSE MODAL EVENT
+    // ============================================================
+    document.body.addEventListener('closeModal', function() {
+        const modalEl = document.getElementById('mainModal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    });
+
+    // ============================================================
+    // LOAD UNPAID INVOICES ON PAGE LOAD (Edit mode)
+    // ============================================================
+    const initialContact = document.getElementById('id_contact')?.value;
+    if (initialContact && directionSelect.value === 'received') {
+        setTimeout(() => loadUnpaidInvoices(initialContact), 100);
+    }
+})();
 </script>

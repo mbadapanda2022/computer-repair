@@ -1,43 +1,48 @@
 {% load math_filters %}
 
-<!-- ===== ADD ITEM FORM (Inline) ===== -->
-<div class="row g-2 mb-3 align-items-end p-2 bg-light rounded-3" id="add-item-row">
+<!-- ===== ADD ITEM ROW ===== -->
+<div class="row g-2 mb-3 align-items-end p-2 bg-light rounded-3">
     <div class="col-md-3">
         <label class="form-label small fw-semibold">Product</label>
         <div class="position-relative">
-            <input type="text" id="product-search" name="q" class="form-control form-control-sm" 
-                placeholder="Search product..."
-                hx-get="{% url 'accounting:purchase_product_search' %}" 
-                hx-trigger="keyup changed delay:300ms" 
-                hx-target="#product-suggestions" 
+            <input type="text" id="product-search" name="q" class="form-control form-control-sm"
+                placeholder="Search product by name or HSN..."
+                hx-get="{% url 'accounting:purchase_product_search' %}"
+                hx-trigger="keyup changed delay:300ms"
+                hx-target="#product-suggestions"
                 hx-swap="innerHTML"
                 autocomplete="off">
-            <div id="product-suggestions" class="position-absolute w-100" 
-                 style="z-index: 1050; display: block;"></div>
+            <div id="product-suggestions" class="position-absolute w-100"
+                 style="z-index: 1050;"></div>
             <input type="hidden" id="selected-product-id">
         </div>
     </div>
     <div class="col-md-2">
         <label class="form-label small fw-semibold">Qty</label>
-        <input type="number" id="item-quantity" class="form-control form-control-sm" value="1" min="0.01" step="any">
+        <input type="number" id="item-quantity" class="form-control form-control-sm"
+               value="1" min="0.01" step="any">
     </div>
     <div class="col-md-2">
         <label class="form-label small fw-semibold">Unit Price</label>
-        <input type="number" id="item-price" class="form-control form-control-sm" step="0.01" placeholder="0.00">
+        <input type="number" id="item-price" class="form-control form-control-sm"
+               step="0.01" placeholder="0.00">
     </div>
     <div class="col-md-2">
         <label class="form-label small fw-semibold">Tax (%)</label>
-        <input type="number" id="item-tax" class="form-control form-control-sm" step="0.01" value="18" placeholder="0">
+        <input type="number" id="item-tax" class="form-control form-control-sm"
+               step="0.01" value="18">
     </div>
-    <div class="col-md-2 d-flex align-items-center">
-        <div class="form-check mt-2">
-            <input type="checkbox" class="form-check-input" id="item-office-use" checked>
-            <label class="form-check-label small" for="item-office-use">Office Use</label>
+    <div class="col-md-1">
+        <div class="form-check mt-4">
+            <input type="checkbox" class="form-check-input" id="item-office-use">
+            <label class="form-check-label small" for="item-office-use" title="Not for resale — office consumption">
+                Office
+            </label>
         </div>
     </div>
     <div class="col-md-2">
         <button class="btn btn-primary btn-sm w-100" type="button" id="add-item-btn">
-            <i class="bi bi-plus-circle"></i> Add
+            <i class="bi bi-plus-circle me-1"></i>Add
         </button>
     </div>
 </div>
@@ -48,27 +53,33 @@
         <thead class="table-light">
             <tr>
                 <th>Product</th>
-                <th class="text-center">Qty</th>
-                <th class="text-end">Unit Price</th>
-                <th class="text-end">Tax %</th>
-                <th class="text-end">Line Total</th>
+                <th class="text-center" style="width: 90px;">Qty</th>
+                <th class="text-end" style="width: 120px;">Unit Price</th>
+                <th class="text-end" style="width: 90px;">Tax %</th>
+                <th class="text-end" style="width: 130px;">Line Total</th>
                 <th class="text-center" style="width: 60px;">Action</th>
             </tr>
         </thead>
         <tbody>
             {% for item in items %}
             <tr>
-                <td>{{ item.product_name }} {% if item.is_office_use %}<span class="badge bg-warning text-dark ms-1">Office</span>{% endif %}</td>
+                <td>
+                    {{ item.product_name }}
+                    {% if item.is_office_use %}
+                        <span class="badge bg-warning text-dark ms-1" title="Office use — not for resale">
+                            <i class="bi bi-briefcase"></i> Office
+                        </span>
+                    {% endif %}
+                </td>
                 <td class="text-center">{{ item.quantity }}</td>
                 <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
                 <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
                 <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
                 <td class="text-center">
-                    <button class="btn btn-sm btn-outline-danger" 
-                            hx-post="{% url 'accounting:remove_purchase_item' forloop.counter0 %}" 
-                            hx-target="#purchase-items-container"
-                            hx-swap="innerHTML"   
-                            hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger remove-item-btn"
+                            data-index="{{ forloop.counter0 }}"
+                            title="Remove item">
                         <i class="bi bi-x-circle"></i>
                     </button>
                 </td>
@@ -76,7 +87,8 @@
             {% empty %}
             <tr>
                 <td colspan="6" class="text-center text-muted py-3">
-                    <i class="bi bi-info-circle me-1"></i> No items added yet. Search and add products above.
+                    <i class="bi bi-info-circle me-1"></i>
+                    No items added yet. Search and add products above.
                 </td>
             </tr>
             {% endfor %}
@@ -84,67 +96,123 @@
         {% if items %}
         <tfoot class="table-light fw-bold">
             <tr>
-                <th colspan="4" class="text-end">Total</th>
-                <th class="text-end">₹{{ items_total|floatformat:2 }}</th>
-                <th></th>
+                <td colspan="4" class="text-end">Total</td>
+                <td class="text-end">₹{{ items_total|floatformat:2 }}</td>
+                <td></td>
             </tr>
         </tfoot>
         {% endif %}
     </table>
 </div>
 
-<!-- ===== JS ===== -->
 <script>
-    (function() {
-        const addBtn = document.getElementById('add-item-btn');
+(function() {
+    'use strict';
+
+    const container = document.getElementById('purchase-items-container');
+    if (!container) return;
+
+    // ============================================================
+    // Product selection (suggestion click)
+    // ============================================================
+    container.addEventListener('click', function(e) {
+        const suggestion = e.target.closest('.product-suggestion');
+        if (!suggestion) return;
+
+        e.preventDefault();
+        const id = suggestion.dataset.id;
+        const name = suggestion.dataset.name;
+        const pPrice = suggestion.dataset.price;
+        const taxRate = suggestion.dataset.tax;
+
+        const productIdEl = container.querySelector('#selected-product-id');
+        const searchInput = container.querySelector('#product-search');
+        const priceEl = container.querySelector('#item-price');
+        const taxEl = container.querySelector('#item-tax');
+        const suggestions = container.querySelector('#product-suggestions');
+
+        if (id) {
+            if (productIdEl) productIdEl.value = id;
+            if (searchInput) searchInput.value = name;
+            if (priceEl && pPrice) priceEl.value = pPrice;
+            if (taxEl && taxRate) taxEl.value = taxRate;
+            if (suggestions) suggestions.innerHTML = '';
+        }
+    });
+
+    // ============================================================
+    // Add item button
+    // ============================================================
+    container.addEventListener('click', function(e) {
+        const addBtn = e.target.closest('#add-item-btn');
         if (!addBtn) return;
 
-        const productId = document.getElementById('selected-product-id');
-        const qty = document.getElementById('item-quantity');
-        const price = document.getElementById('item-price');
-        const tax = document.getElementById('item-tax');
-        const searchInput = document.getElementById('product-search');
+        const productIdEl = container.querySelector('#selected-product-id');
+        const qty = container.querySelector('#item-quantity');
+        const price = container.querySelector('#item-price');
+        const tax = container.querySelector('#item-tax');
+        const searchInput = container.querySelector('#product-search');
+        const officeChk = container.querySelector('#item-office-use');
 
-        addBtn.addEventListener('click', function() {
-            const pid = productId.value;
-            if (!pid) {
-                alert('Please select a product from the suggestions.');
-                return;
+        const pid = productIdEl ? productIdEl.value : '';
+        if (!pid) {
+            alert('Please select a product from the suggestions.');
+            searchInput && searchInput.focus();
+            return;
+        }
+
+        htmx.ajax('POST', "{% url 'accounting:add_purchase_item' %}", {
+            target: '#purchase-items-container',
+            swap: 'innerHTML',
+            values: {
+                product: pid,
+                quantity: qty.value || 1,
+                unit_price: price.value || 0,
+                tax_rate: tax.value || 0,
+                is_office_use: (officeChk && officeChk.checked) ? 'on' : ''
             }
-            const qtyVal = qty.value || 1;
-            const priceVal = price.value || 0;
-            const taxVal = tax.value || 18;
-
-            htmx.ajax('POST', "{% url 'accounting:add_purchase_item' %}", {
-                target: '#purchase-items-container',
-                swap: 'innerHTML',   
-                values: {
-                    product: pid,
-                    quantity: qtyVal,
-                    unit_price: priceVal,
-                    tax_rate: taxVal,
-                    is_office_use: document.getElementById('item-office-use').checked ? 'on' : ''
-                }
-            });
+        }).then(function() {
+            // Reset form after successful add
+            setTimeout(function() {
+                const c = document.getElementById('purchase-items-container');
+                if (!c) return;
+                const ns = c.querySelector('#product-search');
+                const np = c.querySelector('#selected-product-id');
+                const nq = c.querySelector('#item-quantity');
+                const no = c.querySelector('#item-office-use');
+                if (ns) ns.value = '';
+                if (np) np.value = '';
+                if (nq) nq.value = '1';
+                if (no) no.checked = false;  // Keep default unchecked
+            }, 100);
         });
+    });
 
-        // When suggestion is clicked
-        document.addEventListener('click', function(e) {
-            const suggestion = e.target.closest('.product-suggestion');
-            if (!suggestion) return;
+    // ============================================================
+    // Remove item button
+    // ============================================================
+    container.addEventListener('click', function(e) {
+        const removeBtn = e.target.closest('.remove-item-btn');
+        if (!removeBtn) return;
 
-            const id = suggestion.dataset.id;
-            const name = suggestion.dataset.name;
-            const pPrice = suggestion.dataset.price;
-            const taxRate = suggestion.dataset.tax;
+        e.preventDefault();
+        const index = removeBtn.dataset.index;
 
-            if (id) {
-                productId.value = id;
-                searchInput.value = name;
-                if (price && pPrice) price.value = pPrice;
-                if (tax && taxRate) tax.value = taxRate;
-                document.getElementById('product-suggestions').innerHTML = '';
-            }
+        htmx.ajax('POST', '/purchases/remove-item/' + index + '/', {
+            target: '#purchase-items-container',
+            swap: 'innerHTML'
         });
-    })();
+    });
+
+    // ============================================================
+    // Close suggestions on outside click
+    // ============================================================
+    document.addEventListener('click', function(e) {
+        const suggestions = document.getElementById('product-suggestions');
+        if (!suggestions) return;
+        if (!e.target.closest('#product-search') && !e.target.closest('#product-suggestions')) {
+            suggestions.innerHTML = '';
+        }
+    });
+})();
 </script>

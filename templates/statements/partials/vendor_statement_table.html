@@ -17,7 +17,12 @@
                 </thead>
                 <tbody>
                     <tr class="table-secondary fw-semibold">
-                        <td colspan="6">Opening Balance</td>
+                        <td colspan="6">
+                            {% if opening_label %}{{ opening_label }}{% else %}Opening Balance{% endif %}
+                            {% if opening_as_on_date %}
+                                <small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>
+                            {% endif %}
+                        </td>
                         <td class="text-end">₹{{ opening_balance|floatformat:2 }}</td>
                     </tr>
                     {% for line in statement_lines %}
@@ -49,13 +54,19 @@
                         <td class="text-end">₹{{ total_credit|floatformat:2 }}</td>
                         <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
                     </tr>
+                    <tr class="table-primary fw-bold">
+                        <td colspan="6" class="text-end">
+                            Closing Balance
+                            {% if closing_as_on_date %}(as on {{ closing_as_on_date|date:"d M Y" }}){% endif %}
+                        </td>
+                        <td class="text-end fs-6">₹{{ closing_balance|floatformat:2 }}</td>
+                    </tr>
                     {% endif %}
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Pagination -->
     {% if page_obj and page_obj.has_other_pages %}
     <div class="card-footer bg-white border-0">
         <nav aria-label="Vendor statement pagination">
@@ -106,4 +117,3 @@
         {% if page_obj %}<span class="float-end">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>{% endif %}
     </div>
 </div>
-

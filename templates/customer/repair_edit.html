@@ -14,9 +14,7 @@
                 </div>
                 <div class="card-body">
                     <form method="post" 
-                          hx-post="{% url 'customer:customer_repair_update' repair.pk %}" 
-                          hx-target="#mainModalContent" 
-                          hx-swap="innerHTML"
+                          action="{% url 'customer:customer_repair_update' repair.pk %}"
                           id="repairEditForm"
                           novalidate>
                         {% csrf_token %}

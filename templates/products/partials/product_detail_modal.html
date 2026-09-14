@@ -1,61 +1,128 @@
 <!-- templates/products/partials/product_detail_modal.html -->
 {% load static %}
-<div class="modal-header">
-    <h5 class="modal-title"><i class="bi bi-box-seam text-primary me-2"></i>{{ product.name }}</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+
+<div class="modal-header bg-primary text-white">
+    <h5 class="modal-title">
+        <i class="bi bi-box-seam me-2"></i>{{ product.name }}
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
 </div>
+
 <div class="modal-body">
     <div class="row g-3">
         <div class="col-md-6">
-            <p><strong>HSN Code:</strong> {{ product.hsn_code|default:"—" }}</p>
-            <p><strong>Category:</strong> {{ product.category.name|default:"—" }}</p>
-            <p><strong>Unit:</strong> {{ product.get_unit_display }}</p>
-            <p><strong>Type:</strong> {% if product.is_service %}Service{% else %}Product{% endif %}</p>
+            <table class="table table-sm table-borderless mb-0">
+                <tr>
+                    <td class="text-muted" style="width:45%">HSN Code</td>
+                    <td><code>{{ product.hsn_code|default:"—" }}</code></td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Category</td>
+                    <td>{{ product.category.name|default:"—" }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Unit</td>
+                    <td>{{ product.get_unit_display }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Type</td>
+                    <td>
+                        {% if product.is_service %}
+                            <span class="badge bg-info text-dark">Service</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Product</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Status</td>
+                    <td>
+                        {% if product.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
         </div>
         <div class="col-md-6">
-            <p><strong>Purchase Price:</strong> ₹{{ product.purchase_price|floatformat:2 }}</p>
-            <p><strong>Selling Price:</strong> ₹{{ product.selling_price|floatformat:2 }}</p>
-            <p><strong>Tax Rate:</strong> {{ product.tax_rate|floatformat:2 }}%</p>
-            <p><strong>Current Stock:</strong> {{ product.current_stock|floatformat:0 }}</p>
+            <table class="table table-sm table-borderless mb-0">
+                <tr>
+                    <td class="text-muted" style="width:45%">Purchase Price</td>
+                    <td class="fw-bold">₹{{ product.purchase_price|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Selling Price</td>
+                    <td class="fw-bold text-success">₹{{ product.selling_price|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Tax Rate</td>
+                    <td>{{ product.tax_rate|floatformat:2 }}%</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Current Stock</td>
+                    <td>
+                        {% if product.is_service %}
+                            <span class="text-muted">—</span>
+                        {% elif product.current_stock <= product.low_stock_threshold %}
+                            <span class="badge bg-danger">{{ product.current_stock|floatformat:0 }} (Low)</span>
+                        {% else %}
+                            <span class="badge bg-success">{{ product.current_stock|floatformat:0 }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Low Stock Alert</td>
+                    <td>{{ product.low_stock_threshold }}</td>
+                </tr>
+            </table>
         </div>
+
         <div class="col-12">
             <hr>
-            <h6 class="fw-bold"><i class="bi bi-clock-history me-2"></i>Recent Stock Movements</h6>
+            <h6 class="fw-bold mb-3">
+                <i class="bi bi-clock-history me-2 text-info"></i>Recent Stock Movements
+            </h6>
             {% if recent_movements %}
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Type</th>
-                                <th>Quantity</th>
-                                <th>Reference</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for mov in recent_movements %}
-                            <tr>
-                                <td>{{ mov.date|date:"d M Y H:i" }}</td>
-                                <td>{{ mov.get_movement_type_display }}</td>
-                                <td>{{ mov.quantity }}</td>
-                                <td>{{ mov.reference|default:"—" }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th class="text-end">Quantity</th>
+                            <th>Reference</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in recent_movements %}
+                        <tr>
+                            <td class="small">{{ mov.date|date:"d M Y H:i" }}</td>
+                            <td><span class="badge bg-secondary">{{ mov.get_movement_type_display }}</span></td>
+                            <td class="text-end {% if mov.quantity < 0 %}text-danger{% else %}text-success{% endif %} fw-bold">
+                                {{ mov.quantity|floatformat:0 }}
+                            </td>
+                            <td class="small">{{ mov.reference|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% else %}
-                <p class="text-muted">No stock movements recorded.</p>
+            <p class="text-muted small mb-0">
+                <i class="bi bi-info-circle me-1"></i>No stock movements recorded.
+            </p>
             {% endif %}
         </div>
     </div>
 </div>
+
 <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-    <a href="{% url 'accounting:product_update' product.pk %}" class="btn btn-primary"
-       hx-get="{% url 'accounting:product_update' product.pk %}" 
-       hx-target="#mainModalContent" 
-       hx-trigger="click">
-        <i class="bi bi-pencil"></i> Edit
-    </a>
+    <button type="button" class="btn btn-primary"
+            hx-get="{% url 'accounting:product_update' product.pk %}"
+            hx-target="#mainModalContent">
+        <i class="bi bi-pencil me-1"></i>Edit
+    </button>
 </div>

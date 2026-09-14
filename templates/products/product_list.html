@@ -13,16 +13,16 @@
             <p class="text-muted small mt-1">Manage your products and stock levels</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-primary" 
-                    hx-get="{% url 'accounting:product_create' %}" 
-                    hx-target="#mainModalContent" 
-                    hx-trigger="click">
-                <i class="bi bi-plus-circle"></i> New Product
+            <button class="btn btn-primary"
+                    hx-get="{% url 'accounting:product_create' %}"
+                    hx-target="#mainModalContent">
+                <i class="bi bi-plus-circle me-1"></i>New Product
             </button>
-            <button class="btn btn-success"
-                    onclick="window.location.href='{% url 'accounting:export_products_excel' %}?' + new URLSearchParams(window.location.search).toString()"
-                    title="Export filtered list as Excel">
-                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            <button type="button" class="btn btn-outline-dark" onclick="printList()">
+                <i class="bi bi-printer me-1"></i>Print
+            </button>
+            <button type="button" class="btn btn-success" onclick="exportExcel()">
+                <i class="bi bi-file-earmark-excel me-1"></i>Excel
             </button>
         </div>
     </div>
@@ -115,15 +115,28 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" name="is_active" 
-                            hx-get="{% url 'accounting:product_list' %}" 
-                            hx-trigger="change" 
+                    <select class="form-select" name="is_active"
+                            hx-get="{% url 'accounting:product_list' %}"
+                            hx-trigger="change"
                             hx-target="#product-table-container"
                             hx-include="#product-filter-form"
                             hx-push-url="true">
                         <option value="">All Status</option>
                         <option value="true" {% if is_active_filter == 'true' %}selected{% endif %}>Active</option>
                         <option value="false" {% if is_active_filter == 'false' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="stock_filter"
+                            hx-get="{% url 'accounting:product_list' %}"
+                            hx-trigger="change"
+                            hx-target="#product-table-container"
+                            hx-include="#product-filter-form"
+                            hx-push-url="true">
+                        <option value="">All Stock</option>
+                        <option value="low" {% if stock_filter == 'low' %}selected{% endif %}>Low Stock</option>
+                        <option value="out" {% if stock_filter == 'out' %}selected{% endif %}>Out of Stock</option>
+                        <option value="ok" {% if stock_filter == 'ok' %}selected{% endif %}>In Stock</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -155,6 +168,31 @@
     </div>
 </div>
 
+<script>
+    function currentQuery() {
+        const form = document.getElementById('product-filter-form');
+        if (!form) return '';
+        const fd = new FormData(form);
+        const params = new URLSearchParams();
+        for (const [k, v] of fd.entries()) {
+            if (v && v.trim() !== '') params.append(k, v);
+        }
+        return params.toString();
+    }
 
+    function printList() {
+        const qs = currentQuery();
+        let url = "{% url 'accounting:product_list_print' %}";
+        if (qs) url += '?' + qs;
+        window.open(url, '_blank');
+    }
+
+    function exportExcel() {
+        const qs = currentQuery();
+        let url = "{% url 'accounting:export_products_excel' %}";
+        if (qs) url += '?' + qs;
+        window.location.href = url;
+    }
+</script>
 
 {% endblock %}

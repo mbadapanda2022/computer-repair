@@ -1,0 +1,119 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Invoice List — {{ company.name }}</title>
+<style>
+    @page { size: A4 landscape; margin: 10mm; }
+    @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
+    body { font-family: Arial, sans-serif; color: #333; margin: 0 auto; max-width: 1200px; padding: 15px; background: #fff; }
+    .header { text-align: center; border-bottom: 2px solid #1F4E78; padding-bottom: 8px; margin-bottom: 12px; }
+    .header h2 { margin: 4px 0; color: #1F4E78; font-size: 18pt; }
+    .header p { margin: 2px 0; font-size: 9pt; color: #666; }
+    .company-logo { max-height: 50px; }
+    .filters-box { background: #f8f9fa; padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 12px; font-size: 9pt; }
+    .summary-cards { display: flex; gap: 10px; margin-bottom: 12px; }
+    .summary-card { flex: 1; padding: 8px 12px; border-radius: 4px; border-left: 4px solid #ccc; }
+    .summary-card.primary { border-left-color: #0d6efd; background: #e7f1ff; }
+    .summary-card.success { border-left-color: #198754; background: #d4edda; }
+    .summary-card.danger { border-left-color: #dc3545; background: #f8d7da; }
+    .summary-card .label { font-size: 8pt; text-transform: uppercase; color: #666; }
+    .summary-card .value { font-size: 12pt; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    th, td { border: 1px solid #999; padding: 4px 6px; }
+    th { background: #1F4E78; color: #fff; text-align: left; }
+    .text-end { text-align: right; }
+    .text-center { text-align: center; }
+    tfoot td { background: #e9ecef; font-weight: bold; }
+    .footer { text-align: center; margin-top: 15px; font-size: 8pt; color: #666; border-top: 1px solid #ddd; padding-top: 6px; }
+    .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
+    <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+    <p>Invoice List — Generated on {% now "d M Y, h:i A" %}</p>
+</div>
+
+<div class="filters-box">
+    <strong>Filters:</strong>
+    {% if search %} Search: {{ search }}{% endif %}
+    {% if status %} | Status: {{ status|title }}{% endif %}
+    {% if date_from %} | From: {{ date_from }}{% endif %}
+    {% if date_to %} | To: {{ date_to }}{% endif %}
+    {% if not search and not status and not date_from and not date_to %}All Records{% endif %}
+    | Total: {{ invoices|length }}
+</div>
+
+<div class="summary-cards">
+    <div class="summary-card primary">
+        <div class="label">Total Sales</div>
+        <div class="value">₹{{ total_sales|floatformat:2 }}</div>
+    </div>
+    <div class="summary-card success">
+        <div class="label">Received</div>
+        <div class="value">₹{{ total_received|floatformat:2 }}</div>
+    </div>
+    <div class="summary-card danger">
+        <div class="label">Unpaid</div>
+        <div class="value">₹{{ total_unpaid|floatformat:2 }}</div>
+    </div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:100px;">Invoice #</th>
+            <th style="width:80px;">Date</th>
+            <th>Customer</th>
+            <th class="text-end" style="width:100px;">Amount</th>
+            <th class="text-end" style="width:100px;">Paid</th>
+            <th class="text-end" style="width:100px;">Due</th>
+            <th style="width:100px;">GST Type</th>
+            <th style="width:80px;">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for inv in invoices %}
+        <tr>
+            <td><strong>{{ inv.invoice_number }}</strong></td>
+            <td>{{ inv.date|date:"d-m-Y" }}</td>
+            <td>{{ inv.customer.name }}</td>
+            <td class="text-end">₹{{ inv.grand_total|floatformat:2 }}</td>
+            <td class="text-end">₹{{ inv.paid_amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ inv.balance_due|floatformat:2 }}</td>
+            <td>{{ inv.get_gst_type_display }}</td>
+            <td class="text-center">{{ inv.get_payment_status_display }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="text-center" style="padding:20px;">No invoices match the current filters.</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="3" class="text-end">Totals →</td>
+            <td class="text-end">₹{{ total_sales|floatformat:2 }}</td>
+            <td class="text-end">₹{{ total_received|floatformat:2 }}</td>
+            <td class="text-end">₹{{ total_unpaid|floatformat:2 }}</td>
+            <td colspan="2"></td>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="footer">
+    This is a computer-generated report. Generated by {{ company.name }}.
+</div>
+
+<div class="no-print" style="text-align:center; margin-top:15px;">
+    <hr>
+    <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+    <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+</div>
+
+</body>
+</html>

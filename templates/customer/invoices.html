@@ -1,14 +1,140 @@
+<!-- templates/customer/invoices.html -->
 {% extends "base_customer.html" %}
 {% load static math_filters %}
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>
             <h3 class="fw-semibold mb-0">
                 <i class="bi bi-receipt text-primary me-2"></i>My Invoices
             </h3>
-            <p class="text-muted small mt-1">View all your invoices and payment status</p>
+            <p class="text-muted small mt-1 mb-0">
+                {{ customer.name }}
+                {% if customer.phone %} · {{ customer.phone }}{% endif %}
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-success"
+                    onclick="downloadWithFilters('excel')">
+                <i class="bi bi-file-earmark-excel me-1"></i>Excel
+            </button>
+            <button type="button" class="btn btn-secondary"
+                    onclick="downloadWithFilters('print')">
+                <i class="bi bi-printer me-1"></i>Print
+            </button>
+        </div>
+    </div>
+
+    <!-- Active Filters Indicator -->
+    <div id="active-filters" class="alert alert-info py-2 mb-3 d-none">
+        <small>
+            <i class="bi bi-funnel-fill"></i> <strong>Active Filters:</strong>
+            <span id="active-filters-text"></span>
+        </small>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-file-earmark-text fs-4 text-primary"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Total Invoiced</small>
+                        <h5 class="mb-0 fw-bold">₹{{ total_invoiced|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-check-circle fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Paid</small>
+                        <h5 class="mb-0 fw-bold text-success">₹{{ total_paid|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block text-uppercase fw-semibold">Balance Due</small>
+                        <h5 class="mb-0 fw-bold text-danger">₹{{ total_due|floatformat:2 }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form id="invoice-filter-form" class="row g-3">
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" placeholder="Search invoice #..."
+                               name="search" value="{{ search }}"
+                               hx-get="{% url 'customer:customer_invoices' %}"
+                               hx-trigger="keyup changed delay:300ms"
+                               hx-target="#invoice-list-container"
+                               hx-include="#invoice-filter-form"
+                               hx-push-url="true"
+                               onkeyup="updateActiveFilters()">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="status"
+                            hx-get="{% url 'customer:customer_invoices' %}"
+                            hx-trigger="change"
+                            hx-target="#invoice-list-container"
+                            hx-include="#invoice-filter-form"
+                            hx-push-url="true"
+                            onchange="updateActiveFilters()">
+                        <option value="">All Status</option>
+                        <option value="paid" {% if status_filter == 'paid' %}selected{% endif %}>Paid</option>
+                        <option value="partial" {% if status_filter == 'partial' %}selected{% endif %}>Partial</option>
+                        <option value="unpaid" {% if status_filter == 'unpaid' %}selected{% endif %}>Unpaid</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                           hx-get="{% url 'customer:customer_invoices' %}"
+                           hx-trigger="change"
+                           hx-target="#invoice-list-container"
+                           hx-include="#invoice-filter-form"
+                           hx-push-url="true"
+                           onchange="updateActiveFilters()">
+                </div>
+                <div class="col-md-2">
+                    <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                           hx-get="{% url 'customer:customer_invoices' %}"
+                           hx-trigger="change"
+                           hx-target="#invoice-list-container"
+                           hx-include="#invoice-filter-form"
+                           hx-push-url="true"
+                           onchange="updateActiveFilters()">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-secondary w-100"
+                            onclick="resetFilters()">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -17,4 +143,70 @@
         {% include "customer/partials/invoice_list_table.html" %}
     </div>
 </div>
+
+<script>
+function getCurrentFilterParams() {
+    const form = document.getElementById('invoice-filter-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    for (const [key, value] of formData.entries()) {
+        if (value && value.trim() !== '') params.append(key, value);
+    }
+    return params;
+}
+
+function downloadWithFilters(type) {
+    const params = getCurrentFilterParams();
+    const queryString = params.toString();
+    let url = '';
+    let target = '_blank';
+
+    if (type === 'print') {
+        url = "{% url 'customer:customer_invoices' %}?print=1";
+        if (queryString) url += '&' + queryString;
+    } else if (type === 'excel') {
+        url = "{% url 'customer:customer_invoices' %}?excel=1";
+        if (queryString) url += '&' + queryString;
+        target = '_self';
+    }
+    window.open(url, target);
+}
+
+function resetFilters() {
+    const form = document.getElementById('invoice-filter-form');
+    form.reset();
+    form.querySelector('[name="search"]').value = '';
+    form.querySelector('[name="status"]').value = '';
+    form.querySelector('[name="date_from"]').value = '';
+    form.querySelector('[name="date_to"]').value = '';
+
+    htmx.ajax('GET', "{% url 'customer:customer_invoices' %}", {
+        target: '#invoice-list-container',
+        swap: 'innerHTML'
+    });
+    window.history.pushState({}, '', "{% url 'customer:customer_invoices' %}");
+    updateActiveFilters();
+}
+
+function updateActiveFilters() {
+    const params = getCurrentFilterParams();
+    const container = document.getElementById('active-filters');
+    const textEl = document.getElementById('active-filters-text');
+
+    if (params.toString() === '') {
+        container.classList.add('d-none');
+        return;
+    }
+    const parts = [];
+    if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
+    if (params.get('status')) parts.push('Status: ' + params.get('status'));
+    if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
+    if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
+
+    textEl.textContent = parts.join(' • ');
+    container.classList.remove('d-none');
+}
+
+document.addEventListener('DOMContentLoaded', updateActiveFilters);
+</script>
 {% endblock %}

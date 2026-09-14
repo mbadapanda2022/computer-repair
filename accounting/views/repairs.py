@@ -1,4 +1,4 @@
-# accounting/views/repairs.py
+# accounting/views/repairs.py for staff portal
 import json
 import logging
 from decimal import Decimal
@@ -37,7 +37,6 @@ def get_paginated_repairs_context(request, queryset=None):
     if queryset is None:
         queryset = RepairJob.objects.select_related('customer').all().order_by('-created_at')
 
-    # Stats (filter se independent, sare jobs ke liye)
     all_jobs = RepairJob.objects.all()
     stats = {
         'total_count': all_jobs.count(),
@@ -69,7 +68,6 @@ def get_paginated_repairs_context(request, queryset=None):
     if date_to:
         queryset = queryset.filter(date_in__lte=date_to)
 
-    # Filtered total (footer ke liye)
     filtered_total = queryset.aggregate(total=Sum('final_amount'))['total'] or Decimal('0')
 
     paginator = Paginator(queryset, 20)
@@ -134,7 +132,6 @@ def validate_repair_field(request):
 @login_required
 @handle_errors(default_redirect='accounting:repair_list')
 def repair_list(request):
-    # Reset button handling
     if request.GET.get('reset'):
         return redirect('accounting:repair_list')
 
@@ -206,10 +203,6 @@ def repair_list_print(request):
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list', htmx_template='repairs/partials/repair_form_modal.html')
 def repair_create(request):
-    """
-    Staff walk-in repair create karo.
-    Device already staff ke haath me hai, isliye status='received' direct.
-    """
     template_name = 'repairs/partials/repair_form_modal.html' if is_htmx(request) else 'repairs/repair_form.html'
 
     if request.method == 'POST':
@@ -270,16 +263,16 @@ def repair_update(request, pk):
 
     if request.method == 'POST':
         form = RepairJobForm(request.POST, instance=job)
-        
+
         if form.is_valid():
             with transaction.atomic():
                 job = form.save(commit=False)
-                
+
                 if job.status == 'delivered' and not job.delivery_date:
                     job.delivery_date = timezone.now().date()
-                
+
                 job.save()
-                
+
                 parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
                 job.final_amount = parts_total + job.labour_charge
                 job.save(update_fields=['final_amount'])
@@ -328,7 +321,6 @@ def repair_detail(request, pk):
     part_form = RepairPartForm()
     parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
 
-    # Generate tracking token (no DB write)
     from ..utils.tracking import generate_tracking_token
     track_token = generate_tracking_token(job)
 
@@ -350,10 +342,6 @@ def repair_detail(request, pk):
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def update_repair_status(request, pk):
-    """
-    Staff repair status update karta hai.
-    save() method auto-stamp karega dates ko.
-    """
     job = get_object_or_404(RepairJob, pk=pk)
 
     if request.method != 'POST':
@@ -380,19 +368,10 @@ def update_repair_status(request, pk):
         )
 
     with transaction.atomic():
+        # On cancellation: delete parts so their stock movements reverse automatically.
         if new_status == 'cancelled' and old_status != 'cancelled':
             for part in job.parts.all():
-                StockMovement.objects.create(
-                    product=part.product,
-                    movement_type='return_in',
-                    quantity=part.quantity,
-                    reference=f"CANCEL-{job.job_number}",
-                    date=timezone.now().date(),
-                    notes=f"Stock returned due to cancellation of repair job {job.job_number}"
-                )
-                Product.objects.filter(pk=part.product_id).update(
-                    current_stock=F('current_stock') + part.quantity
-                )
+                part.delete()
 
         job.status = new_status
         job.save(update_fields=['status'])
@@ -449,20 +428,8 @@ def add_repair_part(request, pk):
             with transaction.atomic():
                 part = form.save(commit=False)
                 part.repair_job = job
+                # RepairPart.save() handles stock movement and current_stock update.
                 part.save()
-
-                if not product.is_service:
-                    StockMovement.objects.create(
-                        product=product,
-                        movement_type='repair_out',
-                        quantity=-quantity,
-                        reference=f"REP-{job.job_number}",
-                        date=timezone.now().date(),
-                        notes=f"Part used in repair {job.job_number}"
-                    )
-                    Product.objects.filter(pk=product.pk).update(
-                        current_stock=F('current_stock') - quantity
-                    )
 
                 parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
                 job.final_amount = parts_total + job.labour_charge
@@ -481,13 +448,9 @@ def add_repair_part(request, pk):
                     send_notification_sse(staff)
 
                 if is_htmx(request):
-                    parts = job.parts.all()
-                    parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-                    response = render(request, 'repairs/partials/parts_with_totals.html', {
-                        'parts': parts,
-                        'job': job,
-                        'parts_total': parts_total,
-                    })
+                    # Redirect back to the repair detail page (cleanest UX)
+                    response = HttpResponse()
+                    response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
                     response['HX-Trigger'] = json.dumps({
                         'closeModal': '',
                         'showToast': {
@@ -528,17 +491,7 @@ def remove_repair_part(request, part_pk):
     product = part.product
 
     with transaction.atomic():
-        if not product.is_service:
-            StockMovement.objects.create(
-                product=product,
-                movement_type='return_in',
-                quantity=part.quantity,
-                reference=f"REMOVE-{job.job_number}",
-                date=timezone.now().date(),
-                notes=f"Stock returned due to removal of part from repair job {job.job_number}"
-            )
-            Product.objects.filter(pk=product.pk).update(current_stock=F('current_stock') + part.quantity)
-
+        # RepairPart.delete() reverses stock movement automatically.
         part.delete()
 
         parts = job.parts.all()
@@ -577,7 +530,7 @@ def remove_repair_part(request, part_pk):
 
 
 # ============================================================
-# 10. CREATE INVOICE FROM REPAIR (FIXED)
+# 10. CREATE INVOICE FROM REPAIR
 # ============================================================
 @login_required
 @csrf_protect
@@ -633,8 +586,8 @@ def create_invoice_from_repair(request, pk):
         )
         invoice.save()
 
-        # Parts → Invoice Items
-        for part in job.parts.select_related('product'):
+        # Parts -> Invoice Items
+        for part in job.parts.select_related('product').all():
             InvoiceItem.objects.create(
                 invoice=invoice,
                 product=part.product,
@@ -644,30 +597,30 @@ def create_invoice_from_repair(request, pk):
                 description=f"Repair part: {part.product.name}"
             )
 
-        # Labour Charge
+        # Labour Charge (separate line item)
         if job.labour_charge > 0:
-            tax_rate = company.default_tax_rate
+            tax_rate = company.default_tax_rate or Decimal('18')
             labour_product, _ = Product.objects.get_or_create(
                 name="Repair Labour",
                 defaults={
                     'is_service': True,
                     'selling_price': job.labour_charge,
                     'tax_rate': tax_rate,
-                    'hsn_code': '998446'
+                    'hsn_code': '998446',
                 }
             )
             InvoiceItem.objects.create(
                 invoice=invoice,
                 product=labour_product,
-                quantity=1,
+                quantity=Decimal('1'),
                 unit_price=job.labour_charge,
                 tax_rate=tax_rate,
-                description="Labour Charge"
+                description="Labour Charge",
             )
 
         invoice.calculate_totals()
-        invoice.save() 
-        sync_invoice_ledger(invoice)  
+        invoice.save()
+        sync_invoice_ledger(invoice)
 
         # Repair Job Link
         job.invoice = invoice
@@ -675,7 +628,6 @@ def create_invoice_from_repair(request, pk):
             job.status = 'delivered'
         job.save(update_fields=['invoice', 'status'])
 
-        # Notifications
         send_notification_to_customer(
             job.customer,
             title=f"Invoice Generated: {invoice.invoice_number}",
@@ -689,7 +641,7 @@ def create_invoice_from_repair(request, pk):
             send_notification_sse(staff)
 
         messages.success(request, f"Invoice {invoice.invoice_number} created successfully for date {invoice_date}.")
-        
+
         if is_htmx(request):
             response = HttpResponse()
             response['HX-Redirect'] = reverse('accounting:invoice_detail', args=[invoice.pk])
@@ -698,7 +650,7 @@ def create_invoice_from_repair(request, pk):
                 'closeModal': ''
             })
             return response
-        
+
         return redirect_to_staff('invoice_detail', pk=invoice.pk)
 
 
@@ -719,18 +671,12 @@ def repair_delete(request, pk):
         )
 
     with transaction.atomic():
+        # Delete parts first - each part.delete() reverses its stock movement.
         for part in job.parts.all():
-            StockMovement.objects.create(
-                product=part.product,
-                movement_type='return_in',
-                quantity=part.quantity,
-                reference=f"JOB-DELETE-{job.job_number}",
-                date=timezone.now().date(),
-                notes=f"Stock returned due to deletion of repair job {job.job_number}"
-            )
-            Product.objects.filter(pk=part.product_id).update(current_stock=F('current_stock') + part.quantity)
+            part.delete()
 
         job.delete()
+
         for staff in User.objects.filter(is_staff=True):
             send_notification_sse(staff)
 
@@ -755,7 +701,6 @@ def repair_print(request, pk):
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name and company.logo.storage.exists(company.logo.name))
 
-    # Generate tracking token (no DB write)
     from ..utils.tracking import generate_tracking_token
     track_token = generate_tracking_token(job)
 
@@ -786,7 +731,6 @@ def repair_create_for_contact(request, contact_id):
                 job = form.save(commit=False)
                 job.customer = contact
                 now = timezone.now()
-                # Walk-in: device already received
                 if not job.submitted_at:
                     job.submitted_at = now
                 if not job.received_at:
@@ -856,7 +800,7 @@ def staff_approve_estimate(request, pk):
 
             send_notification_to_customer(
                 repair.customer,
-                title=f"✅ Your repair {repair.job_number} has been approved",
+                title=f"Your repair {repair.job_number} has been approved",
                 message=f"Your repair for {repair.device_model} has been approved and will start shortly.",
                 link=reverse('customer:customer_repair_detail', args=[repair.pk]),
                 notif_type='success',
@@ -866,7 +810,7 @@ def staff_approve_estimate(request, pk):
             for staff in User.objects.filter(is_staff=True):
                 send_notification_sse(staff)
 
-            messages.success(request, f"✅ Estimate for {repair.job_number} approved! (Source: {source})")
+            messages.success(request, f"Estimate for {repair.job_number} approved! (Source: {source})")
 
             if is_htmx(request):
                 response = HttpResponse()
@@ -877,6 +821,7 @@ def staff_approve_estimate(request, pk):
             return redirect('accounting:repair_detail', pk=repair.pk)
 
     return render(request, 'repairs/partials/staff_approve_modal.html', {'repair': repair})
+
 
 # ============================================================
 # 15. EXPORT REPAIRS TO EXCEL
@@ -893,7 +838,6 @@ def export_repairs_excel(request):
         messages.error(request, "Openpyxl library is not installed on the server.")
         return redirect('accounting:repair_list')
 
-    # === Same filters as repair_list ===
     queryset = RepairJob.objects.select_related('customer', 'invoice').all().order_by('-created_at')
 
     search = request.GET.get('search', '').strip()
@@ -920,20 +864,16 @@ def export_repairs_excel(request):
 
     company = CompanyProfile.get_instance()
 
-    # === Create Workbook ===
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Repair Jobs"
 
-    # === Styles ===
     title_font = Font(bold=True, size=16, color="FFFFFF")
     title_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     subtitle_font = Font(bold=True, size=12, color="FFFFFF")
     subtitle_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
     header_font = Font(bold=True, size=11, color="FFFFFF")
     header_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
-    section_font = Font(bold=True, size=11, color="000000")
-    section_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
     total_font = Font(bold=True, size=11, color="FFFFFF")
     total_fill = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
 
@@ -946,12 +886,9 @@ def export_repairs_excel(request):
     left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
     right_align = Alignment(horizontal='right', vertical='center')
 
-    # === Determine column count ===
-    # 21 columns
     TOTAL_COLS = 21
     last_col = get_column_letter(TOTAL_COLS)
 
-    # === Row 1: Company Name ===
     ws.merge_cells(f'A1:{last_col}1')
     ws['A1'] = company.name or "A1 Computer Solutions"
     ws['A1'].font = title_font
@@ -959,7 +896,6 @@ def export_repairs_excel(request):
     ws['A1'].alignment = center_align
     ws.row_dimensions[1].height = 30
 
-    # === Row 2: Company Address ===
     ws.merge_cells(f'A2:{last_col}2')
     address_parts = []
     if company.address:
@@ -975,7 +911,6 @@ def export_repairs_excel(request):
     ws['A2'].alignment = center_align
     ws.row_dimensions[2].height = 20
 
-    # === Row 3: Report Title ===
     ws.merge_cells(f'A3:{last_col}3')
     ws['A3'] = "REPAIR JOBS REPORT"
     ws['A3'].font = subtitle_font
@@ -983,7 +918,6 @@ def export_repairs_excel(request):
     ws['A3'].alignment = center_align
     ws.row_dimensions[3].height = 25
 
-    # === Row 4: Filter info ===
     ws.merge_cells(f'A4:{last_col}4')
     filter_parts = [f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')}"]
     if search:
@@ -1006,10 +940,8 @@ def export_repairs_excel(request):
     ws['A4'].alignment = center_align
     ws.row_dimensions[4].height = 20
 
-    # === Row 5: blank ===
     ws.row_dimensions[5].height = 5
 
-    # === Row 6: Table Headers ===
     headers = [
         ('Job #', 14),
         ('Date In', 12),
@@ -1028,9 +960,9 @@ def export_repairs_excel(request):
         ('Delivered To', 16),
         ('Recipient Phone', 14),
         ('Delivery Date', 12),
-        ('Labour (₹)', 12),
-        ('Parts (₹)', 12),
-        ('Final Amount (₹)', 15),
+        ('Labour (Rs.)', 12),
+        ('Parts (Rs.)', 12),
+        ('Final Amount (Rs.)', 15),
         ('Invoice #', 14),
     ]
 
@@ -1044,7 +976,6 @@ def export_repairs_excel(request):
 
     ws.row_dimensions[6].height = 30
 
-    # === Data rows ===
     row_num = 7
     total_labour = Decimal('0')
     total_parts = Decimal('0')
@@ -1082,21 +1013,17 @@ def export_repairs_excel(request):
             cell.border = border_all
             cell.alignment = left_align
 
-        # Money columns right-align
         for col_idx in [12, 18, 19, 20]:
             ws.cell(row=row_num, column=col_idx).alignment = right_align
             ws.cell(row=row_num, column=col_idx).number_format = money_format
 
-        # Center align some columns
         for col_idx in [1, 2, 10, 11, 17, 21]:
             ws.cell(row=row_num, column=col_idx).alignment = center_align
 
-        # Accumulate totals
         total_labour += Decimal(str(job.labour_charge or 0))
         total_parts += parts_total
         total_final += Decimal(str(job.final_amount or 0))
 
-        # Alternate row color
         if row_num % 2 == 0:
             alt_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             for col_idx in range(1, TOTAL_COLS + 1):
@@ -1104,7 +1031,6 @@ def export_repairs_excel(request):
 
         row_num += 1
 
-    # === Total row ===
     ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=17)
     total_label = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
     total_label.font = total_font
@@ -1124,7 +1050,6 @@ def export_repairs_excel(request):
     empty_total.fill = total_fill
     empty_total.border = border_header
 
-    # Fill the merged cells' borders
     for col_idx in range(2, 18):
         c = ws.cell(row=row_num, column=col_idx)
         c.fill = total_fill
@@ -1132,27 +1057,21 @@ def export_repairs_excel(request):
 
     ws.row_dimensions[row_num].height = 22
 
-    # === Footer ===
     footer_row = row_num + 2
     ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=TOTAL_COLS)
     footer_text = f"This report was generated automatically by {company.name or 'A1 Computer Solutions'} on {timezone.now().strftime('%d-%m-%Y %H:%M')}."
     ws.cell(row=footer_row, column=1, value=footer_text).font = Font(size=9, italic=True, color="777777")
     ws.cell(row=footer_row, column=1).alignment = center_align
 
-    # === Freeze header row ===
     ws.freeze_panes = 'A7'
-
-    # === Auto filter on header ===
     ws.auto_filter.ref = f"A6:{last_col}6"
 
-    # === Page setup for printing ===
     ws.page_setup.orientation = 'landscape'
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
 
-    # === Save response ===
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )

@@ -27,16 +27,32 @@ POSITIVE_VALIDATOR = [MinValueValidator(MONEY_ZERO)]
 # 0. BASE MODELS (Soft Delete & Audit)
 # ============================================================
 
+class SoftDeleteQuerySet(models.QuerySet):
+    """QuerySet that soft-deletes records when .delete() is called."""
+
+    def delete(self):
+        count = 0
+        for obj in self:
+            obj.delete()
+            count += 1
+        label = self.model._meta.label
+        return (count, {label: count})
+
+    def hard_delete(self):
+        return super().delete()
+
+
 class SoftDeleteManager(models.Manager):
     """Manager that excludes soft-deleted records by default."""
+
     def get_queryset(self):
-        return super().get_queryset().filter(is_deleted=False)
-    
+        return SoftDeleteQuerySet(self.model, using=self._db).filter(is_deleted=False)
+
     def all_with_deleted(self):
-        return super().get_queryset()
-    
+        return SoftDeleteQuerySet(self.model, using=self._db)
+
     def deleted_only(self):
-        return super().get_queryset().filter(is_deleted=True)
+        return SoftDeleteQuerySet(self.model, using=self._db).filter(is_deleted=True)
 
 
 class SoftDeleteModel(models.Model):
@@ -55,7 +71,7 @@ class SoftDeleteModel(models.Model):
     )
     
     objects = SoftDeleteManager()
-    all_objects = models.Manager()  # Includes deleted records
+    all_objects = models.Manager()  
     
     class Meta:
         abstract = True
@@ -400,9 +416,21 @@ class LedgerEntry(SoftDeleteModel):
 
 
 class LedgerLine(SoftDeleteModel):
+    SUBLEDGER_CHOICES = (
+        ('receivable', 'Receivable'),
+        ('payable', 'Payable'),
+    )
     ledger_entry = models.ForeignKey(LedgerEntry, on_delete=models.CASCADE, related_name='lines')
     account = models.ForeignKey(Account, on_delete=models.PROTECT, related_name='ledger_lines')
     contact = models.ForeignKey('Contact', on_delete=models.SET_NULL, null=True, blank=True, related_name='ledger_lines')
+    subledger_type = models.CharField(
+        max_length=10,
+        choices=SUBLEDGER_CHOICES,
+        blank=True,
+        default='',
+        db_index=True,
+        help_text="For contact-linked lines: receivable (customer side) or payable (vendor side)",
+    )
     debit = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     credit = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
 
@@ -427,6 +455,24 @@ class LedgerLine(SoftDeleteModel):
                 name='ledgerline_credit_positive',
             ),
         ]
+
+        # Account codes that belong to each subledger side
+    RECEIVABLE_ACCOUNT_CODES = frozenset({'1011', '1012'})  # Customer Receivable, Advance from Customer
+    PAYABLE_ACCOUNT_CODES = frozenset({'2011', '1014'})     # Vendor Payable, Advance to Vendor
+
+    def save(self, *args, **kwargs):
+        # Auto-detect subledger_type from account code if contact is set
+        if self.contact_id and not self.subledger_type:
+            try:
+                code = self.account.code
+                if code in self.RECEIVABLE_ACCOUNT_CODES:
+                    self.subledger_type = 'receivable'
+                elif code in self.PAYABLE_ACCOUNT_CODES:
+                    self.subledger_type = 'payable'
+            except Account.DoesNotExist:
+                pass
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.account.name} Dr:{self.debit} Cr:{self.credit}"
@@ -455,6 +501,14 @@ class Contact(SoftDeleteModel):
         help_text="Date when opening balance was recorded (defaults to today)"
     )
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    receivable_balance = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Net amount this party owes us (positive = they owe us)"
+    )
+    payable_balance = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Net amount we owe this party (positive = we owe them)"
+    )
     advance_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Net advance balance (Customer: positive = advance received, Vendor: positive = advance paid)")
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -470,32 +524,74 @@ class Contact(SoftDeleteModel):
     
 
     def recalc_balance(self):
-        dr = self.ledger_lines.aggregate(total=Sum('debit'))['total'] or Decimal('0')
-        cr = self.ledger_lines.aggregate(total=Sum('credit'))['total'] or Decimal('0')
+        """
+        Recalculate all three balances from ledger lines.
+        - receivable_balance: net amount party owes us
+        - payable_balance: net amount we owe party
+        - balance: net position (backward compatible)
+        """
+        # Receivable side: Dr - Cr on receivable lines
+        recv = self.ledger_lines.filter(subledger_type='receivable').aggregate(
+            dr=Sum('debit'), cr=Sum('credit')
+        )
+        recv_dr = recv['dr'] or Decimal('0')
+        recv_cr = recv['cr'] or Decimal('0')
+        receivable = (recv_dr - recv_cr).quantize(TAX_PRECISION)
+
+        # Payable side: Cr - Dr on payable lines
+        pay = self.ledger_lines.filter(subledger_type='payable').aggregate(
+            dr=Sum('debit'), cr=Sum('credit')
+        )
+        pay_dr = pay['dr'] or Decimal('0')
+        pay_cr = pay['cr'] or Decimal('0')
+        payable = (pay_cr - pay_dr).quantize(TAX_PRECISION)
+
+        # Net balance - backward compatible with existing logic
         if self.contact_type in ('customer', 'both'):
-            new_bal = dr - cr
+            new_bal = (receivable - payable).quantize(TAX_PRECISION)
         else:
-            new_bal = cr - dr
-        Contact.objects.filter(pk=self.pk).update(balance=new_bal.quantize(TAX_PRECISION))
-        self.balance = new_bal.quantize(TAX_PRECISION)
+            new_bal = payable
+
+        Contact.objects.filter(pk=self.pk).update(
+            receivable_balance=receivable,
+            payable_balance=payable,
+            balance=new_bal,
+        )
+        self.receivable_balance = receivable
+        self.payable_balance = payable
+        self.balance = new_bal
         
 
     def recalc_advance_balance(self):
         """Recalculate advance balance from advance payment entries."""
-        if self.contact_type in ('customer', 'both'):
-            total_advance = self.payments.filter(is_advance=True, direction='received').aggregate(total=Sum('amount'))['total'] or Decimal('0')
-            total_settled = AdvanceAdjustment.objects.filter(payment__contact=self, payment__is_advance=True).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-            self.advance_balance = (total_advance - total_settled).quantize(TAX_PRECISION)
-        else:
-            total_advance = self.payments.filter(is_advance=True, direction='paid').aggregate(total=Sum('amount'))['total'] or Decimal('0')
-            total_settled = AdvanceAdjustment.objects.filter(payment__contact=self, payment__is_advance=True).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-            self.advance_balance = (total_advance - total_settled).quantize(TAX_PRECISION)
+        # Determine direction based on contact type to avoid mixing
+        direction = 'received' if self.contact_type in ('customer', 'both') else 'paid'
+
+        total_advance = self.payments.filter(
+            is_advance=True,
+            direction=direction
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        total_settled = AdvanceAdjustment.objects.filter(
+            payment__contact=self,
+            payment__is_advance=True,
+            payment__direction=direction
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        self.advance_balance = (total_advance - total_settled).quantize(TAX_PRECISION)
         self.save(update_fields=['advance_balance'])
     
     def save(self, *args, **kwargs):
-        # Opening balance date auto-fill (agar balance hai aur date nahi)
+        # Normalize empty phone to None to avoid unique constraint conflicts
+        if self.phone is not None:
+            self.phone = self.phone.strip()
+            if not self.phone:
+                self.phone = None
+
+        # Auto-fill opening balance date if not provided
         if self.opening_balance and not self.opening_balance_date:
             self.opening_balance_date = timezone.now().date()
+
         super().save(*args, **kwargs)
 
 
@@ -706,6 +802,7 @@ def sync_invoice_ledger(invoice):
             LedgerLine.objects.create(
                 ledger_entry=entry,
                 account=advance_account,
+                contact=invoice.customer,
                 debit=total_advance_settled,
                 credit=0
             )
@@ -780,6 +877,38 @@ class Invoice(SoftDeleteModel):
 
     def __str__(self):
         return f"Invoice {self.invoice_number} - {self.customer.name}"
+    
+    def get_gst_breakup(self):
+        """
+        Return GST breakdown based on invoice type.
+        - interstate: IGST
+        - intrastate: CGST + SGST (split equally)
+        - regular / non_gst: no split
+        """
+        tax = self.tax_amount or Decimal('0')
+
+        if self.gst_type == 'interstate':
+            return {
+                'total_tax': tax,
+                'igst': tax,
+                'cgst': Decimal('0'),
+                'sgst': Decimal('0'),
+            }
+        elif self.gst_type == 'intrastate':
+            half = (tax / 2).quantize(TAX_PRECISION)
+            return {
+                'total_tax': tax,
+                'igst': Decimal('0'),
+                'cgst': half,
+                'sgst': tax - half,
+            }
+        else:
+            return {
+                'total_tax': tax,
+                'igst': Decimal('0'),
+                'cgst': Decimal('0'),
+                'sgst': Decimal('0'),
+            }
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:
@@ -852,18 +981,19 @@ class InvoiceItem(SoftDeleteModel):
 
         super().save(*args, **kwargs)
 
-        if not self.product.is_service:
+        # Skip stock movement for soft-deleted rows to avoid unique-constraint conflicts
+        if not self.is_deleted and not self.product.is_service:
             StockMovement.objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
                 defaults={
                     'product': self.product,
                     'movement_type': 'sale_out',
-                    'quantity': (-self.quantity).quantize(TAX_PRECISION),
+                    'quantity': (-Decimal(self.quantity)).quantize(TAX_PRECISION),
                     'date': self.invoice.date
                 }
             )
-
+            
         if self.invoice:
             self.invoice.calculate_totals()
             # Recalculate balance and payment status
@@ -1015,15 +1145,20 @@ def sync_purchase_ledger(purchase):
         total_advance_settled = purchase.advance_adjustments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
         if total_advance_settled > 0:
             advance_account = get_account('1014', 'Advance to Vendor', 'asset', '1')
-            LedgerLine.objects.create(
-                ledger_entry=entry,
-                account=advance_account,
-                credit=total_advance_settled,
-                debit=0
-            )
+
+            # Debit Vendor Payable (reduce liability)
             LedgerLine.objects.create(
                 ledger_entry=entry,
                 account=vendor_account,
+                contact=purchase.vendor,
+                debit=total_advance_settled,
+                credit=0
+            )
+
+            # Credit Advance to Vendor (reduce asset)
+            LedgerLine.objects.create(
+                ledger_entry=entry,
+                account=advance_account,
                 contact=purchase.vendor,
                 debit=0,
                 credit=total_advance_settled
@@ -1092,6 +1227,7 @@ class Purchase(SoftDeleteModel):
         if not self.purchase_number:
             max_attempts = 5
             last_error = None
+            saved = False
 
             for attempt in range(max_attempts):
                 next_num = InvoiceCounter.get_next_number("PUR")
@@ -1100,7 +1236,8 @@ class Purchase(SoftDeleteModel):
                 try:
                     with transaction.atomic():
                         super().save(*args, **kwargs)
-                    return  
+                    saved = True
+                    break
                 except IntegrityError as e:
                     last_error = e
                     if 'purchase_number' in str(e).lower() and attempt < max_attempts - 1:
@@ -1111,11 +1248,27 @@ class Purchase(SoftDeleteModel):
                         continue
                     raise
 
-            raise IntegrityError(
-                f"Unable to generate unique purchase_number after {max_attempts} attempts: {last_error}"
-            )
+            if not saved:
+                raise IntegrityError(
+                    f"Unable to generate unique purchase_number after {max_attempts} attempts: {last_error}"
+                )
+        else:
+            super().save(*args, **kwargs)
 
-        super().save(*args, **kwargs)
+        # Sync ledger only on full save (not on partial update_fields saves)
+        update_fields = kwargs.get('update_fields')
+        should_sync = (update_fields is None)
+
+        if should_sync and self.pk and self.items.exists():
+            try:
+                sync_purchase_ledger(self)
+                if self.vendor:
+                    self.vendor.recalc_balance()
+            except Exception as e:
+                logger.error(
+                    f"Purchase ledger sync failed for {self.purchase_number}: {e}",
+                    exc_info=True,
+                )
 
 
     def calculate_totals(self):
@@ -1152,17 +1305,18 @@ class PurchaseItem(SoftDeleteModel):
 
         super().save(*args, **kwargs)
 
-        if not self.product.is_service:
+        if not self.is_deleted and not self.product.is_service and not self.is_office_use:
             StockMovement.objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
                 defaults={
                     'product': self.product,
                     'movement_type': 'purchase_in',
-                    'quantity': self.quantity.quantize(TAX_PRECISION),
+                    'quantity': Decimal(self.quantity).quantize(TAX_PRECISION),
                     'date': self.purchase.date
                 }
             )
+
 
         if self.purchase:
             self.purchase.calculate_totals()
@@ -1423,8 +1577,7 @@ class RepairPart(SoftDeleteModel):
 
         super().save(*args, **kwargs)
 
-        # Stock Movement ONLY for physical products
-        if not self.product.is_service:
+        if not self.is_deleted and not self.product.is_service:
             StockMovement.objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
@@ -1659,6 +1812,11 @@ class Payment(SoftDeleteModel):
             self.create_ledger_entry()
             return
         
+        new_entry_type = 'payment'
+        if self.is_advance:
+            new_entry_type = 'advance_received' if self.direction == 'received' else 'advance_paid'
+
+        entry.entry_type = new_entry_type
         entry.lines.all().delete()
         entry.date = self.date
         entry.description = f"{'Advance' if self.is_advance else 'Payment'} {self.direction} from/to {self.contact.name}"
