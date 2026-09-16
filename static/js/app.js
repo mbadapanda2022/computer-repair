@@ -198,6 +198,13 @@
         document.body.addEventListener('htmx:afterSwap', function(evt) {
             const target = evt.detail && evt.detail.target;
             if (!target || target.id !== 'mainModalContent') return;
+
+            // Safety: don't open modal if content is empty/whitespace
+            const html = (target.innerHTML || '').trim();
+            if (!html) {
+                return;
+            }
+
             let modal = bootstrap.Modal.getInstance(mainModalEl);
             if (!modal) {
                 modal = new bootstrap.Modal(mainModalEl, { backdrop: 'static', keyboard: true });

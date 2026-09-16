@@ -611,6 +611,19 @@ STATUS_MODAL_CONFIG = {
     },
 }
 
+def _modal_error_response(level, message, status=200):
+    """
+    Return a toast WITHOUT triggering any HTMX swap.
+    Used when a modal-target form returns a validation error
+    (otherwise the empty response would open an empty modal).
+    """
+    response = HttpResponse(status=status)
+    response['HX-Reswap'] = 'none'   # ← key: don't swap anything
+    response['HX-Trigger'] = json.dumps({
+        'showToast': {'level': level, 'message': message}
+    })
+    return response
+
 
 @login_required
 @csrf_protect
@@ -638,21 +651,18 @@ def update_repair_status(request, pk):
 
         # Validation
         if not new_status or new_status not in dict(RepairJob.STATUS_CHOICES):
-            return toast_only_response(
-                {'level': 'danger', 'message': 'Invalid status.'},
-                status=400,
-            )
+            return _modal_error_response('danger', 'Invalid status.', status=400)
 
         if new_status == job.status:
-            return toast_only_response(
-                {'level': 'warning',
-                 'message': f'Status is already "{job.get_status_display()}".'},
+            return _modal_error_response(
+                'warning',
+                f'Status is already "{job.get_status_display()}".',
             )
 
         if job.status in ('delivered', 'cancelled'):
-            return toast_only_response(
-                {'level': 'error',
-                 'message': f'Cannot change from {job.get_status_display()}.'},
+            return _modal_error_response(
+                'error',
+                f'Cannot change from {job.get_status_display()}.',
                 status=400,
             )
 
