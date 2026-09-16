@@ -24,7 +24,7 @@
         <div class="alert alert-light border d-flex align-items-center mb-3">
             <i class="bi bi-arrow-right-circle text-primary me-3 fs-3"></i>
             <div class="small flex-grow-1">
-                <div><strong>{{ job.job_number }}</strong> · {{ job.device_model }}</div>
+                <div><strong>{{ job.job_number }}</strong> &middot; {{ job.device_model }}</div>
                 <div class="text-muted mt-1">
                     <span class="badge bg-secondary">{{ job.get_status_display }}</span>
                     <i class="bi bi-arrow-right mx-2"></i>
@@ -44,7 +44,7 @@
                 <label class="form-label fw-semibold">Received Date</label>
                 <input type="date" name="received_at" class="form-control"
                        value="{% now 'Y-m-d' %}">
-                <small class="text-muted">आज की तारीख default है</small>
+                <small class="text-muted">Today by default</small>
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-semibold">Received By</label>
@@ -68,9 +68,9 @@
                     Diagnosis Report <span class="text-danger">*</span>
                 </label>
                 <textarea name="diagnosis_report" rows="5" class="form-control"
-                          placeholder="क्या खराबी मिली — e.g., Hard drive failure, RAM issue, motherboard capacitor burnt..."
+                          placeholder="E.g., Hard drive failure, RAM issue, motherboard capacitor burnt..."
                           required>{{ job.diagnosis_report|default:'' }}</textarea>
-                <small class="text-muted">यह customer को दिखेगा</small>
+                <small class="text-muted">Visible to the customer</small>
             </div>
         </div>
         {% endif %}
@@ -79,7 +79,7 @@
         {% if new_status == 'repairing' %}
         <div class="alert alert-info mb-0">
             <i class="bi bi-tools me-2"></i>
-            Repairing शुरू हो रही है। आप चाहें तो बाद में Quick Update से action_taken भर सकते हैं।
+            Repair work is starting. You can fill the action taken later using Quick Update.
         </div>
         {% endif %}
 
@@ -90,7 +90,7 @@
                 <label class="form-label fw-semibold">Ready Date</label>
                 <input type="date" name="ready_at" class="form-control"
                        value="{% now 'Y-m-d' %}">
-                <small class="text-muted">जब repair complete हुई</small>
+                <small class="text-muted">When the repair was completed</small>
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-semibold">Marked Ready By</label>
@@ -100,7 +100,7 @@
             <div class="col-12">
                 <div class="alert alert-light border small mb-0">
                     <i class="bi bi-info-circle text-primary me-1"></i>
-                    Customer को notification चली जाएगी कि device ready है।
+                    The customer will be notified that their device is ready.
                 </div>
             </div>
         </div>
@@ -127,7 +127,7 @@
                 <input type="text" name="delivered_to_name" class="form-control"
                        value="{{ job.customer.name }}"
                        placeholder="Recipient name">
-                <small class="text-muted">Customer से अलग कोई ले रहा हो तो नाम बदलें</small>
+                <small class="text-muted">Change if someone else picked it up</small>
             </div>
             <div class="col-md-6">
                 <label class="form-label fw-semibold">Recipient Phone</label>
@@ -153,12 +153,12 @@
         <div class="alert alert-danger">
             <h6 class="fw-bold">
                 <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                पक्का करें?
+                Please Confirm
             </h6>
             <ul class="mb-0 small">
-                <li>इस repair में जोड़े गए सभी parts delete हो जाएंगे</li>
-                <li>Stock automatically वापस add हो जाएगा</li>
-                <li>यह action undo नहीं हो सकता</li>
+                <li>All parts added to this repair will be deleted</li>
+                <li>Stock will be automatically restored</li>
+                <li>This action cannot be undone</li>
             </ul>
         </div>
         {% endif %}
