@@ -688,7 +688,17 @@ def password_reset_otp_request(request):
             request.session[SK_PENDING_USER_ID] = user.id
             request.session[SK_PENDING_EMAIL] = email
             request.session[SK_OTP_PURPOSE] = 'reset_password'
-            messages.success(request, "OTP sent to your email. Please verify.")
+
+            msg = "OTP sent to your email. Please verify."
+            if is_htmx(request):
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('accounting:verify_otp')
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'success', 'message': msg},
+                })
+                return response
+
+            messages.success(request, msg)
             return redirect('accounting:verify_otp')
 
         messages.error(request, "Unable to send OTP. Please try again later.")
@@ -699,7 +709,7 @@ def password_reset_otp_request(request):
 
 @handle_errors(default_redirect='home')
 def reset_password_set_view(request):
-    """Step 3: set new password after OTP verified."""
+    """Step 3: set new password after OTP verified. HTMX-aware."""
     user_id = request.session.get(SK_RESET_USER_ID)
     email = request.session.get(SK_RESET_EMAIL)
 
@@ -715,35 +725,57 @@ def reset_password_set_view(request):
         return redirect('home')
 
     ctx = {'email': email}
+    htmx = is_htmx(request)
 
     if request.method == 'POST':
         p1 = request.POST.get('password1')
         p2 = request.POST.get('password2')
 
+        # ---- Validation errors ----
+        error_msg = None
         if not p1 or not p2:
-            messages.error(request, "Both password fields are required.")
+            error_msg = "Both password fields are required."
+        elif p1 != p2:
+            error_msg = "Passwords do not match."
+        else:
+            try:
+                validate_password(p1, user=user)
+            except ValidationError as e:
+                error_msg = ' '.join(e.messages)
+
+        if error_msg:
+            if htmx:
+                response = render(
+                    request, 'auth/reset_password_set.html', ctx, status=400,
+                )
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {'level': 'danger', 'message': error_msg},
+                })
+                return response
+            messages.error(request, error_msg)
             return render(request, 'auth/reset_password_set.html', ctx)
 
-        if p1 != p2:
-            messages.error(request, "Passwords do not match.")
-            return render(request, 'auth/reset_password_set.html', ctx)
-
-        try:
-            validate_password(p1, user=user)
-        except ValidationError as e:
-            for err in e.messages:
-                messages.error(request, err)
-            return render(request, 'auth/reset_password_set.html', ctx)
-
+        # ---- SUCCESS ----
         user.set_password(p1)
         user.save(update_fields=['password'])
         logger.info("Password reset completed | user=%s", user.username)
 
         _clear_otp_session(request)
-        messages.success(
-            request,
-            "Password reset successfully! Please login with your new password.",
-        )
+        success_msg = "Password reset successfully! Please login with your new password."
+
+        if htmx:
+            response = HttpResponse()
+            response['HX-Redirect'] = reverse('accounting:login')
+            response['HX-Trigger'] = json.dumps({
+                'showToast': {
+                    'level': 'success',
+                    'message': success_msg,
+                    'title': 'Password Changed',
+                },
+            })
+            return response
+
+        messages.success(request, success_msg)
         return redirect('accounting:login')
 
     return render(request, 'auth/reset_password_set.html', ctx)
