@@ -32,10 +32,6 @@
         font-weight: 700;
         letter-spacing: 1px;
     }
-    .repair-header .job-meta {
-        opacity: 0.85;
-        font-size: 0.9rem;
-    }
     .repair-header .status-badge-large {
         padding: 0.5rem 1.5rem;
         border-radius: 50px;
@@ -82,12 +78,8 @@
         border: none;
         border-radius: 16px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-        transition: all 0.3s ease;
         overflow: hidden;
         margin-bottom: 1.5rem;
-    }
-    .detail-card:hover {
-        box-shadow: 0 8px 24px rgba(0,0,0,0.10);
     }
     .detail-card .card-header {
         background: white;
@@ -123,7 +115,6 @@
         transition: all 0.3s ease;
         border: 1px solid rgba(0,0,0,0.06);
     }
-    .amount-card:hover { transform: scale(1.02); }
     .amount-card .amount { font-size: 1.4rem; font-weight: 700; }
     .amount-card .label {
         font-size: 0.75rem;
@@ -138,42 +129,187 @@
         border: none;
     }
     .amount-card.primary .label { color: rgba(255,255,255,0.8); }
-    .amount-card.success {
-        background: #d4edda;
-        border-color: #28a745;
+
+    /* ===== ESTIMATE REVIEW SECTION ===== */
+    .estimate-review {
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(255, 152, 0, 0.15);
+        border: 2px solid #ffc107;
+        margin-bottom: 1.5rem;
+        background: white;
     }
-    .amount-card.success .amount { color: #155724; }
-    .amount-card.warning {
-        background: #fff3cd;
-        border-color: #ffc107;
+    .estimate-review .review-header {
+        background: linear-gradient(135deg, #ff9800 0%, #ffc107 100%);
+        color: #1a1a2e;
+        padding: 1.25rem 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
     }
-    .amount-card.warning .amount { color: #856404; }
-    .estimate-badge {
-        padding: 0.4rem 1.2rem;
-        border-radius: 50px;
-        font-weight: 600;
+    .estimate-review .review-header .pulse-icon {
+        width: 48px; height: 48px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.08); }
+    }
+    .estimate-review .review-header h4 {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.15rem;
+    }
+    .estimate-review .review-header small {
+        opacity: 0.85;
         font-size: 0.85rem;
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
     }
-    .estimate-badge.pending { background: #fff3cd; color: #856404; }
-    .estimate-badge.approved { background: #d4edda; color: #155724; }
-    .estimate-badge.rejected { background: #f8d7da; color: #721c24; }
-    .estimate-badge.on-hold { background: #e2e3e5; color: #383d41; }
-    .action-btn {
-        border-radius: 50px;
-        padding: 0.5rem 1.5rem;
+    .estimate-review .review-body {
+        padding: 1.5rem;
+    }
+
+    .estimate-breakup {
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+    .estimate-breakup table {
+        width: 100%;
+        margin: 0;
+        font-size: 0.9rem;
+    }
+    .estimate-breakup thead {
+        background: #f8f9fa;
+    }
+    .estimate-breakup th {
+        padding: 0.75rem 1rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        font-weight: 700;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .estimate-breakup td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f1f3f5;
+    }
+    .estimate-breakup tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .estimate-breakup .total-row {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border-top: 2px solid #28a745;
+    }
+    .estimate-breakup .total-row td {
+        padding: 1rem;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+    .estimate-breakup .total-row .total-amount {
+        color: #155724;
+        font-size: 1.5rem;
+    }
+
+    .terms-box {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 1rem 1.25rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+    }
+    .terms-box ul {
+        margin: 0;
+        padding-left: 1.25rem;
+    }
+    .terms-box li {
+        margin-bottom: 0.35rem;
+    }
+
+    .action-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 0.75rem;
+        margin-top: 1rem;
+    }
+    .action-buttons form {
+        margin: 0;
+    }
+    .action-buttons button {
+        width: 100%;
+        padding: 1rem 0.5rem;
         font-weight: 600;
-        transition: all 0.3s ease;
-        display: inline-flex;
+        border-radius: 10px;
+        border: none;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 0.5rem;
+        gap: 0.35rem;
     }
-    .action-btn:hover {
+    .action-buttons button i {
+        font-size: 1.5rem;
+    }
+    .action-buttons button small {
+        font-size: 0.7rem;
+        opacity: 0.8;
+        font-weight: 500;
+    }
+    .action-buttons .btn-approve {
+        background: #28a745;
+        color: white;
+    }
+    .action-buttons .btn-approve:hover {
+        background: #1e7e34;
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        box-shadow: 0 6px 16px rgba(40,167,69,0.35);
     }
+    .action-buttons .btn-hold {
+        background: #ffc107;
+        color: #1a1a2e;
+    }
+    .action-buttons .btn-hold:hover {
+        background: #e0a800;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255,193,7,0.35);
+    }
+    .action-buttons .btn-reject {
+        background: #dc3545;
+        color: white;
+    }
+    .action-buttons .btn-reject:hover {
+        background: #c82333;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(220,53,69,0.35);
+    }
+
+    .approved-banner {
+        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border-left: 5px solid #28a745;
+    }
+    .rejected-banner {
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border-left: 5px solid #dc3545;
+    }
+    .hold-banner {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border-left: 5px solid #ffc107;
+    }
+
     .parts-table thead th {
         font-weight: 600;
         text-transform: uppercase;
@@ -182,10 +318,6 @@
         color: #6c757d;
         border-bottom: 2px solid #e9ecef;
     }
-    .parts-table tbody tr:hover {
-        background: rgba(102, 126, 234, 0.04);
-    }
-    .parts-table tfoot { border-top: 2px solid #e9ecef; }
     .timeline-bar {
         display: flex;
         flex-wrap: wrap;
@@ -196,19 +328,34 @@
         font-size: 0.85rem;
     }
     .timeline-bar .item { display: inline-flex; align-items: center; gap: 0.3rem; }
+
     [data-bs-theme="dark"] .repair-header {
         background: linear-gradient(135deg, #2d1b4e 0%, #1a1a2e 100%);
     }
     [data-bs-theme="dark"] .stat-card,
-    [data-bs-theme="dark"] .detail-card {
+    [data-bs-theme="dark"] .detail-card,
+    [data-bs-theme="dark"] .estimate-review {
         background: #2c3034;
     }
     [data-bs-theme="dark"] .detail-card .card-header {
         background: #2c3034;
         border-bottom-color: rgba(255,255,255,0.08);
     }
+    [data-bs-theme="dark"] .estimate-breakup {
+        border-color: rgba(255,255,255,0.1);
+    }
+    [data-bs-theme="dark"] .estimate-breakup thead {
+        background: #1a1d20;
+    }
+    [data-bs-theme="dark"] .estimate-breakup td {
+        border-bottom-color: rgba(255,255,255,0.06);
+    }
     [data-bs-theme="dark"] .info-row {
         border-bottom-color: rgba(255,255,255,0.06);
+    }
+    [data-bs-theme="dark"] .terms-box {
+        background: rgba(255,193,7,0.15);
+        color: #e9ecef;
     }
     @media (max-width: 768px) {
         .repair-header { padding: 1.25rem; }
@@ -218,6 +365,12 @@
         .info-row .info-value { width: 100%; }
         .info-row .info-label { margin-bottom: 0.25rem; }
         .amount-card .amount { font-size: 1.1rem; }
+        .action-buttons {
+            grid-template-columns: 1fr;
+        }
+        .estimate-breakup {
+            font-size: 0.8rem;
+        }
     }
 </style>
 {% endblock %}
@@ -225,13 +378,15 @@
 {% block content %}
 <div class="container py-4">
 
-    <!-- HERO HEADER -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- HERO HEADER                                             -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="repair-header mb-4">
         <div class="row align-items-center position-relative" style="z-index: 1;">
             <div class="col-md-7">
                 <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                     <span class="status-badge-large">
-                        <i class="bi 
+                        <i class="bi
                             {% if repair.status == 'pending' %}bi-hourglass-split
                             {% elif repair.status == 'received' %}bi-box-arrow-in-down
                             {% elif repair.status == 'diagnosis' %}bi-search
@@ -247,7 +402,6 @@
                 </div>
                 <h2 class="fw-bold mb-2">{{ repair.device_model }}</h2>
 
-                <!-- TIMELINE BAR -->
                 <div class="timeline-bar">
                     {% if repair.submitted_at %}
                     <span class="item">
@@ -283,14 +437,14 @@
             <div class="col-md-5 text-md-end mt-3 mt-md-0">
                 <div class="d-flex flex-wrap gap-2 justify-content-md-end">
                     {% if repair.status == 'pending' and not repair.received_at %}
-                        <a href="{% url 'customer:customer_repair_update' repair.pk %}" class="btn btn-light action-btn">
+                        <a href="{% url 'customer:customer_repair_update' repair.pk %}" class="btn btn-light">
                             <i class="bi bi-pencil"></i> Edit
                         </a>
                     {% endif %}
-                    <a href="{% url 'customer:customer_repair_print' repair.pk %}" class="btn btn-light action-btn" target="_blank">
+                    <a href="{% url 'customer:customer_repair_print' repair.pk %}" class="btn btn-light" target="_blank">
                         <i class="bi bi-printer"></i> Print
                     </a>
-                    <a href="{% url 'customer:customer_repairs' %}" class="btn btn-light action-btn">
+                    <a href="{% url 'customer:customer_repairs' %}" class="btn btn-light">
                         <i class="bi bi-arrow-left"></i> Back
                     </a>
                 </div>
@@ -298,7 +452,259 @@
         </div>
     </div>
 
-    <!-- STATS CARDS -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ESTIMATE REVIEW — MAIN HIGHLIGHT                       -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    {% if repair.estimated_cost and repair.estimated_cost > 0 %}
+
+        {# ========== PENDING APPROVAL ========== #}
+        {% if repair.estimate_status == 'pending' %}
+        <div class="estimate-review">
+            <div class="review-header">
+                <div class="pulse-icon">
+                    <i class="bi bi-hourglass-split"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h4>Estimate Awaiting Your Approval</h4>
+                    <small>Please review the details below and take an action</small>
+                </div>
+                <span class="badge bg-dark text-white align-self-start">Action Required</span>
+            </div>
+
+            <div class="review-body">
+
+                <!-- Info Banner -->
+                <div class="alert alert-light border mb-3">
+                    <div class="row g-2 small">
+                        <div class="col-md-6">
+                            <i class="bi bi-person-circle text-primary me-1"></i>
+                            <strong>Device:</strong> {{ repair.device_model }}
+                        </div>
+                        <div class="col-md-6">
+                            <i class="bi bi-calendar-event text-primary me-1"></i>
+                            <strong>Submitted:</strong>
+                            {% if repair.submitted_at %}
+                                {{ repair.submitted_at|date:"d M Y" }}
+                            {% else %}
+                                {{ repair.date_in|date:"d M Y" }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cost Breakdown Table -->
+                <h6 class="fw-bold mb-2">
+                    <i class="bi bi-list-ul text-primary me-1"></i>Cost Breakdown
+                </h6>
+
+                <div class="estimate-breakup">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width:50%;">Item</th>
+                                <th class="text-center" style="width:12%;">Qty</th>
+                                <th class="text-end" style="width:19%;">Rate (₹)</th>
+                                <th class="text-end" style="width:19%;">Amount (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for part in parts %}
+                            <tr>
+                                <td>{{ part.product.name }}</td>
+                                <td class="text-center">{{ part.quantity }}</td>
+                                <td class="text-end">{{ part.unit_price|floatformat:2 }}</td>
+                                <td class="text-end fw-semibold">{{ part.line_total|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+
+                            {% if repair.labour_charge and repair.labour_charge > 0 %}
+                            <tr>
+                                <td>
+                                    Labour / Service Charge
+                                    <small class="text-muted d-block">Repair work</small>
+                                </td>
+                                <td class="text-center">1</td>
+                                <td class="text-end">{{ repair.labour_charge|floatformat:2 }}</td>
+                                <td class="text-end fw-semibold">{{ repair.labour_charge|floatformat:2 }}</td>
+                            </tr>
+                            {% endif %}
+
+                            {% if not parts and not repair.labour_charge %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Estimate only — no itemized details yet
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row">
+                                <td colspan="3" class="text-end">Total Estimate</td>
+                                <td class="text-end">
+                                    <span class="total-amount">₹{{ repair.estimated_cost|floatformat:2 }}</span>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- What We Will Do -->
+                {% if repair.diagnosis_report or repair.action_taken %}
+                <h6 class="fw-bold mb-2 mt-3">
+                    <i class="bi bi-clipboard-check text-primary me-1"></i>What We Will Do
+                </h6>
+                <div class="alert alert-light border mb-3">
+                    {% if repair.diagnosis_report %}
+                    <div class="mb-2">
+                        <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem;">Diagnosis</small>
+                        <div class="small mt-1">{{ repair.diagnosis_report }}</div>
+                    </div>
+                    {% endif %}
+                    {% if repair.action_taken %}
+                    <div>
+                        <small class="text-uppercase text-muted fw-bold" style="font-size:0.7rem;">Proposed Action</small>
+                        <div class="small mt-1">{{ repair.action_taken }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- Terms -->
+                <div class="terms-box">
+                    <div class="fw-bold mb-2">
+                        <i class="bi bi-info-circle me-1"></i>Important Notes
+                    </div>
+                    <ul>
+                        <li>This is an <strong>estimate</strong>. Final amount may vary if additional issues are found.</li>
+                        <li>Repair will start only after your approval.</li>
+                        <li>Your device data is not covered — please keep a backup.</li>
+                        <li>You can <strong>Hold</strong> if you need more time or <strong>Reject</strong> to stop the repair.</li>
+                    </ul>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-approve">
+                            <i class="bi bi-check-circle-fill"></i>
+                            <span>Approve</span>
+                            <small>Start the repair</small>
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'customer:customer_estimate_hold' repair.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-hold">
+                            <i class="bi bi-pause-circle-fill"></i>
+                            <span>Hold</span>
+                            <small>Need more time</small>
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'customer:customer_estimate_reject' repair.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-reject">
+                            <i class="bi bi-x-circle-fill"></i>
+                            <span>Reject</span>
+                            <small>Stop the repair</small>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ========== APPROVED ========== #}
+        {% if repair.estimate_status == 'approved' %}
+        <div class="approved-banner mb-4">
+            <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-check-circle-fill text-success fs-1"></i>
+                <div class="flex-grow-1">
+                    <h5 class="fw-bold mb-1 text-success">
+                        Estimate Approved — Repair in Progress
+                    </h5>
+                    <p class="mb-2 small">
+                        You approved this estimate. Our team is working on your device.
+                    </p>
+                    <div class="row g-2 small">
+                        <div class="col-md-4">
+                            <span class="text-muted">Approved Amount:</span>
+                            <div class="fw-bold">₹{{ repair.estimated_cost|floatformat:2 }}</div>
+                        </div>
+                        {% if repair.estimate_approved_at %}
+                        <div class="col-md-4">
+                            <span class="text-muted">Approved On:</span>
+                            <div class="fw-bold">{{ repair.estimate_approved_at|date:"d M Y, h:i A" }}</div>
+                        </div>
+                        {% endif %}
+                        {% if repair.approval_source %}
+                        <div class="col-md-4">
+                            <span class="text-muted">Via:</span>
+                            <div class="fw-bold">{{ repair.get_approval_source_display }}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ========== ON HOLD ========== #}
+        {% if repair.estimate_status == 'on_hold' %}
+        <div class="hold-banner mb-4">
+            <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-pause-circle-fill text-warning fs-1"></i>
+                <div class="flex-grow-1">
+                    <h5 class="fw-bold mb-1">Estimate On Hold</h5>
+                    <p class="mb-2 small">
+                        You have put this estimate on hold. The repair will not start until you approve it.
+                    </p>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Approve Now
+                            </button>
+                        </form>
+                        <form method="post" action="{% url 'customer:customer_estimate_reject' repair.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-x-circle me-1"></i>Reject
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ========== REJECTED ========== #}
+        {% if repair.estimate_status == 'rejected' %}
+        <div class="rejected-banner mb-4">
+            <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-x-circle-fill text-danger fs-1"></i>
+                <div class="flex-grow-1">
+                    <h5 class="fw-bold mb-1 text-danger">Estimate Rejected</h5>
+                    <p class="mb-2 small">
+                        You rejected this estimate. Please contact the shop if you have any questions
+                        or want to discuss a different approach.
+                    </p>
+                    <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Change to Approve
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- STATS CARDS                                             -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
             <div class="stat-card">
@@ -354,13 +760,14 @@
         </div>
     </div>
 
-    <!-- MAIN CONTENT -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- MAIN CONTENT                                            -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="row g-4">
 
         <!-- LEFT COLUMN -->
         <div class="col-lg-7">
 
-            <!-- Job Details Card -->
             <div class="detail-card">
                 <div class="card-header">
                     <span class="header-icon"><i class="bi bi-info-circle"></i></span>
@@ -384,7 +791,7 @@
                         <span class="info-label"><i class="bi bi-cloud-upload me-2"></i>Submitted</span>
                         <span class="info-value">
                             {% if repair.submitted_at %}
-                                {{ repair.submitted_at|date:"d M Y, h:i A" }}
+                                {{ repair.submitted_at|date:"d M Y" }}
                             {% else %}
                                 {{ repair.date_in|date:"d M Y" }}
                             {% endif %}
@@ -396,45 +803,28 @@
                         <span class="info-value">{{ repair.received_at|date:"d M Y" }}</span>
                     </div>
                     {% endif %}
-                    {% if repair.received_remarks %}
-                    <div class="info-row">
-                        <span class="info-label"><i class="bi bi-clipboard-check me-2"></i>Reception Remarks</span>
-                        <span class="info-value">{{ repair.received_remarks }}</span>
-                    </div>
-                    {% endif %}
-                    <div class="info-row">
-                        <span class="info-label"><i class="bi bi-arrow-repeat me-2"></i>Status</span>
-                        <span class="info-value">
-                            <span class="badge 
-                                {% if repair.status == 'pending' %}bg-warning text-dark
-                                {% elif repair.status == 'received' %}bg-secondary
-                                {% elif repair.status == 'diagnosis' %}bg-info text-dark
-                                {% elif repair.status == 'repairing' %}bg-warning text-dark
-                                {% elif repair.status == 'ready' %}bg-primary
-                                {% elif repair.status == 'delivered' %}bg-success
-                                {% elif repair.status == 'cancelled' %}bg-danger
-                                {% else %}bg-secondary{% endif %}">
-                                {{ repair.get_status_display }}
-                            </span>
-                        </span>
-                    </div>
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-chat-text me-2"></i>Issue</span>
                         <span class="info-value">{{ repair.issue_description }}</span>
                     </div>
+                    {% if repair.diagnosis_report %}
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-stethoscope me-2"></i>Diagnosis</span>
-                        <span class="info-value">{{ repair.diagnosis_report|default:"—" }}</span>
+                        <span class="info-value">{{ repair.diagnosis_report }}</span>
                     </div>
+                    {% endif %}
+                    {% if repair.action_taken %}
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-tools me-2"></i>Action Taken</span>
-                        <span class="info-value">{{ repair.action_taken|default:"—" }}</span>
+                        <span class="info-value">{{ repair.action_taken }}</span>
                     </div>
+                    {% endif %}
                     {% if repair.invoice %}
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-receipt me-2"></i>Invoice</span>
                         <span class="info-value">
-                            <a href="{% url 'customer:customer_invoice_detail' repair.invoice.pk %}" class="text-decoration-none fw-semibold">
+                            <a href="{% url 'customer:customer_invoice_detail' repair.invoice.pk %}"
+                               class="text-decoration-none fw-semibold">
                                 {{ repair.invoice.invoice_number }}
                                 <i class="bi bi-box-arrow-up-right ms-1 small"></i>
                             </a>
@@ -444,7 +834,6 @@
                 </div>
             </div>
 
-            <!-- Delivery Details Card -->
             {% if repair.delivered_to_name or repair.delivery_date or repair.delivered_by %}
             <div class="detail-card">
                 <div class="card-header">
@@ -454,7 +843,7 @@
                 <div class="card-body">
                     {% if repair.delivered_to_name %}
                     <div class="info-row">
-                        <span class="info-label"><i class="bi bi-person me-2"></i>Received By</span>
+                        <span class="info-label"><i class="bi bi-person me-2"></i>Handed Over To</span>
                         <span class="info-value">{{ repair.delivered_to_name }}</span>
                     </div>
                     {% endif %}
@@ -462,12 +851,6 @@
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-phone me-2"></i>Phone</span>
                         <span class="info-value">{{ repair.delivered_to_phone }}</span>
-                    </div>
-                    {% endif %}
-                    {% if repair.delivered_to_designation %}
-                    <div class="info-row">
-                        <span class="info-label"><i class="bi bi-briefcase me-2"></i>Designation</span>
-                        <span class="info-value">{{ repair.delivered_to_designation }}</span>
                     </div>
                     {% endif %}
                     <div class="info-row">
@@ -478,12 +861,6 @@
                         <span class="info-label"><i class="bi bi-calendar-check me-2"></i>Delivery Date</span>
                         <span class="info-value">{{ repair.delivery_date|date:"d M Y"|default:"—" }}</span>
                     </div>
-                    {% if repair.delivery_remarks %}
-                    <div class="info-row">
-                        <span class="info-label"><i class="bi bi-chat-dots me-2"></i>Remarks</span>
-                        <span class="info-value">{{ repair.delivery_remarks }}</span>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
             {% endif %}
@@ -492,7 +869,6 @@
         <!-- RIGHT COLUMN -->
         <div class="col-lg-5">
 
-            <!-- Financial Summary Card -->
             <div class="detail-card">
                 <div class="card-header">
                     <span class="header-icon" style="color: #28a745;"><i class="bi bi-currency-rupee"></i></span>
@@ -501,15 +877,21 @@
                 <div class="card-body">
                     <div class="row g-2 mb-3">
                         <div class="col-6">
-                            <div class="amount-card warning">
-                                <div class="label">Estimated Cost</div>
-                                <div class="amount">₹{{ repair.estimated_cost|floatformat:2|default:"—" }}</div>
+                            <div class="amount-card" style="background:#fff3cd;">
+                                <div class="label">Estimated</div>
+                                <div class="amount" style="color:#856404;">
+                                    {% if repair.estimated_cost %}
+                                        ₹{{ repair.estimated_cost|floatformat:2 }}
+                                    {% else %}
+                                        —
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="amount-card success">
-                                <div class="label">Labour Charge</div>
-                                <div class="amount">₹{{ repair.labour_charge|floatformat:2 }}</div>
+                            <div class="amount-card" style="background:#d4edda;">
+                                <div class="label">Labour</div>
+                                <div class="amount" style="color:#155724;">₹{{ repair.labour_charge|floatformat:2 }}</div>
                             </div>
                         </div>
                     </div>
@@ -519,87 +901,38 @@
                         <div class="amount" style="font-size: 1.8rem;">₹{{ repair.final_amount|floatformat:2 }}</div>
                     </div>
 
-                    {% if repair.estimated_cost and repair.estimated_cost > 0 %}
-                        <hr>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-semibold">Estimate Status</span>
-                            <span class="estimate-badge 
-                                {% if repair.estimate_status == 'pending' %}pending
-                                {% elif repair.estimate_status == 'approved' %}approved
-                                {% elif repair.estimate_status == 'rejected' %}rejected
-                                {% elif repair.estimate_status == 'on_hold' %}on-hold
-                                {% endif %}">
-                                <i class="bi 
-                                    {% if repair.estimate_status == 'pending' %}bi-hourglass-split
-                                    {% elif repair.estimate_status == 'approved' %}bi-check-circle-fill
-                                    {% elif repair.estimate_status == 'rejected' %}bi-x-circle-fill
-                                    {% elif repair.estimate_status == 'on_hold' %}bi-pause-circle-fill
-                                    {% endif %}">
-                                </i>
-                                {{ repair.get_estimate_status_display }}
-                            </span>
-                        </div>
-
-                        {% if repair.estimate_status == 'approved' %}
-                            <div class="mt-2 p-3 bg-light rounded-3" style="border-left: 4px solid #28a745;">
-                                <div class="row g-2">
-                                    <div class="col-12">
-                                        <small class="text-muted d-block">Approved At</small>
-                                        <span class="fw-semibold">{{ repair.estimate_approved_at|date:"d M Y, h:i A"|default:"—" }}</span>
-                                    </div>
-                                    <div class="col-12">
-                                        <small class="text-muted d-block">Approved By</small>
-                                        <span class="fw-semibold">
-                                            {% if repair.estimate_approved_by %}
-                                                {{ repair.estimate_approved_by.get_full_name|default:repair.estimate_approved_by.username }}
-                                            {% else %}
-                                                <span class="text-muted">—</span>
-                                            {% endif %}
-                                        </span>
-                                    </div>
-                                    {% if repair.approval_source %}
-                                    <div class="col-12">
-                                        <small class="text-muted d-block">Approval Method</small>
-                                        <span class="fw-semibold">{{ repair.get_approval_source_display }}</span>
-                                    </div>
-                                    {% endif %}
-                                    {% if repair.approval_remarks %}
-                                    <div class="col-12">
-                                        <small class="text-muted d-block">Remarks</small>
-                                        <span class="fw-semibold">{{ repair.approval_remarks }}</span>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% endif %}
-
-                        {% if repair.estimate_status == 'pending' %}
-                            <div class="d-flex gap-2 flex-wrap mt-2">
-                                <form method="post" action="{% url 'customer:customer_estimate_approve' repair.pk %}" class="flex-grow-1">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-success w-100 action-btn">
-                                        <i class="bi bi-check-circle"></i> Approve
-                                    </button>
-                                </form>
-                                <form method="post" action="{% url 'customer:customer_estimate_hold' repair.pk %}" class="flex-grow-1">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-warning w-100 action-btn" style="color: #212529;">
-                                        <i class="bi bi-pause-circle"></i> Hold
-                                    </button>
-                                </form>
-                                <form method="post" action="{% url 'customer:customer_estimate_reject' repair.pk %}" class="flex-grow-1">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-danger w-100 action-btn">
-                                        <i class="bi bi-x-circle"></i> Reject
-                                    </button>
-                                </form>
-                            </div>
-                        {% endif %}
+                    {% if repair.estimated_cost and repair.estimated_cost > 0 and repair.final_amount %}
+                    <hr>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Estimated</span>
+                        <span class="fw-bold">₹{{ repair.estimated_cost|floatformat:2 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between small mb-1">
+                        <span class="text-muted">Final Amount</span>
+                        <span class="fw-bold">₹{{ repair.final_amount|floatformat:2 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between small">
+                        <span class="text-muted">Difference</span>
+                        {% with diff=repair.final_amount|add:0 %}
+                        <span class="fw-bold">
+                            {% if repair.final_amount > repair.estimated_cost %}
+                                <span class="text-danger">
+                                    +₹{{ repair.final_amount|subtract:repair.estimated_cost|floatformat:2 }}
+                                </span>
+                            {% elif repair.final_amount < repair.estimated_cost %}
+                                <span class="text-success">
+                                    −₹{{ repair.estimated_cost|subtract:repair.final_amount|floatformat:2 }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">Same</span>
+                            {% endif %}
+                        </span>
+                        {% endwith %}
+                    </div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Quick Actions Card -->
             <div class="detail-card">
                 <div class="card-header">
                     <span class="header-icon" style="color: #ffc107;"><i class="bi bi-lightning"></i></span>
@@ -607,14 +940,14 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{% url 'customer:customer_statement' %}" class="btn btn-outline-primary action-btn">
+                        <a href="{% url 'customer:customer_statement' %}" class="btn btn-outline-primary">
                             <i class="bi bi-file-text"></i> View My Statement
                         </a>
-                        <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-outline-warning action-btn">
+                        <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-outline-warning">
                             <i class="bi bi-plus-circle"></i> New Repair Request
                         </a>
                         {% if repair.invoice %}
-                            <a href="{% url 'customer:customer_invoice_detail' repair.invoice.pk %}" class="btn btn-outline-success action-btn">
+                            <a href="{% url 'customer:customer_invoice_detail' repair.invoice.pk %}" class="btn btn-outline-success">
                                 <i class="bi bi-receipt"></i> View Invoice
                             </a>
                         {% endif %}
@@ -624,7 +957,9 @@
         </div>
     </div>
 
-    <!-- PARTS SECTION -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PARTS SECTION                                           -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="detail-card mt-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>
@@ -632,7 +967,6 @@
                 Parts Used
                 <span class="badge bg-secondary ms-2">{{ parts|length }}</span>
             </span>
-            <span class="text-muted small fw-normal">{{ parts|length }} item{% if parts|length != 1 %}s{% endif %}</span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
