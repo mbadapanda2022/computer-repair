@@ -1727,8 +1727,6 @@ def customer_password_change(request):
 # CUSTOMER REPAIR CREATE / UPDATE / DELETE
 # ============================================================
 
-# ---------- 1. REPAIR CREATE (Customer) ----------
-# ---------- 1. REPAIR CREATE (Customer) ----------
 @csrf_protect
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs', htmx_template='customer/repair_create.html')

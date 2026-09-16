@@ -1,224 +1,358 @@
 # accounting/views/auth.py
+"""
+Authentication views for staff + customer portal.
+
+Features (all preserved):
+─────────────────────────
+✔ Unified login (Email / Phone / Username)
+✔ Customer registration with OTP verification
+✔ Honeypot spam protection
+✔ Login rate limiting (NEW — security layer)
+✔ Password reset via OTP
+✔ Password reset via token (legacy)
+✔ Password change (logged-in)
+✔ Email change with OTP
+✔ HTMX support (HX-Redirect / HX-Trigger / toast)
+✔ Allauth CustomSignupView override
+"""
+
 import json
 import logging
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError
-from django.contrib.auth.forms import AuthenticationForm
-from django.contrib.auth.decorators import login_required
-from django.contrib.auth.views import PasswordResetView, PasswordResetConfirmView
-from django.urls import reverse_lazy, reverse
-from django.http import HttpResponse
-from django.template.loader import render_to_string
-from django.views.decorators.http import require_http_methods, require_POST
-from django.db import transaction
-from django.contrib.auth.models import User
-from django.utils import timezone
+import hashlib
 
-# Allauth imports for Custom Signup View
 from allauth.account.views import SignupView
-from allauth.account import app_settings as allauth_settings
 
-from ..models import Contact, EmailOTP
+from django.contrib import messages
+from django.contrib.auth import (
+    authenticate, get_user_model, login, logout, update_session_auth_hash,
+)
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.views import (
+    PasswordResetConfirmView, PasswordResetView,
+)
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.http import HttpResponse
+from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
+from django.urls import reverse, reverse_lazy
+from django.utils import timezone
+from django.views.decorators.http import require_http_methods, require_POST
+
+from ..decorators import handle_errors
 from ..forms import (
     CustomerRegistrationForm,
-    CustomPasswordResetForm,
     CustomPasswordChangeForm,
+    CustomPasswordResetForm,
 )
-from .utils import redirect_to_customer, redirect_to_staff
-from ..utils.otp_helpers import create_and_send_otp, verify_otp
-from ..decorators import handle_errors
+from ..models import Contact, EmailOTP
+from ..utils.otp_helpers import (
+    OTP_RESEND_COOLDOWN_SECONDS,
+    create_and_send_otp,
+    verify_otp,
+)
+from .utils import is_htmx, redirect_to_customer, redirect_to_staff
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 
-# ============================================================
-# 1. UNIFIED LOGIN (Staff + Customer) – Phone/Email/Username
-# ============================================================
-# यह View आपके Custom Backend का उपयोग करता है, जो Phone, Email, Username – तीनों से Login करता है।
-# Allauth के Login View को Override करने के लिए इस View को /accounts/login/ पर Map करें (यदि चाहें)।
-# ============================================================
+# ════════════════════════════════════════════════════════════
+# CONSTANTS
+# ════════════════════════════════════════════════════════════
+AUTH_BACKEND = 'accounting.auth_backends.EmailOrPhoneBackend'
 
+# Login rate limiting
+LOGIN_MAX_ATTEMPTS = 5           # failed attempts per window
+LOGIN_WINDOW_SECONDS = 300       # 5 minutes
+
+# Session keys (centralised to avoid typos)
+SK_PENDING_USER_ID = 'pending_user_id'
+SK_PENDING_EMAIL = 'pending_email'
+SK_OTP_PURPOSE = 'otp_purpose'
+SK_RESET_USER_ID = 'reset_user_id'
+SK_RESET_EMAIL = 'reset_email'
+SK_PENDING_NEW_EMAIL = 'pending_new_email'
+
+
+# ════════════════════════════════════════════════════════════
+# HELPERS — Rate limiting + IP extraction
+# ════════════════════════════════════════════════════════════
+def _get_client_ip(request) -> str:
+    """Extract client IP, honoring X-Forwarded-For."""
+    xff = request.META.get('HTTP_X_FORWARDED_FOR')
+    if xff:
+        return xff.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', 'unknown')
+
+
+def _rate_key(request, identifier: str) -> str:
+    """Build a short cache key (hashed) for rate limiting."""
+    raw = f"{_get_client_ip(request)}:{identifier.lower()}"
+    digest = hashlib.sha256(raw.encode()).hexdigest()[:32]
+    return f"login_rl:{digest}"
+
+
+def _is_rate_limited(request, identifier: str) -> bool:
+    return cache.get(_rate_key(request, identifier), 0) >= LOGIN_MAX_ATTEMPTS
+
+
+def _record_failed_login(request, identifier: str) -> None:
+    key = _rate_key(request, identifier)
+    if cache.add(key, 1, LOGIN_WINDOW_SECONDS):
+        return  # first failure — TTL set
+    try:
+        cache.incr(key)
+    except ValueError:
+        # Key expired between add and incr — recreate
+        cache.set(key, 1, LOGIN_WINDOW_SECONDS)
+
+
+def _clear_login_attempts(request, identifier: str) -> None:
+    cache.delete(_rate_key(request, identifier))
+
+
+def _clear_otp_session(request) -> None:
+    """Remove all pending OTP/signup session keys."""
+    for key in (SK_PENDING_USER_ID, SK_PENDING_EMAIL,
+                SK_OTP_PURPOSE, SK_RESET_USER_ID,
+                SK_RESET_EMAIL, SK_PENDING_NEW_EMAIL):
+        request.session.pop(key, None)
+
+
+# ════════════════════════════════════════════════════════════
+# 1. UNIFIED LOGIN
+# ════════════════════════════════════════════════════════════
 def unified_login_view(request):
+    """
+    Single login page for staff + customer.
+    Accepts: email / phone / username.
+    Supports HTMX (returns HX-Redirect for SPA-like nav).
+    """
+    # Already logged in? Redirect by role
     if request.user.is_authenticated:
-        return redirect_to_staff('dashboard') if request.user.is_staff else redirect_to_customer('customer_dashboard')
+        return (
+            redirect_to_staff('dashboard')
+            if request.user.is_staff
+            else redirect_to_customer('customer_dashboard')
+        )
+
+    htmx = is_htmx(request)
 
     if request.method == 'POST':
-        form = AuthenticationForm(request, data=request.POST)
-        if form.is_valid():
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password')
-            user = authenticate(request, username=username, password=password)
-            if user is not None:
-                login(request, user)
-                logger.info(f"User {user.username} logged in.")
-                messages.success(request, f"Welcome back, {user.get_full_name() or user.username}!")
-                
-                if request.headers.get('HX-Request'):
-                    response = HttpResponse()
-                    if user.is_staff:
-                        response['HX-Redirect'] = reverse('accounting:dashboard')
-                    else:
-                        response['HX-Redirect'] = reverse('customer:customer_dashboard')
-                    return response
-                
-                return redirect_to_staff('dashboard') if user.is_staff else redirect_to_customer('customer_dashboard')
-            else:
-                messages.error(request, "Invalid email/mobile or password.")
-                if request.headers.get('HX-Request'):
-                    response = render(request, 'auth/partials/_login_form.html', {'form': form})
-                    response['HX-Trigger'] = json.dumps({
-                        'showToast': {
-                            'level': 'danger',
-                            'message': 'Invalid email/mobile or password.'
-                        }
-                    })
-                    return response
-        else:
-            if request.headers.get('HX-Request'):
-                response = render(request, 'auth/partials/_login_form.html', {'form': form})
-                errors = []
-                for field, field_errors in form.errors.items():
-                    for err in field_errors:
-                        errors.append(err)
-                error_message = ' '.join(errors) if errors else 'Please correct the errors below.'
+        username = (request.POST.get('username') or '').strip()
+
+        # ── Rate limit guard ──────────────────────────────
+        if _is_rate_limited(request, username):
+            msg = (
+                f"Too many failed login attempts. "
+                f"Please try again after {LOGIN_WINDOW_SECONDS // 60} minutes."
+            )
+            logger.warning(
+                "Login rate-limited | input=%s | ip=%s",
+                username[:2] + '***', _get_client_ip(request),
+            )
+            if htmx:
+                response = render(
+                    request, 'auth/partials/_login_form.html',
+                    {'form': AuthenticationForm()},
+                )
                 response['HX-Trigger'] = json.dumps({
-                    'showToast': {
-                        'level': 'danger',
-                        'message': error_message
-                    }
+                    'showToast': {'level': 'danger', 'message': msg},
                 })
                 return response
+            messages.error(request, msg)
+            return render(request, 'auth/unified_login.html',
+                          {'form': AuthenticationForm()})
+
+        # ── Form validation ───────────────────────────────
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            user = authenticate(
+                request,
+                username=form.cleaned_data['username'],
+                password=form.cleaned_data['password'],
+            )
+            if user is not None:
+                # ---- SUCCESS ----
+                _clear_login_attempts(request, username)
+                login(request, user, backend=AUTH_BACKEND)
+                logger.info(
+                    "User logged in | user=%s | staff=%s | ip=%s",
+                    user.username, user.is_staff, _get_client_ip(request),
+                )
+                messages.success(
+                    request,
+                    f"Welcome back, {user.get_full_name() or user.username}!",
+                )
+                return _redirect_after_login(request, user, htmx)
+
+            # ---- Wrong credentials ----
+            _record_failed_login(request, username)
+
+        # ---- Form invalid OR auth failed ----
+        if htmx:
+            response = render(
+                request, 'auth/partials/_login_form.html', {'form': form},
+            )
+            errors = []
+            for field_errors in form.errors.values():
+                errors.extend(field_errors)
+            msg = ' '.join(errors) or 'Invalid email/mobile or password.'
+            response['HX-Trigger'] = json.dumps({
+                'showToast': {'level': 'danger', 'message': msg},
+            })
+            return response
     else:
         form = AuthenticationForm()
 
     return render(request, 'auth/unified_login.html', {'form': form})
 
 
-# ============================================================
-# 2. CUSTOMER REGISTRATION (with OTP) 
-# ============================================================
+def _redirect_after_login(request, user, htmx):
+    """Role-based redirect (staff -> dashboard, customer -> portal)."""
+    target = (
+        reverse('accounting:dashboard') if user.is_staff
+        else reverse('customer:customer_dashboard')
+    )
+    if htmx:
+        response = HttpResponse()
+        response['HX-Redirect'] = target
+        return response
+    return redirect(target)
+
+
+# ════════════════════════════════════════════════════════════
+# 2. CUSTOMER REGISTRATION (with OTP)
+# ════════════════════════════════════════════════════════════
 @handle_errors(default_redirect='home')
 def register_view(request):
+    """Register a new customer account (inactive until OTP verified)."""
     if request.user.is_authenticated:
-        if request.user.is_staff:
-            return redirect('accounting:dashboard')
-        else:
-            return redirect('customer:customer_dashboard')
+        return (
+            redirect('accounting:dashboard') if request.user.is_staff
+            else redirect('customer:customer_dashboard')
+        )
+
+    htmx = is_htmx(request)
 
     if request.method == 'POST':
+        # ── Honeypot: silent success for bots ────────────
+        if (request.POST.get('website') or '').strip():
+            logger.warning(
+                "Honeypot triggered on register | ip=%s",
+                _get_client_ip(request),
+            )
+            return _registration_success_response(
+                request, htmx, user=None,
+                message='🎉 Registration successful! Please check your email for OTP.',
+            )
+
         form = CustomerRegistrationForm(request.POST)
-
-        # HONEYPOT CHECK
-        if request.POST.get('website', '').strip():
-            logger.warning(f"🔥 Honeypot triggered on registration from IP {request.META.get('REMOTE_ADDR')}")
-            if request.headers.get('HX-Request'):
-                response = HttpResponse()
-                response['HX-Trigger'] = json.dumps({
-                    'showToast': {
-                        'level': 'success',
-                        'message': '🎉 Registration successful! Please check your email for OTP.',
-                        'title': 'Welcome!'
-                    }
-                })
-                response['HX-Redirect'] = reverse('accounting:verify_otp')
-                return response
-            return redirect('accounting:verify_otp')
-
         if form.is_valid():
-            # Step 1: Save User (Inactive)
             user = form.save(commit=False)
             user.is_active = False
             user.save()
-            logger.info(f"🔥 User saved: {user.username} (ID: {user.id})")
 
-            # Step 2: Create Contact manually (because we used commit=False)
             Contact.objects.create(
                 user=user,
                 name=form.cleaned_data['full_name'],
                 email=form.cleaned_data['email'],
-                phone=form.cleaned_data['phone'],
-                contact_type='customer'
+                phone=form.cleaned_data.get('phone', ''),
+                contact_type='customer',
             )
-            logger.info(f"✅ Contact created for user: {user.username}")
 
-            # Step 3: Try to send OTP 
-            otp_sent = False
+            # Try sending OTP (never crash registration on email failure)
             try:
                 otp_sent = create_and_send_otp(user, user.email, 'signup')
-            except Exception as e:
-                logger.error(f"🔥 OTP sending failed: {e}")
+            except Exception:
+                logger.exception("OTP send failed during registration")
+                otp_sent = False
+
+            # Set session for verify step
+            request.session[SK_PENDING_USER_ID] = user.id
+            request.session[SK_PENDING_EMAIL] = user.email
+            request.session[SK_OTP_PURPOSE] = 'signup'
 
             if otp_sent:
-                request.session['pending_user_id'] = user.id
-                request.session['pending_email'] = user.email
-                request.session['otp_purpose'] = 'signup'
-
-                messages.success(request, f"Welcome {user.first_name}! OTP sent to your email.")
-                if request.headers.get('HX-Request'):
-                    response = HttpResponse()
-                    response['HX-Redirect'] = reverse('accounting:verify_otp')
-                    response['HX-Trigger'] = json.dumps({
-                        'showToast': {
-                            'level': 'success',
-                            'message': f'🎉 Welcome {user.first_name}! Check your email for OTP.',
-                            'title': 'Registration Successful'
-                        }
-                    })
-                    return response
-                return redirect('accounting:verify_otp')
+                messages.success(
+                    request,
+                    f"Welcome {user.first_name}! OTP sent to your email.",
+                )
+                return _registration_success_response(
+                    request, htmx, user=user,
+                    message=f'🎉 Welcome {user.first_name}! Check your email for OTP.',
+                    title='Registration Successful',
+                    level='success',
+                )
             else:
-                request.session['pending_user_id'] = user.id
-                request.session['pending_email'] = user.email
-                request.session['otp_purpose'] = 'signup'
+                messages.warning(
+                    request,
+                    "Registration successful, but OTP could not be sent. "
+                    "Please try resending OTP.",
+                )
+                return _registration_success_response(
+                    request, htmx, user=user,
+                    message='Account created, but OTP email failed. '
+                            'Please click "Resend OTP".',
+                    title='Registration Partial',
+                    level='warning',
+                )
 
-                messages.warning(request, "Registration successful, but OTP could not be sent. Please try resending OTP.")
-                if request.headers.get('HX-Request'):
-                    response = HttpResponse()
-                    response['HX-Redirect'] = reverse('accounting:verify_otp')
-                    response['HX-Trigger'] = json.dumps({
-                        'showToast': {
-                            'level': 'warning',
-                            'message': 'Account created, but OTP email failed. Please click "Resend OTP" to try again.',
-                            'title': 'Registration Partial'
-                        }
-                    })
-                    return response
-                return redirect('accounting:verify_otp')
-        else:
-            if request.headers.get('HX-Request'):
-                response = render(request, 'auth/partials/_register_form.html', {'form': form})
-                response['HX-Trigger'] = json.dumps({
-                    'showToast': {
-                        'level': 'danger',
-                        'message': 'Please correct the errors below.'
-                    }
-                })
-                return response
-            return render(request, 'auth/register.html', {'form': form})
-    else:
-        form = CustomerRegistrationForm()
-        if request.headers.get('HX-Request'):
-            return render(request, 'auth/partials/_register_form.html', {'form': form})
+        # ---- Form errors ----
+        if htmx:
+            response = render(
+                request, 'auth/partials/_register_form.html', {'form': form},
+            )
+            response['HX-Trigger'] = json.dumps({
+                'showToast': {
+                    'level': 'danger',
+                    'message': 'Please correct the errors below.',
+                },
+            })
+            return response
         return render(request, 'auth/register.html', {'form': form})
 
-# ============================================================
-# 3. UNIFIED LOGOUT
-# ============================================================
+    # GET request
+    form = CustomerRegistrationForm()
+    template = (
+        'auth/partials/_register_form.html' if htmx
+        else 'auth/register.html'
+    )
+    return render(request, template, {'form': form})
+
+
+def _registration_success_response(request, htmx, user, message,
+                                    title='Welcome!', level='success'):
+    """Common success-response for register + honeypot."""
+    target = reverse('accounting:verify_otp')
+    if htmx:
+        response = HttpResponse()
+        response['HX-Redirect'] = target
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': level, 'message': message, 'title': title},
+        })
+        return response
+    return redirect(target)
+
+
+# ════════════════════════════════════════════════════════════
+# 3. LOGOUT
+# ════════════════════════════════════════════════════════════
 @require_POST
 def unified_logout_view(request):
     if request.user.is_authenticated:
+        logger.info("User logged out | user=%s", request.user.username)
         logout(request)
         messages.info(request, "You have been logged out.")
     return redirect('home')
 
 
-# ============================================================
-# 4. PASSWORD RESET (Token-based – Legacy) – यदि आप Allauth Reset का उपयोग करते हैं तो इसकी ज़रूरत नहीं
-# ============================================================
-
+# ════════════════════════════════════════════════════════════
+# 4. PASSWORD RESET (Token-based — legacy)
+# ════════════════════════════════════════════════════════════
 class CustomPasswordResetView(PasswordResetView):
     form_class = CustomPasswordResetForm
     template_name = 'auth/password_reset.html'
@@ -227,11 +361,17 @@ class CustomPasswordResetView(PasswordResetView):
     success_url = reverse_lazy('accounting:password_reset_done')
 
     def form_valid(self, form):
-        messages.success(self.request, "Password reset email sent. Please check your inbox.")
+        messages.success(
+            self.request,
+            "Password reset email sent. Please check your inbox.",
+        )
         return super().form_valid(form)
-    
+
     def form_invalid(self, form):
-        messages.error(self.request, "Email not found. Please check and try again.")
+        messages.error(
+            self.request,
+            "Email not found. Please check and try again.",
+        )
         return super().form_invalid(form)
 
 
@@ -240,110 +380,110 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     success_url = reverse_lazy('accounting:password_reset_complete')
 
     def form_valid(self, form):
-        messages.success(self.request, "Your password has been reset successfully. You can now login.")
+        messages.success(
+            self.request,
+            "Your password has been reset successfully. You can now login.",
+        )
         return super().form_valid(form)
 
 
-# ============================================================
-# 5. PASSWORD CHANGE (Logged-in)
-# ============================================================
-
+# ════════════════════════════════════════════════════════════
+# 5. PASSWORD CHANGE (logged-in)
+# ════════════════════════════════════════════════════════════
 @login_required
 @handle_errors(default_redirect='home')
 def password_change_view(request):
+    htmx = is_htmx(request)
+
     if request.method == 'POST':
         form = CustomPasswordChangeForm(user=request.user, data=request.POST)
         if form.is_valid():
             user = form.save()
             update_session_auth_hash(request, user)
+            logger.info(
+                "Password changed | user=%s | ip=%s",
+                user.username, _get_client_ip(request),
+            )
             messages.success(request, "Your password has been changed successfully.")
-            if request.headers.get('HX-Request'):
+            if htmx:
                 response = HttpResponse()
-                if request.user.is_staff:
-                    response['HX-Redirect'] = reverse('accounting:dashboard')
-                else:
-                    response['HX-Redirect'] = reverse('customer:customer_dashboard')
+                target = (
+                    reverse('accounting:dashboard') if user.is_staff
+                    else reverse('customer:customer_dashboard')
+                )
+                response['HX-Redirect'] = target
                 return response
-            return redirect_to_staff('dashboard') if request.user.is_staff else redirect_to_customer('customer_dashboard')
-        else:
-            if request.headers.get('HX-Request'):
-                return render(request, 'auth/partials/_password_change_form.html', {'form': form}, status=400)
+            return (
+                redirect_to_staff('dashboard') if user.is_staff
+                else redirect_to_customer('customer_dashboard')
+            )
+
+        if htmx:
+            return render(
+                request, 'auth/partials/_password_change_form.html',
+                {'form': form}, status=400,
+            )
     else:
         form = CustomPasswordChangeForm(user=request.user)
-    
+
     return render(request, 'auth/password_change.html', {'form': form})
 
 
-# ============================================================
-# 6. HTMX REAL-TIME VALIDATION
-# ============================================================
-
+# ════════════════════════════════════════════════════════════
+# 6. HTMX REAL-TIME FIELD VALIDATION
+# ════════════════════════════════════════════════════════════
 @require_http_methods(["GET"])
 def validate_register_field(request):
-    """
-    Real-time field validation for registration form.
-    Called by HTMX on blur/keyup.
-    """
+    """HTMX validation for the registration form fields."""
     field = request.GET.get('field')
     value = request.GET.get(field, '')
 
-    # HONEYPOT: Honeypot field ko GET validation se bypass karo
-    if field == 'website':
+    # Honeypot field — silently ignore
+    if field == 'website' or not field:
         return HttpResponse("")
 
-    from ..forms import CustomerRegistrationForm
-
-    # Build full data dict with all fields
-    data = {}
-    for f in CustomerRegistrationForm.base_fields:
-        data[f] = request.GET.get(f, '')
-
+    # Build full data dict so cross-field rules work
+    data = {f: request.GET.get(f, '') for f in CustomerRegistrationForm.base_fields}
     data[field] = value
 
     form = CustomerRegistrationForm(data)
-    form.is_valid()  # Triggers validation on all fields
+    form.is_valid()
     errors = form.errors.get(field, [])
 
     html = render_to_string('auth/partials/_field_errors.html', {
-        'field': field,
-        'errors': errors,
-        'value': value
+        'field': field, 'errors': errors, 'value': value,
     })
     return HttpResponse(html)
-
 
 
 @require_http_methods(["GET"])
 def validate_login_field(request):
-    """
-    Real-time validation for login form.
-    Returns only the error partial (not full page).
-    """
+    """HTMX validation for login form (currently only checks empty)."""
     field = request.GET.get('field')
-    value = request.GET.get(field, '').strip()
+    value = (request.GET.get(field, '') or '').strip()
     errors = []
 
-    if field == 'username':
-        if not value:
-            errors.append('Email or Mobile number is required.')
+    if field == 'username' and not value:
+        errors.append('Email or Mobile number is required.')
 
     html = render_to_string('auth/partials/_field_errors.html', {
-        'field': field,
-        'errors': errors,
-        'value': value
+        'field': field, 'errors': errors, 'value': value,
     })
     return HttpResponse(html)
 
 
-# ============================================================
-# 7. OTP VERIFICATION, RESEND, AND PASSWORD RESET (OTP-based)
-# ============================================================
-
+# ════════════════════════════════════════════════════════════
+# 7. OTP VERIFY / RESEND
+# ════════════════════════════════════════════════════════════
 @handle_errors(default_redirect='home')
 def verify_otp_view(request):
-    user_id = request.session.get('pending_user_id')
-    email = request.session.get('pending_email')
-    purpose = request.session.get('otp_purpose')
+    """
+    Verify the OTP sent during signup or password reset.
+    On success: activates user (signup) or forwards to reset-password page.
+    """
+    user_id = request.session.get(SK_PENDING_USER_ID)
+    email = request.session.get(SK_PENDING_EMAIL)
+    purpose = request.session.get(SK_OTP_PURPOSE)
 
     if not user_id or not email or not purpose:
         messages.error(request, "Invalid OTP verification session. Please try again.")
@@ -352,145 +492,162 @@ def verify_otp_view(request):
     try:
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
+        _clear_otp_session(request)
         messages.error(request, "User not found.")
         return redirect('home')
 
+    htmx = is_htmx(request)
+    ctx = {'email': email, 'purpose': purpose}
+
     if request.method == 'POST':
-        otp = request.POST.get('otp', '').strip()
-        if not otp or len(otp) != 6:
-            messages.error(request, "Please enter a valid 6-digit OTP.")
-            if request.headers.get('HX-Request'):
-                response = render(request, 'auth/verify_otp.html', {'email': email, 'purpose': purpose}, status=400)
-                response['HX-Trigger'] = json.dumps({
-                    'showToast': {
-                        'level': 'danger',
-                        'message': 'Please enter a valid 6-digit OTP.'
-                    }
-                })
-                return response
-            return render(request, 'auth/verify_otp.html', {'email': email, 'purpose': purpose})
+        otp = (request.POST.get('otp') or '').strip()
+
+        if not otp or len(otp) != 6 or not otp.isdigit():
+            return _otp_error_response(
+                request, htmx, ctx,
+                'Please enter a valid 6-digit OTP.',
+            )
 
         verified_user = verify_otp(email, otp, purpose)
 
         if verified_user and verified_user.id == user.id:
-            # OTP Verified – Activate user & login
+
+            # ── SIGNUP VERIFICATION ──────────────────────
             if purpose == 'signup':
                 user.is_active = True
-                user.save()
-
-                # Clean session
-                request.session.pop('pending_user_id', None)
-                request.session.pop('pending_email', None)
-                request.session.pop('otp_purpose', None)
-
-                # --- FIX: Set backend explicitly before login ---
-                user.backend = 'accounting.auth_backends.EmailOrPhoneBackend'
-                login(request, user)
+                user.save(update_fields=['is_active'])
+                _clear_otp_session(request)
+                login(request, user, backend=AUTH_BACKEND)
+                logger.info("Signup OTP verified | user=%s", user.username)
 
                 messages.success(request, "Email verified! Welcome aboard.")
-
-                if request.headers.get('HX-Request'):
+                msg = (
+                    f'🎉 Welcome {user.first_name or user.username}! '
+                    f'Your account is verified.'
+                )
+                if htmx:
                     response = HttpResponse()
                     response['HX-Redirect'] = reverse('customer:customer_dashboard')
                     response['HX-Trigger'] = json.dumps({
                         'showToast': {
-                            'level': 'success',
-                            'message': f'🎉 Welcome {user.first_name or user.username}! Your account is verified.',
-                            'title': 'Registration Complete'
-                        }
+                            'level': 'success', 'message': msg,
+                            'title': 'Registration Complete',
+                        },
                     })
                     return response
-
                 return redirect('customer:customer_dashboard')
 
+            # ── PASSWORD RESET VERIFICATION ──────────────
             elif purpose == 'reset_password':
-                request.session['reset_user_id'] = user.id
-                request.session['reset_email'] = email
-                request.session.pop('pending_user_id', None)
-                request.session.pop('pending_email', None)
-                request.session.pop('otp_purpose', None)
+                # Clear signup keys first, THEN set reset keys (order matters)
+                _clear_otp_session(request)
+                request.session[SK_RESET_USER_ID] = user.id
+                request.session[SK_RESET_EMAIL] = email
 
-                if request.headers.get('HX-Request'):
+                if htmx:
                     response = HttpResponse()
                     response['HX-Redirect'] = reverse('accounting:reset_password_set')
                     return response
                 return redirect('accounting:reset_password_set')
 
-        else:
-            messages.error(request, "Invalid or expired OTP. Please try again.")
-            if request.headers.get('HX-Request'):
-                response = render(request, 'auth/verify_otp.html', {'email': email, 'purpose': purpose}, status=400)
-                response['HX-Trigger'] = json.dumps({
-                    'showToast': {
-                        'level': 'danger',
-                        'message': 'Invalid or expired OTP. Please try again.'
-                    }
-                })
-                return response
-            return render(request, 'auth/verify_otp.html', {'email': email, 'purpose': purpose})
+            # ── UNKNOWN PURPOSE (defensive) ──────────────
+            else:
+                logger.error(
+                    "verify_otp_view called with unknown purpose=%s", purpose,
+                )
+                _clear_otp_session(request)
+                messages.error(request, "Invalid OTP purpose. Please try again.")
+                return redirect('home')
 
-    # GET request – show OTP form
-    return render(request, 'auth/verify_otp.html', {'email': email, 'purpose': purpose})
+        # ---- Wrong/expired OTP ----
+        return _otp_error_response(
+            request, htmx, ctx,
+            'Invalid or expired OTP. Please try again.',
+        )
+
+    # GET
+    return render(request, 'auth/verify_otp.html', ctx)
+
+
+def _otp_error_response(request, htmx, ctx, message, status=400):
+    if htmx:
+        response = render(request, 'auth/verify_otp.html', ctx, status=status)
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': 'danger', 'message': message},
+        })
+        return response
+    messages.error(request, message)
+    return render(request, 'auth/verify_otp.html', ctx)
 
 
 @handle_errors(default_redirect='home')
 def resend_otp_view(request):
-    user_id = request.session.get('pending_user_id')
-    email = request.session.get('pending_email')
-    purpose = request.session.get('otp_purpose')
+    """Resend OTP with a 60-second cooldown per (email, purpose)."""
+    user_id = request.session.get(SK_PENDING_USER_ID)
+    email = request.session.get(SK_PENDING_EMAIL)
+    purpose = request.session.get(SK_OTP_PURPOSE)
 
     if not user_id or not email or not purpose:
-        messages.error(request, "Session expired. Please start the verification process again.")
+        messages.error(request, "Session expired. Please start again.")
         return redirect('home')
 
     try:
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
+        _clear_otp_session(request)
         messages.error(request, "User not found.")
         return redirect('home')
 
-    # Cooldown: 60 seconds
-    last_otp = EmailOTP.objects.filter(email=email, purpose=purpose).order_by('-created_at').first()
+    htmx = is_htmx(request)
+
+    # ── Cooldown check ────────────────────────────────
+    last_otp = (
+        EmailOTP.objects
+        .filter(email=email, purpose=purpose)
+        .order_by('-created_at')
+        .first()
+    )
     if last_otp:
-        time_diff = (timezone.now() - last_otp.created_at).total_seconds()
-        if time_diff < 60:
-            messages.warning(request, f"Please wait {60 - int(time_diff)} seconds before requesting a new OTP.")
-            if request.headers.get('HX-Request'):
+        elapsed = (timezone.now() - last_otp.created_at).total_seconds()
+        if elapsed < OTP_RESEND_COOLDOWN_SECONDS:
+            wait = OTP_RESEND_COOLDOWN_SECONDS - int(elapsed)
+            msg = f"Please wait {wait} seconds before requesting a new OTP."
+            if htmx:
                 response = HttpResponse()
                 response['HX-Trigger'] = json.dumps({
-                    'showToast': {
-                        'level': 'warning',
-                        'message': f'Please wait {60 - int(time_diff)} seconds before requesting a new OTP.'
-                    }
+                    'showToast': {'level': 'warning', 'message': msg},
                 })
                 response['HX-Redirect'] = reverse('accounting:verify_otp')
                 return response
+            messages.warning(request, msg)
             return redirect('accounting:verify_otp')
 
-    success = create_and_send_otp(user, email, purpose)
+    # ── Send fresh OTP ────────────────────────────────
+    try:
+        success = create_and_send_otp(user, email, purpose)
+    except Exception:
+        logger.exception("Resend OTP failed")
+        success = False
 
     if success:
-        messages.success(request, "A new OTP has been sent to your email.")
-        if request.headers.get('HX-Request'):
+        msg = "A new OTP has been sent to your email."
+        messages.success(request, msg)
+        if htmx:
             response = HttpResponse()
             response['HX-Trigger'] = json.dumps({
                 'showToast': {
-                    'level': 'success',
-                    'message': 'New OTP sent to your email!',
-                    'title': 'OTP Resent'
-                }
+                    'level': 'success', 'message': msg, 'title': 'OTP Resent',
+                },
             })
             response['HX-Redirect'] = reverse('accounting:verify_otp')
             return response
     else:
-        messages.error(request, "Failed to send OTP. Please try again later.")
-        if request.headers.get('HX-Request'):
+        msg = "Failed to send OTP. Please try again later."
+        messages.error(request, msg)
+        if htmx:
             response = HttpResponse()
             response['HX-Trigger'] = json.dumps({
-                'showToast': {
-                    'level': 'danger',
-                    'message': 'Failed to send OTP. Please try again later.'
-                }
+                'showToast': {'level': 'danger', 'message': msg},
             })
             response['HX-Redirect'] = reverse('accounting:verify_otp')
             return response
@@ -498,93 +655,109 @@ def resend_otp_view(request):
     return redirect('accounting:verify_otp')
 
 
+# ════════════════════════════════════════════════════════════
+# 8. PASSWORD RESET via OTP
+# ════════════════════════════════════════════════════════════
 @handle_errors(default_redirect='home')
 def password_reset_otp_request(request):
+    """Step 1: user submits email -> OTP sent."""
     if request.method == 'POST':
-        email = request.POST.get('email', '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
         if not email:
             messages.error(request, "Please enter your email address.")
             return render(request, 'auth/password_reset_otp.html')
-        
+
+        # Lookup — same message whether user exists or not (privacy)
+        users = User.objects.filter(email__iexact=email)
+        if users.count() != 1:
+            messages.info(
+                request,
+                "If an account with this email exists, we've sent an OTP.",
+            )
+            return render(request, 'auth/password_reset_otp.html')
+
+        user = users.first()
+
         try:
-            user = User.objects.get(email__iexact=email)
-        except (User.DoesNotExist, User.MultipleObjectsReturned):
-            users = User.objects.filter(email__iexact=email)
-            if users.count() != 1:
-                messages.info(request, "If an account with this email exists, we've sent an OTP.")
-                return render(request, 'auth/password_reset_otp.html')
-            user = users.first()
-        
-        success = create_and_send_otp(user, email, 'reset_password')
-        
+            success = create_and_send_otp(user, email, 'reset_password')
+        except Exception:
+            logger.exception("Password reset OTP send failed")
+            success = False
+
         if success:
-            request.session['pending_user_id'] = user.id
-            request.session['pending_email'] = email
-            request.session['otp_purpose'] = 'reset_password'
+            request.session[SK_PENDING_USER_ID] = user.id
+            request.session[SK_PENDING_EMAIL] = email
+            request.session[SK_OTP_PURPOSE] = 'reset_password'
             messages.success(request, "OTP sent to your email. Please verify.")
             return redirect('accounting:verify_otp')
-        else:
-            messages.error(request, "Unable to send OTP. Please try again later.")
-            return render(request, 'auth/password_reset_otp.html')
-    
+
+        messages.error(request, "Unable to send OTP. Please try again later.")
+        return render(request, 'auth/password_reset_otp.html')
+
     return render(request, 'auth/password_reset_otp.html')
 
 
 @handle_errors(default_redirect='home')
 def reset_password_set_view(request):
-    user_id = request.session.get('reset_user_id')
-    email = request.session.get('reset_email')
-    
+    """Step 3: set new password after OTP verified."""
+    user_id = request.session.get(SK_RESET_USER_ID)
+    email = request.session.get(SK_RESET_EMAIL)
+
     if not user_id or not email:
-        messages.error(request, "Invalid session. Please request password reset again.")
+        messages.error(request, "Invalid session. Please request reset again.")
         return redirect('home')
-    
+
     try:
         user = User.objects.get(pk=user_id)
     except User.DoesNotExist:
+        _clear_otp_session(request)
         messages.error(request, "User not found.")
         return redirect('home')
-    
+
+    ctx = {'email': email}
+
     if request.method == 'POST':
-        password1 = request.POST.get('password1')
-        password2 = request.POST.get('password2')
-        
-        if not password1 or not password2:
+        p1 = request.POST.get('password1')
+        p2 = request.POST.get('password2')
+
+        if not p1 or not p2:
             messages.error(request, "Both password fields are required.")
-            return render(request, 'auth/reset_password_set.html', {'email': email})
-        
-        if not password1 or len(password1) < 8:
-            messages.error(request, "Password must be at least 8 characters.")
-            return render(request, 'auth/reset_password_set.html', {'email': email})
-        
-        if password1 != password2:
+            return render(request, 'auth/reset_password_set.html', ctx)
+
+        if p1 != p2:
             messages.error(request, "Passwords do not match.")
-            return render(request, 'auth/reset_password_set.html', {'email': email})
-        
+            return render(request, 'auth/reset_password_set.html', ctx)
+
         try:
-            validate_password(password1, user=user)
+            validate_password(p1, user=user)
         except ValidationError as e:
             for err in e.messages:
                 messages.error(request, err)
-            return render(request, 'auth/reset_password_set.html', {'email': email})
-        
-        user.set_password(password1)
-        user.save()
-        
-        request.session.pop('reset_user_id', None)
-        request.session.pop('reset_email', None)
-        
-        messages.success(request, "Password reset successfully! Please login with your new password.")
+            return render(request, 'auth/reset_password_set.html', ctx)
+
+        user.set_password(p1)
+        user.save(update_fields=['password'])
+        logger.info("Password reset completed | user=%s", user.username)
+
+        _clear_otp_session(request)
+        messages.success(
+            request,
+            "Password reset successfully! Please login with your new password.",
+        )
         return redirect('accounting:login')
-    
-    return render(request, 'auth/reset_password_set.html', {'email': email})
+
+    return render(request, 'auth/reset_password_set.html', ctx)
 
 
-# ============================================================
-# 8. ALLAUTH CUSTOM SIGNUP VIEW (with OTP)
-# ============================================================
-
+# ════════════════════════════════════════════════════════════
+# 9. ALLAUTH CUSTOM SIGNUP VIEW (kept for backward compat)
+# ════════════════════════════════════════════════════════════
 class CustomSignupView(SignupView):
+    """
+    Allauth signup override — routes through our OTP flow.
+    Kept for backward compatibility; the standard /register/ uses
+    register_view above.
+    """
     form_class = CustomerRegistrationForm
     success_url = reverse_lazy('accounting:verify_otp')
 
@@ -593,7 +766,6 @@ class CustomSignupView(SignupView):
         user.is_active = False
         user.save()
 
-        # Contact create करें
         Contact.objects.create(
             user=user,
             name=form.cleaned_data.get('full_name', user.username),
@@ -602,17 +774,13 @@ class CustomSignupView(SignupView):
             contact_type='customer',
         )
 
-        # OTP भेजें
         try:
             create_and_send_otp(user, user.email, 'signup')
-        except Exception as e:
-            logger.error(f"OTP sending failed in CustomSignupView: {e}")
+        except Exception:
+            logger.exception("OTP send failed in CustomSignupView")
 
-        # Session set करें
-        self.request.session['pending_user_id'] = user.id
-        self.request.session['pending_email'] = user.email
-        self.request.session['otp_purpose'] = 'signup'
+        self.request.session[SK_PENDING_USER_ID] = user.id
+        self.request.session[SK_PENDING_EMAIL] = user.email
+        self.request.session[SK_OTP_PURPOSE] = 'signup'
 
         return redirect(self.success_url)
-    
-    

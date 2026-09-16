@@ -1,26 +1,19 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block title %}Bad Request | {{ block.super }}{% endblock %}
-
-{% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 text-center">
-            <div class="error-page">
-                <h1 class="display-1 text-muted">400</h1>
-                <h2 class="mb-4">Bad Request</h2>
-                <p class="lead text-muted">The request could not be processed. Please check and try again.</p>
-                <div class="mt-4">
-                    <a href="{% url 'home' %}" class="btn btn-primary btn-lg">
-                        <i class="bi bi-house"></i> Go Home
-                    </a>
-                    <button onclick="history.back()" class="btn btn-outline-secondary btn-lg ms-2">
-                        <i class="bi bi-arrow-left"></i> Go Back
-                    </button>
-                </div>
-            </div>
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>400 – Bad Request | A1 Computer Solutions</title>
+    <link rel="stylesheet" href="/static/bootstrap/css/bootstrap.min.css">
+</head>
+<body class="bg-light">
+    <div class="container min-vh-100 d-flex align-items-center justify-content-center">
+        <div class="text-center">
+            <div class="display-1 fw-bold text-warning">400</div>
+            <h3 class="mt-3">Bad Request</h3>
+            <p class="text-muted">The server could not understand your request.</p>
+            <a href="/" class="btn btn-primary mt-3">← Back to Home</a>
         </div>
     </div>
-</div>
-{% endblock %}
+</body>
+</html>

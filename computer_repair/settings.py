@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'honeypot',
     'django_htmx',
+    'django_eventstream',
     'django_cleanup.apps.CleanupConfig',
     'anymail',
     'accounting.apps.AccountingConfig',
@@ -63,10 +64,24 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
+# ============================================================
+# CACHES — Database-backed (Render free tier + multi-worker safe)
+# ============================================================
+# LocMemCache per-process होता है। Render free tier पर Gunicorn 2 workers
+# चलाता है, इसलिए login rate limiting को cross-worker share करने के लिए
+# DatabaseCache use कर रहे हैं (Supabase Postgres पर)।
+#
+# ⚠️ Build.sh में `createcachetable` चलाना अनिवार्य है।
+# ============================================================
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'django_cache_table',
+        'TIMEOUT': 300,
+        'OPTIONS': {
+            'MAX_ENTRIES': 5000,   # Free tier: bounded rows
+            'CULL_FREQUENCY': 3,   # Delete 1/3 rows when full
+        },
     }
 }
 
@@ -277,5 +292,9 @@ CSRF_FAILURE_VIEW = 'accounting.views.error_handlers.csrf_failure'
 
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',
-    'https://*.onrender.com',
 ]
+
+# ENV se bhi allow karo — future proof
+_extra = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if _extra:
+    CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra.split(',') if o.strip()]
