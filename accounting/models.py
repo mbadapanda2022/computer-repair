@@ -28,19 +28,51 @@ POSITIVE_VALIDATOR = [MinValueValidator(MONEY_ZERO)]
 # ============================================================
 
 class SoftDeleteQuerySet(models.QuerySet):
-    """QuerySet that soft-deletes records when .delete() is called."""
+    """
+    QuerySet that soft-deletes records when .delete() is called.
+
+    Special handling for Contact:
+    ─────────────────────────────
+    Contact.soft_delete() also anonymizes the linked User (frees up
+    email/username for re-registration). Because bulk `.update()`
+    bypasses instance methods, we iterate Contact querysets one by
+    one. All other models use a fast bulk UPDATE.
+    """
 
     def delete(self):
-        count = 0
-        for obj in self:
-            obj.delete()
-            count += 1
+        from django.utils import timezone
+
+        # ── Contact: per-instance (needs to anonymize User) ──
+        if self.model.__name__ == 'Contact':
+            count = 0
+            for obj in self.filter(is_deleted=False):
+                obj.soft_delete()
+                count += 1
+            label = self.model._meta.label
+            return (count, {label: count})
+
+        # ── Default: fast bulk soft delete ───────────────────
+        qs = self.filter(is_deleted=False)
+        count = qs.count()
+        if count:
+            qs.update(
+                is_deleted=True,
+                deleted_at=timezone.now(),
+            )
         label = self.model._meta.label
         return (count, {label: count})
 
     def hard_delete(self):
+        """Permanent delete — bypasses soft delete."""
         return super().delete()
 
+    def restore(self):
+        """Restore all soft-deleted records in this queryset."""
+        return self.filter(is_deleted=True).update(
+            is_deleted=False,
+            deleted_at=None,
+            deleted_by=None,
+        )
 
 class SoftDeleteManager(models.Manager):
     """Manager that excludes soft-deleted records by default."""
@@ -481,7 +513,6 @@ class LedgerLine(SoftDeleteModel):
 # ============================================================
 # 6. CONTACTS (Customer/Vendor) – SoftDelete added
 # ============================================================
-
 class Contact(SoftDeleteModel):
     CONTACT_TYPE = (('customer', 'Customer'), ('vendor', 'Vendor'), ('both', 'Both'))
     contact_type = models.CharField(max_length=10, choices=CONTACT_TYPE)
@@ -509,19 +540,41 @@ class Contact(SoftDeleteModel):
         max_digits=12, decimal_places=2, default=0,
         help_text="Net amount we owe this party (positive = we owe them)"
     )
-    advance_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Net advance balance (Customer: positive = advance received, Vendor: positive = advance paid)")
+    advance_balance = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0,
+        help_text="Net advance balance (Customer: positive = advance received, Vendor: positive = advance paid)"
+    )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_contact')
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='customer_contact'
+    )
 
     class Meta:
         ordering = ['name']
-        constraints = [models.UniqueConstraint(fields=['phone'], condition=Q(phone__isnull=False), name='unique_phone_non_null')]
-        indexes = [models.Index(fields=['name']), models.Index(fields=['contact_type']), models.Index(fields=['balance'])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['phone'],
+                condition=Q(phone__isnull=False, is_deleted=False),
+                name='unique_phone_active',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['contact_type']),
+            models.Index(fields=['balance']),
+            models.Index(fields=['is_deleted']),
+        ]
 
     def __str__(self):
         return f"{self.name} ({self.get_contact_type_display()})"
-    
+
+    # ════════════════════════════════════════════════════════════
+    # BALANCE CALCULATIONS
+    # ════════════════════════════════════════════════════════════
 
     def recalc_balance(self):
         """
@@ -560,7 +613,6 @@ class Contact(SoftDeleteModel):
         self.receivable_balance = receivable
         self.payable_balance = payable
         self.balance = new_bal
-        
 
     def recalc_advance_balance(self):
         """Recalculate advance balance from advance payment entries."""
@@ -580,7 +632,64 @@ class Contact(SoftDeleteModel):
 
         self.advance_balance = (total_advance - total_settled).quantize(TAX_PRECISION)
         self.save(update_fields=['advance_balance'])
-    
+
+    # ════════════════════════════════════════════════════════════
+    # SOFT DELETE OVERRIDE — also anonymize linked User
+    # ════════════════════════════════════════════════════════════
+
+    def soft_delete(self, user=None):
+        """
+        Soft-delete this Contact AND anonymize its linked User.
+
+        Why anonymize:
+        ──────────────
+        - Frees up email / username for re-registration
+        - Blocks old login (is_active=False)
+        - Keeps audit trail (User row still exists, Contact.user FK safe)
+        - Restore is possible (staff can re-enable manually)
+
+        Staff users are NEVER anonymized — only customers/vendors.
+
+        Also: this method is called per-instance even in bulk deletes
+        because `SoftDeleteQuerySet.delete()` detects Contact model
+        and iterates.
+        """
+        from django.db import transaction as _tx
+
+        with _tx.atomic():
+            linked = self.user
+            if linked and not linked.is_staff:
+                uid = linked.id
+                # Only anonymize once (idempotent)
+                if not linked.username.startswith('deleted_user_'):
+                    linked.is_active = False
+                    linked.email = f'deleted_{uid}@deleted.local'
+                    linked.username = f'deleted_user_{uid}'
+                    linked.set_unusable_password()
+                    linked.save(update_fields=[
+                        'is_active', 'email', 'username', 'password',
+                    ])
+                    logger.info(
+                        "Anonymized User#%s linked to Contact#%s",
+                        uid, self.pk,
+                    )
+
+            super().soft_delete(user)
+
+    def restore(self):
+        """
+        Restore this Contact.
+
+        Note: User credentials are NOT auto-restored — because the original
+        email/username may have been reused by a new registration. Staff
+        must manually re-enable the User via the admin panel if needed.
+        """
+        super().restore()
+
+    # ════════════════════════════════════════════════════════════
+    # SAVE
+    # ════════════════════════════════════════════════════════════
+
     def save(self, *args, **kwargs):
         # Normalize empty phone to None to avoid unique constraint conflicts
         if self.phone is not None:
@@ -593,7 +702,6 @@ class Contact(SoftDeleteModel):
             self.opening_balance_date = timezone.now().date()
 
         super().save(*args, **kwargs)
-
 
 # ============================================================
 # 7. INVENTORY & STOCK

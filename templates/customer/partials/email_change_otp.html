@@ -1,19 +1,15 @@
 {% load static %}
-
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-warning text-dark">
-        <h4 class="mb-0 fw-semibold">
-            <i class="bi bi-shield-lock me-2"></i>Verify New Email
-        </h4>
+        <h4 class="mb-0 fw-semibold"><i class="bi bi-shield-lock me-2"></i>Verify New Email</h4>
     </div>
     <div class="card-body p-4">
         <p class="text-muted small">
             We've sent a 6-digit OTP to <strong>{{ email }}</strong>.
-            Please enter it below to confirm your new email.
+            Enter it below to confirm your new email.
         </p>
 
         <form method="post"
-              id="emailOtpForm"
               hx-post="{% url 'customer:email_change_verify' %}"
               hx-target="#profile-container"
               hx-swap="innerHTML"
@@ -34,31 +30,23 @@
                            pattern="[0-9]{6}"
                            inputmode="numeric"
                            autocomplete="one-time-code"
-                           oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                           oninput="this.value = this.value.replace(/[^0-9]/g,'');"
                            required>
-                    <button type="button" id="resend-otp-btn"
-                            class="btn btn-outline-primary"
-                            disabled>
+                    <button type="button" id="resend-otp-btn" class="btn btn-outline-primary" disabled>
                         <span id="resend-timer">60</span>s
                     </button>
                 </div>
-                <div id="otp-errors" class="invalid-feedback d-block mt-1">
-                    {% if form.otp.errors %}
-                        {% for error in form.otp.errors %}<div>{{ error }}</div>{% endfor %}
-                    {% endif %}
-                </div>
-                <small class="text-muted">OTP expires in 5 minutes.</small>
+                <small class="text-muted">OTP expires in 10 minutes.</small>
             </div>
 
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-warning" id="otp-submit-btn">
-                    <span id="otp-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <button type="submit" class="btn btn-warning">
+                    <span id="otp-spinner" class="spinner-border spinner-border-sm d-none me-1"></span>
                     <i class="bi bi-check-circle me-1"></i> Verify & Update
                 </button>
                 <button type="button" class="btn btn-secondary"
                         hx-get="{% url 'customer:email_change_request' %}"
-                        hx-target="#profile-container"
-                        hx-swap="innerHTML">
+                        hx-target="#profile-container" hx-swap="innerHTML">
                     <i class="bi bi-arrow-left me-1"></i> Back
                 </button>
             </div>
@@ -67,83 +55,61 @@
 </div>
 
 <script>
-// ============================================================
-// ⚠️ DOMContentLoaded HTMX-loaded content pe fire NAHI hota
-// इसलिए IIFE (immediately-invoked function) use करें
-// ============================================================
 (function() {
-    const timerDisplay = document.getElementById('resend-timer');
+    const timerEl = document.getElementById('resend-timer');
     const resendBtn = document.getElementById('resend-otp-btn');
-    let timerInterval = null;
+    if (!resendBtn) return;
 
+    let interval = null;
     function startTimer() {
-        let timer = 60;
-        if (timerDisplay) timerDisplay.textContent = timer;
-        if (resendBtn) {
-            resendBtn.disabled = true;
-            resendBtn.innerHTML = `<span id="resend-timer">${timer}</span>s`;
-        }
-        if (timerInterval) clearInterval(timerInterval);
-        timerInterval = setInterval(function() {
-            timer -= 1;
+        let t = 60;
+        if (timerEl) timerEl.textContent = t;
+        resendBtn.disabled = true;
+        resendBtn.innerHTML = `<span id="resend-timer">${t}</span>s`;
+        clearInterval(interval);
+        interval = setInterval(() => {
+            t -= 1;
             const el = document.getElementById('resend-timer');
-            if (el) el.textContent = timer;
-            if (resendBtn) {
-                resendBtn.innerHTML = `<span id="resend-timer">${timer}</span>s`;
-            }
-            if (timer <= 0) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-                if (resendBtn) {
-                    resendBtn.disabled = false;
-                    resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend';
-                }
+            if (el) el.textContent = t;
+            if (t <= 0) {
+                clearInterval(interval);
+                resendBtn.disabled = false;
+                resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Resend';
             }
         }, 1000);
     }
 
-    function resendOTP() {
-        if (resendBtn && resendBtn.disabled) return;
+    async function resend() {
+        if (resendBtn.disabled) return;
         resendBtn.disabled = true;
-        resendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Sending...';
-
-        fetch("{% url 'customer:email_change_request' %}", {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}',
-                'Content-Type': 'application/json',
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ resend: true })
-        })
-        .then(response => {
-            if (response.redirected) {
-                window.location.href = response.url;
-                return null;
-            }
-            return response.json().catch(() => ({}));
-        })
-        .then(data => {
-            if (data === null) return;
-            startTimer();
-            if (window.showToast) {
-                window.showToast('success', 'New OTP sent to your email.', 'OTP Resent');
-            }
-        })
-        .catch(() => {
-            if (window.showToast) {
-                window.showToast('danger', 'Failed to resend OTP. Please try again.', 'Error');
-            }
-            if (resendBtn) {
+        resendBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending...';
+        try {
+            const res = await fetch("{% url 'customer:email_change_request' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ resend: true }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success) {
+                startTimer();
+                window.showToast?.('success', 'New OTP sent.', 'OTP Resent');
+            } else {
+                window.showToast?.('danger', data.error || 'Failed to resend.');
                 resendBtn.disabled = false;
                 resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Retry';
             }
-        });
+        } catch (e) {
+            window.showToast?.('danger', 'Network error.');
+            resendBtn.disabled = false;
+            resendBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Retry';
+        }
     }
 
-    if (resendBtn) {
-        resendBtn.addEventListener('click', resendOTP);
-    }
+    resendBtn.addEventListener('click', resend);
     startTimer();
 })();
 </script>

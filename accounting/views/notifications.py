@@ -1,183 +1,187 @@
 # accounting/views/notifications.py
-import json
+"""
+Staff notification views.
+
+Uses HTMX polling (not SSE) — Render free-tier friendly.
+"""
+
 import logging
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse
-from django.core.paginator import Paginator
-from django.views.decorators.http import require_http_methods
+
 from django.contrib import messages
-from ..models import Notification
-from .utils import is_htmx, redirect_to_staff
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_http_methods
+
 from ..decorators import handle_errors
+from ..models import Notification
+from ..utils.notification_helpers import get_unread_count
+from .utils import is_htmx, redirect_to_staff
 
 logger = logging.getLogger(__name__)
 
+PAGE_SIZE = 20
+DROPDOWN_LIMIT = 10
 
-# ============================================================
+
+# ════════════════════════════════════════════════════════════
 # HELPERS
-# ============================================================
-def render_notification_partial(request, paginator_page=None):
-    if paginator_page is None:
-        notifications = request.user.notifications.all()
-        paginator = Paginator(notifications, 20)
-        page = request.GET.get('page', 1)
-        page_obj = paginator.get_page(page)
-    else:
-        page_obj = paginator_page
-    unread_count = request.user.notifications.filter(is_read=False).count()
+# ════════════════════════════════════════════════════════════
+def _base_queryset(request):
+    """Ordered queryset — Meta.ordering already handles -created_at."""
+    return request.user.notifications.all()
+
+
+def _render_list_partial(request, page_obj=None):
+    if page_obj is None:
+        paginator = Paginator(_base_queryset(request), PAGE_SIZE)
+        page_obj = paginator.get_page(request.GET.get('page', 1))
+
     return render(request, 'notifications/partials/_notification_items.html', {
         'page_obj': page_obj,
-        'unread_count': unread_count,
+        'unread_count': get_unread_count(request.user),
     })
 
 
-def render_dropdown_partial(request):
-    notifications = request.user.notifications.all()[:10]
-    unread_count = request.user.notifications.filter(is_read=False).count()
+def _render_dropdown_partial(request):
+    notifications = list(_base_queryset(request)[:DROPDOWN_LIMIT])
     return render(request, 'notifications/partials/dropdown.html', {
         'notifications': notifications,
-        'unread_count': unread_count,
+        'unread_count': get_unread_count(request.user),
     })
 
 
-# ============================================================
+def _htmx_partial_response(request):
+    """
+    Return the appropriate partial based on which container triggered
+    the request. Falls back to the list partial.
+    """
+    target = request.headers.get('HX-Target', '').lower()
+    if 'dropdown' in target:
+        return _render_dropdown_partial(request)
+    return _render_list_partial(request)
+
+
+# ════════════════════════════════════════════════════════════
 # LIST
-# ============================================================
+# ════════════════════════════════════════════════════════════
 @login_required
+@handle_errors(default_redirect='accounting:dashboard')
 def notification_list(request):
-    try:
-        notifications = request.user.notifications.all()
-        paginator = Paginator(notifications, 20)
-        page = request.GET.get('page')
-        page_obj = paginator.get_page(page)
-        unread_count = request.user.notifications.filter(is_read=False).count()
+    paginator = Paginator(_base_queryset(request), PAGE_SIZE)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
-        if is_htmx(request):
-            return render(request, 'notifications/partials/_notification_items.html', {
-                'page_obj': page_obj,
-                'unread_count': unread_count,
-            })
-        return render(request, 'notifications/list.html', {
-            'page_obj': page_obj,
-            'unread_count': unread_count,
-        })
-    except Exception as e:
-        logger.error(f"Notification list error: {e}")
-        messages.error(request, "Unable to load notifications.")
-        return redirect_to_staff('dashboard')
+    if is_htmx(request):
+        return _render_list_partial(request, page_obj)
+
+    return render(request, 'notifications/list.html', {
+        'page_obj': page_obj,
+        'unread_count': get_unread_count(request.user),
+    })
 
 
-# ============================================================
+# ════════════════════════════════════════════════════════════
 # DROPDOWN
-# ============================================================
+# ════════════════════════════════════════════════════════════
 @login_required
 def notification_dropdown(request):
     try:
-        return render_dropdown_partial(request)
+        return _render_dropdown_partial(request)
     except Exception:
-        return HttpResponse('<div class="dropdown-item text-danger">Error loading</div>', status=500)
+        logger.exception("Dropdown render failed | user=%s", request.user.id)
+        return HttpResponse(
+            '<div class="dropdown-item text-danger">Error loading</div>',
+            status=500,
+        )
 
 
-# ============================================================
+# ════════════════════════════════════════════════════════════
 # MARK READ (SINGLE)
-# ============================================================
+# ════════════════════════════════════════════════════════════
 @login_required
 @require_http_methods(["POST"])
 @handle_errors(default_redirect='accounting:notification_list')
 def mark_as_read(request, pk):
-    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-    notification.is_read = True
-    notification.save()
+    notification = get_object_or_404(
+        Notification, pk=pk, recipient=request.user,
+    )
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
 
     if is_htmx(request):
-        target = request.headers.get('HX-Target', '')
-        if 'dropdown' in target.lower():
-            return render_dropdown_partial(request)
-        return render_notification_partial(request)
+        return _htmx_partial_response(request)
 
     messages.success(request, "Marked as read.")
     return redirect_to_staff('notification_list')
 
 
-# ============================================================
+# ════════════════════════════════════════════════════════════
 # MARK ALL READ
-# ============================================================
+# ════════════════════════════════════════════════════════════
 @login_required
 @require_http_methods(["POST"])
 @handle_errors(default_redirect='accounting:notification_list')
 def mark_all_read(request):
     count = request.user.notifications.filter(is_read=False).update(is_read=True)
-    logger.info(f"User {request.user.id} marked {count} notifications as read")
+    logger.info("User %s marked %s notifications read", request.user.id, count)
 
     if is_htmx(request):
-        target = request.headers.get('HX-Target', '')
-        if 'dropdown' in target.lower():
-            return render_dropdown_partial(request)
-        return render_notification_partial(request)
+        return _htmx_partial_response(request)
 
     messages.success(request, f"{count} marked read.")
     return redirect_to_staff('notification_list')
 
 
-# ============================================================
-# DELETE SINGLE
-# ============================================================
+# ════════════════════════════════════════════════════════════
+# DELETE (SINGLE)
+# ════════════════════════════════════════════════════════════
 @login_required
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:notification_list')
 def delete_notification(request, pk):
-    notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
-    notification.delete()
-    logger.info(f"User {request.user.id} deleted notification {pk}")
+    notification = get_object_or_404(
+        Notification, pk=pk, recipient=request.user,
+    )
+    notification.delete()   # soft delete via SoftDeleteModel
+    logger.info("User %s deleted notification %s", request.user.id, pk)
 
     if is_htmx(request):
-        target = request.headers.get('HX-Target', '')
-        if 'dropdown' in target.lower():
-            return render_dropdown_partial(request)
-        return render_notification_partial(request)
+        return _htmx_partial_response(request)
 
     messages.success(request, "Notification deleted.")
     return redirect_to_staff('notification_list')
 
 
-# ============================================================
+# ════════════════════════════════════════════════════════════
 # DELETE ALL
-# ============================================================
+# ════════════════════════════════════════════════════════════
 @login_required
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:notification_list')
 def delete_all_notifications(request):
-    count = request.user.notifications.count()
-    request.user.notifications.all().delete()
-    logger.info(f"User {request.user.id} deleted all {count} notifications")
+    # SoftDeleteQuerySet.delete() handles soft delete per-row
+    qs = request.user.notifications.all()
+    count = qs.count()
+    qs.delete()
+    logger.info("User %s deleted all %s notifications", request.user.id, count)
 
     if is_htmx(request):
-        target = request.headers.get('HX-Target', '')
-        if 'dropdown' in target.lower():
-            return render_dropdown_partial(request)
-        return render_notification_partial(request)
+        return _htmx_partial_response(request)
 
-    messages.success(request, "All deleted.")
+    messages.success(request, "All notifications deleted.")
     return redirect_to_staff('notification_list')
 
 
-# ============================================================
-# UNREAD COUNT (JSON)
-# ============================================================
+# ════════════════════════════════════════════════════════════
+# UNREAD COUNT ENDPOINTS
+# ════════════════════════════════════════════════════════════
 @login_required
-def get_unread_count(request):
-    try:
-        count = request.user.notifications.filter(is_read=False).count()
-        return JsonResponse({'count': count})
-    except Exception as e:
-        logger.error(f"Error getting unread count: {e}")
-        return JsonResponse({'count': 0}, status=500)
+def get_unread_count_json(request):
+    return JsonResponse({'count': get_unread_count(request.user)})
 
 
-# ============================================================
-# UNREAD COUNT (PLAIN TEXT)
-# ============================================================
 @login_required
 def unread_count_text(request):
-    return HttpResponse(str(request.user.notifications.filter(is_read=False).count()))
+    return HttpResponse(str(get_unread_count(request.user)))

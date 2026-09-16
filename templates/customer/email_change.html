@@ -1,10 +1,14 @@
 {% extends "base_customer.html" %}
 {% load static %}
-
-{% block title %}Change Email – Customer Portal{% endblock %}
-
+{% block title %}Change Email — Customer Portal{% endblock %}
 {% block content %}
-<div id="profile-container">
-    {% include 'customer/partials/email_change_form.html' %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <div id="profile-container">
+                {% include 'customer/partials/email_change_form.html' %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

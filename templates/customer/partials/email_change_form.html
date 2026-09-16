@@ -1,13 +1,10 @@
 {% load static %}
-
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-info text-white">
-        <h4 class="mb-0 fw-semibold">
-            <i class="bi bi-envelope me-2"></i>Change Email Address
-        </h4>
+        <h4 class="mb-0 fw-semibold"><i class="bi bi-envelope me-2"></i>Change Email Address</h4>
     </div>
     <div class="card-body p-4">
-        <p class="text-muted small">You will receive an OTP on your new email to verify it.</p>
+        <p class="text-muted small">You'll receive an OTP on your new email to verify it.</p>
 
         {% if form.non_field_errors %}
             <div class="alert alert-danger py-2">
@@ -16,7 +13,6 @@
         {% endif %}
 
         <form method="post"
-              id="emailChangeForm"
               hx-post="{% url 'customer:email_change_request' %}"
               hx-target="#profile-container"
               hx-swap="innerHTML"
@@ -44,14 +40,13 @@
             </div>
 
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-info text-white" id="email-submit-btn">
-                    <span id="email-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <button type="submit" class="btn btn-info text-white">
+                    <span id="email-spinner" class="spinner-border spinner-border-sm d-none me-1"></span>
                     <i class="bi bi-send me-1"></i> Send OTP
                 </button>
                 <button type="button" class="btn btn-secondary"
                         hx-get="{% url 'customer:customer_profile' %}"
-                        hx-target="#profile-container"
-                        hx-swap="innerHTML">
+                        hx-target="#profile-container" hx-swap="innerHTML">
                     Cancel
                 </button>
             </div>
