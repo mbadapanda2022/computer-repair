@@ -1298,7 +1298,12 @@ def email_change_verify(request):
       - Update User.email + Contact.email
       - Delete all old 'change_email' OTPs
       - Send confirmation email
+      - Set success message BEFORE logout (session trick)
       - Logout user (force re-login with new email)
+
+    FIX: `messages.success()` MUST be called BEFORE `logout()`,
+    because `logout()` flushes the session — any message set after
+    it would be lost forever.
     """
     user = request.user
     customer = _get_customer(request)
@@ -1306,7 +1311,7 @@ def email_change_verify(request):
     new_email = request.session.get(SK_PENDING_NEW_EMAIL)
     purpose = request.session.get(SK_OTP_PURPOSE)
 
-    # Session expired
+    # ── Session expired / invalid ──────────────────────
     if not new_email or purpose != 'change_email':
         messages.error(request, "Invalid session. Please request email change again.")
         if is_htmx(request):
@@ -1326,10 +1331,11 @@ def email_change_verify(request):
             return response
         return redirect('customer:email_change_request')
 
+    # ── POST: verify OTP ───────────────────────────────
     if request.method == 'POST':
         otp = (request.POST.get('otp') or '').strip()
 
-        # Malformed
+        # Malformed OTP
         if len(otp) != 6 or not otp.isdigit():
             if is_htmx(request):
                 response = render(
@@ -1347,31 +1353,39 @@ def email_change_verify(request):
                 })
                 return response
             messages.error(request, "Please enter a valid 6-digit OTP.")
-            return render(request, 'customer/email_change_otp.html', {'email': new_email})
+            return render(
+                request,
+                'customer/email_change_otp.html',
+                {'email': new_email},
+            )
 
-        # Verify
+        # Verify via OTP helper
         verified_user = verify_otp(new_email, otp, 'change_email')
 
+        # ── SUCCESS ────────────────────────────────────
         if verified_user and verified_user.id == user.id:
+
+            # 1) Update DB (atomic)
             with transaction.atomic():
                 user.email = new_email
                 user.save(update_fields=['email'])
+
                 customer.email = new_email
                 customer.save(update_fields=['email'])
 
-                # Cleanup session + old OTPs
-                for key in (SK_PENDING_NEW_EMAIL, SK_PENDING_USER_ID, SK_OTP_PURPOSE):
-                    request.session.pop(key, None)
-                EmailOTP.objects.filter(user=user, purpose='change_email').delete()
+                # Clean OTP rows for this user
+                EmailOTP.objects.filter(
+                    user=user, purpose='change_email',
+                ).delete()
 
-            # Confirmation email (fail-safe)
+            # 2) Confirmation email to NEW address (fail-safe)
             try:
                 send_mail(
                     subject="Your email has been changed",
                     message=(
-                        f"Your A1 Computer Solutions account email was changed to "
-                        f"{new_email}. If you didn't request this, please contact "
-                        f"support immediately."
+                        f"Your A1 Computer Solutions account email was "
+                        f"changed to {new_email}. If you didn't request this, "
+                        f"please contact support immediately."
                     ),
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[new_email],
@@ -1380,10 +1394,17 @@ def email_change_verify(request):
             except Exception:
                 logger.exception("Email change confirmation email failed")
 
-            # Force re-login
-            from django.contrib.auth import logout
-            logout(request)
+            # 3) Clear pending session keys (BEFORE logout)
+            for key in (SK_PENDING_NEW_EMAIL, SK_PENDING_USER_ID, SK_OTP_PURPOSE):
+                request.session.pop(key, None)
 
+            # 4) Success message — MUST be before logout()
+            messages.success(
+                request,
+                "Email updated successfully. Please login with your new email.",
+            )
+
+            # 5) HTMX response (uses HX-Redirect + toast)
             if is_htmx(request):
                 response = HttpResponse()
                 response['HX-Redirect'] = reverse('accounting:login')
@@ -1394,15 +1415,15 @@ def email_change_verify(request):
                         'title': 'Security Updated',
                     },
                 })
+                # Now safe to logout — HX-Redirect already set
+                logout(request)
                 return response
 
-            messages.success(
-                request,
-                "Email updated successfully. Please login with your new email.",
-            )
+            # 6) Non-HTMX path
+            logout(request)
             return redirect('accounting:login')
 
-        # Invalid OTP
+        # ── INVALID / EXPIRED OTP ──────────────────────
         if is_htmx(request):
             response = render(
                 request,
@@ -1418,15 +1439,26 @@ def email_change_verify(request):
                 },
             })
             return response
+
         messages.error(request, "Invalid or expired OTP. Please try again.")
-        return render(request, 'customer/email_change_otp.html', {'email': new_email})
+        return render(
+            request,
+            'customer/email_change_otp.html',
+            {'email': new_email},
+        )
 
-    # GET
+    # ── GET: show OTP form ─────────────────────────────
     if is_htmx(request):
-        return render(request, 'customer/partials/email_change_otp.html',
-                      {'email': new_email})
-    return render(request, 'customer/email_change_otp.html', {'email': new_email})
-
+        return render(
+            request,
+            'customer/partials/email_change_otp.html',
+            {'email': new_email},
+        )
+    return render(
+        request,
+        'customer/email_change_otp.html',
+        {'email': new_email},
+    )
 
 # ════════════════════════════════════════════════════════════
 # 12. NOTIFICATIONS (Customer)
@@ -1536,7 +1568,15 @@ def notification_delete_all(request):
 
 @login_required
 def unread_count_text(request):
-    return HttpResponse(str(get_unread_count(request.user)))
+    """
+    Return unread count as plain text.
+    Empty string when count == 0, so badge can auto-hide via HTMX.
+    """
+    count = get_unread_count(request.user)
+    if count == 0:
+        # Return empty + trigger a "hide badge" via HX-Trigger if needed
+        return HttpResponse('')
+    return HttpResponse(str(count))
 
 
 # ════════════════════════════════════════════════════════════
@@ -1996,3 +2036,102 @@ def _customer_statement_excel(customer, request):
     )
     wb.save(response)
     return response
+
+# ════════════════════════════════════════════════════════════
+# 19. QUICK UPDATE — inline edit from detail page
+# ════════════════════════════════════════════════════════════
+@login_required
+@csrf_protect
+@handle_errors(default_redirect='accounting:repair_list')
+def quick_update_repair(request, pk):
+    """
+    Quick inline update of repair fields directly from detail page.
+    Only updates the fields submitted — does NOT touch anything else.
+
+    GET  → render modal with pre-filled form
+    POST → save partial fields, redirect back to detail
+    """
+    job = get_object_or_404(RepairJob, pk=pk)
+
+    if job.status in ('delivered', 'cancelled'):
+        return toast_only_response(
+            {'level': 'danger',
+             'message': f'Cannot edit a {job.get_status_display()} repair.'},
+            status=400,
+        )
+
+    # ── GET: show modal ────────────────────────────────
+    if request.method == 'GET':
+        return render(request, 'repairs/partials/quick_update_modal.html', {
+            'job': job,
+        })
+
+    # ── POST: update only provided fields ──────────────
+    update_fields = []
+
+    # Estimated cost
+    est = request.POST.get('estimated_cost', '').strip()
+    if est:
+        try:
+            job.estimated_cost = Decimal(est)
+            update_fields.append('estimated_cost')
+        except (ValueError, TypeError):
+            pass
+    elif est == '' and 'estimated_cost' in request.POST:
+        # Explicitly cleared
+        job.estimated_cost = None
+        update_fields.append('estimated_cost')
+
+    # Labour charge
+    labour = request.POST.get('labour_charge', '').strip()
+    if labour:
+        try:
+            job.labour_charge = Decimal(labour)
+            update_fields.append('labour_charge')
+        except (ValueError, TypeError):
+            pass
+
+    # Text fields
+    for field in ['diagnosis_report', 'action_taken', 'received_by', 'received_remarks']:
+        if field in request.POST:
+            setattr(job, field, request.POST.get(field, '').strip())
+            update_fields.append(field)
+
+    # Ready date (only allow if status is repairing/diagnosis)
+    ready_date = request.POST.get('ready_at', '').strip()
+    if ready_date and job.status in ('diagnosis', 'repairing', 'received'):
+        try:
+            from datetime import datetime as dt
+            job.ready_at = dt.strptime(ready_date, '%Y-%m-%d').date()
+            update_fields.append('ready_at')
+        except (ValueError, TypeError):
+            pass
+
+    if update_fields:
+        # Recalc final amount if labour changed
+        if 'labour_charge' in update_fields:
+            parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+            job.final_amount = parts_total + job.labour_charge
+            update_fields.append('final_amount')
+
+        job.save(update_fields=update_fields)
+        logger.info(
+            "Quick update | job=%s | fields=%s",
+            job.job_number, ','.join(update_fields),
+        )
+
+    # HTMX
+    if is_htmx(request):
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
+        response['HX-Trigger'] = json.dumps({
+            'closeModal': '',
+            'showToast': {
+                'level': 'success',
+                'message': 'Repair updated successfully.',
+            },
+        })
+        return response
+
+    messages.success(request, "Repair updated successfully.")
+    return redirect_to_staff('repair_detail', pk=job.pk)
