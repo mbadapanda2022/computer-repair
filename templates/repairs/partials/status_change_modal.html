@@ -1,0 +1,177 @@
+{% load static %}
+
+<form method="post"
+      hx-post="{% url 'accounting:update_repair_status' job.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+    {% csrf_token %}
+    <input type="hidden" name="new_status" value="{{ new_status }}">
+
+    <!-- ══════════ HEADER ══════════ -->
+    <div class="modal-header bg-{{ config.color }} text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-{{ config.icon }} me-2"></i>{{ config.title }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <!-- ══════════ BODY ══════════ -->
+    <div class="modal-body">
+
+        <!-- Transition info -->
+        <div class="alert alert-light border d-flex align-items-center mb-3">
+            <i class="bi bi-arrow-right-circle text-primary me-3 fs-3"></i>
+            <div class="small flex-grow-1">
+                <div><strong>{{ job.job_number }}</strong> · {{ job.device_model }}</div>
+                <div class="text-muted mt-1">
+                    <span class="badge bg-secondary">{{ job.get_status_display }}</span>
+                    <i class="bi bi-arrow-right mx-2"></i>
+                    <span class="badge bg-{{ config.color }}">
+                        {{ new_status|title }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-muted small mb-3">{{ config.description }}</p>
+
+        {# ═══════════ RECEIVED ═══════════ #}
+        {% if new_status == 'received' %}
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Received Date</label>
+                <input type="date" name="received_at" class="form-control"
+                       value="{% now 'Y-m-d' %}">
+                <small class="text-muted">आज की तारीख default है</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Received By</label>
+                <input type="text" name="received_by" class="form-control"
+                       value="{{ request.user.get_full_name|default:request.user.username }}"
+                       placeholder="Staff name">
+            </div>
+            <div class="col-12">
+                <label class="form-label fw-semibold">Reception Remarks</label>
+                <textarea name="received_remarks" rows="3" class="form-control"
+                          placeholder="Device condition, accessories, physical damage, etc.">{{ job.received_remarks|default:'' }}</textarea>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ═══════════ DIAGNOSIS ═══════════ #}
+        {% if new_status == 'diagnosis' %}
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="form-label fw-semibold">
+                    Diagnosis Report <span class="text-danger">*</span>
+                </label>
+                <textarea name="diagnosis_report" rows="5" class="form-control"
+                          placeholder="क्या खराबी मिली — e.g., Hard drive failure, RAM issue, motherboard capacitor burnt..."
+                          required>{{ job.diagnosis_report|default:'' }}</textarea>
+                <small class="text-muted">यह customer को दिखेगा</small>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ═══════════ REPAIRING ═══════════ #}
+        {% if new_status == 'repairing' %}
+        <div class="alert alert-info mb-0">
+            <i class="bi bi-tools me-2"></i>
+            Repairing शुरू हो रही है। आप चाहें तो बाद में Quick Update से action_taken भर सकते हैं।
+        </div>
+        {% endif %}
+
+        {# ═══════════ READY ═══════════ #}
+        {% if new_status == 'ready' %}
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Ready Date</label>
+                <input type="date" name="ready_at" class="form-control"
+                       value="{% now 'Y-m-d' %}">
+                <small class="text-muted">जब repair complete हुई</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Marked Ready By</label>
+                <input type="text" name="received_by" class="form-control"
+                       value="{{ request.user.get_full_name|default:request.user.username }}">
+            </div>
+            <div class="col-12">
+                <div class="alert alert-light border small mb-0">
+                    <i class="bi bi-info-circle text-primary me-1"></i>
+                    Customer को notification चली जाएगी कि device ready है।
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# ═══════════ DELIVERED ═══════════ #}
+        {% if new_status == 'delivered' %}
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">
+                    Delivery Date <span class="text-danger">*</span>
+                </label>
+                <input type="date" name="delivery_date" class="form-control"
+                       value="{% now 'Y-m-d' %}" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Delivered By</label>
+                <input type="text" name="delivered_by" class="form-control"
+                       value="{{ request.user.get_full_name|default:request.user.username }}"
+                       placeholder="Staff name">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Handed Over To</label>
+                <input type="text" name="delivered_to_name" class="form-control"
+                       value="{{ job.customer.name }}"
+                       placeholder="Recipient name">
+                <small class="text-muted">Customer से अलग कोई ले रहा हो तो नाम बदलें</small>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Recipient Phone</label>
+                <input type="text" name="delivered_to_phone" class="form-control"
+                       value="{{ job.customer.phone|default:'' }}"
+                       placeholder="10-digit number">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Designation</label>
+                <input type="text" name="delivered_to_designation" class="form-control"
+                       placeholder="e.g., Driver, Staff, Family member">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Delivery Remarks</label>
+                <input type="text" name="delivery_remarks" class="form-control"
+                       placeholder="Optional note">
+            </div>
+        </div>
+        {% endif %}
+
+        {# ═══════════ CANCELLED ═══════════ #}
+        {% if new_status == 'cancelled' %}
+        <div class="alert alert-danger">
+            <h6 class="fw-bold">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                पक्का करें?
+            </h6>
+            <ul class="mb-0 small">
+                <li>इस repair में जोड़े गए सभी parts delete हो जाएंगे</li>
+                <li>Stock automatically वापस add हो जाएगा</li>
+                <li>यह action undo नहीं हो सकता</li>
+            </ul>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- ══════════ FOOTER ══════════ -->
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
+        <button type="submit" class="btn btn-{{ config.color }}">
+            <i class="bi bi-check-circle me-1"></i>{{ config.title }}
+        </button>
+    </div>
+</form>

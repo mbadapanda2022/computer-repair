@@ -1,6 +1,5 @@
-<form method="post"
-      hx-post="{% url 'accounting:update_repair_status' job.pk %}"
-      hx-target="#status-row-container"
+<form hx-post="{% url 'accounting:update_repair_status' job.pk %}"
+      hx-target="#mainModalContent"
       hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       id="status-form">
@@ -8,7 +7,7 @@
 
     <div class="row g-2 align-items-center">
         <div class="col-md-9">
-            <select name="status" class="form-select form-select-sm">
+            <select name="status" class="form-select form-select-sm" required>
                 {% for value, label in status_choices %}
                     <option value="{{ value }}" {% if job.status == value %}selected{% endif %}>
                         {{ label }}
@@ -18,8 +17,13 @@
         </div>
         <div class="col-md-3">
             <button type="submit" class="btn btn-primary btn-sm w-100">
-                <i class="bi bi-check-circle me-1"></i>Update
+                <i class="bi bi-arrow-right-circle me-1"></i>Update
             </button>
         </div>
     </div>
+
+    <small class="text-muted d-block mt-2">
+        <i class="bi bi-info-circle me-1"></i>
+        You will see a modal for entering status-related details.
+    </small>
 </form>
