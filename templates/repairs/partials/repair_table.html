@@ -12,14 +12,14 @@
                         <th>Device</th>
                         <th>Status</th>
                         <th class="text-center">Received</th>
-                        <th class="text-center">Delivered</th>
+                        <th class="text-center">Aging</th>
                         <th class="text-end">Amount</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for job in jobs %}
-                    <tr>
+                    <tr {% if job.aging_level == 'danger' %}class="table-danger"{% elif job.aging_level == 'warning' %}class="table-warning"{% endif %}>
                         <td><strong>{{ job.job_number }}</strong></td>
                         <td>
                             {% if job.submitted_at %}
@@ -31,7 +31,7 @@
                         <td>{{ job.customer.name }}</td>
                         <td>{{ job.device_model }}</td>
                         <td>
-                            <span class="badge 
+                            <span class="badge
                                 {% if job.status == 'pending' %}bg-warning text-dark
                                 {% elif job.status == 'received' %}bg-secondary
                                 {% elif job.status == 'diagnosis' %}bg-info text-dark
@@ -43,7 +43,7 @@
                                 {{ job.get_status_display }}
                             </span>
                             {% if job.estimate_status == 'pending' and job.estimated_cost %}
-                                <br><span class="badge bg-warning text-dark">Estimate Pending</span>
+                                <br><span class="badge bg-warning text-dark mt-1">Estimate Pending</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
@@ -54,8 +54,13 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            {% if job.delivery_date %}
-                                {{ job.delivery_date|date:"d M Y" }}
+                            {% if job.aging_days is not None %}
+                                <span class="badge
+                                    {% if job.aging_level == 'danger' %}bg-danger
+                                    {% elif job.aging_level == 'warning' %}bg-warning text-dark
+                                    {% else %}bg-success{% endif %}">
+                                    {{ job.aging_days }}d
+                                </span>
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
@@ -63,8 +68,8 @@
                         <td class="text-end fw-bold">₹{{ job.final_amount|floatformat:2 }}</td>
                         <td class="text-center">
                             <div class="dropdown">
-                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
-                                        type="button" data-bs-toggle="dropdown" 
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button" data-bs-toggle="dropdown"
                                         data-bs-auto-close="outside">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
@@ -94,8 +99,8 @@
                                     {% endif %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <button class="dropdown-item text-danger" 
-                                                hx-delete="{% url 'accounting:repair_delete' job.pk %}" 
+                                        <button class="dropdown-item text-danger"
+                                                hx-delete="{% url 'accounting:repair_delete' job.pk %}"
                                                 hx-target="#repair-table-container"
                                                 hx-confirm="Delete this repair job? This will reverse stock.">
                                             <i class="bi bi-trash me-2"></i>Delete
@@ -136,34 +141,36 @@
             <ul class="pagination justify-content-center mb-0">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:repair_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:repair_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
                 {% endif %}
 
-                <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
 
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

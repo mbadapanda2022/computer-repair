@@ -75,6 +75,10 @@
         background: none !important;
         color: #000 !important;
     }
+    /* Auto-hide empty notification badges */
+    .badge:empty {
+        display: none !important;
+    }
     a[href]:after {
         content: none !important;
     }

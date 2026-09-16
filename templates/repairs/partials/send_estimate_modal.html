@@ -1,0 +1,106 @@
+{% load static %}
+
+<form method="post"
+      hx-post="{% url 'accounting:send_estimate_to_customer' job.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      id="sendEstimateForm">
+
+    {% csrf_token %}
+
+    <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title">
+            <i class="bi bi-send me-2"></i>Send Estimate to Customer
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+
+        <!-- Estimate Preview -->
+        <div class="alert alert-light border">
+            <div class="row g-2">
+                <div class="col-6">
+                    <small class="text-muted d-block">Customer</small>
+                    <strong>{{ job.customer.name }}</strong>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted d-block">Device</small>
+                    <strong>{{ job.device_model }}</strong>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted d-block">Job #</small>
+                    <strong>{{ job.job_number }}</strong>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted d-block">Estimated Cost</small>
+                    <strong class="text-success fs-5">₹{{ job.estimated_cost|floatformat:2 }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- Send Method -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Send Via</label>
+            <div class="d-flex gap-3 flex-wrap">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="method" id="methodEmail" value="email" checked>
+                    <label class="form-check-label" for="methodEmail">
+                        <i class="bi bi-envelope text-primary"></i> Email
+                        {% if not job.customer.email %}<span class="badge bg-secondary ms-1">No email</span>{% endif %}
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="method" id="methodWhatsapp" value="whatsapp"
+                           {% if not job.customer.phone %}disabled{% endif %}>
+                    <label class="form-check-label" for="methodWhatsapp">
+                        <i class="bi bi-whatsapp text-success"></i> WhatsApp
+                        {% if not job.customer.phone %}<span class="badge bg-secondary ms-1">No phone</span>{% endif %}
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="method" id="methodBoth" value="both"
+                           {% if not job.customer.email or not job.customer.phone %}disabled{% endif %}>
+                    <label class="form-check-label" for="methodBoth">
+                        <i class="bi bi-send text-info"></i> Both
+                    </label>
+                </div>
+            </div>
+            <small class="text-muted d-block mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                A notification is always sent to the customer portal.
+            </small>
+        </div>
+
+        <!-- Custom Message -->
+        <div class="mb-3">
+            <label for="id_message" class="form-label fw-semibold">
+                Custom Message <span class="text-muted fw-normal">(optional)</span>
+            </label>
+            <textarea name="message" id="id_message" rows="3" class="form-control"
+                      placeholder="Leave blank to use default message"></textarea>
+            <small class="text-muted">
+                Default: "Repair estimate for your [device] is ₹[amount]. Please review and approve."
+            </small>
+        </div>
+
+        <!-- Warning -->
+        <div class="alert alert-info small mb-0">
+            <i class="bi bi-lightbulb me-1"></i>
+            Customer will be able to <strong>Approve / Hold / Reject</strong> from their portal.
+        </div>
+
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <a href="{% url 'accounting:estimate_print' job.pk %}"
+           target="_blank" class="btn btn-outline-dark">
+            <i class="bi bi-printer me-1"></i>Print Preview
+        </a>
+        <button type="submit" class="btn btn-warning">
+            <i class="bi bi-send me-1"></i>Send Estimate
+        </button>
+    </div>
+</form>

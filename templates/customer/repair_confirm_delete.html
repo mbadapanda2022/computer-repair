@@ -10,10 +10,8 @@
 <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
     <form method="post"
-          hx-post="{% url 'customer:customer_repair_delete' repair.pk %}"
-          hx-target="#repair-list-container"
-          hx-swap="innerHTML"
-          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        hx-post="{% url 'customer:customer_repair_delete' repair.pk %}"
+        hx-swap="none">   ← बदलाव: empty response को swap न करे
         {% csrf_token %}
         <button type="submit" class="btn btn-danger">
             <i class="bi bi-trash"></i> Yes, Delete

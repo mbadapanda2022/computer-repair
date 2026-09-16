@@ -55,12 +55,16 @@
                     <!-- Notification List (Customer) -->
                     <li>
                         <a href="{% url 'customer:customer_notifications' %}" 
-                           class="nav-link {% if request.resolver_match.url_name == 'customer_notifications' or 'notifications' in request.path %}active{% endif %}">
+                        class="nav-link {% if request.resolver_match.url_name == 'customer_notifications' or 'notifications' in request.path %}active{% endif %}">
                             <i class="bi bi-bell"></i>
                             <span class="link-text">Notifications</span>
-                            {% if user|unread_count > 0 %}
-                            <span class="badge bg-danger ms-2">{{ user|unread_count }}</span>
-                            {% endif %}
+                            <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
+                                id="customer-sidebar-notif-badge"
+                                hx-get="{% url 'customer:customer_unread_count_text' %}"
+                                hx-trigger="load, every 30s"
+                                hx-swap="innerHTML">
+                                {{ user|unread_count }}
+                            </span>
                         </a>
                     </li>
                     <li>
@@ -120,7 +124,12 @@
                                 <button class="btn btn-outline-secondary position-relative" type="button"
                                         id="notificationDropdown"
                                         data-bs-toggle="dropdown"
-                                        aria-expanded="false">
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false"
+                                        hx-get="{% url 'customer:customer_notification_dropdown' %}"
+                                        hx-target="#notification-dropdown"
+                                        hx-swap="innerHTML"
+                                        hx-trigger="click">
                                     <i class="bi bi-bell"></i>
                                     <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
                                         id="notificationCount"
@@ -133,13 +142,12 @@
                                 <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 
                                     style="width:350px; max-height:400px; overflow-y:auto;"
                                     hx-get="{% url 'customer:customer_notification_dropdown' %}" 
-                                    hx-trigger="load once, every 60s" 
+                                    hx-trigger="load, every 30s" 
                                     hx-target="#notification-dropdown"
                                     hx-swap="innerHTML">
                                     <div class="text-center py-3 text-muted">Loading notifications...</div>
                                 </div>
-                            </div>
-                                            
+                            </div>       
                             
                             <!-- User Dropdown -->
                             <div class="dropdown">

@@ -184,4 +184,8 @@ def get_unread_count_json(request):
 
 @login_required
 def unread_count_text(request):
-    return HttpResponse(str(get_unread_count(request.user)))
+    """Return count as text, empty string if 0 (for badge hide)."""
+    count = get_unread_count(request.user)
+    if count == 0:
+        return HttpResponse('')   
+    return HttpResponse(str(count))

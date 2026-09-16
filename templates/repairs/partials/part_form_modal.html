@@ -82,33 +82,38 @@
 </form>
 
 <script>
-(function() {
-    'use strict';
+    (function() {
+        'use strict';
 
-    function initPartForm() {
-        const sel = document.getElementById('id_product');
-        if (!sel) return;
+        // Guard: attach once only
+        if (window.__partFormInit) return;
+        window.__partFormInit = true;
 
-        sel.addEventListener('change', function() {
-            const opt = this.options[this.selectedIndex];
-            if (opt && opt.value) {
-                const price = opt.dataset.price;
-                const priceField = document.getElementById('id_unit_price');
-                if (priceField && (!priceField.value || priceField.value === '0')) {
-                    priceField.value = price;
+        function initPartForm() {
+            const sel = document.getElementById('id_product');
+            if (!sel || sel.__bound) return;
+            sel.__bound = true;
+
+            sel.addEventListener('change', function() {
+                const opt = this.options[this.selectedIndex];
+                if (opt && opt.value) {
+                    const price = opt.dataset.price;
+                    const priceField = document.getElementById('id_unit_price');
+                    if (priceField && (!priceField.value || priceField.value === '0')) {
+                        priceField.value = price;
+                    }
                 }
+            });
+        }
+
+        // Init for current DOM
+        initPartForm();
+
+        // Re-init after HTMX swap (guard prevents duplicate listeners)
+        document.body.addEventListener('htmx:afterSwap', function(e) {
+            if (e.detail.target && e.detail.target.closest('#mainModalContent')) {
+                initPartForm();
             }
         });
-    }
-
-    // Init immediately (HTMX already inserted form)
-    initPartForm();
-
-    // Re-init after any HTMX swap
-    document.body.addEventListener('htmx:afterSwap', function(e) {
-        if (e.detail.target && e.detail.target.closest('#mainModalContent')) {
-            initPartForm();
-        }
-    });
-})();
+    })();
 </script>

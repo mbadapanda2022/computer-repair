@@ -3,6 +3,7 @@
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
+
     <!-- Header -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>
@@ -15,74 +16,70 @@
             <a href="{% url 'accounting:repair_create' %}" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> New Repair
             </a>
-
             <button class="btn btn-success"
-                    onclick="window.location.href='{% url 'accounting:export_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()"
-                    title="Download as Excel">
-                <i class="bi bi-file-earmark-excel"></i> Export to Excel
+                    onclick="window.location.href='{% url 'accounting:export_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()">
+                <i class="bi bi-file-earmark-excel"></i> Export
             </button>
-            
-            <button class="btn btn-secondary" 
-                    onclick="window.open('{% url 'accounting:repair_list_print' %}?' + new URLSearchParams(window.location.search).toString(), '_blank')"
-                    title="Print filtered list">
-                <i class="bi bi-printer"></i> Print List
+            <button class="btn btn-secondary"
+                    onclick="window.open('{% url 'accounting:repair_list_print' %}?' + new URLSearchParams(window.location.search).toString(), '_blank')">
+                <i class="bi bi-printer"></i> Print
             </button>
         </div>
     </div>
 
-    <!-- Summary Stats -->
+    <!-- Summary Stats — 6 cards -->
     <div class="row g-3 mb-4">
-        <div class="col-md-3 col-sm-6">
+        <div class="col-lg-2 col-md-4 col-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-tools fs-4 text-primary"></i>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Total Jobs</small>
-                        <h5 class="mb-0 fw-bold">{{ page_obj.paginator.count|default:0 }}</h5>
-                    </div>
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-tools fs-3 text-primary d-block mb-1"></i>
+                    <div class="small text-muted">Total</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.total_count|default:0 }}</div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 col-sm-6">
+        <div class="col-lg-2 col-md-4 col-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-clock-history fs-4 text-warning"></i>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Pending</small>
-                        <h5 class="mb-0 fw-bold" id="pending-count">{{ stats.pending_count|default:0 }}</h5>
-                    </div>
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-clock-history fs-3 text-warning d-block mb-1"></i>
+                    <div class="small text-muted">Pending</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.pending_count|default:0 }}</div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 col-sm-6">
+        <div class="col-lg-2 col-md-4 col-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-check-circle fs-4 text-success"></i>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Completed</small>
-                        <h5 class="mb-0 fw-bold">{{ stats.completed_count|default:0 }}</h5>
-                    </div>
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-check-circle fs-3 text-success d-block mb-1"></i>
+                    <div class="small text-muted">Completed</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.completed_count|default:0 }}</div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 col-sm-6">
+        <div class="col-lg-2 col-md-4 col-6">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Urgent</small>
-                        <h5 class="mb-0 fw-bold">
-                            {{ stats.urgent_count|default:0 }}
-                        </h5>
-                    </div>
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-exclamation-triangle fs-3 text-danger d-block mb-1"></i>
+                    <div class="small text-muted">Urgent</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.urgent_count|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-hourglass-split fs-3 text-danger d-block mb-1"></i>
+                    <div class="small text-muted">Overdue</div>
+                    <div class="h5 fw-bold mb-0 text-danger">{{ stats.overdue_count|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-calendar-week fs-3 text-info d-block mb-1"></i>
+                    <div class="small text-muted">This Week</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.this_week_count|default:0 }}</div>
                 </div>
             </div>
         </div>
@@ -95,22 +92,23 @@
                 <div class="col-md-3">
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Search #, customer, device..." 
-                            name="search" value="{{ search }}"
-                            hx-get="{% url 'accounting:repair_list' %}" 
-                            hx-trigger="keyup changed delay:300ms" 
-                            hx-target="#repair-table-container" 
-                            hx-include="#repair-filter-form"
-                            hx-push-url="true">   
+                        <input type="text" class="form-control"
+                               placeholder="Search #, customer, device..."
+                               name="search" value="{{ search }}"
+                               hx-get="{% url 'accounting:repair_list' %}"
+                               hx-trigger="keyup changed delay:300ms"
+                               hx-target="#repair-table-container"
+                               hx-include="#repair-filter-form"
+                               hx-push-url="true">
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" name="status" 
-                            hx-get="{% url 'accounting:repair_list' %}" 
-                            hx-trigger="change" 
-                            hx-target="#repair-table-container" 
+                    <select class="form-select" name="status"
+                            hx-get="{% url 'accounting:repair_list' %}"
+                            hx-trigger="change"
+                            hx-target="#repair-table-container"
                             hx-include="#repair-filter-form"
-                            hx-push-url="true">    
+                            hx-push-url="true">
                         <option value="">All Status</option>
                         {% for value, label in status_choices %}
                             <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
@@ -118,15 +116,16 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" name="customer" 
-                            hx-get="{% url 'accounting:repair_list' %}" 
-                            hx-trigger="change" 
-                            hx-target="#repair-table-container" 
+                    <select class="form-select" name="customer"
+                            hx-get="{% url 'accounting:repair_list' %}"
+                            hx-trigger="change"
+                            hx-target="#repair-table-container"
                             hx-include="#repair-filter-form"
-                            hx-push-url="true">    
+                            hx-push-url="true">
                         <option value="">All Customers</option>
                         {% for customer in customers %}
-                            <option value="{{ customer.id }}" {% if customer_id == customer.id|stringformat:"s" %}selected{% endif %}>
+                            <option value="{{ customer.id }}"
+                                    {% if customer_id == customer.id|stringformat:"s" %}selected{% endif %}>
                                 {{ customer.name }}
                             </option>
                         {% endfor %}
@@ -134,27 +133,30 @@
                 </div>
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
-                        hx-get="{% url 'accounting:repair_list' %}" 
-                        hx-trigger="change" 
-                        hx-target="#repair-table-container" 
-                        hx-include="#repair-filter-form"
-                        hx-push-url="true">   
+                           placeholder="From"
+                           hx-get="{% url 'accounting:repair_list' %}"
+                           hx-trigger="change"
+                           hx-target="#repair-table-container"
+                           hx-include="#repair-filter-form"
+                           hx-push-url="true">
                 </div>
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
-                        hx-get="{% url 'accounting:repair_list' %}" 
-                        hx-trigger="change" 
-                        hx-target="#repair-table-container" 
-                        hx-include="#repair-filter-form"
-                        hx-push-url="true">     
+                           placeholder="To"
+                           hx-get="{% url 'accounting:repair_list' %}"
+                           hx-trigger="change"
+                           hx-target="#repair-table-container"
+                           hx-include="#repair-filter-form"
+                           hx-push-url="true">
                 </div>
                 <div class="col-md-1">
-                    <button class="btn btn-secondary w-100" 
-                            hx-get="{% url 'accounting:repair_list' %}" 
-                            hx-target="#repair-table-container" 
-                            hx-include="#repair-filter-form" 
+                    <button class="btn btn-outline-secondary w-100" type="button"
+                            hx-get="{% url 'accounting:repair_list' %}"
+                            hx-target="#repair-table-container"
+                            hx-include="#repair-filter-form"
                             hx-vals='{"reset": "true"}'
-                            hx-push-url="true">    
+                            hx-push-url="true"
+                            title="Reset filters">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </button>
                 </div>
@@ -162,7 +164,7 @@
         </div>
     </div>
 
-    <!-- Table Container -->
+    <!-- Table -->
     <div id="repair-table-container">
         {% include "repairs/partials/repair_table.html" %}
     </div>
@@ -172,21 +174,20 @@
     document.addEventListener('DOMContentLoaded', function() {
         document.addEventListener('reloadRepairs', function() {
             const container = document.getElementById('repair-table-container');
-            if (container) {
-                const url = new URL(window.location.href);
-                const params = url.searchParams;
-                htmx.ajax('GET', "{% url 'accounting:repair_list' %}", {
-                    target: '#repair-table-container',
-                    swap: 'innerHTML',
-                    values: {
-                        search: params.get('search') || '',
-                        status: params.get('status') || '',
-                        customer: params.get('customer') || '',
-                        date_from: params.get('date_from') || '',
-                        date_to: params.get('date_to') || ''
-                    }
-                });
-            }
+            if (!container) return;
+            const url = new URL(window.location.href);
+            const params = url.searchParams;
+            htmx.ajax('GET', "{% url 'accounting:repair_list' %}", {
+                target: '#repair-table-container',
+                swap: 'innerHTML',
+                values: {
+                    search: params.get('search') || '',
+                    status: params.get('status') || '',
+                    customer: params.get('customer') || '',
+                    date_from: params.get('date_from') || '',
+                    date_to: params.get('date_to') || ''
+                }
+            });
         });
     });
 </script>

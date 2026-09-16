@@ -49,14 +49,7 @@
 
 <!-- Footer -->
 <div class="text-center border-top p-1">
-    <a href="#" class="text-decoration-none small"
-       hx-get="{% url 'customer:customer_notifications' %}"
-       hx-target="#main-content" hx-swap="innerHTML" hx-push-url="true"
-       onclick="event.stopPropagation();"
-       hx-on::after-request="
-           const dropdown = document.getElementById('notification-dropdown');
-           if (dropdown) dropdown.classList.remove('show');
-       ">
+    <a href="{% url 'customer:customer_notifications' %}" class="text-decoration-none small">
         <i class="bi bi-arrow-right-circle"></i> View all
     </a>
 </div>

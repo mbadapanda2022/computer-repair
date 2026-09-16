@@ -87,11 +87,21 @@
 </div>
 
 <script>
-    document.getElementById('repairCreateForm').addEventListener('submit', function() {
+    document.getElementById('repairCreateForm').addEventListener('submit', function(e) {
         const btn = this.querySelector('button[type="submit"]');
         if (btn) {
+            // Leave form submission intact but prevent double-click
             btn.disabled = true;
+            btn.dataset.originalHtml = btn.innerHTML;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Submitting...';
+            
+            // Restore after 10 seconds (safety net for errors)
+            setTimeout(() => {
+                if (btn.disabled) {
+                    btn.disabled = false;
+                    btn.innerHTML = btn.dataset.originalHtml;
+                }
+            }, 10000);
         }
     });
 </script>

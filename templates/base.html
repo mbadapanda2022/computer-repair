@@ -62,22 +62,33 @@
                     class="nav-link {% if request.resolver_match.url_name == 'notification_list' or 'notifications' in request.path %}active{% endif %}">
                         <i class="bi bi-bell"></i>
                         <span class="link-text">Notifications</span>
-                        {% if user|unread_count > 0 %}
-                        <span class="badge bg-danger ms-2">{{ user|unread_count }}</span>
-                        {% endif %}
+                        <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
+                            id="sidebar-notif-badge"
+                            hx-get="{% url 'accounting:notification_unread_count_text' %}"
+                            hx-trigger="load, every 30s"
+                            hx-swap="innerHTML">
+                            {{ user|unread_count }}
+                        </span>
                     </a>
                 </li>
+
+                <!-- Messages -->
                 <li>
-                    <a href="{% url 'accounting:message_list' %}" class="nav-link">
+                    <a href="{% url 'accounting:message_list' %}" 
+                    class="nav-link {% if request.resolver_match.url_name == 'message_list' or 'messages' in request.path %}active{% endif %}">
                         <i class="bi bi-envelope"></i>
                         <span class="link-text">Messages</span>
-                        <span class="badge bg-danger ms-2" 
-                            id="unread-badge"
+                        <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
+                            id="sidebar-msg-badge"
                             hx-get="{% url 'accounting:message_unread_count' %}"
-                            hx-trigger="load once"
-                            hx-swap="innerHTML">0</span>
+                            hx-trigger="load, every 30s"
+                            hx-swap="innerHTML">
+                            0
+                        </span>
                     </a>
                 </li>
+
+
                 <!-- Sales -->
                 <li>
                     <a href="{% url 'accounting:invoice_list' %}" 
@@ -225,7 +236,12 @@
                             <button class="btn btn-outline-secondary position-relative" type="button"
                                     id="notificationDropdown"
                                     data-bs-toggle="dropdown"
-                                    aria-expanded="false">
+                                    data-bs-auto-close="outside"
+                                    aria-expanded="false"
+                                    hx-get="{% url 'accounting:notification_dropdown' %}"
+                                    hx-target="#notification-dropdown"
+                                    hx-swap="innerHTML"
+                                    hx-trigger="click">
                                 <i class="bi bi-bell"></i>
                                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
                                     id="notificationCount"
@@ -238,7 +254,7 @@
                             <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 
                                 style="width:350px; max-height:400px; overflow-y:auto;"
                                 hx-get="{% url 'accounting:notification_dropdown' %}" 
-                                hx-trigger="load once, every 60s" 
+                                hx-trigger="load, every 30s" 
                                 hx-target="#notification-dropdown"
                                 hx-swap="innerHTML">
                                 <div class="text-center py-3 text-muted">Loading notifications...</div>

@@ -66,20 +66,23 @@
 </div>
 
 <script>
-(function() {
-    'use strict';
-    document.body.addEventListener('click', function(e) {
-        const btn = e.target.closest('.remove-part-btn');
-        if (!btn) return;
-        e.preventDefault();
+    (function() {
+        'use strict';
 
-        if (!confirm('Remove this part from the repair?')) return;
+        if (window.__partsRemoveInit) return;
+        window.__partsRemoveInit = true;
 
-        const url = btn.dataset.url;
-        htmx.ajax('POST', url, {
-            target: '#parts-container',
-            swap: 'innerHTML'
+        document.body.addEventListener('click', function(e) {
+            const btn = e.target.closest('.remove-part-btn');
+            if (!btn) return;
+            e.preventDefault();
+
+            if (!confirm('Remove this part from the repair?')) return;
+
+            htmx.ajax('POST', btn.dataset.url, {
+                target: '#parts-container',
+                swap: 'innerHTML'
+            });
         });
-    });
-})();
+    })();
 </script>

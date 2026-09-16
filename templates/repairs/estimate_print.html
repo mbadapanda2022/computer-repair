@@ -1,0 +1,236 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Estimate — {{ job.job_number }}</title>
+    <style>
+        @media print {
+            body { font-size: 11pt; margin: 1cm; }
+            .no-print { display: none !important; }
+            .table th, .table td { border: 1px solid #999; padding: 5px 8px; }
+            .table th { background: #e9ecef !important; -webkit-print-color-adjust: exact; }
+        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }
+        .header { text-align: center; border-bottom: 3px double #333; padding-bottom: 12px; margin-bottom: 20px; }
+        .header h2 { margin: 5px 0; }
+        .header p { margin: 3px 0; color: #666; font-size: 10pt; }
+        .company-logo { max-height: 60px; margin-bottom: 5px; }
+        .estimate-title {
+            text-align: center;
+            background: #fff3cd;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            font-size: 14pt;
+            color: #856404;
+            border: 1px dashed #ffc107;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid #0d6efd;
+        }
+        .info-box .label { color: #666; font-size: 9pt; text-transform: uppercase; font-weight: 600; }
+        .info-box .value { font-size: 11pt; font-weight: bold; margin-top: 2px; }
+        .table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .table th { background: #e9ecef; font-weight: 600; }
+        .table .text-end { text-align: right; }
+        .total-row { background: #d1e7dd !important; font-weight: bold; font-size: 13pt; }
+        .terms {
+            background: #fff3cd;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 9.5pt;
+            margin-top: 20px;
+            border-left: 3px solid #ffc107;
+        }
+        .terms h4 { margin: 0 0 8px 0; color: #856404; }
+        .terms ul { margin: 0; padding-left: 20px; }
+        .signature-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px dashed #ccc;
+        }
+        .signature-box {
+            text-align: center;
+            width: 45%;
+        }
+        .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 40px;
+            padding-top: 5px;
+            font-size: 9pt;
+            color: #666;
+        }
+        .btn { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 11pt; text-decoration: none; display: inline-block; margin: 3px; }
+        .btn-primary { background: #0d6efd; color: white; }
+        .btn-success { background: #198754; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .no-print { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .footer { text-align: center; font-size: 9pt; color: #999; margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        {% if logo_exists %}
+            <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
+        {% endif %}
+        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <p>
+            {{ company.address|default:"" }}<br>
+            {% if company.phone %}📞 {{ company.phone }} | {% endif %}
+            {% if company.email %}✉️ {{ company.email }} | {% endif %}
+            {% if company.gstin %}GST: {{ company.gstin }}{% endif %}
+        </p>
+    </div>
+
+    <!-- ESTIMATE TITLE -->
+    <div class="estimate-title">
+        ⚡ REPAIR ESTIMATE — {{ job.job_number }}
+    </div>
+
+    <!-- INFO GRID -->
+    <div class="info-grid">
+        <div class="info-box">
+            <div class="label">Customer</div>
+            <div class="value">{{ job.customer.name }}</div>
+            {% if job.customer.phone %}<small class="text-muted"><i>📞 {{ job.customer.phone }}</i></small>{% endif %}
+        </div>
+        <div class="info-box">
+            <div class="label">Estimate Date</div>
+            <div class="value">{% now "d M Y" %}</div>
+        </div>
+        <div class="info-box">
+            <div class="label">Device</div>
+            <div class="value">{{ job.device_model }}</div>
+            {% if job.serial_number %}<small class="text-muted"><i>SN: {{ job.serial_number }}</i></small>{% endif %}
+        </div>
+        <div class="info-box">
+            <div class="label">Received On</div>
+            <div class="value">
+                {% if job.received_at %}{{ job.received_at|date:"d M Y" }}{% else %}—{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ISSUE & DIAGNOSIS -->
+    <table class="table">
+        <tr>
+            <th style="width: 25%;">Reported Issue</th>
+            <td>{{ job.issue_description|default:"—" }}</td>
+        </tr>
+        {% if job.diagnosis_report %}
+        <tr>
+            <th>Diagnosis</th>
+            <td>{{ job.diagnosis_report }}</td>
+        </tr>
+        {% endif %}
+        {% if job.action_taken %}
+        <tr>
+            <th>Proposed Action</th>
+            <td>{{ job.action_taken }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <!-- PARTS & COST BREAKUP -->
+    <h3 style="margin-top: 25px;">Cost Breakdown</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Item</th>
+                <th class="text-end" style="width: 100px;">Qty</th>
+                <th class="text-end" style="width: 120px;">Rate (₹)</th>
+                <th class="text-end" style="width: 130px;">Amount (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for part in parts %}
+            <tr>
+                <td>{{ part.product.name }}</td>
+                <td class="text-end">{{ part.quantity }}</td>
+                <td class="text-end">{{ part.unit_price|floatformat:2 }}</td>
+                <td class="text-end">{{ part.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+
+            {% if estimated_labour > 0 %}
+            <tr>
+                <td>Labour / Service Charge</td>
+                <td class="text-end">1</td>
+                <td class="text-end">{{ estimated_labour|floatformat:2 }}</td>
+                <td class="text-end">{{ estimated_labour|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+
+            {% if not parts and estimated_labour == 0 %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">
+                    <i>Estimate only (no parts specified yet)</i>
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td colspan="3" class="text-end">Total Estimate</td>
+                <td class="text-end">₹{{ total_estimate|floatformat:2 }}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- TERMS -->
+    <div class="terms">
+        <h4><i>📋 Terms & Conditions</i></h4>
+        <ul>
+            <li>This is an <strong>estimate only</strong>. Final amount may vary if additional issues are found.</li>
+            <li>Repair will start only after your approval.</li>
+            <li>Device will be kept in safe custody; shop is not responsible for data loss.</li>
+            <li>Please backup your data before repair.</li>
+            <li>Estimate valid for <strong>15 days</strong> from date of issue.</li>
+        </ul>
+    </div>
+
+    <!-- SIGNATURE -->
+    <div class="signature-row">
+        <div class="signature-box">
+            <div class="signature-line">Customer Signature (Approval)</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line">For {{ company.name|default:"A1 Computer Solutions" }}</div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        <p>This is a computer-generated estimate. No signature required for the issued copy.</p>
+        <p>Generated on {% now "d M Y, h:i A" %}</p>
+    </div>
+
+    <!-- BUTTONS (Screen Only) -->
+    <div class="no-print">
+        <hr>
+        <button onclick="window.print()" class="btn btn-primary">🖨️ Print Estimate</button>
+        <button onclick="window.close()" class="btn btn-secondary">❌ Close</button>
+        <a href="{% url 'accounting:repair_detail' job.pk %}" class="btn btn-success">← Back to Repair</a>
+        <p style="text-align:center; margin-top:10px; font-size:9pt; color:#999;">
+            💡 Tip: <strong>Ctrl+P</strong> for direct print
+        </p>
+    </div>
+
+</body>
+</html>

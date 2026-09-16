@@ -1,0 +1,146 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Warranty Card — {{ job.job_number }}</title>
+    <style>
+        @media print { .no-print { display: none !important; } }
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; color: #333; }
+        .warranty-card {
+            border: 3px solid #198754;
+            border-radius: 12px;
+            padding: 25px;
+            background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%);
+        }
+        .header { text-align: center; border-bottom: 2px solid #198754; padding-bottom: 12px; margin-bottom: 20px; }
+        .header h2 { color: #198754; margin: 5px 0; }
+        .warranty-badge {
+            display: inline-block;
+            background: #198754;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 13pt;
+            margin: 10px 0;
+        }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }
+        .info-box { padding: 10px; background: white; border-radius: 6px; border-left: 3px solid #198754; }
+        .info-box .label { color: #666; font-size: 9pt; text-transform: uppercase; font-weight: 600; }
+        .info-box .value { font-size: 11pt; font-weight: bold; margin-top: 2px; }
+        .expiry-box {
+            background: #ffc107;
+            color: #000;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            margin: 20px 0;
+            font-size: 12pt;
+            font-weight: bold;
+        }
+        .terms { background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 20px; font-size: 9.5pt; }
+        .terms h4 { margin: 0 0 8px 0; color: #198754; }
+        .terms ul { margin: 0; padding-left: 20px; }
+        .footer { text-align: center; font-size: 9pt; color: #666; margin-top: 30px; padding-top: 15px; border-top: 1px solid #eee; }
+        .logo { max-height: 60px; margin-bottom: 5px; }
+        .btn { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 11pt; text-decoration: none; display: inline-block; margin: 3px; }
+        .btn-primary { background: #0d6efd; color: white; }
+        .btn-success { background: #198754; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .no-print { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .stamp {
+            text-align: center;
+            color: #198754;
+            border: 3px double #198754;
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            transform: rotate(-5deg);
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="warranty-card">
+        <div class="header">
+            {% if logo_exists %}
+                <img src="{{ company.logo.url }}" alt="Logo" class="logo"><br>
+            {% endif %}
+            <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+            <p style="color: #666; font-size: 10pt; margin: 3px 0;">
+                {{ company.address|default:"" }}
+                {% if company.phone %}<br>📞 {{ company.phone }}{% endif %}
+            </p>
+            <div class="warranty-badge">🛡️ WARRANTY CERTIFICATE</div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-box">
+                <div class="label">Customer</div>
+                <div class="value">{{ job.customer.name }}</div>
+                {% if job.customer.phone %}<small class="text-muted">📞 {{ job.customer.phone }}</small>{% endif %}
+            </div>
+            <div class="info-box">
+                <div class="label">Job Number</div>
+                <div class="value">{{ job.job_number }}</div>
+            </div>
+            <div class="info-box">
+                <div class="label">Device Model</div>
+                <div class="value">{{ job.device_model }}</div>
+                {% if job.serial_number %}<small class="text-muted">SN: {{ job.serial_number }}</small>{% endif %}
+            </div>
+            <div class="info-box">
+                <div class="label">Delivery Date</div>
+                <div class="value">
+                    {% if job.delivery_date %}{{ job.delivery_date|date:"d M Y" }}{% else %}—{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="expiry-box">
+            ⏰ Warranty valid until <u>{{ expires_on|date:"d M Y" }}</u>
+            {% if days_left is not None %}
+                <br><small>{{ days_left }} days remaining ({{ warranty_days }}-day warranty)</small>
+            {% endif %}
+        </div>
+
+        {% if job.action_taken or job.diagnosis_report %}
+        <div style="background: white; padding: 12px; border-radius: 6px; margin: 15px 0;">
+            <strong style="color: #198754;">Service Performed:</strong>
+            <p style="margin: 5px 0 0 0; font-size: 10pt;">
+                {{ job.action_taken|default:job.diagnosis_report }}
+            </p>
+        </div>
+        {% endif %}
+
+        <div class="terms">
+            <h4><i>📋 Warranty Terms & Coverage</i></h4>
+            <ul>
+                <li><strong>Covered:</strong> Workmanship on the repair performed. Replacement parts (as per manufacturer warranty).</li>
+                <li><strong>Not Covered:</strong> Physical damage, water damage, misuse, unauthorized repair by third party, software issues.</li>
+                <li><strong>Data:</strong> Warranty does not cover data loss. Please keep regular backups.</li>
+                <li><strong>Claim:</strong> Bring this card along with the original invoice.</li>
+                <li>Warranty is <strong>non-transferable</strong>.</li>
+            </ul>
+        </div>
+
+        <div class="stamp">✓ CERTIFIED</div>
+
+        <div class="footer">
+            <p><strong>Keep this card safe.</strong> Required for any warranty claim.</p>
+            <p>Generated on {{ job.delivered_at|date:"d M Y, h:i A"|default:job.delivery_date|date:"d M Y" }}</p>
+        </div>
+    </div>
+
+    <div class="no-print">
+        <hr>
+        <button onclick="window.print()" class="btn btn-success">🖨️ Print Warranty Card</button>
+        <button onclick="window.close()" class="btn btn-secondary">❌ Close</button>
+        <a href="{% url 'accounting:repair_detail' job.pk %}" class="btn btn-primary">← Back to Repair</a>
+    </div>
+
+</body>
+</html>
