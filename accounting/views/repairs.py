@@ -568,69 +568,206 @@ def repair_detail(request, pk):
 
 
 # ════════════════════════════════════════════════════════════
-# 7. UPDATE STATUS
+# STATUS CHANGE — Context-aware modal
 # ════════════════════════════════════════════════════════════
+
+# Configuration for each new-status modal
+STATUS_MODAL_CONFIG = {
+    'received': {
+        'title': 'Mark as Received',
+        'icon': 'box-arrow-in-down',
+        'color': 'primary',
+        'description': 'Device has physically arrived at the shop. Fill in reception details.',
+    },
+    'diagnosis': {
+        'title': 'Start Diagnosis',
+        'icon': 'search',
+        'color': 'info',
+        'description': 'What did you find after inspecting the device?',
+    },
+    'repairing': {
+        'title': 'Start Repairing',
+        'icon': 'arrow-repeat',
+        'color': 'warning',
+        'description': 'Confirm repair work is starting.',
+    },
+    'ready': {
+        'title': 'Mark Ready for Delivery',
+        'icon': 'check2-circle',
+        'color': 'primary',
+        'description': 'Repair complete. Device ready for customer pickup.',
+    },
+    'delivered': {
+        'title': 'Mark as Delivered',
+        'icon': 'truck',
+        'color': 'success',
+        'description': 'Device is being handed over to the customer. Fill in delivery details.',
+    },
+    'cancelled': {
+        'title': 'Cancel Repair',
+        'icon': 'x-circle',
+        'color': 'danger',
+        'description': 'This will remove all parts and reverse stock. Cannot be undone.',
+    },
+}
+
+
 @login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def update_repair_status(request, pk):
+    """
+    Two modes (single URL):
+
+    Mode A — Dropdown submit (POST has `status`):
+        → Return context-aware modal for that status.
+
+    Mode B — Modal submit (POST has `new_status`):
+        → Apply status + extra fields atomically.
+    """
     job = get_object_or_404(RepairJob, pk=pk)
 
     if request.method != 'POST':
         return redirect_to_staff('repair_detail', pk=pk)
 
-    new_status = request.POST.get('status')
+    # ════════════════════════════════════════════════════
+    # MODE A — Dropdown → Show modal
+    # ════════════════════════════════════════════════════
+    if 'new_status' not in request.POST:
+        new_status = (request.POST.get('status') or '').strip()
+
+        # Validation
+        if not new_status or new_status not in dict(RepairJob.STATUS_CHOICES):
+            return toast_only_response(
+                {'level': 'danger', 'message': 'Invalid status.'},
+                status=400,
+            )
+
+        if new_status == job.status:
+            return toast_only_response(
+                {'level': 'warning',
+                 'message': f'Status is already "{job.get_status_display()}".'},
+            )
+
+        if job.status in ('delivered', 'cancelled'):
+            return toast_only_response(
+                {'level': 'error',
+                 'message': f'Cannot change from {job.get_status_display()}.'},
+                status=400,
+            )
+
+        config = STATUS_MODAL_CONFIG.get(new_status, {
+            'title': 'Update Status',
+            'icon': 'arrow-repeat',
+            'color': 'primary',
+            'description': '',
+        })
+
+        return render(request, 'repairs/partials/status_change_modal.html', {
+            'job': job,
+            'new_status': new_status,
+            'config': config,
+        })
+
+    # ════════════════════════════════════════════════════
+    # MODE B — Modal submit → Apply
+    # ════════════════════════════════════════════════════
+    new_status = (request.POST.get('new_status') or '').strip()
+    old_status = job.status
+
     if not new_status or new_status not in dict(RepairJob.STATUS_CHOICES):
         return toast_only_response(
-            {'level': 'danger', 'message': 'Invalid status selected.'},
-            status=400,
-        )
-
-    old_status = job.status
-    if old_status == new_status:
-        return toast_only_response(
-            {'level': 'warning', 'message': 'Status is already set to that value.'},
-            status=200,
+            {'level': 'danger', 'message': 'Invalid status.'}, status=400,
         )
 
     if old_status in ('delivered', 'cancelled'):
         return toast_only_response(
             {'level': 'error',
-             'message': f'Cannot change status from {job.get_status_display()}.'},
+             'message': f'Cannot change from {job.get_status_display()}.'},
             status=400,
         )
 
+    # ── Collect optional fields from POST ─────────────
+    DATE_FIELDS = {'received_at', 'ready_at', 'delivery_date'}
+    TEXT_FIELDS = {
+        'received_by', 'received_remarks', 'diagnosis_report',
+        'delivered_by', 'delivered_to_name', 'delivered_to_phone',
+        'delivered_to_designation', 'delivery_remarks',
+    }
+
+    extra = {}
+    from datetime import datetime as dt
+
+    for field in DATE_FIELDS | TEXT_FIELDS:
+        if field not in request.POST:
+            continue
+        raw = (request.POST.get(field) or '').strip()
+        if not raw:
+            continue
+        if field in DATE_FIELDS:
+            try:
+                extra[field] = dt.strptime(raw, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                pass
+        else:
+            extra[field] = raw
+
+    # ── Apply ─────────────────────────────────────────
     with transaction.atomic():
+        # On cancellation: delete parts (reverses stock via RepairPart.delete)
         if new_status == 'cancelled' and old_status != 'cancelled':
             for part in job.parts.all():
                 part.delete()
 
         job.status = new_status
-        job.save(update_fields=['status'])
+        for field, value in extra.items():
+            setattr(job, field, value)
 
+        # Save only changed fields — model auto-stamps missing dates
+        update_fields = ['status'] + list(extra.keys())
+        job.save(update_fields=update_fields)
+
+        # Notify customer
         send_notification_to_contact(
             job.customer,
             title=f"Repair Status Updated: {job.job_number}",
-            message=f"Your repair for {job.device_model} is now {job.get_status_display()}.",
+            message=(
+                f"Your repair for {job.device_model} is now "
+                f"{job.get_status_display()}."
+            ),
             link=reverse('customer:customer_repair_detail', args=[job.pk]),
             notif_type='info',
             category='repairs',
             send_email=False,
         )
 
-        if is_htmx(request):
-            # Rebuild context for updated status row
-            days, level = _compute_aging(job)
-            return render(request, 'repairs/partials/status_row.html', {
-                'job': job,
-                'status_choices': RepairJob.STATUS_CHOICES,
-                'days_in_shop': days,
-                'aging_level': level,
-            })
+    logger.info(
+        "Status changed | job=%s | %s → %s | by=%s",
+        job.job_number, old_status, new_status, request.user.username,
+    )
 
-        messages.success(request, f"Status updated to {job.get_status_display()}.")
-        return redirect_to_staff('repair_detail', pk=pk)
+    # ── Response ──────────────────────────────────────
+    if is_htmx(request):
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse(
+            'accounting:repair_detail', args=[job.pk],
+        )
+        response['HX-Trigger'] = json.dumps({
+            'closeModal': '',
+            'showToast': {
+                'level': 'success',
+                'message': (
+                    f'Status updated to {job.get_status_display()}.'
+                ),
+            },
+        })
+        return response
 
+    messages.success(
+        request,
+        f"Status updated to {job.get_status_display()}.",
+    )
+    return redirect_to_staff('repair_detail', pk=job.pk)
 
 # ════════════════════════════════════════════════════════════
 # 8. ADD REPAIR PART
