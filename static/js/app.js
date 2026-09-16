@@ -199,11 +199,11 @@
             const target = evt.detail && evt.detail.target;
             if (!target || target.id !== 'mainModalContent') return;
 
-            // Safety: don't open modal if content is empty/whitespace
+            // Safety: skip modal-open if content is empty/whitespace.
+            // Prevents stuck backdrop when server returns HX-Reswap=none
+            // or any other empty payload.
             const html = (target.innerHTML || '').trim();
-            if (!html) {
-                return;
-            }
+            if (!html) return;
 
             let modal = bootstrap.Modal.getInstance(mainModalEl);
             if (!modal) {

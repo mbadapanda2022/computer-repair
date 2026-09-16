@@ -169,10 +169,16 @@ def htmx_response(
 # ============================================================
 def toast_only_response(toast, status=200):
     """
-    Returns an HTTP response that only triggers a toast notification.
-    Useful for background operations or simple actions.
+    Return an HTTP response that only triggers a toast notification,
+    without swapping any content.
+
+    IMPORTANT: `HX-Reswap: none` prevents the empty response from being
+    swapped into the target. Without it, an empty response targeting
+    `#mainModalContent` would replace the modal body with nothing,
+    leaving the backdrop visible but the modal blank.
     """
     response = HttpResponse(status=status)
+    response['HX-Reswap'] = 'none'
     response['HX-Trigger'] = json.dumps({
         'showToast': {
             'level': toast.get('level', 'info'),
