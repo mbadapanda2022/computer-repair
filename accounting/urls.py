@@ -102,6 +102,11 @@ urlpatterns = [
     path('repairs/print-list/', repairs.repair_list_print, name='repair_list_print'),
     path('repairs/export/excel/', repairs.export_repairs_excel, name='export_repairs_excel'),
     path('repairs/<int:pk>/staff-approve/', repairs.staff_approve_estimate, name='staff_approve_estimate'),
+    path('repairs/<int:pk>/quick-update/', repairs.quick_update_repair, name='quick_update_repair'),
+    # ===== Repairs — Estimate & Warranty =====
+    path('repairs/<int:pk>/send-estimate/', repairs.send_estimate_to_customer, name='send_estimate_to_customer'),
+    path('repairs/<int:pk>/estimate/print/', repairs.estimate_print, name='estimate_print'),
+    path('repairs/<int:pk>/warranty-card/', repairs.warranty_card_print, name='warranty_card_print'),
 
     # ===== Reports =====
     path('reports/sales/', sales_report, name='sales_report'),

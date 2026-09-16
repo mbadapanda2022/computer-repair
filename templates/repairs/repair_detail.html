@@ -3,194 +3,275 @@
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
-    
-    <!-- ============================================================ -->
-    <!-- HEADER WITH ACTION BUTTONS                                   -->
-    <!-- ============================================================ -->
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- HEADER                                                  -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
-        <div>
-            <div class="d-flex align-items-center gap-3">
-                <div class="bg-primary bg-opacity-10 p-3 rounded-3">
-                    <i class="bi bi-tools fs-2 text-primary"></i>
-                </div>
-                <div>
-                    <h3 class="fw-bold mb-0">{{ job.job_number }}</h3>
-                    <div class="d-flex flex-wrap gap-3 mt-1">
-                        {% if job.submitted_at %}
-                        <small class="text-muted">
-                            <i class="bi bi-cloud-upload me-1"></i>
-                            Submitted: {{ job.submitted_at|date:"d M Y, H:i" }}
-                        </small>
-                        {% endif %}
-                        {% if job.received_at %}
-                        <small class="text-success">
-                            <i class="bi bi-box-arrow-in-down me-1"></i>
-                            Received: {{ job.received_at|date:"d M Y" }}
-                            {% if job.received_by %}({{ job.received_by }}){% endif %}
-                        </small>
-                        {% else %}
-                        <small class="text-warning">
-                            <i class="bi bi-hourglass-split me-1"></i>
-                            Awaiting device at shop
-                        </small>
-                        {% endif %}
-                        {% if job.ready_at %}
-                        <small class="text-primary">
-                            <i class="bi bi-check2-circle me-1"></i>
-                            Ready: {{ job.ready_at|date:"d M Y" }}
-                        </small>
-                        {% endif %}
-                        {% if job.delivered_at %}
-                        <small class="text-success">
-                            <i class="bi bi-truck me-1"></i>
-                            Delivered: {{ job.delivered_at|date:"d M Y, H:i" }}
-                        </small>
-                        {% endif %}
-                    </div>
+        <div class="d-flex align-items-center gap-3">
+            <div class="bg-primary bg-opacity-10 p-3 rounded-3">
+                <i class="bi bi-tools fs-2 text-primary"></i>
+            </div>
+            <div>
+                <h3 class="fw-bold mb-0">
+                    {{ job.job_number }}
+                    {% if aging_level == 'danger' %}
+                        <span class="badge bg-danger ms-2">OVERDUE {{ days_in_shop }}d</span>
+                    {% elif aging_level == 'warning' %}
+                        <span class="badge bg-warning text-dark ms-2">Aging {{ days_in_shop }}d</span>
+                    {% endif %}
+                </h3>
+                <div class="text-muted small mt-1">
+                    {{ job.customer.name }} • {{ job.device_model }}
+                    {% if job.serial_number %} • SN: {{ job.serial_number }}{% endif %}
                 </div>
             </div>
         </div>
+
         <div class="d-flex gap-2 flex-wrap mt-2 mt-md-0">
-            
-            <!-- Staff Approve Estimate Button -->
             {% if job.estimate_status == 'pending' and job.estimated_cost %}
-                <button class="btn btn-success" 
-                        hx-get="{% url 'accounting:staff_approve_estimate' job.pk %}" 
-                        hx-target="#mainModalContent" 
-                        hx-trigger="click">
+                <button class="btn btn-success"
+                        hx-get="{% url 'accounting:staff_approve_estimate' job.pk %}"
+                        hx-target="#mainModalContent" hx-trigger="click">
                     <i class="bi bi-check-circle"></i> Approve Estimate
                 </button>
             {% endif %}
-            {% if not job.invoice %}{% if job.status == 'ready' or job.status == 'delivered' %}
-                <button class="btn btn-success" 
-                        hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}" 
-                        hx-target="#mainModalContent"
-                        hx-trigger="click">
-                    <i class="bi bi-receipt"></i> Create Invoice
+            <!-- Send Estimate to Customer -->
+            {% if job.estimated_cost and job.status != 'cancelled' %}
+                <button class="btn btn-warning"
+                        hx-get="{% url 'accounting:send_estimate_to_customer' job.pk %}"
+                        hx-target="#mainModalContent" hx-trigger="click"
+                        title="Send estimate to customer">
+                    <i class="bi bi-send"></i> Send Estimate
                 </button>
-            {% endif %}{% endif %}
-            
-            <!-- View Invoice Button -->
+            {% endif %}
+
+            <!-- Print Estimate -->
+            {% if job.estimated_cost %}
+                <a href="{% url 'accounting:estimate_print' job.pk %}"
+                target="_blank" class="btn btn-outline-dark"
+                title="Print estimate slip">
+                    <i class="bi bi-file-earmark-text"></i> Print Estimate
+                </a>
+            {% endif %}
+
+            <!-- Warranty Card (only after delivery) -->
+            {% if job.status == 'delivered' %}
+                <a href="{% url 'accounting:warranty_card_print' job.pk %}"
+                target="_blank" class="btn btn-outline-success"
+                title="Print warranty card for customer">
+                    <i class="bi bi-shield-check"></i> Warranty Card
+                </a>
+            {% endif %}
+            {% if not job.invoice %}
+                {% if job.status == 'ready' or job.status == 'delivered' %}
+                    <button class="btn btn-success"
+                            hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}"
+                            hx-target="#mainModalContent" hx-trigger="click">
+                        <i class="bi bi-receipt"></i> Create Invoice
+                    </button>
+                {% endif %}
+            {% endif %}
             {% if job.invoice %}
-                <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}" class="btn btn-outline-primary">
+                <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}"
+                   class="btn btn-outline-primary">
                     <i class="bi bi-receipt"></i> View Invoice
                 </a>
             {% endif %}
-            
-            <!-- Edit Button -->
+
+            <!-- Quick Update Button -->
+            {% if job.status != 'delivered' and job.status != 'cancelled' %}
+                <button class="btn btn-outline-primary"
+                        hx-get="{% url 'accounting:quick_update_repair' job.pk %}"
+                        hx-target="#mainModalContent"
+                        hx-trigger="click"
+                        title="Quick edit estimated cost, diagnosis, etc.">
+                    <i class="bi bi-lightning-charge"></i> Quick Update
+                </button>
+            {% endif %}
+
             <a href="{% url 'accounting:repair_update' job.pk %}" class="btn btn-warning">
                 <i class="bi bi-pencil"></i> Edit
             </a>
-            
-            <!-- Print Button -->
-            <a href="{% url 'accounting:repair_print' job.pk %}" class="btn btn-info text-white" target="_blank">
+            <a href="{% url 'accounting:repair_print' job.pk %}"
+               class="btn btn-info text-white" target="_blank">
                 <i class="bi bi-printer"></i> Print
             </a>
-
-            <!-- Share Tracking Button -->
-            <button class="btn btn-outline-success" 
-                    data-bs-toggle="modal" 
-                    data-bs-target="#trackingModal">
+            <button class="btn btn-outline-success"
+                    data-bs-toggle="modal" data-bs-target="#trackingModal">
                 <i class="bi bi-share"></i> Share Tracking
             </button>
-            
-            <!-- Back Button -->
             <a href="{% url 'accounting:repair_list' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- STATUS BANNER                                               -->
-    <!-- ============================================================ -->
-    <div class="alert 
-        {% if job.status == 'delivered' %}alert-success
-        {% elif job.status == 'cancelled' %}alert-danger
-        {% elif job.status == 'ready' %}alert-primary
-        {% elif job.status == 'repairing' %}alert-warning
-        {% elif job.status == 'diagnosis' %}alert-info
-        {% else %}alert-secondary{% endif %} 
-        d-flex align-items-center gap-3 mb-4">
-        <i class="bi 
-            {% if job.status == 'delivered' %}bi-check-circle-fill fs-3
-            {% elif job.status == 'cancelled' %}bi-x-circle-fill fs-3
-            {% elif job.status == 'ready' %}bi-check-circle fs-3
-            {% elif job.status == 'repairing' %}bi-arrow-repeat fs-3
-            {% elif job.status == 'diagnosis' %}bi-search fs-3
-            {% else %}bi-clock fs-3{% endif %}">
-        </i>
-        <div>
-            <strong class="fs-5">{{ job.get_status_display }}</strong>
-            <span class="text-muted ms-2">| {{ job.job_number }}</span>
-            <br>
-            <small>{{ job.customer.name }} • {{ job.device_model }}</small>
-        </div>
-        <div class="ms-auto">
-            <span class="badge fs-6 
-                {% if job.estimate_status == 'pending' %}bg-warning text-dark
-                {% elif job.estimate_status == 'approved' %}bg-success
-                {% elif job.estimate_status == 'rejected' %}bg-danger
-                {% elif job.estimate_status == 'on_hold' %}bg-secondary
-                {% else %}bg-secondary{% endif %}">
-                <i class="bi 
-                    {% if job.estimate_status == 'pending' %}bi-hourglass-split
-                    {% elif job.estimate_status == 'approved' %}bi-check-circle
-                    {% elif job.estimate_status == 'rejected' %}bi-x-circle
-                    {% elif job.estimate_status == 'on_hold' %}bi-pause-circle
-                    {% else %}bi-dash-circle{% endif %} me-1">
-                </i>
-                {{ job.get_estimate_status_display|default:"No Estimate" }}
-            </span>
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- STATUS PIPELINE                                         -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    {% if job.status != 'cancelled' %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                {% for step in status_pipeline %}
+                    <div class="d-flex align-items-center flex-grow-1">
+                        <div class="text-center flex-grow-1">
+                            <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center
+                                {% if step.state == 'done' %}bg-success text-white
+                                {% elif step.state == 'current' %}bg-primary text-white
+                                {% else %}bg-light text-muted border{% endif %}"
+                                style="width:40px;height:40px;">
+                                {% if step.state == 'done' %}
+                                    <i class="bi bi-check-lg"></i>
+                                {% elif step.state == 'current' %}
+                                    <i class="bi bi-circle-fill" style="font-size:8px;"></i>
+                                {% else %}
+                                    <i class="bi bi-circle" style="font-size:8px;"></i>
+                                {% endif %}
+                            </div>
+                            <div class="small mt-1
+                                {% if step.state == 'current' %}fw-bold text-primary
+                                {% elif step.state == 'done' %}text-success
+                                {% else %}text-muted{% endif %}">
+                                {{ step.label }}
+                            </div>
+                        </div>
+                        {% if not forloop.last %}
+                            <div class="flex-grow-1 border-top border-2 mx-2"
+                                 style="min-width:20px;
+                                        {% if step.state == 'done' %}border-success!important;
+                                        {% else %}border-secondary opacity-25{% endif %}">
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
+    {% else %}
+    <div class="alert alert-danger d-flex align-items-center mb-4">
+        <i class="bi bi-x-circle-fill fs-3 me-3"></i>
+        <div>
+            <strong>This repair job has been cancelled.</strong>
+            <div class="small">No further actions can be taken.</div>
+        </div>
+    </div>
+    {% endif %}
 
-    <!-- ============================================================ -->
-    <!-- MAIN CONTENT ROW                                            -->
-    <!-- ============================================================ -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- AGING ALERT                                             -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    {% if aging_level == 'danger' %}
+    <div class="alert alert-danger d-flex align-items-center mb-4">
+        <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+        <div>
+            <strong>Overdue — {{ days_in_shop }} days in shop.</strong>
+            <div class="small">Please prioritize this repair or update the customer.</div>
+        </div>
+    </div>
+    {% elif aging_level == 'warning' %}
+    <div class="alert alert-warning d-flex align-items-center mb-4">
+        <i class="bi bi-clock-history fs-3 me-3"></i>
+        <div>
+            <strong>Aging — {{ days_in_shop }} days in shop.</strong>
+            <div class="small">Consider following up soon.</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- WARRANTY BANNER (if delivered)                          -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    {% if job.status == 'delivered' and warranty_days is not None %}
+    <div class="alert {% if warranty_days > 7 %}alert-success{% elif warranty_days > 0 %}alert-warning{% else %}alert-secondary{% endif %} d-flex align-items-center mb-4">
+        <i class="bi bi-shield-check fs-3 me-3"></i>
+        <div class="flex-grow-1">
+            <strong>Warranty Status:</strong>
+            {% if warranty_days > 0 %}
+                {{ warranty_days }} days remaining (expires {{ warranty_expires|date:"d M Y" }})
+            {% else %}
+                Warranty expired on {{ warranty_expires|date:"d M Y" }}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- MAIN CONTENT — 2 COLUMN                                -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="row g-4">
-        
-        <!-- ===================== LEFT COLUMN ===================== -->
+
+        <!-- ═══════════ LEFT COLUMN ═══════════ -->
         <div class="col-xl-7 col-lg-7">
-            
+
             <!-- Customer & Device Card -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="fw-bold mb-0">
                         <i class="bi bi-person-circle text-primary me-2"></i>Customer & Device
                     </h5>
-                    <a href="{% url 'accounting:contact_detail_modal' job.customer.pk %}" 
-                       class="btn btn-sm btn-outline-primary"
-                       hx-get="{% url 'accounting:contact_detail_modal' job.customer.pk %}"
-                       hx-target="#mainModalContent"
-                       hx-trigger="click">
-                        <i class="bi bi-eye"></i> View Customer
-                    </a>
+                    <div class="d-flex gap-1">
+                        {% if job.customer.phone %}
+                            <a href="tel:{{ job.customer.phone }}"
+                               class="btn btn-sm btn-outline-success" title="Call">
+                                <i class="bi bi-telephone"></i>
+                            </a>
+                            <a href="https://wa.me/91{{ job.customer.phone }}"
+                               target="_blank"
+                               class="btn btn-sm btn-outline-success" title="WhatsApp">
+                                <i class="bi bi-whatsapp"></i>
+                            </a>
+                        {% endif %}
+                        {% if job.customer.email %}
+                            <a href="mailto:{{ job.customer.email }}"
+                               class="btn btn-sm btn-outline-primary" title="Email">
+                                <i class="bi bi-envelope"></i>
+                            </a>
+                        {% endif %}
+                        <button class="btn btn-sm btn-outline-secondary"
+                                hx-get="{% url 'accounting:contact_detail_modal' job.customer.pk %}"
+                                hx-target="#mainModalContent" hx-trigger="click"
+                                title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-3">
+                            <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-3 h-100">
                                 <i class="bi bi-person fs-3 text-primary"></i>
-                                <div>
-                                    <div class="fw-bold">{{ job.customer.name }}</div>
-                                    <small class="text-muted">
-                                        {% if job.customer.phone %}<i class="bi bi-phone me-1"></i>{{ job.customer.phone }}{% endif %}
-                                        {% if job.customer.email %}<br><i class="bi bi-envelope me-1"></i>{{ job.customer.email }}{% endif %}
+                                <div class="min-w-0">
+                                    <div class="fw-bold text-truncate">{{ job.customer.name }}</div>
+                                    <small class="text-muted d-block">
+                                        {% if job.customer.phone %}
+                                            <i class="bi bi-phone me-1"></i>{{ job.customer.phone }}
+                                        {% endif %}
                                     </small>
+                                    {% if job.customer.email %}
+                                        <small class="text-muted d-block text-truncate">
+                                            <i class="bi bi-envelope me-1"></i>{{ job.customer.email }}
+                                        </small>
+                                    {% endif %}
+                                    {% if job.customer.gstin %}
+                                        <small class="text-muted d-block">
+                                            <i class="bi bi-file-earmark-text me-1"></i>GSTIN: {{ job.customer.gstin }}
+                                        </small>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-3">
+                            <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-3 h-100">
                                 <i class="bi bi-laptop fs-3 text-warning"></i>
-                                <div>
-                                    <div class="fw-bold">{{ job.device_model }}</div>
-                                    <small class="text-muted">
+                                <div class="min-w-0">
+                                    <div class="fw-bold text-truncate">{{ job.device_model }}</div>
+                                    <small class="text-muted d-block">
                                         {% if job.serial_number %}
                                             <i class="bi bi-upc-scan me-1"></i>SN: {{ job.serial_number }}
                                         {% else %}
-                                            <span class="text-muted">No serial number</span>
+                                            No serial number
                                         {% endif %}
                                     </small>
                                 </div>
@@ -211,36 +292,84 @@
                     <div class="row g-3">
                         <div class="col-md-6">
                             <div class="p-3 bg-light rounded-3 h-100">
-                                <small class="text-muted d-block mb-1">Issue Description</small>
-                                <p class="mb-0">{{ job.issue_description|default:"—" }}</p>
+                                <small class="text-muted d-block mb-1 text-uppercase fw-semibold" style="font-size:10px;">
+                                    Issue Description
+                                </small>
+                                <p class="mb-0 small">{{ job.issue_description|default:"—" }}</p>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="p-3 bg-light rounded-3 h-100">
-                                <small class="text-muted d-block mb-1">Diagnosis Report</small>
-                                <p class="mb-0">{{ job.diagnosis_report|default:"Not diagnosed yet" }}</p>
+                                <small class="text-muted d-block mb-1 text-uppercase fw-semibold" style="font-size:10px;">
+                                    Diagnosis Report
+                                </small>
+                                <p class="mb-0 small">{{ job.diagnosis_report|default:"Not diagnosed yet" }}</p>
                             </div>
                         </div>
                         <div class="col-12">
                             <div class="p-3 bg-light rounded-3">
-                                <small class="text-muted d-block mb-1">Action Taken</small>
-                                <p class="mb-0">{{ job.action_taken|default:"No action recorded yet" }}</p>
+                                <small class="text-muted d-block mb-1 text-uppercase fw-semibold" style="font-size:10px;">
+                                    Action Taken
+                                </small>
+                                <p class="mb-0 small">{{ job.action_taken|default:"No action recorded yet" }}</p>
                             </div>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <div class="p-3 bg-light rounded-3">
-                                <small class="text-muted d-block mb-1">Accessories & Condition</small>
-                                <div class="row">
-                                    <div class="col-6">
-                                        <strong>Accessories:</strong> {{ job.accessories|default:"—" }}
-                                    </div>
-                                    <div class="col-6">
-                                        <strong>Device Condition:</strong> {{ job.device_condition|default:"—" }}
-                                    </div>
-                                </div>
+                                <small class="text-muted d-block mb-1 text-uppercase fw-semibold" style="font-size:10px;">
+                                    Accessories
+                                </small>
+                                <p class="mb-0 small">{{ job.accessories|default:"—" }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <small class="text-muted d-block mb-1 text-uppercase fw-semibold" style="font-size:10px;">
+                                    Device Condition
+                                </small>
+                                <p class="mb-0 small">{{ job.device_condition|default:"—" }}</p>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Activity Timeline -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-clock-history text-primary me-2"></i>Activity Timeline
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if activity_timeline %}
+                        <div class="timeline">
+                            {% for event in activity_timeline %}
+                                <div class="d-flex gap-3 pb-3 {% if not forloop.last %}border-start border-2 border-light{% endif %}"
+                                     style="margin-left:20px; padding-left:20px; position:relative;">
+                                    <div class="rounded-circle bg-{{ event.color }} text-white d-flex align-items-center justify-content-center position-absolute"
+                                         style="width:36px;height:36px;left:-19px;top:0;">
+                                        <i class="bi bi-{{ event.icon }}"></i>
+                                    </div>
+                                    <div class="flex-grow-1">
+                                        <div class="fw-semibold">{{ event.label }}</div>
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar3 me-1"></i>
+                                            {{ event.at|date:"d M Y" }}
+                                        </small>
+                                        {% if event.desc %}
+                                            <div class="small text-muted mt-1">{{ event.desc }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-hourglass-split fs-1"></i>
+                            <p class="mt-2 mb-0 small">No activity recorded yet.</p>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
 
@@ -266,20 +395,26 @@
                         </div>
                         <div class="col-md-6">
                             <div class="p-3 bg-light rounded-3">
-                                <small class="text-muted d-block mb-1">Delivery Details</small>
-                                <strong>Delivered By:</strong> {{ job.delivered_by|default:"—" }}<br>
-                                <strong>Delivery Date:</strong> {{ job.delivery_date|date:"d M Y"|default:"—" }}<br>
+                                <small class="text-muted d-block mb-1">Delivery Info</small>
+                                <div><strong>Delivered By:</strong> {{ job.delivered_by|default:"—" }}</div>
+                                <div><strong>Delivery Date:</strong> {{ job.delivery_date|date:"d M Y"|default:"—" }}</div>
                                 {% if job.delivered_at %}
-                                <strong>System Stamped:</strong> {{ job.delivered_at|date:"d M Y, H:i" }}<br>
-                                {% endif %}
-                                {% if job.received_remarks %}
-                                <strong>Reception Remarks:</strong> {{ job.received_remarks }}<br>
-                                {% endif %}
-                                {% if job.delivery_remarks %}
-                                    <strong>Remarks:</strong> {{ job.delivery_remarks }}
+                                <div><strong>System Stamped:</strong> {{ job.delivered_at|date:"d M Y, H:i" }}</div>
                                 {% endif %}
                             </div>
                         </div>
+                        {% if job.received_remarks or job.delivery_remarks %}
+                        <div class="col-12">
+                            <div class="p-3 bg-light rounded-3">
+                                {% if job.received_remarks %}
+                                    <div class="small"><strong>Reception Remarks:</strong> {{ job.received_remarks }}</div>
+                                {% endif %}
+                                {% if job.delivery_remarks %}
+                                    <div class="small mt-1"><strong>Delivery Remarks:</strong> {{ job.delivery_remarks }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -290,20 +425,20 @@
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3">
                     <h5 class="fw-bold mb-0">
-                        <i class="bi bi-sticky-fill text-warning me-2"></i>Notes
+                        <i class="bi bi-sticky-fill text-warning me-2"></i>Internal Notes
                     </h5>
                 </div>
                 <div class="card-body">
-                    <p class="mb-0">{{ job.notes }}</p>
+                    <p class="mb-0 small">{{ job.notes|linebreaksbr }}</p>
                 </div>
             </div>
             {% endif %}
         </div>
 
-        <!-- ===================== RIGHT COLUMN ===================== -->
+        <!-- ═══════════ RIGHT COLUMN ═══════════ -->
         <div class="col-xl-5 col-lg-5">
-            
-            <!-- Financial Summary Card -->
+
+            <!-- Financial Summary -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3">
                     <h5 class="fw-bold mb-0">
@@ -311,37 +446,49 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="row g-2">
+                    <div class="row g-2 mb-3">
                         <div class="col-6">
                             <div class="p-3 bg-light rounded-3 text-center">
-                                <small class="text-muted d-block">Labour Charge</small>
+                                <small class="text-muted d-block">Labour</small>
                                 <span class="fw-bold fs-5">₹{{ job.labour_charge|floatformat:2 }}</span>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="p-3 bg-light rounded-3 text-center">
-                                <small class="text-muted d-block">Parts Total</small>
+                                <small class="text-muted d-block">Parts</small>
                                 <span class="fw-bold fs-5">₹{{ parts_total|floatformat:2 }}</span>
                             </div>
                         </div>
                         <div class="col-12">
-                            <div class="p-3 bg-primary text-white rounded-3 text-center">
+                            <div class="p-3 bg-success text-white rounded-3 text-center">
                                 <small class="d-block opacity-75">Final Amount</small>
                                 <span class="fw-bold fs-3">₹{{ job.final_amount|floatformat:2 }}</span>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Estimated Cost (if exists) -->
+
                     {% if job.estimated_cost %}
                         <hr>
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between small mb-1">
                             <span class="text-muted">Estimated Cost</span>
                             <span class="fw-bold">₹{{ job.estimated_cost|floatformat:2 }}</span>
                         </div>
-                        <div class="d-flex justify-content-between">
-                            <span class="text-muted">Status</span>
-                            <span class="badge 
+                        {% if job.final_amount and job.estimated_cost %}
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-muted">Actual (final)</span>
+                            <span class="fw-bold">₹{{ job.final_amount|floatformat:2 }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between small">
+                            <span class="text-muted">Difference</span>
+                            <span class="fw-bold {% if estimate_diff > 0 %}text-danger{% elif estimate_diff < 0 %}text-success{% else %}text-muted{% endif %}">
+                                {% if estimate_diff > 0 %}+{% endif %}₹{{ estimate_diff|floatformat:2 }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center small">
+                            <span class="text-muted">Estimate Status</span>
+                            <span class="badge
                                 {% if job.estimate_status == 'pending' %}bg-warning text-dark
                                 {% elif job.estimate_status == 'approved' %}bg-success
                                 {% elif job.estimate_status == 'rejected' %}bg-danger
@@ -351,39 +498,36 @@
                             </span>
                         </div>
                         {% if job.estimate_approved_at %}
-                            <div class="mt-2 p-2 bg-light rounded-3">
-                                <small class="text-muted d-block">Approved At: {{ job.estimate_approved_at|date:"d M Y H:i" }}</small>
-                                <small class="text-muted d-block">
-                                    Approved By: 
-                                    {% if job.estimate_approved_by %}
-                                        {{ job.estimate_approved_by.get_full_name|default:job.estimate_approved_by.username }}
-                                    {% else %}
-                                        <span class="text-muted">—</span>
-                                    {% endif %}
-                                </small>
-                                {% if job.approval_source %}
-                                    <small class="text-muted d-block">Source: {{ job.get_approval_source_display }}</small>
+                            <div class="mt-2 p-2 bg-light rounded-3 small">
+                                <div class="text-muted">
+                                    <i class="bi bi-check-circle text-success me-1"></i>
+                                    Approved at {{ job.estimate_approved_at|date:"d M Y H:i" }}
+                                </div>
+                                {% if job.estimate_approved_by %}
+                                    <div class="text-muted">
+                                        By {{ job.estimate_approved_by.get_full_name|default:job.estimate_approved_by.username }}
+                                    </div>
                                 {% endif %}
-                                {% if job.approval_remarks %}
-                                    <small class="text-muted d-block">Remarks: {{ job.approval_remarks }}</small>
+                                {% if job.approval_source %}
+                                    <div class="text-muted">
+                                        Source: {{ job.get_approval_source_display }}
+                                    </div>
                                 {% endif %}
                             </div>
                         {% endif %}
-                           
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Status Update Card -->
+            <!-- Status Update -->
             <div class="card border-0 shadow-sm mb-4" id="status-update-card">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="fw-bold mb-0">
                         <i class="bi bi-arrow-repeat text-primary me-2"></i>Update Status
                     </h5>
                     <a href="{% url 'accounting:repair_detail' job.pk %}"
-                       class="btn btn-sm btn-outline-secondary"
-                       title="Refresh Page">
-                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                       class="btn btn-sm btn-outline-secondary" title="Refresh">
+                        <i class="bi bi-arrow-clockwise"></i>
                     </a>
                 </div>
                 <div class="card-body" id="status-row-container">
@@ -391,7 +535,7 @@
                 </div>
             </div>
 
-            <!-- Quick Info Card -->
+            <!-- Quick Info -->
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white py-3">
                     <h5 class="fw-bold mb-0">
@@ -399,7 +543,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="row g-2">
+                    <div class="row g-2 small">
                         <div class="col-6">
                             <small class="text-muted d-block">Submitted</small>
                             <span class="fw-bold">
@@ -428,45 +572,57 @@
                             <small class="text-muted d-block">Delivered By</small>
                             <span class="fw-bold">{{ job.delivered_by|default:"—" }}</span>
                         </div>
+                        {% if days_in_shop is not None %}
                         <div class="col-12">
-                            <hr>
+                            <hr class="my-2">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Days in shop</span>
+                                <span class="badge
+                                    {% if aging_level == 'danger' %}bg-danger
+                                    {% elif aging_level == 'warning' %}bg-warning text-dark
+                                    {% else %}bg-success{% endif %}">
+                                    {{ days_in_shop }} days
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="col-12">
+                            <hr class="my-2">
                             <div class="d-flex gap-2 flex-wrap">
-                                <a href="{% url 'accounting:customer_statement' job.customer.pk %}" class="btn btn-sm btn-outline-primary">
+                                <a href="{% url 'accounting:customer_statement' job.customer.pk %}"
+                                   class="btn btn-sm btn-outline-primary">
                                     <i class="bi bi-file-text"></i> Statement
                                 </a>
                                 <a href="{% url 'accounting:customer_statement_whatsapp' job.customer.pk %}"
-                                class="btn btn-sm btn-outline-success" target="_blank">
+                                   class="btn btn-sm btn-outline-success" target="_blank">
                                     <i class="bi bi-whatsapp"></i> WhatsApp
                                 </a>
-                                <a href="{% url 'accounting:repair_create_for_contact' job.customer.pk %}"
-                                class="btn btn-sm btn-outline-warning"
-                                hx-get="{% url 'accounting:repair_create_for_contact' job.customer.pk %}"
-                                hx-target="#mainModalContent"
-                                hx-trigger="click">
+                                <button class="btn btn-sm btn-outline-warning"
+                                        hx-get="{% url 'accounting:repair_create_for_contact' job.customer.pk %}"
+                                        hx-target="#mainModalContent" hx-trigger="click">
                                     <i class="bi bi-plus"></i> New Repair
-                                </a>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- PARTS SECTION                                               -->
-    <!-- ============================================================ -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PARTS SECTION                                           -->
+    <!-- ═══════════════════════════════════════════════════════ -->
     <div class="card border-0 shadow-sm mt-4">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h5 class="fw-bold mb-0">
                 <i class="bi bi-list-ul text-primary me-2"></i>Parts Used
                 <span class="badge bg-secondary ms-2">{{ parts|length }}</span>
             </h5>
-            <button class="btn btn-sm btn-primary" 
-                    hx-get="{% url 'accounting:add_repair_part' job.pk %}" 
-                    hx-target="#mainModalContent" 
-                    hx-trigger="click">
+            <button class="btn btn-sm btn-primary"
+                    hx-get="{% url 'accounting:add_repair_part' job.pk %}"
+                    hx-target="#mainModalContent" hx-trigger="click">
                 <i class="bi bi-plus-circle"></i> Add Part
             </button>
         </div>
@@ -476,28 +632,25 @@
     </div>
 </div>
 
-<!-- ===== TRACKING SHARE MODAL ===== -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- TRACKING SHARE MODAL                                    -->
+<!-- ═══════════════════════════════════════════════════════ -->
 <div class="modal fade" id="trackingModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title">
-                    <i class="bi bi-share"></i> Share Tracking Link
-                </h5>
+                <h5 class="modal-title"><i class="bi bi-share"></i> Share Tracking Link</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-3">
-                    Customer can open this link (no login required) to see live status. 
+                    Customer can open this link (no login required) to see live status.
                     Valid for <strong>90 days</strong>.
                 </p>
-
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Tracking URL:</label>
+                    <label class="form-label fw-semibold small">Tracking URL:</label>
                     <div class="input-group">
-                        <input type="text" 
-                               class="form-control" 
-                               id="trackingUrlInput" 
+                        <input type="text" class="form-control" id="trackingUrlInput"
                                value="{{ request.scheme }}://{{ request.get_host }}{% url 'tracking:repair_track' track_token %}"
                                readonly>
                         <button class="btn btn-success" type="button" onclick="copyTrackingUrl()">
@@ -505,19 +658,10 @@
                         </button>
                     </div>
                 </div>
-
-                <div class="alert alert-light border mb-3">
-                    <small class="text-muted">
-                        <i class="bi bi-shield-check text-success"></i>
-                        Token-secured · No personal data in URL
-                    </small>
-                </div>
-
                 {% if job.customer.phone %}
                 <div class="d-grid">
                     <a href="https://wa.me/91{{ job.customer.phone }}?text={{ 'Your repair tracking link: '|urlencode }}{{ request.scheme }}://{{ request.get_host }}{% url 'tracking:repair_track' track_token %}"
-                       target="_blank"
-                       class="btn btn-success">
+                       target="_blank" class="btn btn-success">
                         <i class="bi bi-whatsapp"></i> Send via WhatsApp to {{ job.customer.name }}
                     </a>
                 </div>
@@ -528,31 +672,21 @@
 </div>
 
 <script>
-    function copyTrackingUrl() {
-        const input = document.getElementById('trackingUrlInput');
-        input.select();
-        input.setSelectionRange(0, 99999);
-        try {
-            navigator.clipboard.writeText(input.value).then(function() {
-                showCopyToast();
-            }).catch(function() {
-                document.execCommand('copy');
-                showCopyToast();
-            });
-        } catch(e) {
+function copyTrackingUrl() {
+    const input = document.getElementById('trackingUrlInput');
+    input.select();
+    try {
+        navigator.clipboard.writeText(input.value).then(function() {
+            if (window.showToast) window.showToast('success', 'Tracking link copied!');
+        }).catch(function() {
             document.execCommand('copy');
-            showCopyToast();
-        }
+            if (window.showToast) window.showToast('success', 'Tracking link copied!');
+        });
+    } catch(e) {
+        document.execCommand('copy');
+        if (window.showToast) window.showToast('success', 'Tracking link copied!');
     }
-
-    function showCopyToast() {
-        const toast = document.createElement('div');
-        toast.className = 'position-fixed top-0 end-0 m-3 alert alert-success shadow';
-        toast.style.zIndex = '9999';
-        toast.innerHTML = '<i class="bi bi-check-circle"></i> Tracking link copied!';
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 2000);
-    }
+}
 </script>
 
 {% endblock %}
