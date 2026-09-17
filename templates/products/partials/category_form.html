@@ -1,0 +1,78 @@
+<!-- templates/products/partials/category_form.html -->
+{% load static %}
+
+<form method="post"
+      id="categoryForm"
+      hx-post="{% if category %}{% url 'accounting:category_update' category.pk %}{% else %}{% url 'accounting:category_create' %}{% endif %}"
+      hx-target="#category-table-container"
+      hx-swap="innerHTML"
+      novalidate>
+    {% csrf_token %}
+
+    <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-tag me-2"></i>
+            {% if category %}Edit{% else %}New{% endif %} Category
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <div><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Name -->
+        <div class="mb-3">
+            <label for="id_name" class="form-label fw-semibold">
+                Category Name <span class="text-danger">*</span>
+            </label>
+            <input type="text"
+                   name="name"
+                   id="id_name"
+                   class="form-control {% if form.name.errors %}is-invalid{% endif %}"
+                   value="{{ form.name.value|default:'' }}"
+                   placeholder="e.g., Laptop Accessories, RAM, SSD"
+                   autofocus
+                   required>
+            {% if form.name.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.name.errors %}
+                        <div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Description -->
+        <div class="mb-3">
+            <label for="id_description" class="form-label fw-semibold">Description</label>
+            <textarea name="description"
+                      id="id_description"
+                      rows="3"
+                      class="form-control {% if form.description.errors %}is-invalid{% endif %}"
+                      placeholder="Optional description for this category">{{ form.description.value|default:'' }}</textarea>
+            {% if form.description.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.description.errors %}
+                        <div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            Cancel
+        </button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i>
+            {% if category %}Update Category{% else %}Create Category{% endif %}
+        </button>
+    </div>
+</form>

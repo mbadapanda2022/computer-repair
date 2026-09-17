@@ -1,0 +1,90 @@
+<!-- templates/products/partials/category_table.html -->
+{% load static %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th class="text-center" style="width:120px;">Products</th>
+                        <th class="text-center" style="width:100px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category in categories %}
+                    <tr>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td>
+                            <strong>{{ category.name }}</strong>
+                        </td>
+                        <td class="text-muted small">
+                            {{ category.description|default:"—"|truncatechars:80 }}
+                        </td>
+                        <td class="text-center">
+                            {% if category.product_count > 0 %}
+                                <span class="badge bg-primary">
+                                    {{ category.product_count }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary">
+                                    0
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        aria-expanded="false">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:category_update' category.pk %}"
+                                                hx-target="#mainModalContent"
+                                                hx-trigger="click">
+                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item text-danger"
+                                                hx-delete="{% url 'accounting:category_delete' category.pk %}"
+                                                hx-target="#category-table-container"
+                                                hx-confirm="Delete category &quot;{{ category.name }}&quot;?">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-5">
+                            <i class="bi bi-tags display-6 d-block mb-3 text-muted opacity-50"></i>
+                            <h5 class="text-muted">No categories yet</h5>
+                            <p class="text-muted mb-3">
+                                Create categories to organize your products.
+                            </p>
+                            <button class="btn btn-primary"
+                                    hx-get="{% url 'accounting:category_create' %}"
+                                    hx-target="#mainModalContent"
+                                    hx-trigger="click">
+                                <i class="bi bi-plus-circle me-1"></i>New Category
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

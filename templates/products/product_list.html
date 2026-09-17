@@ -13,6 +13,9 @@
             <p class="text-muted small mt-1">Manage your products and stock levels</p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'accounting:category_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-tags me-1"></i>Categories
+            </a>
             <button class="btn btn-primary"
                     hx-get="{% url 'accounting:product_create' %}"
                     hx-target="#mainModalContent">

@@ -41,11 +41,18 @@ urlpatterns = [
     path('contacts/search/', contacts.contact_search, name='contact_search'),
     path('contacts/export/excel/', contacts.export_contacts_excel, name='export_contacts_excel'),
     path('contacts/<int:pk>/detail-modal/', contacts.contact_detail_modal, name='contact_detail_modal'),
-
+    
+    
     # ===== Products =====
     path('products/', products.product_list, name='product_list'),
     path('products/print/', products.product_list_print, name='product_list_print'),
     path('products/create/', products.product_create, name='product_create'),
+    # ===== Product Categories =====
+    path('products/categories/', products.category_list, name='category_list'),
+    path('products/categories/create/', products.category_create, name='category_create'),
+    path('products/categories/<int:pk>/update/', products.category_update, name='category_update'),
+    path('products/categories/<int:pk>/delete/', products.category_delete, name='category_delete'),
+    
     path('products/<int:pk>/update/', products.product_update, name='product_update'),
     path('products/<int:pk>/delete/', products.product_delete, name='product_delete'),
     path('products/<int:pk>/detail/', products.product_detail_modal, name='product_detail_modal'),
@@ -188,13 +195,9 @@ urlpatterns = [
 
     # ---- Token-based Password Reset (Legacy) ----
     path('password-reset/', CustomPasswordResetView.as_view(), name='password_reset'),
-    path('password-reset/done/', auth_views.PasswordResetDoneView.as_view(
-        template_name='auth/password_reset_done.html'
-    ), name='password_reset_done'),
+    path('password-reset/done/', auth_views.PasswordResetDoneView.as_view(template_name='auth/password_reset_done.html'), name='password_reset_done'),
     path('password-reset/<uidb64>/<token>/', CustomPasswordResetConfirmView.as_view(), name='password_reset_confirm'),
-    path('password-reset/complete/', auth_views.PasswordResetCompleteView.as_view(
-        template_name='auth/password_reset_complete.html'
-    ), name='password_reset_complete'),
+    path('password-reset/complete/', auth_views.PasswordResetCompleteView.as_view(template_name='auth/password_reset_complete.html'), name='password_reset_complete'),
 
     # ---- OTP-based Password Reset ----
     path('password-reset-otp/', password_reset_otp_request, name='password_reset_otp'),
@@ -204,9 +207,7 @@ urlpatterns = [
 
     # ---- Password Change (Logged-in) ----
     path('password-change/', password_change_view, name='password_change'),
-    path('password-change/done/', auth_views.PasswordChangeDoneView.as_view(
-        template_name='auth/password_change_done.html'
-    ), name='password_change_done'),
+    path('password-change/done/', auth_views.PasswordChangeDoneView.as_view(template_name='auth/password_change_done.html'), name='password_change_done'),
 
     # ---- HTMX Validation Endpoints ----
     path('auth/validate-login-field/', validate_login_field, name='validate_login_field'),

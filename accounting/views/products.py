@@ -792,3 +792,176 @@ def export_products_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
+
+
+# ============================================================
+# 14. CATEGORY MANAGEMENT — Helper
+# ============================================================
+def get_category_table_context(request):
+    """Shared context for category table (used by list + CRUD)."""
+    search = request.GET.get('search', '').strip()
+
+    categories = ProductCategory.objects.annotate(
+        product_count=Count(
+            'products',
+            filter=Q(products__is_deleted=False)
+        )
+    ).order_by('name')
+
+    if search:
+        categories = categories.filter(
+            Q(name__icontains=search) | Q(description__icontains=search)
+        )
+
+    return {
+        'categories': categories,
+        'search': search,
+        'total_categories': categories.count(),
+        'is_htmx': is_htmx(request),
+    }
+
+
+# ============================================================
+# 15. CATEGORY LIST
+# ============================================================
+@login_required
+@handle_errors(default_redirect='accounting:product_list')
+def category_list(request):
+    context = get_category_table_context(request)
+    if is_htmx(request):
+        return render(request, 'products/partials/category_table.html', context)
+    return render(request, 'products/category_list.html', context)
+
+
+# ============================================================
+# 16. CATEGORY CREATE (HTMX modal)
+# ============================================================
+@login_required
+@csrf_protect
+@handle_errors(default_redirect='accounting:category_list')
+def category_create(request):
+    if request.method == 'POST':
+        form = ProductCategoryForm(request.POST)
+        if form.is_valid():
+            cat = form.save()
+            logger.info(
+                f"Category '{cat.name}' created by {request.user.username}"
+            )
+            if is_htmx(request):
+                context = get_category_table_context(request)
+                return htmx_response(
+                    request,
+                    'products/partials/category_table.html',
+                    context=context,
+                    toast={
+                        'level': 'success',
+                        'message': f'Category "{cat.name}" created.'
+                    },
+                    close_modal=True,
+                )
+            messages.success(request, f'Category "{cat.name}" created.')
+            return redirect_to_staff('category_list')
+        else:
+            if is_htmx(request):
+                return htmx_response(
+                    request,
+                    'products/partials/category_form.html',
+                    context={'form': form, 'category': None},
+                    extra_headers={'HX-Retarget': '#mainModalContent'},
+                )
+    else:
+        form = ProductCategoryForm()
+
+    return render(
+        request,
+        'products/partials/category_form.html',
+        {'form': form, 'category': None}
+    )
+
+
+# ============================================================
+# 17. CATEGORY UPDATE (HTMX modal)
+# ============================================================
+@login_required
+@csrf_protect
+@handle_errors(default_redirect='accounting:category_list')
+def category_update(request, pk):
+    category = get_object_or_404(ProductCategory, pk=pk)
+
+    if request.method == 'POST':
+        form = ProductCategoryForm(request.POST, instance=category)
+        if form.is_valid():
+            form.save()
+            logger.info(
+                f"Category '{category.name}' updated by {request.user.username}"
+            )
+            if is_htmx(request):
+                context = get_category_table_context(request)
+                return htmx_response(
+                    request,
+                    'products/partials/category_table.html',
+                    context=context,
+                    toast={
+                        'level': 'success',
+                        'message': f'Category "{category.name}" updated.'
+                    },
+                    close_modal=True,
+                )
+            messages.success(request, f'Category "{category.name}" updated.')
+            return redirect_to_staff('category_list')
+        else:
+            if is_htmx(request):
+                return htmx_response(
+                    request,
+                    'products/partials/category_form.html',
+                    context={'form': form, 'category': category},
+                    extra_headers={'HX-Retarget': '#mainModalContent'},
+                )
+    else:
+        form = ProductCategoryForm(instance=category)
+
+    return render(
+        request,
+        'products/partials/category_form.html',
+        {'form': form, 'category': category}
+    )
+
+
+# ============================================================
+# 18. CATEGORY DELETE (HTMX, with product safety check)
+# ============================================================
+@login_required
+@csrf_protect
+@require_http_methods(["DELETE"])
+@handle_errors(default_redirect='accounting:category_list')
+def category_delete(request, pk):
+    category = get_object_or_404(ProductCategory, pk=pk)
+
+    # Safety: block delete if any active product uses this category
+    active_products = category.products.filter(is_deleted=False).count()
+    if active_products > 0:
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    f'Cannot delete "{category.name}" — '
+                    f'{active_products} product(s) are using this category. '
+                    f'Reassign them first.'
+                )
+            },
+            status=400,
+        )
+
+    name = category.name
+    category.delete()
+    logger.info(
+        f"Category '{name}' deleted by {request.user.username}"
+    )
+
+    context = get_category_table_context(request)
+    return htmx_response(
+        request,
+        'products/partials/category_table.html',
+        context=context,
+        toast={'level': 'success', 'message': f'Category "{name}" deleted.'},
+    )
