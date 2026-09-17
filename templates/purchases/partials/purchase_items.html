@@ -41,7 +41,11 @@
         </div>
     </div>
     <div class="col-md-2">
-        <button class="btn btn-primary btn-sm w-100" type="button" id="add-item-btn">
+        {% url 'accounting:add_purchase_item' as add_item_url %}
+        <button class="btn btn-primary btn-sm w-100"
+                type="button"
+                id="add-item-btn"
+                data-add-url="{{ add_item_url }}">
             <i class="bi bi-plus-circle me-1"></i>Add
         </button>
     </div>
@@ -62,6 +66,7 @@
         </thead>
         <tbody>
             {% for item in items %}
+            {% url 'accounting:remove_purchase_item' forloop.counter0 as remove_item_url %}
             <tr>
                 <td>
                     {{ item.product_name }}
@@ -77,8 +82,10 @@
                 <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
                 <td class="text-center">
                     <button type="button"
-                            class="btn btn-sm btn-outline-danger remove-item-btn"
-                            data-index="{{ forloop.counter0 }}"
+                            class="btn btn-sm btn-outline-danger"
+                            hx-post="{{ remove_item_url }}"
+                            hx-target="#purchase-items-container"
+                            hx-swap="innerHTML"
                             title="Remove item">
                         <i class="bi bi-x-circle"></i>
                     </button>
@@ -141,11 +148,14 @@
     });
 
     // ============================================================
-    // Add item button
+    // Add item button — URL from data attribute
     // ============================================================
     container.addEventListener('click', function(e) {
         const addBtn = e.target.closest('#add-item-btn');
         if (!addBtn) return;
+
+        const addUrl = addBtn.dataset.addUrl;
+        if (!addUrl) return;
 
         const productIdEl = container.querySelector('#selected-product-id');
         const qty = container.querySelector('#item-quantity');
@@ -161,7 +171,7 @@
             return;
         }
 
-        htmx.ajax('POST', "{% url 'accounting:add_purchase_item' %}", {
+        htmx.ajax('POST', addUrl, {
             target: '#purchase-items-container',
             swap: 'innerHTML',
             values: {
@@ -184,26 +194,6 @@
                 if (nq) nq.value = '1';
                 if (no) no.checked = false;
             }, 100);
-        });
-    });
-
-    // ============================================================
-    // Remove item button — URL built from Django URL template
-    // ============================================================
-    container.addEventListener('click', function(e) {
-        const removeBtn = e.target.closest('.remove-item-btn');
-        if (!removeBtn) return;
-
-        e.preventDefault();
-        const index = removeBtn.dataset.index;
-
-        // Build URL safely using Django's {% url %} with placeholder
-        const removeUrlTemplate = "{% url 'accounting:remove_purchase_item' 999999 %}";
-        const removeUrl = removeUrlTemplate.replace('999999', index);
-
-        htmx.ajax('POST', removeUrl, {
-            target: '#purchase-items-container',
-            swap: 'innerHTML'
         });
     });
 
