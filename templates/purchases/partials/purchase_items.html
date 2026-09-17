@@ -172,7 +172,6 @@
                 is_office_use: (officeChk && officeChk.checked) ? 'on' : ''
             }
         }).then(function() {
-            // Reset form after successful add
             setTimeout(function() {
                 const c = document.getElementById('purchase-items-container');
                 if (!c) return;
@@ -183,13 +182,13 @@
                 if (ns) ns.value = '';
                 if (np) np.value = '';
                 if (nq) nq.value = '1';
-                if (no) no.checked = false;  // Keep default unchecked
+                if (no) no.checked = false;
             }, 100);
         });
     });
 
     // ============================================================
-    // Remove item button
+    // Remove item button — URL built from Django URL template
     // ============================================================
     container.addEventListener('click', function(e) {
         const removeBtn = e.target.closest('.remove-item-btn');
@@ -198,7 +197,11 @@
         e.preventDefault();
         const index = removeBtn.dataset.index;
 
-        htmx.ajax('POST', '/purchases/remove-item/' + index + '/', {
+        // Build URL safely using Django's {% url %} with placeholder
+        const removeUrlTemplate = "{% url 'accounting:remove_purchase_item' 999999 %}";
+        const removeUrl = removeUrlTemplate.replace('999999', index);
+
+        htmx.ajax('POST', removeUrl, {
             target: '#purchase-items-container',
             swap: 'innerHTML'
         });

@@ -14,7 +14,7 @@
                         <th class="text-end">Tax</th>
                         <th class="text-end">Grand Total</th>
                         <th>Status</th>
-                        <th class="text-center">Actions</th>
+                        <th class="text-center" style="width:60px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -27,7 +27,12 @@
                             </a>
                         </td>
                         <td class="text-nowrap">{{ purchase.date|date:"d M Y" }}</td>
-                        <td>{{ purchase.vendor.name }}</td>
+                        <td>
+                            {{ purchase.vendor.name }}
+                            {% if purchase.vendor.phone %}
+                                <br><small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ purchase.vendor.phone }}</small>
+                            {% endif %}
+                        </td>
                         <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
                         <td class="text-end">
                             {% if purchase.freight_charge > 0 %}
@@ -50,13 +55,14 @@
                         <td class="text-center">
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                        type="button" data-bs-toggle="dropdown">
+                                        type="button" data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item" href="{% url 'accounting:purchase_detail' purchase.pk %}">
-                                            <i class="bi bi-eye me-2 text-primary"></i>View
+                                            <i class="bi bi-eye me-2 text-primary"></i>View Details
                                         </a>
                                     </li>
                                     <li>
@@ -71,9 +77,25 @@
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'accounting:vendor_statement' purchase.vendor.pk %}">
+                                            <i class="bi bi-file-text me-2 text-secondary"></i>Vendor Statement
+                                        </a>
+                                    </li>
+                                    {% if purchase.vendor.phone %}
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="https://wa.me/91{{ purchase.vendor.phone }}?text=Purchase%20{{ purchase.purchase_number }}%20-%20Rs.{{ purchase.grand_total }}"
+                                           target="_blank">
+                                            <i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
                                         <button class="dropdown-item text-danger"
                                                 hx-delete="{% url 'accounting:purchase_delete' purchase.pk %}"
-                                                hx-confirm="Delete this purchase? This will reverse stock movements.">
+                                                hx-confirm="Delete this purchase? Stock will be reversed.">
                                             <i class="bi bi-trash me-2"></i>Delete
                                         </button>
                                     </li>

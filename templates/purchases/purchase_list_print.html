@@ -68,14 +68,15 @@
 <table>
     <thead>
         <tr>
-            <th style="width:110px;">Purchase #</th>
-            <th style="width:80px;">Date</th>
+            <th style="width:100px;">Purchase #</th>
+            <th style="width:75px;">Date</th>
             <th>Vendor</th>
-            <th class="text-end" style="width:100px;">Subtotal</th>
-            <th class="text-end" style="width:90px;">Freight</th>
-            <th class="text-end" style="width:90px;">Tax</th>
-            <th class="text-end" style="width:110px;">Grand Total</th>
-            <th style="width:80px;">Status</th>
+            <th style="width:120px;">Vendor GSTIN</th>
+            <th class="text-end" style="width:90px;">Subtotal</th>
+            <th class="text-end" style="width:80px;">Freight</th>
+            <th class="text-end" style="width:80px;">Tax</th>
+            <th class="text-end" style="width:100px;">Grand Total</th>
+            <th style="width:70px;">Status</th>
         </tr>
     </thead>
     <tbody>
@@ -84,6 +85,9 @@
             <td><strong>{{ p.purchase_number }}</strong></td>
             <td>{{ p.date|date:"d-m-Y" }}</td>
             <td>{{ p.vendor.name }}</td>
+            <td class="text-center" style="font-family: monospace; font-size: 8pt;">
+                {{ p.vendor.gstin|default:"—" }}
+            </td>
             <td class="text-end">₹{{ p.subtotal|floatformat:2 }}</td>
             <td class="text-end">{% if p.freight_charge > 0 %}₹{{ p.freight_charge|floatformat:2 }}{% else %}—{% endif %}</td>
             <td class="text-end">₹{{ p.tax_amount|floatformat:2 }}</td>
@@ -91,12 +95,12 @@
             <td class="text-center">{% if p.paid %}Paid{% else %}Unpaid{% endif %}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="8" class="text-center" style="padding:20px;">No purchases match the current filters.</td></tr>
+        <tr><td colspan="9" class="text-center" style="padding:20px;">No purchases match the current filters.</td></tr>
         {% endfor %}
     </tbody>
     <tfoot>
         <tr>
-            <td colspan="3" class="text-end">Totals →</td>
+            <td colspan="4" class="text-end">Totals →</td>
             <td class="text-end">₹{{ total_amount|floatformat:2 }}</td>
             <td colspan="2"></td>
             <td class="text-end">Paid: ₹{{ total_paid|floatformat:2 }}</td>

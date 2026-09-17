@@ -1,4 +1,4 @@
-{% load static %}
+{% load static math_filters %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -6,31 +6,61 @@
 <title>Purchase {{ purchase.purchase_number }}</title>
 <style>
     @page { size: A4; margin: 10mm; }
-    @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
-    body { font-family: Arial, sans-serif; color: #333; margin: 0 auto; max-width: 900px; padding: 15px; background: #fff; }
+    @media print {
+        body { font-size: 10pt; margin: 0; }
+        .no-print { display: none !important; }
+        .header, .parties, .totals-block, .signature, .gst-block { page-break-inside: avoid; }
+    }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #333; margin: 0 auto; max-width: 900px; padding: 15px; background: #fff; }
+
+    /* Header */
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 12px; }
     .company-logo { max-height: 50px; margin-bottom: 4px; }
     .company-name { font-size: 16pt; font-weight: bold; color: #1a1a2e; margin: 0 0 4px 0; }
-    .company-details { font-size: 8pt; color: #555; }
-    .doc-title { font-size: 14pt; font-weight: bold; color: #0d6efd; text-align: right; margin: 0; }
-    .doc-info { font-size: 9pt; text-align: right; margin-top: 4px; }
+    .company-details { font-size: 8pt; color: #555; line-height: 1.4; }
+    .doc-title { font-size: 14pt; font-weight: bold; color: #0d6efd; text-align: right; margin: 0; letter-spacing: 0.5px; }
+    .doc-info { font-size: 9pt; text-align: right; margin-top: 4px; line-height: 1.5; }
     .badge { padding: 3px 10px; border-radius: 12px; font-size: 8pt; font-weight: 600; }
     .badge-paid { background: #d4edda; color: #155724; }
     .badge-unpaid { background: #fff3cd; color: #856404; }
+
+    /* Parties */
     .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-    .party-box { padding: 10px; background: #f8f9fa; border-left: 3px solid #0d6efd; border-radius: 3px; }
-    .party-box .label { font-size: 8pt; text-transform: uppercase; color: #666; letter-spacing: 0.5px; margin-bottom: 3px; }
-    .party-box .name { font-weight: bold; font-size: 11pt; }
-    .party-box .details { font-size: 9pt; color: #555; margin-top: 2px; }
+    .party-box { padding: 10px; background: #f8f9fa; border-left: 3px solid #0d6efd; border-radius: 3px; min-height: 80px; }
+    .party-box .label { font-size: 8pt; text-transform: uppercase; color: #666; letter-spacing: 0.5px; margin-bottom: 3px; font-weight: 600; }
+    .party-box .name { font-weight: bold; font-size: 11pt; color: #1a1a2e; }
+    .party-box .details { font-size: 9pt; color: #555; margin-top: 3px; line-height: 1.4; }
+
+    /* Table */
     table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-top: 8px; }
     th, td { border: 1px solid #ddd; padding: 5px 8px; }
-    th { background: #1F4E78; color: #fff; font-size: 9pt; text-align: left; }
+    th { background: #1F4E78; color: #fff; font-size: 9pt; text-align: left; font-weight: 600; }
     .text-end { text-align: right; }
     .text-center { text-align: center; }
     tfoot td { background: #f8f9fa; }
-    .total-row td { font-weight: bold; }
+    .total-row td { font-weight: 600; }
     .grand-total td { font-size: 12pt; font-weight: bold; background: #e7f1ff; border-top: 2px solid #0d6efd; color: #0d6efd; }
+
+    /* GST Block */
+    .gst-block { display: flex; justify-content: flex-end; margin-top: 10px; }
+    .gst-table { width: 320px; font-size: 9.5pt; }
+    .gst-table td { border: 1px solid #ddd; padding: 4px 10px; }
+
+    /* Amount in words */
+    .amount-words { margin-top: 8px; font-size: 9.5pt; padding: 6px 10px; background: #f8f9fa; border-left: 3px solid #0d6efd; border-radius: 3px; }
+
+    /* Terms */
+    .terms { margin-top: 12px; padding: 8px 12px; background: #fff8e6; border: 1px solid #f0d98a; border-radius: 3px; font-size: 8.5pt; color: #664d03; }
+    .terms strong { display: block; margin-bottom: 3px; }
+
+    /* Signature */
+    .signature { display: flex; justify-content: space-between; margin-top: 30px; padding-top: 8px; }
+    .sig-block { text-align: center; font-size: 8.5pt; }
+    .sig-line { border-top: 1px solid #333; width: 160px; margin: 30px auto 4px; }
+
+    /* Footer */
     .footer { text-align: center; margin-top: 20px; font-size: 8pt; color: #666; border-top: 1px solid #ddd; padding-top: 8px; }
+
     .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
     .btn-primary { background: #0d6efd; color: #fff; }
     .btn-secondary { background: #6c757d; color: #fff; }
@@ -38,6 +68,7 @@
 </head>
 <body>
 
+<!-- ========================= HEADER ========================= -->
 <div class="header">
     <div>
         {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
@@ -55,42 +86,47 @@
             <strong>{{ purchase.purchase_number }}</strong><br>
             Date: {{ purchase.date|date:"d M Y" }}<br>
             <span class="badge {% if purchase.paid %}badge-paid{% else %}badge-unpaid{% endif %}">
-                {% if purchase.paid %}Paid{% else %}Unpaid{% endif %}
+                {% if purchase.paid %}PAID{% else %}UNPAID{% endif %}
             </span>
         </div>
     </div>
 </div>
 
+<!-- ========================= PARTIES ========================= -->
 <div class="parties">
     <div class="party-box">
-        <div class="label">Vendor</div>
+        <div class="label">Vendor / Supplier</div>
         <div class="name">{{ purchase.vendor.name }}</div>
         <div class="details">
+            {% if purchase.vendor.company_name %}<strong>{{ purchase.vendor.company_name }}</strong><br>{% endif %}
             {% if purchase.vendor.phone %}📞 {{ purchase.vendor.phone }}<br>{% endif %}
             {% if purchase.vendor.email %}✉ {{ purchase.vendor.email }}<br>{% endif %}
-            {% if purchase.vendor.gstin %}GSTIN: {{ purchase.vendor.gstin }}<br>{% endif %}
+            {% if purchase.vendor.gstin %}GSTIN: <strong>{{ purchase.vendor.gstin }}</strong><br>{% endif %}
             {% if purchase.vendor.address %}{{ purchase.vendor.address }}{% endif %}
         </div>
     </div>
     <div class="party-box">
-        <div class="label">Details</div>
+        <div class="label">Bill Details</div>
         <div class="details">
             <strong>GST Type:</strong> {{ purchase.get_gst_type_display }}<br>
-            {% if purchase.notes %}<strong>Notes:</strong> {{ purchase.notes }}{% endif %}
+            {% if purchase.notes %}<strong>Notes:</strong> {{ purchase.notes }}<br>{% endif %}
+            {% if purchase.discount_type %}<strong>Discount:</strong> {{ purchase.get_discount_type_display }}{% endif %}
         </div>
     </div>
 </div>
 
+<!-- ========================= ITEMS TABLE ========================= -->
 <table>
     <thead>
         <tr>
-            <th style="width:40px;">#</th>
-            <th>Product</th>
-            <th class="text-center" style="width:70px;">Qty</th>
-            <th class="text-end" style="width:90px;">Unit Price</th>
-            <th class="text-end" style="width:80px;">Tax %</th>
-            <th class="text-end" style="width:90px;">Tax Amt</th>
-            <th class="text-end" style="width:100px;">Total</th>
+            <th style="width:35px;">#</th>
+            <th>Product / Description</th>
+            <th class="text-center" style="width:75px;">HSN/SAC</th>
+            <th class="text-center" style="width:60px;">Qty</th>
+            <th class="text-end" style="width:85px;">Unit Price</th>
+            <th class="text-end" style="width:65px;">Tax %</th>
+            <th class="text-end" style="width:85px;">Tax Amt</th>
+            <th class="text-end" style="width:95px;">Total</th>
         </tr>
     </thead>
     <tbody>
@@ -99,9 +135,10 @@
             <td class="text-center">{{ forloop.counter }}</td>
             <td>
                 {{ item.product.name }}
-                {% if item.is_office_use %}<span style="color: #b8860b; font-size: 8pt;">(Office)</span>{% endif %}
+                {% if item.is_office_use %}<span style="color: #b8860b; font-size: 8pt; font-weight: 600;">[Office Use]</span>{% endif %}
                 {% if item.description %}<br><small style="color:#666;">{{ item.description }}</small>{% endif %}
             </td>
+            <td class="text-center">{{ item.product.hsn_code|default:"—" }}</td>
             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
             <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
@@ -109,43 +146,114 @@
             <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center" style="padding:20px;">No items.</td></tr>
+        <tr><td colspan="8" class="text-center" style="padding:20px;">No items.</td></tr>
         {% endfor %}
     </tbody>
     <tfoot>
         <tr class="total-row">
-            <td colspan="6" class="text-end">Subtotal</td>
+            <td colspan="7" class="text-end">Subtotal</td>
             <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
         </tr>
         {% if purchase.discount_amount > 0 %}
         <tr class="total-row">
-            <td colspan="6" class="text-end" style="color: #dc3545;">Discount</td>
+            <td colspan="7" class="text-end" style="color: #dc3545;">Discount</td>
             <td class="text-end" style="color: #dc3545;">−₹{{ purchase.discount_amount|floatformat:2 }}</td>
         </tr>
         {% endif %}
         {% if purchase.freight_charge > 0 %}
         <tr class="total-row">
-            <td colspan="6" class="text-end">Freight / Transport</td>
+            <td colspan="7" class="text-end">Freight / Transport</td>
             <td class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
         </tr>
         {% endif %}
         <tr class="total-row">
-            <td colspan="6" class="text-end">Tax Amount</td>
+            <td colspan="7" class="text-end">Tax Amount</td>
             <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
         </tr>
         <tr class="grand-total">
-            <td colspan="6" class="text-end">GRAND TOTAL</td>
+            <td colspan="7" class="text-end">GRAND TOTAL</td>
             <td class="text-end">₹{{ purchase.grand_total|floatformat:2 }}</td>
         </tr>
     </tfoot>
 </table>
 
+<!-- ========================= GST BREAKUP ========================= -->
+{% if purchase.gst_type != 'non_gst' and purchase.tax_amount > 0 %}
+<div class="gst-block">
+    <table class="gst-table">
+        {% if purchase.gst_type == 'intrastate' %}
+        <tr>
+            <td>CGST (9%)</td>
+            <td class="text-end">₹{{ purchase.tax_amount|divide:2|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>SGST (9%)</td>
+            <td class="text-end">₹{{ purchase.tax_amount|divide:2|floatformat:2 }}</td>
+        </tr>
+        {% elif purchase.gst_type == 'interstate' %}
+        <tr>
+            <td>IGST (18%)</td>
+            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+        </tr>
+        {% else %}
+        <tr>
+            <td>Total Tax</td>
+            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+        </tr>
+        {% endif %}
+        <tr style="background:#e7f1ff; font-weight:700;">
+            <td>Total Tax</td>
+            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+        </tr>
+    </table>
+</div>
+{% endif %}
+
+<!-- ========================= AMOUNT IN WORDS ========================= -->
+<div class="amount-words">
+    <strong>Amount in Words:</strong>
+    Rupees {{ purchase.grand_total|floatformat:2 }} Only
+</div>
+
+<!-- ========================= TERMS ========================= -->
+<div class="terms">
+    <strong>Terms & Conditions</strong>
+    1. Goods once sold will not be taken back unless defective.<br>
+    2. Payment as per agreed credit terms.<br>
+    3. Subject to local jurisdiction.<br>
+    4. This is a computer-generated purchase invoice.
+</div>
+
+<!-- ========================= SIGNATURES ========================= -->
+<div class="signature">
+    <div class="sig-block">
+        <div>Prepared By</div>
+        <div class="sig-line"></div>
+        <div style="color:#666;">Date: ________</div>
+    </div>
+    <div class="sig-block">
+        <div>Vendor Signature</div>
+        <div class="sig-line"></div>
+        <div style="color:#666;">Date: ________</div>
+    </div>
+    <div class="sig-block">
+        <div>Authorized Signature</div>
+        <div class="sig-line"></div>
+        <div style="color:#666;">Date: ________</div>
+    </div>
+</div>
+
+<!-- ========================= FOOTER ========================= -->
 <div class="footer">
     <p style="margin: 4px 0;">
         This is a computer-generated purchase invoice. Generated on {% now "d M Y, h:i A" %}.
     </p>
+    <p style="margin: 4px 0;">
+        © {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}
+    </p>
 </div>
 
+<!-- ========================= ACTION BUTTONS ========================= -->
 <div class="no-print" style="text-align:center; margin-top:15px;">
     <hr>
     <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>

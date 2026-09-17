@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static math_filters %}
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
 
-    <!-- Header -->
+    <!-- ==================== HEADER ==================== -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
         <div>
             <h3 class="fw-semibold mb-0">
@@ -25,13 +25,25 @@
             <a href="{% url 'accounting:purchase_print' purchase.pk %}" class="btn btn-info text-white" target="_blank">
                 <i class="bi bi-printer me-1"></i>Print
             </a>
+            {% if purchase.vendor.phone %}
+            <a href="https://wa.me/91{{ purchase.vendor.phone }}?text=Purchase%20{{ purchase.purchase_number }}%20-%20Rs.{{ purchase.grand_total }}"
+               class="btn btn-success" target="_blank" title="Share on WhatsApp">
+                <i class="bi bi-whatsapp me-1"></i>WhatsApp
+            </a>
+            {% endif %}
+            <button class="btn btn-outline-danger"
+                    hx-delete="{% url 'accounting:purchase_delete' purchase.pk %}"
+                    hx-confirm="Delete this purchase? Stock will be reversed. This cannot be undone."
+                    hx-swap="none">
+                <i class="bi bi-trash me-1"></i>Delete
+            </button>
             <a href="{% url 'accounting:purchase_list' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left me-1"></i>Back
             </a>
         </div>
     </div>
 
-    <!-- Info + Financials -->
+    <!-- ==================== INFO + FINANCIALS ==================== -->
     <div class="row g-3 mb-4">
         <div class="col-md-6">
             <div class="card border-0 shadow-sm h-100">
@@ -40,26 +52,56 @@
                 </div>
                 <div class="card-body">
                     <table class="table table-sm table-borderless mb-0">
-                        <tr><td class="text-muted" style="width:40%">Purchase #</td><td class="fw-bold">{{ purchase.purchase_number }}</td></tr>
-                        <tr><td class="text-muted">Date</td><td>{{ purchase.date|date:"d M Y" }}</td></tr>
-                        <tr><td class="text-muted">Vendor</td><td><strong>{{ purchase.vendor.name }}</strong>
-                            {% if purchase.vendor.company_name %}<br><small class="text-muted">{{ purchase.vendor.company_name }}</small>{% endif %}
-                        </td></tr>
-                        {% if purchase.vendor.gstin %}
-                        <tr><td class="text-muted">GSTIN</td><td>{{ purchase.vendor.gstin }}</td></tr>
+                        <tr>
+                            <td class="text-muted" style="width:40%">Purchase #</td>
+                            <td class="fw-bold">{{ purchase.purchase_number }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Date</td>
+                            <td>{{ purchase.date|date:"d M Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Vendor</td>
+                            <td>
+                                <strong>{{ purchase.vendor.name }}</strong>
+                                {% if purchase.vendor.company_name %}<br><small class="text-muted">{{ purchase.vendor.company_name }}</small>{% endif %}
+                            </td>
+                        </tr>
+                        {% if purchase.vendor.phone %}
+                        <tr>
+                            <td class="text-muted">Phone</td>
+                            <td>
+                                <a href="tel:{{ purchase.vendor.phone }}" class="text-decoration-none">
+                                    {{ purchase.vendor.phone }}
+                                </a>
+                            </td>
+                        </tr>
                         {% endif %}
-                        <tr><td class="text-muted">GST Type</td><td>{{ purchase.get_gst_type_display }}</td></tr>
-                        <tr><td class="text-muted">Status</td>
+                        {% if purchase.vendor.gstin %}
+                        <tr>
+                            <td class="text-muted">GSTIN</td>
+                            <td><code>{{ purchase.vendor.gstin }}</code></td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="text-muted">GST Type</td>
+                            <td>{{ purchase.get_gst_type_display }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Status</td>
                             <td>
                                 {% if purchase.paid %}
-                                    <span class="badge bg-success">Paid</span>
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Paid</span>
                                 {% else %}
-                                    <span class="badge bg-warning text-dark">Unpaid</span>
+                                    <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Unpaid</span>
                                 {% endif %}
                             </td>
                         </tr>
                         {% if purchase.notes %}
-                        <tr><td class="text-muted">Notes</td><td>{{ purchase.notes }}</td></tr>
+                        <tr>
+                            <td class="text-muted">Notes</td>
+                            <td>{{ purchase.notes }}</td>
+                        </tr>
                         {% endif %}
                     </table>
                 </div>
@@ -73,23 +115,59 @@
                 </div>
                 <div class="card-body">
                     <table class="table table-sm table-borderless mb-0">
-                        <tr><td>Subtotal</td><td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td></tr>
+                        <tr>
+                            <td>Subtotal</td>
+                            <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                        </tr>
                         {% if purchase.discount_amount > 0 %}
-                        <tr><td class="text-danger">Discount</td><td class="text-end text-danger">−₹{{ purchase.discount_amount|floatformat:2 }}</td></tr>
+                        <tr>
+                            <td class="text-danger">Discount</td>
+                            <td class="text-end text-danger">−₹{{ purchase.discount_amount|floatformat:2 }}</td>
+                        </tr>
                         {% endif %}
                         {% if purchase.freight_charge > 0 %}
-                        <tr><td>Freight / Transport</td><td class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td></tr>
+                        <tr>
+                            <td>Freight / Transport</td>
+                            <td class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+                        </tr>
                         {% endif %}
-                        <tr><td>Tax Amount</td><td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td></tr>
-                        <tr class="border-top"><td class="fw-bold">Grand Total</td>
+                        <tr>
+                            <td>Tax Amount</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="border-top">
+                            <td class="fw-bold">Grand Total</td>
                             <td class="text-end fw-bold fs-5 text-primary">₹{{ purchase.grand_total|floatformat:2 }}</td>
                         </tr>
                     </table>
+
+                    {% if purchase.gst_type != 'non_gst' and purchase.tax_amount > 0 %}
+                    <hr class="my-2">
+                    <small class="text-muted d-block mb-1"><strong>GST Breakup:</strong></small>
+                    <table class="table table-sm table-borderless mb-0 small">
+                        {% if purchase.gst_type == 'intrastate' %}
+                        <tr>
+                            <td>CGST (9%)</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|divide:2|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>SGST (9%)</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|divide:2|floatformat:2 }}</td>
+                        </tr>
+                        {% elif purchase.gst_type == 'interstate' %}
+                        <tr>
+                            <td>IGST (18%)</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- ==================== DISCOUNT INFO ==================== -->
     {% if purchase.discount_note or purchase.discount_type %}
     <div class="alert alert-info py-2 small">
         <i class="bi bi-percent me-1"></i>
@@ -100,7 +178,7 @@
     </div>
     {% endif %}
 
-    <!-- Items -->
+    <!-- ==================== ITEMS ==================== -->
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-light fw-bold">
             <i class="bi bi-list-ul me-1"></i>Purchase Items
@@ -113,11 +191,12 @@
                         <tr>
                             <th style="width:40px;">#</th>
                             <th>Product</th>
-                            <th class="text-center" style="width:90px;">Qty</th>
-                            <th class="text-end" style="width:120px;">Unit Price</th>
-                            <th class="text-end" style="width:90px;">Tax %</th>
-                            <th class="text-end" style="width:120px;">Tax Amt</th>
-                            <th class="text-end" style="width:130px;">Line Total</th>
+                            <th class="text-center" style="width:90px;">HSN</th>
+                            <th class="text-center" style="width:80px;">Qty</th>
+                            <th class="text-end" style="width:110px;">Unit Price</th>
+                            <th class="text-end" style="width:80px;">Tax %</th>
+                            <th class="text-end" style="width:110px;">Tax Amt</th>
+                            <th class="text-end" style="width:120px;">Line Total</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -135,6 +214,7 @@
                                     <br><small class="text-muted">{{ item.description }}</small>
                                 {% endif %}
                             </td>
+                            <td class="text-center"><small>{{ item.product.hsn_code|default:"—" }}</small></td>
                             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
                             <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
                             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
@@ -142,32 +222,32 @@
                             <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
                         </tr>
                         {% empty %}
-                        <tr><td colspan="7" class="text-center text-muted py-4">No items.</td></tr>
+                        <tr><td colspan="8" class="text-center text-muted py-4">No items.</td></tr>
                         {% endfor %}
                     </tbody>
                     <tfoot class="table-light">
                         <tr>
-                            <td colspan="6" class="text-end">Subtotal</td>
+                            <td colspan="7" class="text-end">Subtotal</td>
                             <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
                         </tr>
                         {% if purchase.discount_amount > 0 %}
                         <tr>
-                            <td colspan="6" class="text-end text-danger">Discount</td>
+                            <td colspan="7" class="text-end text-danger">Discount</td>
                             <td class="text-end text-danger">−₹{{ purchase.discount_amount|floatformat:2 }}</td>
                         </tr>
                         {% endif %}
                         {% if purchase.freight_charge > 0 %}
                         <tr>
-                            <td colspan="6" class="text-end">Freight</td>
+                            <td colspan="7" class="text-end">Freight</td>
                             <td class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
                         </tr>
                         {% endif %}
                         <tr>
-                            <td colspan="6" class="text-end">Tax Amount</td>
+                            <td colspan="7" class="text-end">Tax Amount</td>
                             <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
                         </tr>
                         <tr class="table-primary fw-bold">
-                            <td colspan="6" class="text-end">Grand Total</td>
+                            <td colspan="7" class="text-end">Grand Total</td>
                             <td class="text-end fs-5">₹{{ purchase.grand_total|floatformat:2 }}</td>
                         </tr>
                     </tfoot>
@@ -175,5 +255,75 @@
             </div>
         </div>
     </div>
+
+    <!-- ==================== VENDOR QUICK CARD ==================== -->
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-light fw-bold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-shop me-1"></i>Vendor Quick View</span>
+            <div class="d-flex gap-2">
+                {% if purchase.vendor.contact_type in 'vendor,both' or purchase.vendor.contact_type == 'vendor' or purchase.vendor.contact_type == 'both' %}
+                <a href="{% url 'accounting:vendor_statement' purchase.vendor.pk %}"
+                   class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-file-text me-1"></i>View Statement
+                </a>
+                {% endif %}
+                <a href="{% url 'accounting:contact_list' %}?search={{ purchase.vendor.name|urlencode }}"
+                   class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-person me-1"></i>All Contacts
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 small">
+                <div class="col-md-3">
+                    <div class="text-muted">Name</div>
+                    <div class="fw-bold">{{ purchase.vendor.name }}</div>
+                </div>
+                {% if purchase.vendor.phone %}
+                <div class="col-md-3">
+                    <div class="text-muted">Phone</div>
+                    <div class="fw-bold">
+                        <a href="tel:{{ purchase.vendor.phone }}" class="text-decoration-none">
+                            {{ purchase.vendor.phone }}
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+                {% if purchase.vendor.email %}
+                <div class="col-md-3">
+                    <div class="text-muted">Email</div>
+                    <div class="fw-bold">{{ purchase.vendor.email }}</div>
+                </div>
+                {% endif %}
+                <div class="col-md-3">
+                    <div class="text-muted">Type</div>
+                    <div class="fw-bold">
+                        <span class="badge bg-secondary">{{ purchase.vendor.get_contact_type_display }}</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted">Payable Balance</div>
+                    <div class="fw-bold text-danger">₹{{ purchase.vendor.payable_balance|floatformat:2 }}</div>
+                </div>
+                {% if purchase.vendor.advance_balance > 0 %}
+                <div class="col-md-3">
+                    <div class="text-muted">Advance Paid</div>
+                    <div class="fw-bold text-success">₹{{ purchase.vendor.advance_balance|floatformat:2 }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
 </div>
+
+<!-- Handle Delete redirect (when on detail page, not list page) -->
+<script>
+document.body.addEventListener('reloadPurchases', function() {
+    if (!document.getElementById('purchase-table-container')) {
+        window.location.href = "{% url 'accounting:purchase_list' %}";
+    }
+});
+</script>
+
 {% endblock %}
