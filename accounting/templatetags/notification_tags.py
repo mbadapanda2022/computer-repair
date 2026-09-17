@@ -16,3 +16,14 @@ def unread_count(user):
     except Exception as e:
         logger.warning(f"unread_count failed for user {user.pk}: {e}")
         return 0
+    
+@register.filter
+def message_unread_count(user):
+    """Unread message count for the sidebar badge."""
+    if not user or not user.is_authenticated:
+        return 0
+    try:
+        from ..models import ContactMessage
+        return ContactMessage.objects.filter(status='new').count()
+    except Exception:
+        return 0
