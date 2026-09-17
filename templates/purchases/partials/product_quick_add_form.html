@@ -1,83 +1,229 @@
+<!-- templates/purchases/partials/product_quick_add_form.html -->
 {% load static %}
+
 <form method="post" 
+      id="quickAddForm"
       hx-post="{% url 'accounting:purchase_product_quick_add' %}" 
       hx-target="#quickAddModalContent"
       hx-swap="innerHTML"
-      id="quickAddProductForm"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      hx-indicator="#quick-add-spinner"
       novalidate>
+    
     {% csrf_token %}
     
     <div class="modal-header bg-success text-white">
-        <h5 class="modal-title text-white"><i class="bi bi-plus-circle me-2"></i>Quick Add Product</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title fw-bold">
+            <i class="bi bi-plus-circle me-2"></i>Quick Add Product
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
     
     <div class="modal-body">
         {% if form.non_field_errors %}
-            <div class="alert alert-danger">
+            <div class="alert alert-danger py-2">
                 {% for error in form.non_field_errors %}
-                    {{ error }}
+                    <span><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</span>
                 {% endfor %}
             </div>
         {% endif %}
         
-        <div class="mb-3">
-            <label for="id_name" class="form-label fw-semibold">Product Name *</label>
-            <input type="text" name="name" id="id_name" 
-                   class="form-control {% if form.name.errors %}is-invalid{% endif %}" 
-                   value="{{ form.name.value|default:'' }}" required>
-            <div class="invalid-feedback">{{ form.name.errors|join:", " }}</div>
+        <!-- Product Name -->
+        <div class="mb-3" id="field-name">
+            <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold">
+                Product Name <span class="text-danger">*</span>
+            </label>
+            {{ form.name }}
+            {% if form.name.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.name.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
         </div>
         
+        <!-- HSN Code -->
+        <div class="mb-3" id="field-hsn_code">
+            <label for="{{ form.hsn_code.id_for_label }}" class="form-label fw-semibold">HSN/SAC Code</label>
+            {{ form.hsn_code }}
+            <small class="text-muted">For GST purposes (4, 6, or 8 digits)</small>
+            {% if form.hsn_code.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.hsn_code.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Category + Unit -->
+        <div class="row g-3">
+            <div class="col-md-6" id="field-category">
+                <label class="form-label fw-semibold">Category</label>
+                <div id="category-field-container">
+                    <div class="input-group">
+                        <select name="category" id="id_category" class="form-select">
+                            <option value="">---------</option>
+                            {% for cat in form.fields.category.queryset %}
+                                <option value="{{ cat.id }}"
+                                    {% if form.category.value|stringformat:"s" == cat.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ cat.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn btn-outline-primary"
+                                id="add-category-btn"
+                                hx-get="{% url 'accounting:add_category_inline' %}"
+                                hx-target="#category-field-container"
+                                hx-swap="innerHTML"
+                                hx-trigger="click"
+                                title="Add new category">
+                            <i class="bi bi-plus-circle"></i>
+                        </button>
+                    </div>
+                </div>
+                {% if form.category.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.category.errors %}
+                            <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="col-md-6" id="field-unit">
+                <label for="{{ form.unit.id_for_label }}" class="form-label fw-semibold">Unit</label>
+                {{ form.unit }}
+                {% if form.unit.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.unit.errors %}
+                            <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Purchase & Selling Price -->
+        <div class="row g-3 mt-2">
+            <div class="col-md-6" id="field-purchase_price">
+                <label for="{{ form.purchase_price.id_for_label }}" class="form-label fw-semibold">
+                    Purchase Price (₹) <span class="text-danger">*</span>
+                </label>
+                {{ form.purchase_price }}
+                {% if form.purchase_price.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.purchase_price.errors %}
+                            <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="col-md-6" id="field-selling_price">
+                <label for="{{ form.selling_price.id_for_label }}" class="form-label fw-semibold">
+                    Selling Price (₹) <span class="text-danger">*</span>
+                </label>
+                {{ form.selling_price }}
+                {% if form.selling_price.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.selling_price.errors %}
+                            <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Stock & Threshold -->
+        <div class="row g-3 mt-2">
+            <div class="col-md-6" id="field-current_stock">
+                <label for="{{ form.current_stock.id_for_label }}" class="form-label fw-semibold">Current Stock</label>
+                {{ form.current_stock }}
+                {% if form.current_stock.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.current_stock.errors %}
+                            <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="col-md-6" id="field-low_stock_threshold">
+                <label for="{{ form.low_stock_threshold.id_for_label }}" class="form-label fw-semibold">Low Stock Alert</label>
+                {{ form.low_stock_threshold }}
+                <small class="text-muted">Alert jab stock isse neeche jaaye</small>
+                {% if form.low_stock_threshold.errors %}
+                    <div class="invalid-feedback d-block">
+                        {% for error in form.low_stock_threshold.errors %}
+                            <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Tax Rate -->
+        <div class="mb-3 mt-2" id="field-tax_rate">
+            <label for="{{ form.tax_rate.id_for_label }}" class="form-label fw-semibold">Tax Rate (%)</label>
+            {{ form.tax_rate }}
+            <small class="text-muted">Default: 18%</small>
+            {% if form.tax_rate.errors %}
+                <div class="invalid-feedback d-block">
+                    {% for error in form.tax_rate.errors %}
+                        <span><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        <!-- Flags -->
         <div class="row g-3">
             <div class="col-md-6">
-                <label for="id_purchase_price" class="form-label fw-semibold">Purchase Price (₹) *</label>
-                <input type="number" name="purchase_price" id="id_purchase_price" step="0.01" 
-                       class="form-control {% if form.purchase_price.errors %}is-invalid{% endif %}" 
-                       value="{{ form.purchase_price.value|default:'0' }}" required>
-                <div class="invalid-feedback">{{ form.purchase_price.errors|join:", " }}</div>
+                <div class="form-check">
+                    {{ form.is_service }}
+                    <label class="form-check-label" for="{{ form.is_service.id_for_label }}">
+                        Service Item <span class="text-muted small">(No stock tracking)</span>
+                    </label>
+                </div>
             </div>
             <div class="col-md-6">
-                <label for="id_selling_price" class="form-label fw-semibold">Selling Price (₹) *</label>
-                <input type="number" name="selling_price" id="id_selling_price" step="0.01" 
-                       class="form-control {% if form.selling_price.errors %}is-invalid{% endif %}" 
-                       value="{{ form.selling_price.value|default:'0' }}" required>
-                <div class="invalid-feedback">{{ form.selling_price.errors|join:", " }}</div>
+                <div class="form-check">
+                    {{ form.is_active }}
+                    <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                        Active <span class="text-muted small">(Available for sale)</span>
+                    </label>
+                </div>
             </div>
         </div>
-        
-        <div class="row g-3 mt-2">
-            <div class="col-md-6">
-                <label for="id_tax_rate" class="form-label fw-semibold">Tax Rate (%)</label>
-                <input type="number" name="tax_rate" id="id_tax_rate" step="0.01" 
-                       class="form-control {% if form.tax_rate.errors %}is-invalid{% endif %}" 
-                       value="{{ form.tax_rate.value|default:'18' }}">
-                <div class="invalid-feedback">{{ form.tax_rate.errors|join:", " }}</div>
-            </div>
-            <div class="col-md-6">
-                <label for="id_unit" class="form-label fw-semibold">Unit</label>
-                <select name="unit" id="id_unit" class="form-select">
-                    {% for value, label in form.fields.unit.choices %}
-                        <option value="{{ value }}" {% if form.unit.value == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-                <div class="invalid-feedback">{{ form.unit.errors|join:", " }}</div>
-            </div>
-        </div>
-        
-        <!-- Hidden fields to keep it simple -->
-        <input type="hidden" name="is_service" value="false">
-        <input type="hidden" name="current_stock" value="0">
-        <input type="hidden" name="low_stock_threshold" value="5">
-        <input type="hidden" name="is_active" value="true">
-        <input type="hidden" name="category" value="">
-        <input type="hidden" name="hsn_code" value="">
     </div>
     
     <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-success">
-            <i class="bi bi-check-circle"></i> Add Product
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle"></i> Cancel
+        </button>
+        <button type="submit" class="btn btn-success" id="quick-add-submit">
+            <span id="quick-add-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+            <i class="bi bi-plus-circle me-1"></i> Add Product
         </button>
     </div>
 </form>
+
+<script>
+    document.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
+            const spinner = document.getElementById('quick-add-spinner');
+            const btn = document.querySelector('#quick-add-submit');
+            if (spinner) spinner.classList.remove('d-none');
+            if (btn) btn.disabled = true;
+        }
+    });
+
+    document.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
+            const spinner = document.getElementById('quick-add-spinner');
+            const btn = document.querySelector('#quick-add-submit');
+            if (spinner) spinner.classList.add('d-none');
+            if (btn) btn.disabled = false;
+        }
+    });
+</script>
+

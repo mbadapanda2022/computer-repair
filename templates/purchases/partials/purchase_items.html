@@ -1,3 +1,4 @@
+<!-- templates/purchases/partials/purchase_items.html -->
 {% load math_filters %}
 
 <!-- ===== ADD ITEM ROW ===== -->
@@ -116,17 +117,59 @@
 (function() {
     'use strict';
 
-    const container = document.getElementById('purchase-items-container');
-    if (!container) return;
+    // ============================================================
+    // GUARD — bind handlers ONLY ONCE per page load.
+    // This file's <script> re-executes on every HTMX swap of
+    // #purchase-items-container, which would otherwise keep
+    // stacking click listeners → double / triple POSTs.
+    // ============================================================
+    if (window.__purchaseItemsHandlersBound) return;
+    window.__purchaseItemsHandlersBound = true;
 
     // ============================================================
-    // Product selection (suggestion click)
+    // Helper: get current container (lookup every time, since
+    // HTMX may swap innerHTML but the outer div persists)
     // ============================================================
-    container.addEventListener('click', function(e) {
+    function getContainer() {
+        return document.getElementById('purchase-items-container');
+    }
+
+    // ============================================================
+    // Delegated click handler (document-level, survives swaps)
+    // ============================================================
+    document.addEventListener('click', function(e) {
+        const container = getContainer();
+        if (!container) return;
+
+        // ---- Handle "Add" button ----
+        const addBtn = e.target.closest('#add-item-btn');
+        if (addBtn && container.contains(addBtn)) {
+            e.preventDefault();
+            handleAddClick(addBtn, container);
+            return;
+        }
+
+        // ---- Handle product suggestion click ----
         const suggestion = e.target.closest('.product-suggestion');
-        if (!suggestion) return;
+        if (suggestion && container.contains(suggestion)) {
+            e.preventDefault();
+            handleSuggestionClick(suggestion, container);
+            return;
+        }
 
-        e.preventDefault();
+        // ---- Close suggestions on outside click ----
+        const suggestions = container.querySelector('#product-suggestions');
+        if (suggestions && suggestions.innerHTML.trim() !== '') {
+            if (!e.target.closest('#product-search') && !e.target.closest('#product-suggestions')) {
+                suggestions.innerHTML = '';
+            }
+        }
+    });
+
+    // ============================================================
+    // Suggestion click — fill in hidden id, search box, price, tax
+    // ============================================================
+    function handleSuggestionClick(suggestion, container) {
         const id = suggestion.dataset.id;
         const name = suggestion.dataset.name;
         const pPrice = suggestion.dataset.price;
@@ -145,15 +188,12 @@
             if (taxEl && taxRate) taxEl.value = taxRate;
             if (suggestions) suggestions.innerHTML = '';
         }
-    });
+    }
 
     // ============================================================
-    // Add item button — URL from data attribute
+    // Add button click — POST item to server, replace table
     // ============================================================
-    container.addEventListener('click', function(e) {
-        const addBtn = e.target.closest('#add-item-btn');
-        if (!addBtn) return;
-
+    function handleAddClick(addBtn, container) {
         const addUrl = addBtn.dataset.addUrl;
         if (!addUrl) return;
 
@@ -167,7 +207,7 @@
         const pid = productIdEl ? productIdEl.value : '';
         if (!pid) {
             alert('Please select a product from the suggestions.');
-            searchInput && searchInput.focus();
+            if (searchInput) searchInput.focus();
             return;
         }
 
@@ -182,8 +222,9 @@
                 is_office_use: (officeChk && officeChk.checked) ? 'on' : ''
             }
         }).then(function() {
+            // Small delay so the new DOM is settled before resetting
             setTimeout(function() {
-                const c = document.getElementById('purchase-items-container');
+                const c = getContainer();
                 if (!c) return;
                 const ns = c.querySelector('#product-search');
                 const np = c.querySelector('#selected-product-id');
@@ -195,17 +236,41 @@
                 if (no) no.checked = false;
             }, 100);
         });
-    });
+    }
 
     // ============================================================
-    // Close suggestions on outside click
+    // AUTO-ADD: product created via Quick Add modal
+    // (fires from purchases.py → HX-Trigger → app.js)
     // ============================================================
-    document.addEventListener('click', function(e) {
-        const suggestions = document.getElementById('product-suggestions');
-        if (!suggestions) return;
-        if (!e.target.closest('#product-search') && !e.target.closest('#product-suggestions')) {
-            suggestions.innerHTML = '';
-        }
+    document.addEventListener('productCreated', function(e) {
+        const d = e.detail || {};
+        if (!d.id) return;
+
+        const c = getContainer();
+        if (!c) return;
+
+        const addBtn = c.querySelector('#add-item-btn');
+        if (!addBtn) return;
+
+        const addUrl = addBtn.dataset.addUrl;
+        if (!addUrl) return;
+
+        htmx.ajax('POST', addUrl, {
+            target: '#purchase-items-container',
+            swap: 'innerHTML',
+            values: {
+                product: d.id,
+                quantity: 1,
+                unit_price: d.price || 0,
+                tax_rate: d.tax || 18,
+                is_office_use: ''
+            }
+        }).then(function() {
+            if (window.showToast) {
+                window.showToast('success', '"' + d.name + '" added to purchase items.');
+            }
+        });
     });
+
 })();
 </script>

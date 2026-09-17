@@ -1250,7 +1250,15 @@ def sync_purchase_ledger(purchase):
             )
 
         # Advance Adjustment (if any)
-        total_advance_settled = purchase.advance_adjustments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        # NOTE: Purchase model does not currently have `advance_adjustments` relation
+        # (only Invoice has it). This block is defensive so it doesn't crash if the
+        # relation is absent — which is the current case.
+        total_advance_settled = Decimal('0')
+        if hasattr(purchase, 'advance_adjustments'):
+            total_advance_settled = (
+                purchase.advance_adjustments.aggregate(total=Sum('amount'))['total']
+                or Decimal('0')
+            )
         if total_advance_settled > 0:
             advance_account = get_account('1014', 'Advance to Vendor', 'asset', '1')
 

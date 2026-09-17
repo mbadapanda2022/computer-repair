@@ -1,32 +1,20 @@
-<div class="text-center py-4">
-    <div class="mb-3">
-        <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
-    </div>
-    <h5 class="fw-bold">Product Created Successfully!</h5>
+<!-- templates/purchases/partials/product_quick_add_success.html-->
+<div class="modal-header bg-success text-white">
+    <h5 class="modal-title fw-bold">
+        <i class="bi bi-check-circle-fill me-2"></i>Product Added!
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body text-center py-4">
+    <i class="bi bi-box-seam display-1 text-success mb-3" style="font-size:4rem;"></i>
+    <h4 class="fw-bold">{{ product.name }}</h4>
     <p class="text-muted">
-        <strong>{{ product.name }}</strong> (₹{{ product.purchase_price|floatformat:2 }}) has been added to inventory.
+        <span class="badge bg-secondary">{{ product.get_unit_display }}</span>
+        <span class="badge bg-success">₹{{ product.purchase_price|floatformat:2 }}</span>
     </p>
-    <div class="spinner-border text-primary mt-3" role="status">
-        <span class="visually-hidden">Closing...</span>
+    <div class="alert alert-success mb-0">
+        <i class="bi bi-check-circle me-1"></i>
+        Product created and added to purchase items!
     </div>
-    <p class="small text-muted mt-2">Closing modal in a moment...</p>
 </div>
 
-<script>
-    (function() {
-        // Trigger productCreated event with product details
-        document.dispatchEvent(new CustomEvent('productCreated', {
-            detail: {
-                id: {{ product.id }},
-                name: '{{ product.name|escapejs }}',
-                price: '{{ product.purchase_price|floatformat:2 }}',
-                tax: '{{ product.tax_rate|floatformat:2 }}'
-            }
-        }));
-
-        // Close the modal after 1 second
-        setTimeout(function() {
-            document.dispatchEvent(new CustomEvent('closeModal'));
-        }, 1000);
-    })();
-</script>

@@ -1,3 +1,4 @@
+<!-- templates/purchases/partials/_purchase_form_content.html.html -->
 {% load static %}
 <div class="{% if is_htmx %}container-fluid{% else %}container py-4{% endif %}">
     <div class="row justify-content-center">
@@ -19,9 +20,12 @@
 
                 <div class="card-body">
                     <form method="post"
+                          action="{% if purchase %}{% url 'accounting:purchase_update' purchase.pk %}{% else %}{% url 'accounting:purchase_create' %}{% endif %}"
+                          {% if is_htmx %}
                           hx-post="{% if purchase %}{% url 'accounting:purchase_update' purchase.pk %}{% else %}{% url 'accounting:purchase_create' %}{% endif %}"
-                          hx-target="{% if is_htmx %}#mainModalContent{% else %}#purchase-form-container{% endif %}"
+                          hx-target="#mainModalContent"
                           hx-swap="innerHTML"
+                          {% endif %}
                           id="purchaseForm"
                           novalidate>
                         {% csrf_token %}
