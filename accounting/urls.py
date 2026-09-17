@@ -20,6 +20,7 @@ from .views.auth import (
 )
 from .views.repairs import staff_approve_estimate
 from .views.utils import health_check
+from .views.global_search import global_search
 
 app_name = 'accounting'
 
@@ -251,6 +252,9 @@ urlpatterns = [
     path('landing/manage/services/', landing_views.manage_services, name='manage_services'),
     path('landing/manage/testimonials/', landing_views.manage_testimonials, name='manage_testimonials'),
     path('landing/manage/faqs/', landing_views.manage_faqs, name='manage_faqs'),
+    
+    # ===== Global Search =====
+    path('search/', global_search, name='global_search'),
     
     path('health/', health_check, name='health_check'),
 ]

@@ -227,6 +227,21 @@
                     </a>
 
                     <div class="ms-auto d-flex align-items-center gap-2">
+                        <!-- Global Search -->
+                        <div class="global-search-wrapper" id="global-search-wrapper">
+                            <div class="global-search-input-group">
+                                <i class="bi bi-search global-search-icon"></i>
+                                    <input type="text"
+                                       id="global-search-input"
+                                       class="form-control form-control-sm global-search-input"
+                                       placeholder="Search... (Ctrl+K)"
+                                       autocomplete="off"
+                                       spellcheck="false">
+                                <span id="global-search-spinner"
+                                      class="htmx-indicator spinner-border spinner-border-sm global-search-spinner"></span>
+                            </div>
+                            <div id="global-search-results" class="global-search-results"></div>
+                        </div>
                         <button class="btn btn-outline-secondary" id="themeToggle" title="Switch theme">
                             <i class="bi bi-moon-fill" id="themeIcon"></i>
                         </button>
