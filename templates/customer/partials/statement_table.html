@@ -12,15 +12,15 @@
             <table class="table table-sm table-hover mb-0 align-middle">
                 <thead class="table-dark">
                     <tr>
-                        <th rowspan="2" class="align-middle text-nowrap" style="min-width: 95px;">Date</th>
-                        <th rowspan="2" class="align-middle">Particulars</th>
+                        <th rowspan="2" class="align-middle text-nowrap bg-dark text-white" style="min-width: 95px;">Date</th>
+                        <th rowspan="2" class="align-middle bg-dark text-white">Particulars</th>
                         <th colspan="3" class="text-center bg-success-subtle text-dark">
                             <i class="bi bi-arrow-down-circle me-1"></i>You Owe Us (Receivable)
                         </th>
                         <th colspan="3" class="text-center bg-warning-subtle text-dark">
                             <i class="bi bi-arrow-up-circle me-1"></i>We Owe You (Payable)
                         </th>
-                        <th rowspan="2" class="text-end align-middle bg-primary-subtle text-dark"
+                        <th rowspan="2" class="text-center align-middle bg-primary-subtle text-dark"
                             style="min-width: 110px;">
                             <i class="bi bi-balance-scale me-1"></i>Net
                         </th>
@@ -35,7 +35,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Opening row -->
+                    <!-- Opening row — top if oldest-first -->
+                    {% if sort == 'asc' %}
                     <tr class="table-light fw-semibold">
                         <td class="text-nowrap">—</td>
                         <td>
@@ -50,6 +51,7 @@
                         <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
                         <td class="text-end fw-bold">₹{{ opening_recv|floatformat:2 }}</td>
                     </tr>
+                    {% endif %}
 
                     {% for row in statement_rows %}
                     <tr>
@@ -81,7 +83,7 @@
                                         </a>
                                     {% endif %}
                                 </span>
-                                
+
                                 <small class="text-muted">
                                     {% if row.reference %}
                                         <span class="badge bg-light text-dark border me-1">{{ row.reference }}</span>
@@ -96,7 +98,7 @@
                         <td class="text-end">{% if row.pay_dr %}₹{{ row.pay_dr|floatformat:2 }}{% endif %}</td>
                         <td class="text-end">{% if row.pay_cr %}₹{{ row.pay_cr|floatformat:2 }}{% endif %}</td>
                         <td class="text-end small text-muted">₹{{ row.running_pay|floatformat:2 }}</td>
-                        <td class="text-end fw-bold {% if row.net >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        <td class="text-center fw-bold {% if row.net >= 0 %}text-success{% else %}text-danger{% endif %}">
                             ₹{{ row.net|floatformat:2 }}
                         </td>
                     </tr>
@@ -108,6 +110,24 @@
                         </td>
                     </tr>
                     {% endfor %}
+
+                    <!-- Opening row — bottom if newest-first -->
+                    {% if sort != 'asc' %}
+                    <tr class="table-light fw-semibold">
+                        <td class="text-nowrap">—</td>
+                        <td>
+                            <strong>Opening Balance</strong>
+                            {% if date_from %}<br><small class="text-muted">carried forward as on {{ date_from }}</small>{% endif %}
+                        </td>
+                        <td class="text-end">{% if opening_recv > 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
+                        <td class="text-end">{% if opening_recv < 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
+                        <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
+                        <td class="text-end">{% if opening_pay < 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
+                        <td class="text-end">{% if opening_pay > 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
+                        <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ opening_recv|floatformat:2 }}</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
                 <tfoot class="table-secondary fw-bold">
                     <tr>
@@ -128,7 +148,7 @@
                         <td colspan="3" class="text-end text-warning">
                             <strong>₹{{ closing_pay|floatformat:2 }}</strong>
                         </td>
-                        <td class="text-end {% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        <td class="text-center {% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
                             <strong>₹{{ net_position|floatformat:2 }}</strong>
                         </td>
                     </tr>
@@ -150,6 +170,8 @@
                     </tr>
                 </thead>
                 <tbody>
+                    <!-- Opening row — top if oldest-first -->
+                    {% if sort == 'asc' %}
                     <tr class="table-secondary fw-semibold">
                         <td colspan="4">
                             Opening Balance
@@ -157,6 +179,8 @@
                         </td>
                         <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
                     </tr>
+                    {% endif %}
+
                     {% for row in statement_rows %}
                     <tr>
                         <td class="text-nowrap small">{{ row.date|date:"d M Y" }}</td>
@@ -196,6 +220,7 @@
                         </td>
                     </tr>
                     {% endfor %}
+
                     {% if statement_rows %}
                     <tr class="table-light fw-bold">
                         <td colspan="2" class="text-end">Period Totals</td>
@@ -206,6 +231,17 @@
                     <tr class="table-warning fw-bold">
                         <td colspan="4" class="text-end">Closing Payable Balance</td>
                         <td class="text-end fs-6">₹{{ closing_pay|floatformat:2 }}</td>
+                    </tr>
+                    {% endif %}
+
+                    <!-- Opening row — bottom if newest-first -->
+                    {% if sort != 'asc' %}
+                    <tr class="table-secondary fw-semibold">
+                        <td colspan="4">
+                            Opening Balance
+                            {% if opening_as_on_date %}<small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>{% endif %}
+                        </td>
+                        <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
                     </tr>
                     {% endif %}
                 </tbody>
@@ -227,6 +263,8 @@
                     </tr>
                 </thead>
                 <tbody>
+                    <!-- Opening row — top if oldest-first -->
+                    {% if sort == 'asc' %}
                     <tr class="table-secondary fw-semibold">
                         <td colspan="4">
                             Opening Balance
@@ -235,6 +273,8 @@
                         <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
                         <td></td>
                     </tr>
+                    {% endif %}
+
                     {% for row in statement_rows %}
                     <tr>
                         <td class="text-nowrap small">{{ row.date|date:"d M Y" }}</td>
@@ -288,6 +328,7 @@
                         </td>
                     </tr>
                     {% endfor %}
+
                     {% if statement_rows %}
                     <tr class="table-light fw-bold">
                         <td colspan="2" class="text-end">Period Totals</td>
@@ -299,6 +340,18 @@
                     <tr class="table-primary fw-bold">
                         <td colspan="4" class="text-end">Closing Balance</td>
                         <td class="text-end fs-6">₹{{ closing_recv|floatformat:2 }}</td>
+                        <td></td>
+                    </tr>
+                    {% endif %}
+
+                    <!-- Opening row — bottom if newest-first -->
+                    {% if sort != 'asc' %}
+                    <tr class="table-secondary fw-semibold">
+                        <td colspan="4">
+                            Opening Balance
+                            {% if opening_as_on_date %}<small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>{% endif %}
+                        </td>
+                        <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
                         <td></td>
                     </tr>
                     {% endif %}
@@ -319,14 +372,14 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_statement' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_statement' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}"
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_statement' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_statement' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}"
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -340,14 +393,14 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_statement' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_statement' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}"
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_statement' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_statement' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}"
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

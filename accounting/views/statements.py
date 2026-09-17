@@ -422,11 +422,13 @@ def customer_statement(request, contact_id):
         date_to = ''
         txn_type = ''
         search = ''
+        sort = 'desc'
     else:
         date_from = request.GET.get('date_from', '')
         date_to = request.GET.get('date_to', '')
         txn_type = request.GET.get('txn_type', '')
         search = request.GET.get('search', '')
+        sort = request.GET.get('sort', 'desc')
 
     page_number = request.GET.get('page', 1)
 
@@ -526,6 +528,10 @@ def customer_statement(request, contact_id):
             'invoice_id': invoice_id,
             'repair_job_id': repair_job_id,
         })
+    
+    # Display order — newest first if requested
+    if sort == 'desc':
+        statement_lines.reverse()
 
     dr_total = sum(l['debit'] for l in statement_lines) if statement_lines else Decimal('0')
     cr_total = sum(l['credit'] for l in statement_lines) if statement_lines else Decimal('0')
@@ -554,6 +560,7 @@ def customer_statement(request, contact_id):
         'date_to': date_to,
         'txn_type': txn_type,
         'search': search,
+        'sort': sort,
     }
 
     if is_htmx(request):
@@ -700,10 +707,12 @@ def vendor_statement(request, contact_id):
         date_from = ''
         date_to = ''
         search = ''
+        sort = 'desc'
     else:
         date_from = request.GET.get('date_from', '')
         date_to = request.GET.get('date_to', '')
         search = request.GET.get('search', '')
+        sort = request.GET.get('sort', 'desc')
 
     page_number = request.GET.get('page', 1)
 
@@ -771,6 +780,10 @@ def vendor_statement(request, contact_id):
             'balance': running_balance,
             'purchase_id': purchase_id,
         })
+        
+    # Display order — newest first if requested
+    if sort == 'desc':
+        statement_lines.reverse()
 
     closing_balance = running_balance
     total_debit = sum(l['debit'] for l in statement_lines) if statement_lines else Decimal('0')
@@ -798,6 +811,7 @@ def vendor_statement(request, contact_id):
         'date_from': date_from,
         'date_to': date_to,
         'search': search,
+        'sort': sort,
         'company': CompanyProfile.get_instance(),
     }
 
@@ -1163,10 +1177,14 @@ def _get_combined_opening_balances(contact, date_from=None):
             opening_pay.quantize(Decimal('0.01')))
 
 
-def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None, search=None):
+def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
+                         search=None, sort='desc'):
     """
     Build combined statement data (rows + totals + opening/closing).
     Both sides computed independently; net position = receivable - payable.
+
+    sort='desc' → newest first (default, for screen)
+    sort='asc'  → oldest first (used by print/excel)
     """
     opening_recv, opening_pay = _get_combined_opening_balances(contact, date_from)
 
@@ -1353,6 +1371,10 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None, s
             'net': running_recv - running_pay,
         })
 
+    # Display order — newest first if requested (running balances stay baked in)
+    if sort == 'desc':
+        rows.reverse()
+
     return {
         'rows': rows,
         'opening_recv': opening_recv,
@@ -1382,10 +1404,14 @@ def combined_statement(request, contact_id, is_print=None):
     date_to = request.GET.get('date_to', '')
     txn_type = request.GET.get('txn_type', '')
     search = request.GET.get('search', '').strip()
+    sort = request.GET.get('sort', 'desc')
     page_number = request.GET.get('page', 1)
 
-    data = _build_combined_rows(contact, date_from or None, date_to or None,
-                                txn_type or None, search or None)
+    # Print always chronological
+    print_requested = (is_print == '1') or (request.GET.get('print') == '1')
+    effective_sort = 'asc' if print_requested else sort
+
+    data = _build_combined_rows(contact, date_from or None, date_to or None, txn_type or None, search or None, sort=effective_sort)
     rows = data.pop('rows')
 
     paginator = Paginator(rows, 25)
@@ -1408,11 +1434,10 @@ def combined_statement(request, contact_id, is_print=None):
         'date_to': date_to,
         'txn_type': txn_type,
         'search': search,
+        'sort': sort,
         **data,
     }
 
-    # Print mode: either from URL kwarg (is_print='1') or query param (?print=1)
-    print_requested = (is_print == '1') or (request.GET.get('print') == '1')
     if print_requested:
         return render(request, 'statements/combined_statement_print.html', context)
 
@@ -1437,8 +1462,7 @@ def combined_statement_excel(request, contact_id):
     txn_type = request.GET.get('txn_type', '')
     search = request.GET.get('search', '').strip()
 
-    data = _build_combined_rows(contact, date_from or None, date_to or None,
-                                txn_type or None, search or None)
+    data = _build_combined_rows(contact, date_from or None, date_to or None, txn_type or None, search or None, sort='asc')
     rows = data.pop('rows')
 
     wb = openpyxl.Workbook()

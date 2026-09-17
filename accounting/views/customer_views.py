@@ -32,7 +32,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.core.mail import send_mail
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -343,8 +343,10 @@ def dashboard_stats_json(request):
 def invoice_list(request):
     """
     Customer invoice list — filter, paginate, print, excel, HTMX.
+
     Query params:
       - status: paid | partial | unpaid
+      - type: sale | repair     (NEW — invoice type filter)
       - search: invoice_number
       - date_from, date_to: YYYY-MM-DD
       - print=1  → print view
@@ -353,19 +355,28 @@ def invoice_list(request):
     customer = _get_customer(request)
 
     status_filter = request.GET.get('status', '').strip()
+    type_filter = request.GET.get('type', '').strip()
     search = request.GET.get('search', '').strip()
     date_from = request.GET.get('date_from', '').strip()
     date_to = request.GET.get('date_to', '').strip()
+
+    # Annotate each invoice with `is_repair` flag (single subquery)
+    repair_exists = RepairJob.objects.filter(invoice_id=OuterRef('pk'))
 
     qs = (
         Invoice.objects
         .filter(customer=customer)
         .select_related('customer')
+        .annotate(is_repair=Exists(repair_exists))
         .order_by('-date', '-id')
     )
 
     if status_filter:
         qs = qs.filter(payment_status=status_filter)
+    if type_filter == 'repair':
+        qs = qs.filter(is_repair=True)
+    elif type_filter == 'sale':
+        qs = qs.filter(is_repair=False)
     if search:
         qs = qs.filter(invoice_number__icontains=search)
     if date_from:
@@ -384,18 +395,39 @@ def invoice_list(request):
         total_due=Sum('balance_due'),
     )
 
-    # Print mode
+    def _attach_repair_jobs(invoices):
+        """Prefetch linked RepairJob for a batch (avoids N+1).
+
+        Note: attribute name 'linked_repair' — Django templates
+        don't allow variables starting with underscore.
+        """
+        ids = [inv.id for inv in invoices]
+        if not ids:
+            return invoices
+        repair_map = {
+            rj.invoice_id: rj
+            for rj in RepairJob.objects.filter(invoice_id__in=ids).only(
+                'id', 'invoice_id', 'job_number', 'device_model', 'status'
+            )
+        }
+        for inv in invoices:
+            inv.linked_repair = repair_map.get(inv.id)
+        return invoices
+
+    # Print mode — all matching, no pagination
     if request.GET.get('print') == '1':
+        invoices_list = _attach_repair_jobs(list(qs))
         company = CompanyProfile.get_instance()
         return render(request, 'customer/invoice_list_print.html', {
             'customer': customer,
-            'invoices': qs,
+            'invoices': invoices_list,
             'company': company,
             'logo_exists': bool(company.logo and company.logo.name),
             'total_invoiced': agg['total_invoiced'] or Decimal('0'),
             'total_paid': agg['total_paid'] or Decimal('0'),
             'total_due': agg['total_due'] or Decimal('0'),
             'status_filter': status_filter,
+            'type_filter': type_filter,
             'search': search,
             'date_from': date_from,
             'date_to': date_to,
@@ -403,6 +435,7 @@ def invoice_list(request):
 
     # Paginated
     page_obj, paginator = _paginate(request, qs)
+    _attach_repair_jobs(list(page_obj.object_list))
 
     context = {
         'customer': customer,
@@ -410,6 +443,7 @@ def invoice_list(request):
         'page_obj': page_obj,
         'total_count': paginator.count,
         'status_filter': status_filter,
+        'type_filter': type_filter,
         'search': search,
         'date_from': date_from,
         'date_to': date_to,
@@ -1167,10 +1201,15 @@ def statement(request):
     date_to = request.GET.get('date_to', '').strip()
     txn_type = request.GET.get('txn_type', '')
     search = request.GET.get('search', '').strip()
+    sort = request.GET.get('sort', 'desc')
 
     # Excel
     if request.GET.get('excel') == '1':
         return _customer_statement_excel(customer, request)
+
+    # Print always chronological
+    print_requested = (request.GET.get('print') == '1')
+    effective_sort = 'asc' if print_requested else sort
 
     # Build rows (receivable + payable sides)
     data = _build_combined_rows(
@@ -1179,6 +1218,7 @@ def statement(request):
         date_to or None,
         txn_type or None,
         search or None,
+        sort=effective_sort,
     )
     rows = data.pop('rows')
 
@@ -1214,13 +1254,14 @@ def statement(request):
         'date_to': date_to,
         'txn_type': txn_type,
         'search': search,
+        'sort': sort,
         'show_dual': show_dual,
         'show_payable_only': show_payable_only,
         **data,
     }
 
     # Print
-    if request.GET.get('print') == '1':
+    if print_requested:
         return render(request, 'customer/statement_print.html', context)
 
     if is_htmx(request):
@@ -2135,6 +2176,7 @@ def _customer_statement_excel(customer, request):
     data = _build_combined_rows(
         customer, date_from or None, date_to or None,
         txn_type or None, search or None,
+        sort='asc',
     )
     rows = data.pop('rows')
 

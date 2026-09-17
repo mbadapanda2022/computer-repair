@@ -26,6 +26,9 @@
         .table .text-end { text-align: right; }
         .table .text-center { text-align: center; }
         .table tfoot td { background: #e9ecef; font-weight: bold; border-top: 2px solid #0d6efd; }
+        .badge-type { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 8pt; font-weight: 600; }
+        .badge-sale { background: #cfe2ff; color: #084298; }
+        .badge-repair { background: #fff3cd; color: #664d03; }
         .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 6px; margin-top: 15px; font-size: 8pt; color: #6c757d; }
         .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
         .btn-primary { background: #0d6efd; color: #fff; }
@@ -45,9 +48,10 @@
         <strong>Filters:</strong>
         {% if search %}<span>Search: {{ search }}</span>{% endif %}
         {% if status_filter %}<span> | Status: {{ status_filter|title }}</span>{% endif %}
+        {% if type_filter %}<span> | Type: {{ type_filter|title }}</span>{% endif %}
         {% if date_from %}<span> | From: {{ date_from }}</span>{% endif %}
         {% if date_to %}<span> | To: {{ date_to }}</span>{% endif %}
-        {% if not search and not status_filter and not date_from and not date_to %}<span>All Records</span>{% endif %}
+        {% if not search and not status_filter and not type_filter and not date_from and not date_to %}<span>All Records</span>{% endif %}
         <br><small>Generated: {% now "d M Y, h:i A" %} | {{ invoices|length }} invoice(s)</small>
     </div>
 
@@ -71,7 +75,8 @@
             <tr>
                 <th>Invoice #</th>
                 <th>Date</th>
-                <th>Due Date</th>
+                <th>Type</th>
+                <th>Reference</th>
                 <th class="text-end">Amount</th>
                 <th class="text-end">Paid</th>
                 <th class="text-end">Due</th>
@@ -83,20 +88,33 @@
             <tr>
                 <td><strong>{{ inv.invoice_number }}</strong></td>
                 <td>{{ inv.date|date:"d M Y" }}</td>
-                <td>{{ inv.due_date|date:"d M Y"|default:"—" }}</td>
+                <td>
+                    {% if inv.is_repair %}
+                        <span class="badge-type badge-repair">Repair</span>
+                    {% else %}
+                        <span class="badge-type badge-sale">Sale</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if inv.linked_repair %}
+                        {{ inv.linked_repair.job_number }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </td>
                 <td class="text-end">₹{{ inv.grand_total|floatformat:2 }}</td>
                 <td class="text-end">₹{{ inv.paid_amount|floatformat:2 }}</td>
                 <td class="text-end">₹{{ inv.balance_due|floatformat:2 }}</td>
                 <td>{{ inv.get_payment_status_display }}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="7" class="text-center">No invoices found.</td></tr>
+            <tr><td colspan="8" class="text-center">No invoices found.</td></tr>
             {% endfor %}
         </tbody>
         {% if invoices %}
         <tfoot>
             <tr>
-                <td colspan="3" class="text-end">Totals →</td>
+                <td colspan="4" class="text-end">Totals →</td>
                 <td class="text-end">₹{{ total_invoiced|floatformat:2 }}</td>
                 <td class="text-end">₹{{ total_paid|floatformat:2 }}</td>
                 <td class="text-end">₹{{ total_due|floatformat:2 }}</td>

@@ -289,11 +289,11 @@
 {% block content %}
 <div class="container py-4">
 
-    <!-- HERO HEADER -->
+        <!-- HERO HEADER -->
     <div class="invoice-header mb-4">
         <div class="row align-items-center position-relative" style="z-index: 1;">
             <div class="col-md-7">
-                <div class="d-flex align-items-center gap-3 mb-2">
+                <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                     <span class="status-badge-large">
                         <i class="bi 
                             {% if invoice.payment_status == 'paid' %}bi-check-circle-fill
@@ -302,6 +302,15 @@
                         </i>
                         {{ invoice.get_payment_status_display }}
                     </span>
+                    {% if repair_job %}
+                        <span class="status-badge-large" style="background: rgba(255,193,7,0.35); border-color: rgba(255,193,7,0.6);">
+                            <i class="bi bi-tools me-2"></i>Repair Invoice
+                        </span>
+                    {% else %}
+                        <span class="status-badge-large" style="background: rgba(13,110,253,0.35); border-color: rgba(13,110,253,0.6);">
+                            <i class="bi bi-cart-check me-2"></i>Sale Invoice
+                        </span>
+                    {% endif %}
                     <span class="invoice-number">{{ invoice.invoice_number }}</span>
                 </div>
                 <h2 class="fw-bold mb-1">{{ invoice.customer.name }}</h2>

@@ -198,10 +198,10 @@
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form id="statement-filter-form" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Invoice, device, reference..."
+                        <input type="text" class="form-control" placeholder="Invoice, device..."
                                name="search" value="{{ search }}"
                                hx-get="{% url 'customer:customer_statement' %}"
                                hx-trigger="keyup changed delay:300ms"
@@ -225,6 +225,19 @@
                         <option value="payment" {% if txn_type == 'payment' %}selected{% endif %}>Payments</option>
                         <option value="discount" {% if txn_type == 'discount' %}selected{% endif %}>Discounts</option>
                         <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>Journals</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="sort"
+                            title="Sort Order"
+                            hx-get="{% url 'customer:customer_statement' %}"
+                            hx-trigger="change"
+                            hx-target="#statement-table-container"
+                            hx-include="#statement-filter-form"
+                            hx-push-url="true"
+                            onchange="updateActiveFilters()">
+                        <option value="desc" {% if sort != 'asc' %}selected{% endif %}>↓ Newest First</option>
+                        <option value="asc"  {% if sort == 'asc' %}selected{% endif %}>↑ Oldest First</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -288,6 +301,7 @@ function getCurrentFilterParams() {
 // ============================================================
 function downloadWithFilters(type) {
     const params = getCurrentFilterParams();
+    params.set('sort', 'asc');
     const queryString = params.toString();
 
     let url = '';
@@ -316,13 +330,15 @@ function resetFilters() {
     form.querySelector('[name="txn_type"]').value = '';
     form.querySelector('[name="date_from"]').value = '';
     form.querySelector('[name="date_to"]').value = '';
+    const sortField = form.querySelector('[name="sort"]');
+    if (sortField) sortField.value = 'desc';
 
-    htmx.ajax('GET', "{% url 'customer:customer_statement' %}", {
+    htmx.ajax('GET', "{% url 'customer:customer_statement' %}?sort=desc", {
         target: '#statement-table-container',
         swap: 'innerHTML'
     });
 
-    window.history.pushState({}, '', "{% url 'customer:customer_statement' %}");
+    window.history.pushState({}, '', "{% url 'customer:customer_statement' %}?sort=desc");
     updateActiveFilters();
 }
 
@@ -342,6 +358,7 @@ function updateActiveFilters() {
     const parts = [];
     if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
     if (params.get('txn_type')) parts.push('Type: ' + params.get('txn_type'));
+    if (params.get('sort') && params.get('sort') !== 'desc') parts.push('Sort: ' + params.get('sort'));
     if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
     if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
 

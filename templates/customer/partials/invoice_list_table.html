@@ -9,6 +9,7 @@
                     <tr>
                         <th>Invoice #</th>
                         <th>Date</th>
+                        <th>Type</th>
                         <th class="text-end">Amount</th>
                         <th class="text-end">Paid</th>
                         <th class="text-end">Due</th>
@@ -21,6 +22,28 @@
                     <tr>
                         <td><strong>{{ invoice.invoice_number }}</strong></td>
                         <td>{{ invoice.date|date:"d M Y" }}</td>
+                        <td>
+                            {% if invoice.is_repair %}
+                                <span class="badge bg-warning text-dark"
+                                      title="Repair invoice">
+                                    <i class="bi bi-tools me-1"></i>Repair
+                                </span>
+                                {% if invoice.linked_repair %}
+                                    <br>
+                                    <small class="text-muted d-inline-block mt-1">
+                                        <a href="{% url 'customer:customer_repair_detail' invoice.linked_repair.pk %}"
+                                           class="text-decoration-none">
+                                            <i class="bi bi-link-45deg"></i>{{ invoice.linked_repair.job_number }}
+                                        </a>
+                                    </small>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge bg-primary"
+                                      title="Sale invoice">
+                                    <i class="bi bi-cart-check me-1"></i>Sale
+                                </span>
+                            {% endif %}
+                        </td>
                         <td class="text-end fw-semibold">₹{{ invoice.grand_total|floatformat:2 }}</td>
                         <td class="text-end text-success">₹{{ invoice.paid_amount|floatformat:2 }}</td>
                         <td class="text-end text-danger">₹{{ invoice.balance_due|floatformat:2 }}</td>
@@ -32,20 +55,20 @@
                                 {{ invoice.get_payment_status_display }}
                             </span>
                         </td>
-                        <td class="text-center">
+                        <td class="text-center text-nowrap">
                             <a href="{% url 'customer:customer_invoice_detail' invoice.pk %}"
-                               class="btn btn-sm btn-outline-primary">
+                               class="btn btn-sm btn-outline-primary" title="View">
                                 <i class="bi bi-eye"></i>
                             </a>
                             <a href="{% url 'customer:customer_invoice_print' invoice.pk %}"
-                               class="btn btn-sm btn-outline-secondary" target="_blank">
+                               class="btn btn-sm btn-outline-secondary" target="_blank" title="Print">
                                 <i class="bi bi-printer"></i>
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-5 text-muted">
+                        <td colspan="8" class="text-center py-5 text-muted">
                             <i class="bi bi-inbox display-6 d-block mb-2 opacity-50"></i>
                             <p class="mb-0">No invoices match your filters.</p>
                         </td>
@@ -63,14 +86,14 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_invoices' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -84,14 +107,14 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'customer:customer_invoices' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if type_filter %}&type={{ type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-list-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

@@ -123,6 +123,19 @@
                            onchange="updateActiveFilters()">
                 </div>
                 <div class="col-md-3">
+                    <select class="form-select" name="sort"
+                            title="Sort Order"
+                            hx-get="{% url 'accounting:vendor_statement' contact.id %}" 
+                            hx-trigger="change" 
+                            hx-target="#vendor-statement-container"
+                            hx-include="#vendor-filter-form"
+                            hx-push-url="true"
+                            onchange="updateActiveFilters()">
+                        <option value="desc" {% if sort != 'asc' %}selected{% endif %}>↓ Newest First</option>
+                        <option value="asc"  {% if sort == 'asc' %}selected{% endif %}>↑ Oldest First</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <button type="button" class="btn btn-secondary w-100" 
                             onclick="resetFilters()">
                         <i class="bi bi-arrow-counterclockwise"></i> Reset
@@ -160,6 +173,7 @@ function getCurrentFilterParams() {
 // ============================================================
 function downloadWithFilters(type) {
     const params = getCurrentFilterParams();
+    params.set('sort', 'asc');
     const queryString = params.toString();
     const baseParams = queryString ? '?' + queryString : '';
 
@@ -192,13 +206,15 @@ function resetFilters() {
     
     form.querySelector('[name="date_from"]').value = '';
     form.querySelector('[name="date_to"]').value = '';
+    const sortField = form.querySelector('[name="sort"]');
+    if (sortField) sortField.value = 'desc';
     
-    htmx.ajax('GET', "{% url 'accounting:vendor_statement' contact.id %}", {
+    htmx.ajax('GET', "{% url 'accounting:vendor_statement' contact.id %}?sort=desc", {
         target: '#vendor-statement-container',
         swap: 'innerHTML'
     });
     
-    window.history.pushState({}, '', "{% url 'accounting:vendor_statement' contact.id %}");
+    window.history.pushState({}, '', "{% url 'accounting:vendor_statement' contact.id %}?sort=desc");
     updateActiveFilters();
 }
 
@@ -216,6 +232,7 @@ function updateActiveFilters() {
     }
     
     const parts = [];
+    if (params.get('sort') && params.get('sort') !== 'desc') parts.push('Sort: ' + params.get('sort'));
     if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
     if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
     

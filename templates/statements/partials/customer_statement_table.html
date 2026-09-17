@@ -15,7 +15,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Opening Balance Row -->
+                    <!-- Opening Balance Row — top if oldest-first -->
+                    {% if sort == 'asc' %}
                     <tr class="table-secondary fw-semibold">
                         <td colspan="4">
                             {% if opening_label %}{{ opening_label }}{% else %}Opening Balance{% endif %}
@@ -26,6 +27,7 @@
                         <td class="text-end">₹{{ opening|floatformat:2 }}</td>
                         <td></td>
                     </tr>
+                    {% endif %}
 
                     {% for line in statement_lines %}
                     <tr>
@@ -65,6 +67,8 @@
                                    class="btn btn-sm btn-outline-info" target="_blank" title="View Repair">
                                     <i class="bi bi-tools"></i>
                                 </a>
+                            {% else %}
+                                <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -77,7 +81,21 @@
                     </tr>
                     {% endfor %}
 
-                    <!-- Totals Row -->
+                    <!-- Opening Balance Row — bottom if newest-first -->
+                    {% if sort != 'asc' %}
+                    <tr class="table-secondary fw-semibold">
+                        <td colspan="4">
+                            {% if opening_label %}{{ opening_label }}{% else %}Opening Balance{% endif %}
+                            {% if opening_as_on_date %}
+                                <small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">₹{{ opening|floatformat:2 }}</td>
+                        <td></td>
+                    </tr>
+                    {% endif %}
+
+                    <!-- Summary rows — always at bottom -->
                     {% if statement_lines %}
                     <tr class="table-light fw-bold">
                         <td colspan="2" class="text-end">Totals</td>
@@ -86,7 +104,6 @@
                         <td class="text-end">₹{{ closing|floatformat:2 }}</td>
                         <td></td>
                     </tr>
-                    <!-- Closing Balance Row -->
                     <tr class="table-primary fw-bold">
                         <td colspan="4" class="text-end">
                             Closing Balance
@@ -111,14 +128,14 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page=1{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page=1{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}" 
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}" 
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -130,14 +147,14 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}" 
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:customer_statement' contact.id %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}&sort={{ sort }}" 
                        hx-target="#statement-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

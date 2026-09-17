@@ -14,6 +14,7 @@
             <p class="text-muted small mt-1 mb-0">
                 {{ customer.name }}
                 {% if customer.phone %} · {{ customer.phone }}{% endif %}
+                · Bills issued to you for <strong>sales</strong> and <strong>repairs</strong>
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
@@ -111,7 +112,22 @@
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <select class="form-select" name="type"
+                            title="Invoice Type"
+                            hx-get="{% url 'customer:customer_invoices' %}"
+                            hx-trigger="change"
+                            hx-target="#invoice-list-container"
+                            hx-include="#invoice-filter-form"
+                            hx-push-url="true"
+                            onchange="updateActiveFilters()">
+                        <option value="">All Types</option>
+                        <option value="sale" {% if type_filter == 'sale' %}selected{% endif %}>🛒 Sales</option>
+                        <option value="repair" {% if type_filter == 'repair' %}selected{% endif %}>🔧 Repairs</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                           title="From Date"
                            hx-get="{% url 'customer:customer_invoices' %}"
                            hx-trigger="change"
                            hx-target="#invoice-list-container"
@@ -121,6 +137,7 @@
                 </div>
                 <div class="col-md-2">
                     <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                           title="To Date"
                            hx-get="{% url 'customer:customer_invoices' %}"
                            hx-trigger="change"
                            hx-target="#invoice-list-container"
@@ -128,10 +145,11 @@
                            hx-push-url="true"
                            onchange="updateActiveFilters()">
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-1">
                     <button type="button" class="btn btn-secondary w-100"
-                            onclick="resetFilters()">
-                        <i class="bi bi-arrow-counterclockwise"></i> Reset
+                            onclick="resetFilters()"
+                            title="Reset filters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
                     </button>
                 </div>
             </form>
@@ -177,6 +195,7 @@ function resetFilters() {
     form.reset();
     form.querySelector('[name="search"]').value = '';
     form.querySelector('[name="status"]').value = '';
+    form.querySelector('[name="type"]').value = '';
     form.querySelector('[name="date_from"]').value = '';
     form.querySelector('[name="date_to"]').value = '';
 
@@ -200,6 +219,7 @@ function updateActiveFilters() {
     const parts = [];
     if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
     if (params.get('status')) parts.push('Status: ' + params.get('status'));
+    if (params.get('type')) parts.push('Type: ' + params.get('type'));
     if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
     if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
 

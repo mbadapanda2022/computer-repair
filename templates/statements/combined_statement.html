@@ -7,7 +7,9 @@
 {% block content %}
 <div class="container-fluid px-4 py-3">
 
-  <!-- HEADER -->
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
@@ -45,7 +47,9 @@
     </div>
   </div>
 
-  <!-- SUMMARY CARDS -->
+  <!-- ============================================================
+       SUMMARY CARDS
+       ============================================================ -->
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
@@ -99,7 +103,9 @@
     </div>
   </div>
 
-  <!-- FILTERS + ACTIONS -->
+  <!-- ============================================================
+       FILTERS + ACTIONS
+       ============================================================ -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
       <form id="combined-filter-form" class="row g-2 align-items-end">
@@ -133,7 +139,21 @@
             <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>Purchases</option>
             <option value="payment" {% if txn_type == 'payment' %}selected{% endif %}>Payments & Receipts</option>
             <option value="discount" {% if txn_type == 'discount' %}selected{% endif %}>Discounts</option>
-            <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>Journals (Adjustments)</option>
+            <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>Journals</option>
+          </select>
+        </div>
+
+        <!-- Sort -->
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold">Sort</label>
+          <select name="sort" class="form-select form-select-sm"
+                  hx-get="{% url 'accounting:combined_statement' contact.id %}"
+                  hx-trigger="change"
+                  hx-target="#combined-table-container"
+                  hx-include="#combined-filter-form"
+                  hx-push-url="true">
+            <option value="desc" {% if sort != 'asc' %}selected{% endif %}>↓ Newest First</option>
+            <option value="asc"  {% if sort == 'asc' %}selected{% endif %}>↑ Oldest First</option>
           </select>
         </div>
 
@@ -170,38 +190,42 @@
             <i class="bi bi-arrow-clockwise"></i>
           </button>
         </div>
-
-        <!-- Export actions -->
-        <div class="col-md-2 text-end">
-          <div class="btn-group btn-group-sm w-100">
-            <button type="button" class="btn btn-outline-dark"
-                    onclick="downloadCombined('print')" title="Print">
-              <i class="bi bi-printer"></i>
-            </button>
-            <button type="button" class="btn btn-success"
-                    onclick="downloadCombined('excel')" title="Excel Export">
-              <i class="bi bi-file-earmark-excel"></i>
-            </button>
-            {% if contact.phone %}
-            <button type="button" class="btn btn-outline-success"
-                    onclick="downloadCombined('whatsapp')" title="Share via WhatsApp">
-              <i class="bi bi-whatsapp"></i>
-            </button>
-            {% endif %}
-          </div>
-        </div>
       </form>
+
+      <!-- Export row -->
+      <div class="d-flex justify-content-end mt-2">
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-dark"
+                  onclick="downloadCombined('print')" title="Print">
+            <i class="bi bi-printer"></i> Print
+          </button>
+          <button type="button" class="btn btn-success"
+                  onclick="downloadCombined('excel')" title="Excel">
+            <i class="bi bi-file-earmark-excel"></i> Excel
+          </button>
+          {% if contact.phone %}
+          <button type="button" class="btn btn-outline-success"
+                  onclick="downloadCombined('whatsapp')" title="WhatsApp">
+            <i class="bi bi-whatsapp"></i> WhatsApp
+          </button>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- TABLE CONTAINER -->
+  <!-- ============================================================
+       TABLE CONTAINER
+       ============================================================ -->
   <div class="card border-0 shadow-sm">
     <div class="card-body p-0" id="combined-table-container">
       {% include "statements/partials/combined_statement_table.html" %}
     </div>
   </div>
 
-  <!-- FOOTER LEGEND -->
+  <!-- ============================================================
+       FOOTER LEGEND
+       ============================================================ -->
   <div class="mt-3 text-center text-muted small">
     <p class="mb-0">
       <strong>Legend:</strong> Dr = Debit · Cr = Credit ·
@@ -214,27 +238,21 @@
 </div>
 
 <script>
-// ============================================================
-// Build filter params (properly URL-encoded)
-// ============================================================
 function getCurrentFilterParams() {
     const form = document.getElementById('combined-filter-form');
     if (!form) return new URLSearchParams();
     const formData = new FormData(form);
     const params = new URLSearchParams();
     for (const [key, value] of formData.entries()) {
-        if (value && value.trim() !== '') {
-            params.append(key, value);
-        }
+        if (value && value.trim() !== '') params.append(key, value);
     }
     return params;
 }
 
-// ============================================================
-// Download / Print / WhatsApp with current filters
-// ============================================================
 function downloadCombined(type) {
     const params = getCurrentFilterParams();
+    // Always chronological for print/excel
+    params.set('sort', 'asc');
     const qs = params.toString();
     const base = qs ? '?' + qs : '';
 
@@ -252,14 +270,13 @@ function downloadCombined(type) {
     window.open(url, target);
 }
 
-// ============================================================
-// Reset filters (HTMX)
-// ============================================================
 function resetCombinedFilters() {
     const form = document.getElementById('combined-filter-form');
     if (form) form.reset();
+    const sortField = form ? form.querySelector('[name="sort"]') : null;
+    if (sortField) sortField.value = 'desc';
 
-    htmx.ajax('GET', "{% url 'accounting:combined_statement' contact.id %}", {
+    htmx.ajax('GET', "{% url 'accounting:combined_statement' contact.id %}?sort=desc", {
         target: '#combined-table-container',
         swap: 'innerHTML',
         pushUrl: true
