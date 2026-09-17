@@ -298,3 +298,5 @@ def health_check(request):
             'server': 'active',
             'message': str(e)
         }, status=500)
+        
+        

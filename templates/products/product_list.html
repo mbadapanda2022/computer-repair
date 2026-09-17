@@ -37,7 +37,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Total Products</small>
-                        <h5 class="mb-0 fw-bold">{{ total_products|default:0 }}</h5>
+                        <h5 class="mb-0 fw-bold" id="stat-total-products">{{ total_products|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -50,7 +50,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Low Stock Items</small>
-                        <h5 class="mb-0 fw-bold">{{ low_stock_count|default:0 }}</h5>
+                        <h5 class="mb-0 fw-bold" id="stat-low-stock">{{ low_stock_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Service Items</small>
-                        <h5 class="mb-0 fw-bold">{{ service_count|default:0 }}</h5>
+                        <h5 class="mb-0 fw-bold" id="stat-service">{{ service_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>
@@ -76,7 +76,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Active Products</small>
-                        <h5 class="mb-0 fw-bold">{{ active_count|default:0 }}</h5>
+                        <h5 class="mb-0 fw-bold" id="stat-active">{{ active_count|default:0 }}</h5>
                     </div>
                 </div>
             </div>

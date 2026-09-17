@@ -35,7 +35,11 @@ def handle_errors(default_redirect=None, htmx_template=None):
                 if is_htmx(request):
                     context = {'error': user_error_msg}
                     if htmx_template:
-                        return render(request, htmx_template, context, status=status_code)
+                        response = render(request, htmx_template, context, status=status_code)
+                        # Modal-based CRUD: force error form into the modal,
+                        # not into whatever target the form happens to use.
+                        response['HX-Retarget'] = '#mainModalContent'
+                        return response
 
                     response = HttpResponse(
                         f'<div class="alert alert-danger alert-dismissible fade show" role="alert">'

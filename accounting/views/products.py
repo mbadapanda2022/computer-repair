@@ -100,6 +100,7 @@ def get_paginated_products_context(request, queryset=None):
         'service_count': service_count,
         'active_count': active_count,
         'total_stock_value': total_stock_value,
+        'is_htmx': is_htmx(request),
     }
 
 
@@ -182,7 +183,13 @@ def product_create(request):
             return redirect_to_staff('product_list')
         else:
             if is_htmx(request):
-                return render(request, 'products/product_form.html', {'form': form})
+                # Validation errors: re-render form INSIDE the modal
+                return htmx_response(
+                    request,
+                    'products/product_form.html',
+                    context={'form': form, 'product': None},
+                    extra_headers={'HX-Retarget': '#mainModalContent'},
+                )
     else:
         form = ProductForm()
     return render(request, 'products/product_form.html', {'form': form})
@@ -215,9 +222,12 @@ def product_update(request, pk):
             return redirect_to_staff('product_list')
         else:
             if is_htmx(request):
-                return render(request, 'products/product_form.html', {
-                    'form': form, 'product': product,
-                })
+                return htmx_response(
+                    request,
+                    'products/product_form.html',
+                    context={'form': form, 'product': product},
+                    extra_headers={'HX-Retarget': '#mainModalContent'},
+                )
     else:
         form = ProductForm(instance=product)
     return render(request, 'products/product_form.html', {'form': form, 'product': product})
@@ -233,7 +243,6 @@ def product_update(request, pk):
 def product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
 
-    # Correct FK check (using related_name)
     if (product.invoiceitem_set.exists()
             or product.purchaseitem_set.exists()
             or product.repairpart_set.exists()):
@@ -252,6 +261,7 @@ def product_delete(request, pk):
         'products/partials/product_table.html',
         context=context,
         toast={'level': 'success', 'message': f'Product "{name}" deleted.'},
+        close_modal=True,   # ← ADD THIS (cleanup if modal was open)
     )
 
 

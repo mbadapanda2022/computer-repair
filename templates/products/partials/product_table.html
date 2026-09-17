@@ -1,6 +1,14 @@
 <!-- templates/products/partials/product_table.html -->
 {% load static %}
 
+{% if is_htmx %}
+{# ---- OOB (out-of-band) updates: refresh stat cards after CRUD/filter change ---- #}
+<div hx-swap-oob="outerHTML:#stat-total-products"><h5 class="mb-0 fw-bold" id="stat-total-products">{{ total_products|default:0 }}</h5></div>
+<div hx-swap-oob="outerHTML:#stat-low-stock"><h5 class="mb-0 fw-bold" id="stat-low-stock">{{ low_stock_count|default:0 }}</h5></div>
+<div hx-swap-oob="outerHTML:#stat-service"><h5 class="mb-0 fw-bold" id="stat-service">{{ service_count|default:0 }}</h5></div>
+<div hx-swap-oob="outerHTML:#stat-active"><h5 class="mb-0 fw-bold" id="stat-active">{{ active_count|default:0 }}</h5></div>
+{% endif %}
+
 <div class="card border-0 shadow-sm">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -30,10 +38,8 @@
                         <td><code>{{ product.hsn_code|default:"—" }}</code></td>
                         <td>
                             {% if product.is_service %}
-                                <!-- ✅ Service Products: सिर्फ Selling Price दिखाएँ -->
                                 <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
                             {% else %}
-                                <!-- ✅ Physical Products: Purchase/Sell Price दिखाएँ -->
                                 <small class="text-muted">₹{{ product.purchase_price|floatformat:2 }}</small>
                                 <span class="text-muted">/</span>
                                 <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
@@ -134,14 +140,14 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-get="{% url 'accounting:product_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -153,14 +159,14 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}" 
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

@@ -185,16 +185,21 @@ def stock_adjustment_add(request):
             if is_htmx(request):
                 return render(request, 'stock/partials/stock_adjustment_form.html', {'form': form})
     else:
-        form = StockMovementForm(initial={
+        initial = {
             'date': timezone.now(),
-            'movement_type': 'adjustment'
-        })
+            'movement_type': 'adjustment',
+        }
+        # Pre-fill product when arriving from Stock Dashboard "Add Stock" button
+        product_id = request.GET.get('product')
+        if product_id:
+            initial['product'] = product_id
+        form = StockMovementForm(initial=initial)
 
     return render(request, template_name, {'form': form})
 
 
 # ============================================================
-# 3. STOCK ADJUSTMENT DELETE (HTMX)
+# 3. STOCK ADJUSTMENT DELETE 
 # ============================================================
 @csrf_protect
 @require_http_methods(["DELETE"])
@@ -203,13 +208,10 @@ def stock_adjustment_delete(request, pk):
     movement = get_object_or_404(StockMovement, pk=pk)
     product_name = movement.product.name
 
-    # Delete the movement
+    # StockMovement.delete() already reverses the stock effect safely
+    # (current_stock -= quantity). Do NOT re-sum movements here — that would
+    # wipe out any manual opening stock the product was created with.
     movement.delete()
-
-    # Recalculate product stock from all remaining movements
-    total_qty = StockMovement.objects.filter(product=movement.product).aggregate(total=Sum('quantity'))['total'] or Decimal('0')
-    movement.product.current_stock = total_qty
-    movement.product.save(update_fields=['current_stock'])
 
     logger.info(f"Stock movement {pk} deleted by {request.user.username} (product: {product_name})")
 
@@ -220,7 +222,6 @@ def stock_adjustment_delete(request, pk):
         context=context,
         toast={'level': 'success', 'message': f'Stock movement for "{product_name}" deleted.'}
     )
-
 
 # ============================================================
 # 4. AJAX: GET PRODUCT PRICE INFO (for Sale/Purchase forms)
