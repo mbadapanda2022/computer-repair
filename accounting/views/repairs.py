@@ -406,17 +406,15 @@ def repair_create(request):
     if request.method == 'POST':
         form = RepairJobForm(request.POST)
         if form.is_valid():
-            with transaction.atomic():
+             with transaction.atomic():
                 job = form.save(commit=False)
                 now = timezone.now()
                 job.date_in = now.date()
-                job.submitted_at = now
 
                 if job.status == 'pending':
                     job.status = 'received'
                 if not job.received_at:
                     job.received_at = now.date()
-
                 job.save()
 
                 send_notification_to_contact(
@@ -426,7 +424,7 @@ def repair_create(request):
                     link=reverse('customer:customer_repair_detail', args=[job.pk]),
                     notif_type='success',
                     category='repairs',
-                    send_email=True,
+                    send_email=False,
                 )
 
                 if is_htmx(request):
@@ -469,6 +467,8 @@ def repair_update(request, pk):
     )
 
     if request.method == 'POST':
+        # Capture pre-form status so we can detect a status change.
+        old_status = job.status
         form = RepairJobForm(request.POST, instance=job)
 
         if form.is_valid():
@@ -484,15 +484,16 @@ def repair_update(request, pk):
                 job.final_amount = parts_total + job.labour_charge
                 job.save(update_fields=['final_amount'])
 
-                send_notification_to_contact(
-                    job.customer,
-                    title=f"Repair Job Updated: {job.job_number}",
-                    message=f"Your repair for {job.device_model} has been updated.",
-                    link=reverse('customer:customer_repair_detail', args=[job.pk]),
-                    notif_type='info',
-                    category='repairs',
-                    send_email=False,
-                )
+                if old_status == job.status:
+                    send_notification_to_contact(
+                        job.customer,
+                        title=f"Repair Job Updated: {job.job_number}",
+                        message=f"Your repair for {job.device_model} has been updated.",
+                        link=reverse('customer:customer_repair_detail', args=[job.pk]),
+                        notif_type='info',
+                        category='repairs',
+                        send_email=False,
+                    )
 
                 if is_htmx(request):
                     response = HttpResponse()
@@ -732,25 +733,9 @@ def update_repair_status(request, pk):
         job.status = new_status
         for field, value in extra.items():
             setattr(job, field, value)
-
-        # Save only changed fields — model auto-stamps missing dates
         update_fields = ['status'] + list(extra.keys())
         job.save(update_fields=update_fields)
-
-        # Notify customer
-        send_notification_to_contact(
-            job.customer,
-            title=f"Repair Status Updated: {job.job_number}",
-            message=(
-                f"Your repair for {job.device_model} is now "
-                f"{job.get_status_display()}."
-            ),
-            link=reverse('customer:customer_repair_detail', args=[job.pk]),
-            notif_type='info',
-            category='repairs',
-            send_email=False,
-        )
-
+        
     logger.info(
         "Status changed | job=%s | %s → %s | by=%s",
         job.job_number, old_status, new_status, request.user.username,
@@ -1005,7 +990,7 @@ def create_invoice_from_repair(request, pk):
             link=reverse('customer:customer_invoice_detail', args=[invoice.pk]),
             notif_type='success',
             category='sales',
-            send_email=True,
+            send_email=False,
         )
 
         messages.success(
@@ -1104,8 +1089,6 @@ def repair_create_for_contact(request, contact_id):
                 job = form.save(commit=False)
                 job.customer = contact
                 now = timezone.now()
-                if not job.submitted_at:
-                    job.submitted_at = now
                 if not job.received_at:
                     job.received_at = now.date()
                 if not job.date_in:
@@ -1122,7 +1105,7 @@ def repair_create_for_contact(request, contact_id):
                     link=reverse('customer:customer_repair_detail', args=[job.pk]),
                     notif_type='success',
                     category='repairs',
-                    send_email=True,
+                    send_email=False,
                 )
 
                 if is_htmx(request):
@@ -1474,7 +1457,8 @@ def send_estimate_to_customer(request, pk):
             link=reverse('customer:customer_repair_detail', args=[job.pk]),
             notif_type='warning',
             category='repairs',
-            send_email=(method in ('email', 'both')),
+            # send_email=(method in ('email', 'both')),
+            send_email=False,
         )
         sent_channels.append('Notification')
         if method in ('email', 'both'):

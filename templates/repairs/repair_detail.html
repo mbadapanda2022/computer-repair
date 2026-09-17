@@ -90,9 +90,15 @@
                 </button>
             {% endif %}
 
-            <a href="{% url 'accounting:repair_update' job.pk %}" class="btn btn-warning">
+            <a href="{% url 'accounting:repair_update' job.pk %}"
+               class="btn btn-warning"
+               hx-get="{% url 'accounting:repair_update' job.pk %}"
+               hx-target="#mainModalContent"
+               hx-swap="innerHTML">
                 <i class="bi bi-pencil"></i> Edit
             </a>
+
+
             <a href="{% url 'accounting:repair_print' job.pk %}"
                class="btn btn-info text-white" target="_blank">
                 <i class="bi bi-printer"></i> Print

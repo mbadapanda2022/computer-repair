@@ -2030,11 +2030,8 @@ class RepairJob(SoftDeleteModel):
         if old_status and old_status != self.status:
             try:
                 from django.urls import reverse
-                from accounting.utils.notification_helpers import (
-                    send_notification_to_customer,
-                    send_notification_sse,
-                )
-                send_notification_to_customer(
+                from accounting.utils.notification_helpers import send_notification_to_contact
+                send_notification_to_contact(
                     self.customer,
                     title=f"Repair Status Updated: {self.job_number}",
                     message=f"Your repair for {self.device_model} is now {self.get_status_display()}.",
@@ -2043,8 +2040,6 @@ class RepairJob(SoftDeleteModel):
                     category='repairs',
                     send_email=False,
                 )
-                for staff in User.objects.filter(is_staff=True):
-                    send_notification_sse(staff)
             except Exception as notif_error:
                 logger.error(f"Notification error for job {self.job_number}: {notif_error}")
 

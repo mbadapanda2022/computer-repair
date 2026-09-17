@@ -21,6 +21,7 @@
 
                 <div class="card-body">
                     <form method="post"
+                          action="{% if job %}{% url 'accounting:repair_update' job.pk %}{% else %}{% url 'accounting:repair_create' %}{% endif %}"
                           hx-post="{% if job %}{% url 'accounting:repair_update' job.pk %}{% else %}{% url 'accounting:repair_create' %}{% endif %}"
                           hx-target="{% if is_htmx %}#mainModalContent{% else %}#main-content{% endif %}"
                           hx-swap="innerHTML"

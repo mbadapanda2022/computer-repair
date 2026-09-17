@@ -80,7 +80,12 @@
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item" href="{% url 'accounting:repair_update' job.pk %}">
+                                        {# Fixes Bug #4: was a plain href (full page load), now HTMX modal #}
+                                        <a class="dropdown-item"
+                                           href="{% url 'accounting:repair_update' job.pk %}"
+                                           hx-get="{% url 'accounting:repair_update' job.pk %}"
+                                           hx-target="#mainModalContent"
+                                           hx-swap="innerHTML">
                                             <i class="bi bi-pencil me-2 text-warning"></i>Edit
                                         </a>
                                     </li>
@@ -92,7 +97,12 @@
                                     {% if not job.invoice and job.status == 'ready' %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item text-success" href="{% url 'accounting:create_invoice_from_repair' job.pk %}">
+                                        {# Fixes Bug #3: was a plain href (broken partial page), now HTMX modal #}
+                                        <a class="dropdown-item text-success"
+                                           href="{% url 'accounting:create_invoice_from_repair' job.pk %}"
+                                           hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}"
+                                           hx-target="#mainModalContent"
+                                           hx-swap="innerHTML">
                                             <i class="bi bi-receipt me-2"></i>Create Invoice
                                         </a>
                                     </li>
@@ -134,7 +144,6 @@
         </div>
     </div>
 
-    <!-- Pagination -->
     {% if page_obj.has_other_pages %}
     <div class="card-footer bg-white border-0">
         <nav aria-label="Repair pagination">
