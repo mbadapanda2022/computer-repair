@@ -1,4 +1,4 @@
-{% load static notification_tags %}
+{% load static notification_tags purchase_tags %}
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="light">
 <head>
@@ -14,170 +14,181 @@
 </head>
 <body>
 
-    {% if user.is_authenticated %}
-        <div class="d-flex" id="wrapper">
-            <!-- CUSTOMER SIDEBAR -->
-            <nav class="bg-dark text-white" id="customer-sidebar">
-                <div class="sidebar-header p-3 d-flex justify-content-between align-items-center border-bottom border-secondary">
-                    <h5 class="mb-0 sidebar-brand"><i class="bi bi-person-circle"></i> My Account</h5>
-                    <button class="btn btn-dark btn-sm" id="sidebarToggleCustomer" title="Toggle Sidebar">
-                        <i class="bi bi-chevron-double-left" id="toggle-icon-customer"></i>
-                    </button>
-                </div>
-                <ul class="list-unstyled components">
-                    <li>
-                        <a href="{% url 'home' %}" class="nav-link">
-                            <i class="bi bi-house-door"></i>
-                            <span class="link-text">Home</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'customer:customer_dashboard' %}" 
-                           class="nav-link {% if request.resolver_match.url_name == 'customer_dashboard' or '/customer/' == request.path %}active{% endif %}">
-                            <i class="bi bi-speedometer2"></i>
-                            <span class="link-text">Dashboard</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'customer:customer_invoices' %}" 
-                           class="nav-link {% if request.resolver_match.url_name == 'customer_invoices' or 'invoices' in request.path %}active{% endif %}">
-                            <i class="bi bi-receipt"></i>
-                            <span class="link-text">Invoices</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'customer:customer_repairs' %}" 
-                           class="nav-link {% if request.resolver_match.url_name == 'customer_repairs' or 'repairs' in request.path %}active{% endif %}">
-                            <i class="bi bi-tools"></i>
-                            <span class="link-text">Repairs</span>
-                        </a>
-                    </li>
-                    <!-- Notification List (Customer) -->
-                    <li>
-                        <a href="{% url 'customer:customer_notifications' %}" 
-                        class="nav-link {% if request.resolver_match.url_name == 'customer_notifications' or 'notifications' in request.path %}active{% endif %}">
-                            <i class="bi bi-bell"></i>
-                            <span class="link-text">Notifications</span>
-                            <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
-                                id="customer-sidebar-notif-badge"
-                                hx-get="{% url 'customer:customer_unread_count_text' %}"
-                                hx-trigger="load, every 30s"
-                                hx-swap="innerHTML">
-                                {{ user|unread_count }}
-                            </span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'customer:customer_payments' %}" 
-                           class="nav-link {% if request.resolver_match.url_name == 'customer_payments' or 'payments' in request.path %}active{% endif %}">
-                            <i class="bi bi-credit-card"></i>
-                            <span class="link-text">Payments</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'customer:customer_statement' %}" 
-                           class="nav-link {% if request.resolver_match.url_name == 'customer_statement' or 'statement' in request.path %}active{% endif %}">
-                            <i class="bi bi-file-text"></i>
-                            <span class="link-text">Statement</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'customer:customer_profile' %}" 
-                           class="nav-link {% if request.resolver_match.url_name == 'customer_profile' or 'profile' in request.path %}active{% endif %}">
-                            <i class="bi bi-person"></i>
-                            <span class="link-text">Profile</span>
-                        </a>
-                    </li>
-                    <li class="border-top border-secondary mt-3 pt-2">
-                        <form action="{% url 'accounting:logout' %}" method="post" style="display:inline">
-                            {% csrf_token %}
-                            <button type="submit" class="nav-link" style="background:none;border:none;color:white;width:100%;text-align:left;">
-                                <i class="bi bi-box-arrow-right"></i><span class="link-text">Logout</span>
-                            </button>
-                        </form>
-                    </li>
-                </ul>
-            </nav>
-
-            <!-- MAIN CONTENT -->
-            <div id="page-content-wrapper">
-                <nav class="navbar navbar-expand-lg navbar-customer border-bottom bg-body-tertiary px-3">
-                    <div class="container-fluid">
-                        <button class="btn btn-outline-dark d-md-none me-2" id="sidebarToggleMainCustomer" type="button">
-                            <i class="bi bi-list"></i>
+        {% if user.is_authenticated %}
+            {% has_purchases user as user_has_purchases %}
+            <div class="d-flex" id="wrapper">
+                <!-- CUSTOMER SIDEBAR -->
+                <nav class="bg-dark text-white" id="customer-sidebar">
+                    <div class="sidebar-header p-3 d-flex justify-content-between align-items-center border-bottom border-secondary">
+                        <h5 class="mb-0 sidebar-brand"><i class="bi bi-person-circle"></i> My Account</h5>
+                        <button class="btn btn-dark btn-sm" id="sidebarToggleCustomer" title="Toggle Sidebar">
+                            <i class="bi bi-chevron-double-left" id="toggle-icon-customer"></i>
                         </button>
-                        <a href="{% url 'home' %}" class="btn btn-outline-secondary me-2">
-                            <i class="bi bi-house-door"></i> Home
-                        </a>
-                        <span class="navbar-brand"><i class="bi bi-house-door"></i> Welcome Back</span>
-                        <span class="d-none d-sm-inline text-success">
-                            {{ user.get_full_name|default:user.username }}
-                        </span>
-
-                        <div class="ms-auto d-flex align-items-center gap-2">
-                            <button class="btn btn-outline-secondary" id="themeToggleCustomer" title="Switch theme">
-                                <i class="bi bi-moon-fill" id="themeIconCustomer"></i>
-                            </button>
-
-                            <!-- Notification Bell -->
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary position-relative" type="button"
-                                        id="notificationDropdown"
-                                        data-bs-toggle="dropdown"
-                                        data-bs-auto-close="outside"
-                                        aria-expanded="false"
-                                        hx-get="{% url 'customer:customer_notification_dropdown' %}"
-                                        hx-target="#notification-dropdown"
-                                        hx-swap="innerHTML"
-                                        hx-trigger="click">
-                                    <i class="bi bi-bell"></i>
-                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
-                                        id="notificationCount"
-                                        hx-get="{% url 'customer:customer_unread_count_text' %}" 
-                                        hx-trigger="load, every 30s" 
-                                        hx-swap="innerHTML">
-                                        {{ user|unread_count }}
-                                    </span>
-                                </button>
-                                <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 
-                                    style="width:350px; max-height:400px; overflow-y:auto;"
-                                    hx-get="{% url 'customer:customer_notification_dropdown' %}" 
-                                    hx-trigger="load, every 30s" 
-                                    hx-target="#notification-dropdown"
-                                    hx-swap="innerHTML">
-                                    <div class="text-center py-3 text-muted">Loading notifications...</div>
-                                </div>
-                            </div>       
-                            
-                            <!-- User Dropdown -->
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    <i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <li><a class="dropdown-item" href="{% url 'customer:customer_profile' %}">Profile</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="{% url 'customer:customer_dashboard' %}">Dashboard</a></li>
-                                    <li>
-                                        <form action="{% url 'accounting:logout' %}" method="post" style="display: inline;">
-                                            {% csrf_token %}
-                                            <button type="submit" class="dropdown-item" style="border: none; background: none; width: 100%; text-align: left; padding: 6px 20px;">
-                                                <i class="bi bi-box-arrow-right"></i> Logout
-                                            </button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
                     </div>
+                    <ul class="list-unstyled components">
+                        <li>
+                            <a href="{% url 'home' %}" class="nav-link">
+                                <i class="bi bi-house-door"></i>
+                                <span class="link-text">Home</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'customer:customer_dashboard' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_dashboard' or '/customer/' == request.path %}active{% endif %}">
+                                <i class="bi bi-speedometer2"></i>
+                                <span class="link-text">Dashboard</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'customer:customer_invoices' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_invoices' or 'invoices' in request.path %}active{% endif %}">
+                                <i class="bi bi-receipt"></i>
+                                <span class="link-text">Invoices</span>
+                            </a>
+                        </li>
+                        {% if user_has_purchases %}
+                        <li>
+                            <a href="{% url 'customer:customer_purchases' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_purchases' or request.resolver_match.url_name == 'customer_purchase_detail' or 'purchases' in request.path %}active{% endif %}">
+                                <i class="bi bi-cart"></i>
+                                <span class="link-text">Purchases</span>
+                            </a>
+                        </li>
+                        {% endif %}
+
+                        <li>
+                            <a href="{% url 'customer:customer_repairs' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_repairs' or 'repairs' in request.path %}active{% endif %}">
+                                <i class="bi bi-tools"></i>
+                                <span class="link-text">Repairs</span>
+                            </a>
+                        </li>
+                        <!-- Notification List (Customer) -->
+                        <li>
+                            <a href="{% url 'customer:customer_notifications' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_notifications' or 'notifications' in request.path %}active{% endif %}">
+                                <i class="bi bi-bell"></i>
+                                <span class="link-text">Notifications</span>
+                                <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
+                                    id="customer-sidebar-notif-badge"
+                                    hx-get="{% url 'customer:customer_unread_count_text' %}"
+                                    hx-trigger="load, every 30s"
+                                    hx-swap="innerHTML">
+                                    {{ user|unread_count }}
+                                </span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'customer:customer_payments' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_payments' or 'payments' in request.path %}active{% endif %}">
+                                <i class="bi bi-credit-card"></i>
+                                <span class="link-text">Payments</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'customer:customer_statement' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_statement' or 'statement' in request.path %}active{% endif %}">
+                                <i class="bi bi-file-text"></i>
+                                <span class="link-text">Statement</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'customer:customer_profile' %}" 
+                            class="nav-link {% if request.resolver_match.url_name == 'customer_profile' or 'profile' in request.path %}active{% endif %}">
+                                <i class="bi bi-person"></i>
+                                <span class="link-text">Profile</span>
+                            </a>
+                        </li>
+                        <li class="border-top border-secondary mt-3 pt-2">
+                            <form action="{% url 'accounting:logout' %}" method="post" style="display:inline">
+                                {% csrf_token %}
+                                <button type="submit" class="nav-link" style="background:none;border:none;color:white;width:100%;text-align:left;">
+                                    <i class="bi bi-box-arrow-right"></i><span class="link-text">Logout</span>
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
                 </nav>
 
-                <!-- Page Content -->
-                <div class="container-fluid mt-3" id="main-content">
-                    {% block content %}{% endblock %}
+                <!-- MAIN CONTENT -->
+                <div id="page-content-wrapper">
+                    <nav class="navbar navbar-expand-lg navbar-customer border-bottom bg-body-tertiary px-3">
+                        <div class="container-fluid">
+                            <button class="btn btn-outline-dark d-md-none me-2" id="sidebarToggleMainCustomer" type="button">
+                                <i class="bi bi-list"></i>
+                            </button>
+                            <a href="{% url 'home' %}" class="btn btn-outline-secondary me-2">
+                                <i class="bi bi-house-door"></i> Home
+                            </a>
+                            <span class="navbar-brand"><i class="bi bi-house-door"></i> Welcome Back</span>
+                            <span class="d-none d-sm-inline text-success">
+                                {{ user.get_full_name|default:user.username }}
+                            </span>
+
+                            <div class="ms-auto d-flex align-items-center gap-2">
+                                <button class="btn btn-outline-secondary" id="themeToggleCustomer" title="Switch theme">
+                                    <i class="bi bi-moon-fill" id="themeIconCustomer"></i>
+                                </button>
+
+                                <!-- Notification Bell -->
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary position-relative" type="button"
+                                            id="notificationDropdown"
+                                            data-bs-toggle="dropdown"
+                                            data-bs-auto-close="outside"
+                                            aria-expanded="false"
+                                            hx-get="{% url 'customer:customer_notification_dropdown' %}"
+                                            hx-target="#notification-dropdown"
+                                            hx-swap="innerHTML"
+                                            hx-trigger="click">
+                                        <i class="bi bi-bell"></i>
+                                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                                            id="notificationCount"
+                                            hx-get="{% url 'customer:customer_unread_count_text' %}" 
+                                            hx-trigger="load, every 30s" 
+                                            hx-swap="innerHTML">
+                                            {{ user|unread_count }}
+                                        </span>
+                                    </button>
+                                    <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 
+                                        style="width:350px; max-height:400px; overflow-y:auto;"
+                                        hx-get="{% url 'customer:customer_notification_dropdown' %}" 
+                                        hx-trigger="load, every 30s" 
+                                        hx-target="#notification-dropdown"
+                                        hx-swap="innerHTML">
+                                        <div class="text-center py-3 text-muted">Loading notifications...</div>
+                                    </div>
+                                </div>       
+                                
+                                <!-- User Dropdown -->
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        <i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="{% url 'customer:customer_profile' %}">Profile</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" href="{% url 'customer:customer_dashboard' %}">Dashboard</a></li>
+                                        <li>
+                                            <form action="{% url 'accounting:logout' %}" method="post" style="display: inline;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="dropdown-item" style="border: none; background: none; width: 100%; text-align: left; padding: 6px 20px;">
+                                                    <i class="bi bi-box-arrow-right"></i> Logout
+                                                </button>
+                                            </form>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <!-- Page Content -->
+                    <div class="container-fluid mt-3" id="main-content">
+                        {% block content %}{% endblock %}
+                    </div>
                 </div>
             </div>
-        </div>
 
         <!-- Toast Container -->
         <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1060;"></div>

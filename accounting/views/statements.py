@@ -1160,8 +1160,7 @@ def _get_combined_opening_balances(contact, date_from=None):
             opening_pay.quantize(Decimal('0.01')))
 
 
-def _build_combined_rows(contact, date_from=None, date_to=None,
-                        txn_type=None, search=None):
+def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None, search=None):
     """
     Build combined statement data (rows + totals + opening/closing).
     Both sides computed independently; net position = receivable - payable.
@@ -1239,6 +1238,8 @@ def _build_combined_rows(contact, date_from=None, date_to=None,
         device_model = None
         invoice_id = None
         repair_job_id = None
+        purchase_id = None
+        purchase_no = None
 
         if entry.entry_type == 'sales' and entry.reference_id:
             try:
@@ -1260,7 +1261,9 @@ def _build_combined_rows(contact, date_from=None, date_to=None,
             try:
                 pur = Purchase.objects.get(pk=entry.reference_id)
                 reference = pur.purchase_number
-                description = "Purchase Bill"
+                purchase_id = pur.id
+                purchase_no = pur.purchase_number
+                description = f"Purchase Bill — {pur.purchase_number}"
             except Purchase.DoesNotExist:
                 pass
 
@@ -1336,6 +1339,8 @@ def _build_combined_rows(contact, date_from=None, date_to=None,
             'device_model': device_model,
             'invoice_id': invoice_id,
             'repair_job_id': repair_job_id,
+            'purchase_id': purchase_id,
+            'purchase_no': purchase_no,
             'recv_dr': recv_dr,
             'recv_cr': recv_cr,
             'pay_dr': pay_dr,

@@ -1,0 +1,117 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>My Purchases – {{ customer.name }}</title>
+    <style>
+        @page { size: A4 landscape; margin: 10mm; }
+        @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
+        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1200px; margin: 0 auto; padding: 15px; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 12px; }
+        .header h2 { margin: 5px 0; color: #1a1a2e; }
+        .company-logo { max-height: 50px; margin-bottom: 4px; }
+        .filters-box { background: #f8f9fa; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 12px; font-size: 10pt; }
+        .summary-cards { display: flex; gap: 8px; margin-bottom: 12px; }
+        .summary-card { flex: 1; padding: 8px 12px; border-radius: 6px; border-left: 4px solid #ccc; }
+        .summary-card .label { font-size: 8pt; text-transform: uppercase; color: #6c757d; }
+        .summary-card .value { font-size: 12pt; font-weight: bold; }
+        .summary-card.primary { background: #e7f1ff; border-left-color: #0d6efd; }
+        .summary-card.success { background: #d4edda; border-left-color: #28a745; }
+        .summary-card.danger { background: #f8d7da; border-left-color: #dc3545; }
+        .table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+        .table th, .table td { border: 1px solid #ddd; padding: 4px 6px; }
+        .table th { background: #1F4E78; color: #fff; font-weight: 600; text-align: left; }
+        .table .text-end { text-align: right; }
+        .table .text-center { text-align: center; }
+        .table tfoot td { background: #e9ecef; font-weight: bold; border-top: 2px solid #0d6efd; }
+        .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 6px; margin-top: 15px; font-size: 8pt; color: #6c757d; }
+        .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
+        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <p style="margin:2px 0;">My Purchases — {{ customer.name }}
+            {% if customer.phone %} | Phone: {{ customer.phone }}{% endif %}
+        </p>
+    </div>
+
+    <div class="filters-box">
+        <strong>Filters:</strong>
+        {% if search %}<span>Search: {{ search }}</span>{% endif %}
+        {% if paid_filter %}<span> | Status: {{ paid_filter|title }}</span>{% endif %}
+        {% if date_from %}<span> | From: {{ date_from }}</span>{% endif %}
+        {% if date_to %}<span> | To: {{ date_to }}</span>{% endif %}
+        {% if not search and not paid_filter and not date_from and not date_to %}<span>All Records</span>{% endif %}
+        <br><small>Generated: {% now "d M Y, h:i A" %} | {{ purchases|length }} purchase(s)</small>
+    </div>
+
+    <div class="summary-cards">
+        <div class="summary-card primary">
+            <div class="label">Total Amount</div>
+            <div class="value">₹{{ total_amount|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card success">
+            <div class="label">Total Paid</div>
+            <div class="value">₹{{ total_paid|floatformat:2 }}</div>
+        </div>
+        <div class="summary-card danger">
+            <div class="label">Unpaid</div>
+            <div class="value">₹{{ total_unpaid|floatformat:2 }}</div>
+        </div>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Purchase #</th>
+                <th>Date</th>
+                <th class="text-center">Items</th>
+                <th class="text-end">Subtotal</th>
+                <th class="text-end">Tax</th>
+                <th class="text-end">Grand Total</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in purchases %}
+            <tr>
+                <td><strong>{{ p.purchase_number }}</strong></td>
+                <td>{{ p.date|date:"d M Y" }}</td>
+                <td class="text-center">{{ p.items.count }}</td>
+                <td class="text-end">₹{{ p.subtotal|floatformat:2 }}</td>
+                <td class="text-end">₹{{ p.tax_amount|floatformat:2 }}</td>
+                <td class="text-end">₹{{ p.grand_total|floatformat:2 }}</td>
+                <td>{% if p.paid %}Paid{% else %}Unpaid{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center">No purchases found.</td></tr>
+            {% endfor %}
+        </tbody>
+        {% if purchases %}
+        <tfoot>
+            <tr>
+                <td colspan="5" class="text-end">Total →</td>
+                <td class="text-end">₹{{ total_amount|floatformat:2 }}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+
+    <div class="footer">
+        <p>This is a computer-generated statement. No signature required.</p>
+        <p>© {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}</p>
+    </div>
+
+    <div class="no-print" style="text-align:center; margin-top:15px;">
+        <hr>
+        <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+        <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+    </div>
+</body>
+</html>

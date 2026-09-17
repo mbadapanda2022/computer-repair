@@ -1,0 +1,169 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Purchase {{ purchase.purchase_number }} – {{ company.name|default:"A1 Computer Solutions" }}</title>
+    <style>
+        @page { margin: 0.6cm 0.8cm; size: A4; }
+        @media print {
+            body { font-size: 9pt; margin: 0; padding: 0; }
+            .no-print { display: none !important; }
+        }
+        body { font-family: 'Inter', Arial, sans-serif; color: #333; max-width: 1100px; margin: 0 auto; padding: 15px; background: #fff; }
+        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #0d6efd; padding-bottom: 6px; margin-bottom: 10px; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header .company-logo { max-height: 45px; width: auto; }
+        .header .company-name { font-size: 16pt; font-weight: 700; color: #1a1a2e; margin: 0; }
+        .header .company-details { font-size: 7.5pt; color: #6c757d; text-align: right; margin: 0; }
+        .page-title { text-align: center; font-size: 13pt; font-weight: 700; color: #0d6efd; margin-bottom: 8px; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 15px; margin-bottom: 8px; background: #f8f9fa; padding: 8px 12px; border-radius: 4px; }
+        .info-grid .info-item { display: flex; align-items: baseline; gap: 4px; }
+        .info-grid .info-item .label { font-size: 7pt; color: #6c757d; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; min-width: 60px; }
+        .info-grid .info-item .value { font-size: 9pt; font-weight: 500; }
+        .table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin: 6px 0; }
+        .table th, .table td { border: 1px solid #dee2e6; padding: 3px 6px; }
+        .table th { background: #e9ecef; font-weight: 600; text-align: left; font-size: 7.5pt; text-transform: uppercase; }
+        .table .text-end { text-align: right; }
+        .table .text-center { text-align: center; }
+        .table .total-row td { font-weight: 700; border-top: 2px solid #0d6efd; }
+        .table .grand-total td { font-weight: 700; font-size: 10pt; background: #e9ecef; border-top: 2px solid #0d6efd; color: #0d6efd; }
+        .footer { text-align: center; border-top: 1px solid #dee2e6; padding-top: 6px; margin-top: 8px; font-size: 7pt; color: #6c757d; }
+        .no-print { margin-top: 15px; text-align: center; }
+        .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 10pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; font-weight: 500; }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .btn-success { background: #28a745; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="header-left">
+            {% if logo_exists %}
+                <img src="{{ company.logo.url }}" alt="Logo" class="company-logo">
+            {% endif %}
+            <div>
+                <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+                <div style="font-size:7.5pt; color:#6c757d;">
+                    {% if company.phone %}{{ company.phone }}{% endif %}
+                    {% if company.email %}{% if company.phone %} | {% endif %}{{ company.email }}{% endif %}
+                    {% if company.gstin %}{% if company.email or company.phone %} | {% endif %}GST: {{ company.gstin }}{% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="company-details">{{ company.address|default:"" }}</div>
+    </div>
+
+    <div class="page-title">Purchase Bill #{{ purchase.purchase_number }}</div>
+
+    <div class="info-grid">
+        <div class="info-item">
+            <span class="label">Date</span>
+            <span class="value">{{ purchase.date|date:"d M Y" }}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">Status</span>
+            <span class="value">
+                {% if purchase.paid %}Paid{% else %}Unpaid{% endif %}
+            </span>
+        </div>
+        <div class="info-item">
+            <span class="label">Vendor</span>
+            <span class="value">{{ purchase.vendor.name }}</span>
+        </div>
+        <div class="info-item">
+            <span class="label">GST Type</span>
+            <span class="value">{{ purchase.get_gst_type_display }}</span>
+        </div>
+        {% if purchase.notes %}
+        <div class="info-item" style="grid-column: 1 / -1;">
+            <span class="label">Notes</span>
+            <span class="value">{{ purchase.notes }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if purchase_items %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width:5%;">#</th>
+                <th style="width:42%;">Product</th>
+                <th class="text-center" style="width:10%;">Qty</th>
+                <th class="text-end" style="width:16%;">Unit Price</th>
+                <th class="text-end" style="width:12%;">Tax</th>
+                <th class="text-end" style="width:15%;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in purchase_items %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    {{ item.product.name }}
+                    {% if item.is_office_use %}
+                        <span style="font-size:7pt; color:#b8860b;">[Office Use]</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                <td class="text-end">
+                    {% if item.tax_rate > 0 %}{{ item.tax_rate }}%{% else %}—{% endif %}
+                </td>
+                <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+
+            <tr class="total-row">
+                <td colspan="4" class="text-end">Subtotal</td>
+                <td colspan="2" class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% if purchase.discount_amount > 0 %}
+            <tr class="total-row">
+                <td colspan="4" class="text-end text-danger">Discount</td>
+                <td colspan="2" class="text-end text-danger">-₹{{ purchase.discount_amount|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            {% if purchase.freight_charge > 0 %}
+            <tr class="total-row">
+                <td colspan="4" class="text-end">Freight</td>
+                <td colspan="2" class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            <tr class="total-row">
+                <td colspan="4" class="text-end">Tax</td>
+                <td colspan="2" class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+            </tr>
+            <tr class="grand-total">
+                <td colspan="4" class="text-end" style="font-size:10pt;">Grand Total</td>
+                <td colspan="2" class="text-end" style="font-size:12pt; font-weight:700;">
+                    ₹{{ purchase.grand_total|floatformat:2 }}
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="footer">
+        <p style="margin:2px 0;">
+            This is a computer-generated purchase bill.
+            <span style="margin:0 6px;">|</span>
+            © {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}
+            <span style="margin:0 6px;">|</span>
+            Generated: {% now "d M Y, h:i A" %}
+        </p>
+    </div>
+
+    <div class="no-print">
+        <hr>
+        <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+            <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+            <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+            <a href="{% url 'customer:customer_purchase_detail' purchase.pk %}" class="btn btn-success">
+                ← Back to Purchase
+            </a>
+        </div>
+    </div>
+</body>
+</html>

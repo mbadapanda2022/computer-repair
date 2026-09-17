@@ -61,6 +61,7 @@ from ..models import (
     Invoice,
     Notification,
     Payment,
+    Purchase,
     RepairJob,
 )
 from ..utils.notification_helpers import (
@@ -966,7 +967,185 @@ def payment_list(request):
 
 
 # ════════════════════════════════════════════════════════════
-# 8. STATEMENT (dual view for 'both' type)
+# 8. PURCHASES (VIEW-ONLY for customer/vendor/both)
+# ════════════════════════════════════════════════════════════
+@login_required
+@handle_errors(default_redirect='customer:customer_dashboard')
+def purchase_list(request):
+    """
+    Customer-side purchase list (view-only).
+
+    Shows purchases where this contact is the vendor.
+    No create / edit / delete actions are exposed.
+    """
+    customer = _get_customer(request)
+
+    # Reset
+    if request.GET.get('reset'):
+        return redirect('customer:customer_purchases')
+
+    search = request.GET.get('search', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    paid_filter = request.GET.get('paid', '').strip()
+
+    qs = (
+        Purchase.objects
+        .filter(vendor=customer)
+        .select_related('vendor')
+        .prefetch_related('items')
+        .order_by('-date', '-id')
+    )
+
+    if search:
+        qs = qs.filter(
+            Q(purchase_number__icontains=search) |
+            Q(notes__icontains=search)
+        )
+    if date_from:
+        qs = qs.filter(date__gte=date_from)
+    if date_to:
+        qs = qs.filter(date__lte=date_to)
+    if paid_filter == 'yes':
+        qs = qs.filter(paid=True)
+    elif paid_filter == 'no':
+        qs = qs.filter(paid=False)
+
+    # Excel export
+    if request.GET.get('excel') == '1':
+        return _customer_purchases_excel(customer, qs)
+
+    # Summary
+    agg = qs.aggregate(
+        total=Sum('grand_total'),
+        total_tax=Sum('tax_amount'),
+    )
+    total_amount = agg['total'] or Decimal('0')
+    total_tax = agg['total_tax'] or Decimal('0')
+    total_paid = qs.filter(paid=True).aggregate(
+        t=Sum('grand_total')
+    )['t'] or Decimal('0')
+    total_unpaid = total_amount - total_paid
+
+    # Print mode
+    if request.GET.get('print') == '1':
+        company = CompanyProfile.get_instance()
+        return render(request, 'customer/purchase_list_print.html', {
+            'customer': customer,
+            'purchases': qs,
+            'company': company,
+            'logo_exists': bool(company.logo and company.logo.name),
+            'total_amount': total_amount,
+            'total_paid': total_paid,
+            'total_unpaid': total_unpaid,
+            'search': search,
+            'date_from': date_from,
+            'date_to': date_to,
+            'paid_filter': paid_filter,
+        })
+
+    # Paginated
+    page_obj, paginator = _paginate(request, qs)
+
+    context = {
+        'customer': customer,
+        'purchases': page_obj,
+        'page_obj': page_obj,
+        'total_count': paginator.count,
+        'total_amount': total_amount,
+        'total_tax': total_tax,
+        'total_paid': total_paid,
+        'total_unpaid': total_unpaid,
+        'search': search,
+        'date_from': date_from,
+        'date_to': date_to,
+        'paid_filter': paid_filter,
+    }
+
+    if is_htmx(request):
+        return render(request, 'customer/partials/purchase_list_table.html', context)
+    return render(request, 'customer/purchases.html', context)
+
+
+@login_required
+@handle_errors(default_redirect='customer:customer_dashboard')
+def purchase_detail(request, pk):
+    """
+    View-only purchase detail for the logged-in customer.
+    Security: get_object_or_404 restricts to vendor=customer.
+    """
+    customer = _get_customer(request)
+    purchase = get_object_or_404(
+        Purchase.objects.select_related('vendor'),
+        pk=pk, vendor=customer,
+    )
+    purchase_items = purchase.items.select_related('product').all()
+
+    return render(request, 'customer/purchase_detail.html', {
+        'purchase': purchase,
+        'purchase_items': purchase_items,
+    })
+
+
+@login_required
+@handle_errors(default_redirect='customer:customer_purchases')
+def purchase_print(request, pk):
+    """Print-friendly purchase view (view-only, security-scoped)."""
+    customer = _get_customer(request)
+    purchase = get_object_or_404(
+        Purchase.objects.select_related('vendor'),
+        pk=pk, vendor=customer,
+    )
+
+    company = CompanyProfile.get_instance()
+
+    return render(request, 'customer/purchase_print.html', {
+        'purchase': purchase,
+        'purchase_items': purchase.items.select_related('product').all(),
+        'customer': customer,
+        'company': company,
+        'logo_exists': bool(company.logo and company.logo.name),
+    })
+
+
+@login_required
+@handle_errors(default_redirect='customer:customer_purchases')
+def customer_purchases_excel(request):
+    """Wrapper for purchase excel export with filters."""
+    customer = _get_customer(request)
+
+    qs = (
+        Purchase.objects
+        .filter(vendor=customer)
+        .select_related('vendor')
+        .prefetch_related('items')
+        .order_by('-date', '-id')
+    )
+
+    search = request.GET.get('search', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    paid_filter = request.GET.get('paid', '').strip()
+
+    if search:
+        qs = qs.filter(
+            Q(purchase_number__icontains=search) |
+            Q(notes__icontains=search)
+        )
+    if date_from:
+        qs = qs.filter(date__gte=date_from)
+    if date_to:
+        qs = qs.filter(date__lte=date_to)
+    if paid_filter == 'yes':
+        qs = qs.filter(paid=True)
+    elif paid_filter == 'no':
+        qs = qs.filter(paid=False)
+
+    return _customer_purchases_excel(customer, qs)
+
+
+# ════════════════════════════════════════════════════════════
+# 9. STATEMENT (dual view for 'both' type)
 # ════════════════════════════════════════════════════════════
 @login_required
 @handle_errors(default_redirect='customer:customer_dashboard')
@@ -1048,7 +1227,7 @@ def statement(request):
 
 
 # ════════════════════════════════════════════════════════════
-# 9. PROFILE
+# 10. PROFILE
 # ════════════════════════════════════════════════════════════
 def _profile_context(customer, request):
     """Build the shared profile context (used by multiple views)."""
@@ -1123,7 +1302,7 @@ def profile_update(request):
 
 
 # ════════════════════════════════════════════════════════════
-# 10. PASSWORD CHANGE
+# 11. PASSWORD CHANGE
 # ════════════════════════════════════════════════════════════
 @login_required
 @handle_errors(default_redirect='customer:customer_profile')
@@ -1167,7 +1346,7 @@ def customer_password_change(request):
 
 
 # ════════════════════════════════════════════════════════════
-# 11. EMAIL CHANGE (OTP-based)
+# 12. EMAIL CHANGE (OTP-based)
 # ════════════════════════════════════════════════════════════
 @csrf_protect
 @login_required
@@ -1461,7 +1640,7 @@ def email_change_verify(request):
     )
 
 # ════════════════════════════════════════════════════════════
-# 12. NOTIFICATIONS (Customer)
+# 13. NOTIFICATIONS (Customer)
 # ════════════════════════════════════════════════════════════
 def _customer_base_queryset(request):
     return request.user.notifications.all()
@@ -1580,7 +1759,7 @@ def unread_count_text(request):
 
 
 # ════════════════════════════════════════════════════════════
-# 13. EXCEL EXPORT HELPERS
+# 14. EXCEL EXPORT HELPERS
 # ════════════════════════════════════════════════════════════
 def _require_openpyxl():
     if openpyxl is None:
@@ -1848,6 +2027,377 @@ def _customer_invoices_excel(customer, qs, request):
     return response
 
 
+
+
+
+def _customer_purchases_excel(customer, qs):
+    """Purchases → Excel (view-only customer export)."""
+    err = _require_openpyxl()
+    if err:
+        return err
+
+    company = CompanyProfile.get_instance()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "My Purchases"
+
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    thin = Side(style='thin')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    money = '#,##0.00'
+    center = Alignment(horizontal='center', vertical='center')
+
+    ws.merge_cells('A1:H1')
+    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'].font = Font(bold=True, size=14)
+    ws['A1'].alignment = center
+
+    ws.merge_cells('A2:H2')
+    ws['A2'] = f"My Purchases — {customer.name}"
+    ws['A2'].font = Font(bold=True, size=12)
+    ws['A2'].alignment = center
+
+    ws.merge_cells('A3:H3')
+    ws['A3'] = f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')} | Total: {qs.count()}"
+    ws['A3'].alignment = center
+    ws['A3'].font = Font(size=10, italic=True, color="555555")
+
+    headers = [
+        'Purchase #', 'Date', 'Items', 'Subtotal',
+        'Discount', 'Freight', 'Tax', 'Grand Total',
+    ]
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=5, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
+        c.border = border
+        c.alignment = center
+
+    row = 6
+    total_amt = Decimal('0')
+    for p in qs:
+        total_amt += p.grand_total
+        ws.cell(row=row, column=1, value=p.purchase_number)
+        ws.cell(row=row, column=2, value=p.date.strftime("%d-%m-%Y"))
+        ws.cell(row=row, column=3, value=p.items.count())
+        ws.cell(row=row, column=4, value=float(p.subtotal)).number_format = money
+        ws.cell(row=row, column=5, value=float(p.discount_amount or 0)).number_format = money
+        ws.cell(row=row, column=6, value=float(p.freight_charge or 0)).number_format = money
+        ws.cell(row=row, column=7, value=float(p.tax_amount)).number_format = money
+        ws.cell(row=row, column=8, value=float(p.grand_total)).number_format = money
+
+        for col in range(1, 9):
+            ws.cell(row=row, column=col).border = border
+        row += 1
+
+    ws.cell(row=row, column=1, value="Total").font = Font(bold=True)
+    ws.cell(row=row, column=8, value=float(total_amt)).number_format = money
+    ws.cell(row=row, column=8).font = Font(bold=True)
+    for col in range(1, 9):
+        ws.cell(row=row, column=col).border = border
+
+    for i, w in enumerate([16, 13, 10, 14, 14, 14, 14, 16], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = 'A6'
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    safe = customer.name.replace(' ', '_').replace('/', '_')
+    response['Content-Disposition'] = (
+        f'attachment; filename="my_purchases_{safe}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    )
+    wb.save(response)
+    return response
+
+
+def _customer_statement_excel(customer, request):
+    """
+    Statement → Excel (professional dual-side export).
+
+    Supports all contact types:
+      - customer → receivable columns only
+      - vendor   → payable columns only
+      - both     → 9 columns (Recv + Pay + Net)
+    """
+    err = _require_openpyxl()
+    if err:
+        return err
+
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    txn_type = request.GET.get('txn_type', '')
+    search = request.GET.get('search', '').strip()
+
+    data = _build_combined_rows(
+        customer, date_from or None, date_to or None,
+        txn_type or None, search or None,
+    )
+    rows = data.pop('rows')
+
+    show_dual = (customer.contact_type == 'both')
+    show_payable_only = (customer.contact_type == 'vendor')
+
+    # Zero-out hidden side for single-side displays
+    if not show_dual:
+        if show_payable_only:
+            data['opening_recv'] = Decimal('0')
+            data['closing_recv'] = Decimal('0')
+            data['total_recv_dr'] = Decimal('0')
+            data['total_recv_cr'] = Decimal('0')
+            data['net_position'] = -data['closing_pay']
+        else:
+            data['opening_pay'] = Decimal('0')
+            data['closing_pay'] = Decimal('0')
+            data['total_pay_dr'] = Decimal('0')
+            data['total_pay_cr'] = Decimal('0')
+            data['net_position'] = data['closing_recv']
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Statement"
+
+    # ─── Styles ───
+    title_font = Font(bold=True, size=14, color="1F4E78")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    green_fill = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
+    yellow_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+    net_fill = PatternFill(start_color="E8F0FE", end_color="E8F0FE", fill_type="solid")
+    thin = Side(style='thin', color="BFBFBF")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right = Alignment(horizontal='right', vertical='center')
+    money = '#,##0.00'
+
+    company = CompanyProfile.get_instance()
+
+    # ─── Title block ───
+    if show_dual:
+        total_cols = 9
+    else:
+        total_cols = 6
+    last_col = get_column_letter(total_cols)
+
+    ws.merge_cells(f'A1:{last_col}1')
+    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'].font = title_font
+    ws['A1'].alignment = center
+
+    ws.merge_cells(f'A2:{last_col}2')
+    ws['A2'] = f"Statement — {customer.name}"
+    ws['A2'].font = Font(bold=True, size=12)
+    ws['A2'].alignment = center
+
+    ws.merge_cells(f'A3:{last_col}3')
+    ws['A3'] = f"Period: {date_from or 'Beginning'} to {date_to or 'Today'}"
+    ws['A3'].alignment = center
+
+    # ═══════════════════════════════════════════════
+    # CASE 1: BOTH — dual columns
+    # ═══════════════════════════════════════════════
+    if show_dual:
+        # 2-tier headers
+        ws.merge_cells('A5:B6')
+        ws['A5'] = 'Date / Particulars'
+        ws['A5'].font = header_font
+        ws['A5'].fill = header_fill
+        ws['A5'].alignment = center
+        ws['A5'].border = border
+
+        ws.merge_cells('C5:E5')
+        ws['C5'] = 'Receivable (They Owe Us)'
+        ws['C5'].font = header_font
+        ws['C5'].fill = green_fill
+        ws['C5'].alignment = center
+        for col in ['C5', 'D5', 'E5']:
+            ws[col].fill = green_fill
+            ws[col].border = border
+
+        ws.merge_cells('F5:H5')
+        ws['F5'] = 'Payable (We Owe Them)'
+        ws['F5'].font = header_font
+        ws['F5'].fill = yellow_fill
+        ws['F5'].alignment = center
+        for col in ['F5', 'G5', 'H5']:
+            ws[col].fill = yellow_fill
+            ws[col].border = border
+
+        ws.merge_cells('I5:I6')
+        ws['I5'] = 'Net Position'
+        ws['I5'].font = header_font
+        ws['I5'].fill = net_fill
+        ws['I5'].alignment = center
+        ws['I5'].border = border
+
+        # Sub-headers row 6
+        sub = {3: 'Dr', 4: 'Cr', 5: 'Balance', 6: 'Dr', 7: 'Cr', 8: 'Balance'}
+        for col_idx, txt in sub.items():
+            c = ws.cell(row=6, column=col_idx, value=txt)
+            c.font = Font(bold=True, size=10)
+            c.alignment = center
+            c.border = border
+            c.fill = green_fill if 3 <= col_idx <= 5 else yellow_fill
+
+        # Opening row
+        row = 7
+        ws.cell(row=row, column=2, value='Opening Balance').font = Font(bold=True)
+        ws.cell(row=row, column=5, value=float(data['opening_recv'])).number_format = money
+        ws.cell(row=row, column=8, value=float(data['opening_pay'])).number_format = money
+        ws.cell(row=row, column=9, value=float(data['opening_recv'] - data['opening_pay'])).number_format = money
+        for col in range(1, 10):
+            c = ws.cell(row=row, column=col)
+            c.border = border
+            c.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+            if col in (5, 8, 9):
+                c.alignment = right
+        row += 1
+
+        # Data rows
+        for r in rows:
+            ws.cell(row=row, column=1, value=r['date'].strftime('%d-%m-%Y'))
+            desc = r['description']
+            if r.get('reference'):
+                desc += f"  [{r['reference']}]"
+            ws.cell(row=row, column=2, value=desc)
+            ws.cell(row=row, column=3, value=float(r['recv_dr']) if r['recv_dr'] else '')
+            ws.cell(row=row, column=4, value=float(r['recv_cr']) if r['recv_cr'] else '')
+            ws.cell(row=row, column=5, value=float(r['running_recv'])).number_format = money
+            ws.cell(row=row, column=6, value=float(r['pay_dr']) if r['pay_dr'] else '')
+            ws.cell(row=row, column=7, value=float(r['pay_cr']) if r['pay_cr'] else '')
+            ws.cell(row=row, column=8, value=float(r['running_pay'])).number_format = money
+            ws.cell(row=row, column=9, value=float(r['net'])).number_format = money
+            for col in range(1, 10):
+                c = ws.cell(row=row, column=col)
+                c.border = border
+                if col in (3, 4, 5, 6, 7, 8, 9):
+                    c.number_format = money
+                    c.alignment = right
+                elif col == 1:
+                    c.alignment = center
+                else:
+                    c.alignment = left
+            row += 1
+
+        # Period totals
+        ws.cell(row=row, column=2, value='Period Totals').font = Font(bold=True)
+        ws.cell(row=row, column=3, value=float(data['total_recv_dr'])).number_format = money
+        ws.cell(row=row, column=4, value=float(data['total_recv_cr'])).number_format = money
+        ws.cell(row=row, column=6, value=float(data['total_pay_dr'])).number_format = money
+        ws.cell(row=row, column=7, value=float(data['total_pay_cr'])).number_format = money
+        for col in range(1, 10):
+            ws.cell(row=row, column=col).border = border
+            ws.cell(row=row, column=col).font = Font(bold=True)
+        row += 1
+
+        # Closing
+        ws.cell(row=row, column=2, value='Closing Balance').font = Font(bold=True, size=11)
+        ws.cell(row=row, column=5, value=float(data['closing_recv'])).number_format = money
+        ws.cell(row=row, column=8, value=float(data['closing_pay'])).number_format = money
+        ws.cell(row=row, column=9, value=float(data['net_position'])).number_format = money
+        for col in range(1, 10):
+            c = ws.cell(row=row, column=col)
+            c.border = border
+            c.fill = net_fill
+            c.font = Font(bold=True)
+
+        for idx, w in enumerate([12, 42, 13, 13, 14, 13, 13, 14, 14], 1):
+            ws.column_dimensions[get_column_letter(idx)].width = w
+        ws.freeze_panes = 'A7'
+
+    # ═══════════════════════════════════════════════
+    # CASE 2 & 3: SINGLE SIDE (customer or vendor)
+    # ═══════════════════════════════════════════════
+    else:
+        headers = ['Date', 'Particulars', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)', 'Reference']
+        for col, h in enumerate(headers, 1):
+            c = ws.cell(row=5, column=col, value=h)
+            c.font = header_font
+            c.fill = header_fill
+            c.alignment = center
+            c.border = border
+
+        row = 6
+        opening_val = data['opening_pay'] if show_payable_only else data['opening_recv']
+        opening_label = 'Opening Balance'
+        if date_from:
+            opening_label += f' (carried forward as on {date_from})'
+        ws.cell(row=row, column=2, value=opening_label).font = Font(bold=True)
+        ws.cell(row=row, column=5, value=float(opening_val)).number_format = money
+        for col in range(1, 7):
+            ws.cell(row=row, column=col).border = border
+            ws.cell(row=row, column=col).fill = PatternFill(
+                start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"
+            )
+        row += 1
+
+        for r in rows:
+            ws.cell(row=row, column=1, value=r['date'].strftime('%d-%m-%Y'))
+            ws.cell(row=row, column=2, value=r['description'])
+            if show_payable_only:
+                ws.cell(row=row, column=3, value=float(r['pay_dr']) if r['pay_dr'] else '')
+                ws.cell(row=row, column=4, value=float(r['pay_cr']) if r['pay_cr'] else '')
+                ws.cell(row=row, column=5, value=float(r['running_pay'])).number_format = money
+            else:
+                ws.cell(row=row, column=3, value=float(r['recv_dr']) if r['recv_dr'] else '')
+                ws.cell(row=row, column=4, value=float(r['recv_cr']) if r['recv_cr'] else '')
+                ws.cell(row=row, column=5, value=float(r['running_recv'])).number_format = money
+            ws.cell(row=row, column=6, value=r.get('reference', ''))
+            for col in range(1, 7):
+                c = ws.cell(row=row, column=col)
+                c.border = border
+                if col in (3, 4, 5):
+                    c.number_format = money
+                    c.alignment = right
+                elif col == 1:
+                    c.alignment = center
+                else:
+                    c.alignment = left
+            row += 1
+
+        # Totals
+        ws.cell(row=row, column=2, value='Period Totals').font = Font(bold=True)
+        if show_payable_only:
+            ws.cell(row=row, column=3, value=float(data['total_pay_dr'])).number_format = money
+            ws.cell(row=row, column=4, value=float(data['total_pay_cr'])).number_format = money
+        else:
+            ws.cell(row=row, column=3, value=float(data['total_recv_dr'])).number_format = money
+            ws.cell(row=row, column=4, value=float(data['total_recv_cr'])).number_format = money
+        for col in range(1, 7):
+            ws.cell(row=row, column=col).border = border
+            ws.cell(row=row, column=col).font = Font(bold=True)
+        row += 1
+
+        # Closing
+        closing_label = 'Closing Payable' if show_payable_only else 'Closing Balance'
+        closing_val = data['closing_pay'] if show_payable_only else data['closing_recv']
+        ws.cell(row=row, column=2, value=closing_label).font = Font(bold=True)
+        ws.cell(row=row, column=5, value=float(closing_val)).number_format = money
+        ws.cell(row=row, column=5).font = Font(bold=True)
+        for col in range(1, 7):
+            c = ws.cell(row=row, column=col)
+            c.border = border
+            c.fill = net_fill
+            c.font = Font(bold=True)
+
+        for idx, w in enumerate([14, 50, 15, 15, 16, 20], 1):
+            ws.column_dimensions[get_column_letter(idx)].width = w
+        ws.freeze_panes = 'A6'
+
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    safe = customer.name.replace(' ', '_').replace('/', '_')
+    response['Content-Disposition'] = (
+        f'attachment; filename="statement_{safe}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    )
+    wb.save(response)
+    return response
+
+
+
 def _customer_payments_excel(customer, qs):
     """Payments → Excel."""
     err = _require_openpyxl()
@@ -1925,120 +2475,8 @@ def _customer_payments_excel(customer, qs):
     return response
 
 
-def _customer_statement_excel(customer, request):
-    """Statement → Excel (dual or single)."""
-    err = _require_openpyxl()
-    if err:
-        return err
-
-    date_from = request.GET.get('date_from', '').strip()
-    date_to = request.GET.get('date_to', '').strip()
-    txn_type = request.GET.get('txn_type', '')
-    search = request.GET.get('search', '').strip()
-
-    data = _build_combined_rows(
-        customer, date_from or None, date_to or None,
-        txn_type or None, search or None,
-    )
-    rows = data.pop('rows')
-
-    show_dual = (customer.contact_type == 'both')
-
-    # Zero-out hidden side
-    if not show_dual:
-        if customer.contact_type == 'vendor':
-            data['opening_recv'] = Decimal('0')
-            data['closing_recv'] = Decimal('0')
-            data['total_recv_dr'] = Decimal('0')
-            data['total_recv_cr'] = Decimal('0')
-            data['net_position'] = -data['closing_pay']
-        else:
-            data['opening_pay'] = Decimal('0')
-            data['closing_pay'] = Decimal('0')
-            data['total_pay_dr'] = Decimal('0')
-            data['total_pay_cr'] = Decimal('0')
-            data['net_position'] = data['closing_recv']
-
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Statement"
-
-    header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-    thin = Side(style='thin', color="BFBFBF")
-    border = Border(left=thin, right=thin, top=thin, bottom=thin)
-    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
-    left = Alignment(horizontal='left', vertical='center')
-    right = Alignment(horizontal='right', vertical='center')
-    money = '#,##0.00'
-
-    company = CompanyProfile.get_instance()
-    total_cols = 9 if show_dual else 6
-    last_col = get_column_letter(total_cols)
-
-    ws.merge_cells(f'A1:{last_col}1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
-    ws['A1'].font = Font(bold=True, size=14)
-    ws['A1'].alignment = center
-
-    ws.merge_cells(f'A2:{last_col}2')
-    ws['A2'] = f"Statement — {customer.name}"
-    ws['A2'].font = Font(bold=True, size=12)
-    ws['A2'].alignment = center
-
-    # ─── Simple (non-dual) headers ───
-    headers = ['Date', 'Particulars', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)']
-    for col, h in enumerate(headers, 1):
-        c = ws.cell(row=4, column=col, value=h)
-        c.font = header_font
-        c.fill = header_fill
-        c.alignment = center
-        c.border = border
-
-    row = 5
-    ws.cell(row=row, column=2, value='Opening Balance').font = Font(bold=True)
-    ws.cell(row=row, column=5, value=float(data['opening_recv'])).number_format = money
-    for c in range(1, 6):
-        ws.cell(row=row, column=c).border = border
-    row += 1
-
-    for r in rows:
-        ws.cell(row=row, column=1, value=r['date'].strftime('%d-%m-%Y'))
-        desc = r['description']
-        if r.get('reference'):
-            desc += f"  [{r['reference']}]"
-        ws.cell(row=row, column=2, value=desc)
-        ws.cell(row=row, column=3, value=float(r['recv_dr']) if r['recv_dr'] else '')
-        ws.cell(row=row, column=4, value=float(r['recv_cr']) if r['recv_cr'] else '')
-        ws.cell(row=row, column=5, value=float(r['running_recv']))
-        for c in range(1, 6):
-            ws.cell(row=row, column=c).border = border
-            if c in (3, 4, 5):
-                ws.cell(row=row, column=c).number_format = money
-                ws.cell(row=row, column=c).alignment = right
-        row += 1
-
-    ws.cell(row=row, column=2, value='Closing Balance').font = Font(bold=True)
-    ws.cell(row=row, column=5, value=float(data['closing_recv'])).number_format = money
-    for c in range(1, 6):
-        ws.cell(row=row, column=c).border = border
-        ws.cell(row=row, column=c).font = Font(bold=True)
-
-    for i, w in enumerate([15, 50, 15, 15, 15], 1):
-        ws.column_dimensions[get_column_letter(i)].width = w
-
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    safe = customer.name.replace(' ', '_').replace('/', '_')
-    response['Content-Disposition'] = (
-        f'attachment; filename="statement_{safe}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
-    )
-    wb.save(response)
-    return response
-
 # ════════════════════════════════════════════════════════════
-# 19. QUICK UPDATE — inline edit from detail page
+# 1. QUICK UPDATE — inline edit from detail page
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect

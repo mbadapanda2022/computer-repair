@@ -1,0 +1,373 @@
+{% extends "base_customer.html" %}
+{% load static math_filters %}
+
+{% block extra_head %}
+<style>
+    .purchase-header {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        border-radius: 16px;
+        padding: 2rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    .purchase-header::before {
+        content: '';
+        position: absolute;
+        top: -50%; right: -20%;
+        width: 300px; height: 300px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 50%;
+    }
+    .purchase-header .purchase-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+    .purchase-header .status-badge-large {
+        padding: 0.5rem 1.5rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        background: rgba(255,255,255,0.2);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        padding: 1.25rem;
+        border: none;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        height: 100%;
+    }
+    .stat-card .stat-icon {
+        width: 48px; height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .stat-card .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .stat-card .stat-value {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-top: 0.25rem;
+    }
+    .detail-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+    .detail-card .card-header {
+        background: white;
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+        padding: 1rem 1.5rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .detail-card .card-header .header-icon { color: #0d6efd; }
+    .detail-card .card-body { padding: 1.5rem; }
+    .info-row {
+        display: flex;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-row .info-label {
+        width: 40%;
+        color: #6c757d;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .info-row .info-value { width: 60%; font-weight: 500; }
+    .items-table thead th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        border-bottom: 2px solid #e9ecef;
+    }
+    .items-table tfoot { border-top: 2px solid #e9ecef; }
+    [data-bs-theme="dark"] .stat-card,
+    [data-bs-theme="dark"] .detail-card {
+        background: #2c3034;
+    }
+    [data-bs-theme="dark"] .detail-card .card-header {
+        background: #2c3034;
+        border-bottom-color: rgba(255,255,255,0.08);
+    }
+    [data-bs-theme="dark"] .info-row {
+        border-bottom-color: rgba(255,255,255,0.06);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- HERO HEADER -->
+    <div class="purchase-header mb-4">
+        <div class="row align-items-center position-relative" style="z-index: 1;">
+            <div class="col-md-7">
+                <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                    <span class="status-badge-large">
+                        <i class="bi {% if purchase.paid %}bi-check-circle-fill{% else %}bi-hourglass-split{% endif %} me-2"></i>
+                        {% if purchase.paid %}Paid{% else %}Unpaid{% endif %}
+                    </span>
+                    <span class="purchase-number">{{ purchase.purchase_number }}</span>
+                </div>
+                <h2 class="fw-bold mb-1">{{ purchase.vendor.name }}</h2>
+                <p class="mb-0" style="opacity:0.9;">
+                    <i class="bi bi-calendar3 me-1"></i> {{ purchase.date|date:"d M Y" }}
+                </p>
+            </div>
+            <div class="col-md-5 text-md-end mt-3 mt-md-0">
+                <div class="d-flex flex-wrap gap-2 justify-content-md-end">
+                    <a href="{% url 'customer:customer_purchase_print' purchase.pk %}"
+                       class="btn btn-light" target="_blank">
+                        <i class="bi bi-printer"></i> Print
+                    </a>
+                    <a href="{% url 'customer:customer_purchases' %}" class="btn btn-light">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATS CARDS -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(13,110,253,0.12); color: #0d6efd;">
+                        <i class="bi bi-currency-rupee"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Grand Total</div>
+                        <div class="stat-value" style="color: #0d6efd;">₹{{ purchase.grand_total|floatformat:2 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(40,167,69,0.12); color: #28a745;">
+                        <i class="bi bi-percent"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Tax</div>
+                        <div class="stat-value" style="color: #28a745;">₹{{ purchase.tax_amount|floatformat:2 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(255,193,7,0.12); color: #ffc107;">
+                        <i class="bi bi-truck"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Freight</div>
+                        <div class="stat-value" style="color: #ffc107;">₹{{ purchase.freight_charge|floatformat:2 }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: rgba(23,162,184,0.12); color: #17a2b8;">
+                        <i class="bi bi-list-ul"></i>
+                    </div>
+                    <div>
+                        <div class="stat-label">Items</div>
+                        <div class="stat-value" style="color: #17a2b8;">{{ purchase_items|length }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="detail-card">
+                <div class="card-header">
+                    <span class="header-icon"><i class="bi bi-info-circle"></i></span>
+                    Purchase Details
+                </div>
+                <div class="card-body">
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-hash me-2"></i>Purchase #</span>
+                        <span class="info-value">{{ purchase.purchase_number }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-calendar3 me-2"></i>Date</span>
+                        <span class="info-value">{{ purchase.date|date:"d M Y" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-shop me-2"></i>Vendor</span>
+                        <span class="info-value">{{ purchase.vendor.name }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-tag me-2"></i>GST Type</span>
+                        <span class="info-value">
+                            <span class="badge bg-secondary">{{ purchase.get_gst_type_display }}</span>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-credit-card me-2"></i>Payment Status</span>
+                        <span class="info-value">
+                            <span class="badge {% if purchase.paid %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                                {% if purchase.paid %}Paid{% else %}Unpaid{% endif %}
+                            </span>
+                        </span>
+                    </div>
+                    {% if purchase.notes %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-sticky-fill me-2"></i>Notes</span>
+                        <span class="info-value">{{ purchase.notes }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Items Table -->
+            <div class="detail-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        <span class="header-icon"><i class="bi bi-list-ul"></i></span>
+                        Items
+                        <span class="badge bg-secondary ms-2">{{ purchase_items|length }}</span>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 items-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40%;">Product</th>
+                                    <th class="text-center" style="width:12%;">Qty</th>
+                                    <th class="text-end" style="width:18%;">Unit Price</th>
+                                    <th class="text-end" style="width:15%;">Tax</th>
+                                    <th class="text-end" style="width:15%;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in purchase_items %}
+                                <tr>
+                                    <td>
+                                        <div class="fw-medium">{{ item.product.name }}</div>
+                                        {% if item.is_office_use %}
+                                            <small class="text-warning">
+                                                <i class="bi bi-briefcase"></i> Office Use
+                                            </small>
+                                        {% endif %}
+                                        {% if item.description %}
+                                            <small class="text-muted d-block">{{ item.description }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                                    <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                                    <td class="text-end">
+                                        {% if item.tax_rate > 0 %}
+                                            <span class="badge bg-light text-dark">{{ item.tax_rate }}%</span>
+                                            <br><small class="text-muted">₹{{ item.tax_amount|floatformat:2 }}</small>
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end fw-bold" style="color: #0d6efd;">
+                                        ₹{{ item.line_total|floatformat:2 }}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">
+                                        <i class="bi bi-box display-6 d-block mb-2" style="opacity:0.3;"></i>
+                                        No items in this purchase.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="3" class="fw-bold text-end">Subtotal</td>
+                                    <td colspan="2" class="text-end fw-bold">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                                </tr>
+                                {% if purchase.discount_amount > 0 %}
+                                <tr>
+                                    <td colspan="3" class="fw-bold text-end text-danger">Discount</td>
+                                    <td colspan="2" class="text-end fw-bold text-danger">-₹{{ purchase.discount_amount|floatformat:2 }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if purchase.freight_charge > 0 %}
+                                <tr>
+                                    <td colspan="3" class="fw-bold text-end">Freight</td>
+                                    <td colspan="2" class="text-end fw-bold">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td colspan="3" class="fw-bold text-end">Tax</td>
+                                    <td colspan="2" class="text-end fw-bold">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                                </tr>
+                                <tr style="border-top: 2px solid #0d6efd;">
+                                    <td colspan="3" class="fw-bold text-end" style="color: #0d6efd;">Grand Total</td>
+                                    <td colspan="2" class="text-end fw-bold" style="font-size: 1.1rem; color: #0d6efd;">
+                                        ₹{{ purchase.grand_total|floatformat:2 }}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col-lg-5">
+            <div class="detail-card">
+                <div class="card-header">
+                    <span class="header-icon" style="color: #ffc107;"><i class="bi bi-lightning"></i></span>
+                    Quick Actions
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'customer:customer_purchase_print' purchase.pk %}"
+                           class="btn btn-outline-primary" target="_blank">
+                            <i class="bi bi-printer"></i> Print Purchase
+                        </a>
+                        <a href="{% url 'customer:customer_statement' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-file-text"></i> View My Statement
+                        </a>
+                        <a href="{% url 'customer:customer_purchases' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> All Purchases
+                        </a>
+                    </div>
+                    <hr>
+                    <div class="alert alert-info small mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        This is a view-only record. For any changes, please contact us.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
