@@ -8,4 +8,7 @@ media/
 staticfiles/
 .DS_Store
 *.log
-logs/
+logs/logs/
+*.log
+db.sqlite3-journal
+db.sqlite3
