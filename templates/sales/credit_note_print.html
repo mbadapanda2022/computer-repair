@@ -1,0 +1,151 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Credit Note {{ credit_note.credit_note_number }}</title>
+<style>
+    @page { size: A4; margin: 10mm; }
+    @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
+    body { font-family: Arial, sans-serif; color: #333; margin: 0 auto; max-width: 900px; padding: 15px; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #dc3545; padding-bottom: 8px; margin-bottom: 12px; }
+    .company-logo { max-height: 50px; margin-bottom: 4px; }
+    .company-name { font-size: 16pt; font-weight: bold; color: #1a1a2e; margin: 0 0 4px 0; }
+    .company-details { font-size: 8pt; color: #555; }
+    .doc-title { font-size: 14pt; font-weight: bold; color: #dc3545; text-align: right; margin: 0; }
+    .doc-info { font-size: 9pt; text-align: right; margin-top: 4px; }
+    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .party-box { padding: 10px; background: #f8f9fa; border-left: 3px solid #dc3545; border-radius: 3px; }
+    .party-box .label { font-size: 8pt; text-transform: uppercase; color: #666; margin-bottom: 3px; font-weight: 600; }
+    .party-box .name { font-weight: bold; font-size: 11pt; }
+    .party-box .details { font-size: 9pt; color: #555; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-top: 8px; }
+    th, td { border: 1px solid #ddd; padding: 5px 8px; }
+    th { background: #dc3545; color: #fff; font-size: 9pt; text-align: left; }
+    .text-end { text-align: right; }
+    .text-center { text-align: center; }
+    tfoot td { background: #f8f9fa; }
+    .grand-total td { font-size: 12pt; font-weight: bold; background: #fff3cd; border-top: 2px solid #dc3545; color: #dc3545; }
+    .footer { text-align: center; margin-top: 20px; font-size: 8pt; color: #666; border-top: 1px solid #ddd; padding-top: 8px; }
+    .signatures { display: flex; justify-content: space-between; margin-top: 30px; font-size: 9pt; }
+    .signature-block { text-align: center; }
+    .signature-line { border-top: 1px solid #333; width: 180px; margin: 4px auto; }
+    .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
+        <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        <div class="company-details">
+            {% if company.address %}{{ company.address }}<br>{% endif %}
+            {% if company.phone %}Phone: {{ company.phone }}{% endif %}
+            {% if company.email %} | {{ company.email }}{% endif %}
+            {% if company.gstin %}<br>GSTIN: {{ company.gstin }}{% endif %}
+        </div>
+    </div>
+    <div>
+        <p class="doc-title">CREDIT NOTE</p>
+        <div class="doc-info">
+            <strong>{{ credit_note.credit_note_number }}</strong><br>
+            Date: {{ credit_note.date|date:"d M Y" }}<br>
+            Against: {{ invoice.invoice_number }}
+        </div>
+    </div>
+</div>
+
+<div class="parties">
+    <div class="party-box">
+        <div class="label">Customer</div>
+        <div class="name">{{ credit_note.customer.name }}</div>
+        <div class="details">
+            {% if credit_note.customer.phone %}📞 {{ credit_note.customer.phone }}<br>{% endif %}
+            {% if credit_note.customer.email %}✉ {{ credit_note.customer.email }}<br>{% endif %}
+            {% if credit_note.customer.gstin %}GSTIN: {{ credit_note.customer.gstin }}<br>{% endif %}
+            {% if credit_note.customer.address %}{{ credit_note.customer.address }}{% endif %}
+        </div>
+    </div>
+    <div class="party-box">
+        <div class="label">Credit Note Details</div>
+        <div class="details">
+            <strong>Reason:</strong> {{ credit_note.get_reason_display }}<br>
+            <strong>Refund:</strong> {{ credit_note.get_refund_method_display }}<br>
+            {% if credit_note.notes %}<strong>Notes:</strong> {{ credit_note.notes }}{% endif %}
+        </div>
+    </div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:40px;">#</th>
+            <th>Product</th>
+            <th class="text-center" style="width:80px;">Qty</th>
+            <th class="text-end" style="width:90px;">Rate</th>
+            <th class="text-end" style="width:70px;">Tax %</th>
+            <th class="text-end" style="width:90px;">Tax Amt</th>
+            <th class="text-end" style="width:100px;">Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in credit_note.items.all %}
+        <tr>
+            <td class="text-center">{{ forloop.counter }}</td>
+            <td>{{ item.product.name }}</td>
+            <td class="text-center">{{ item.quantity_returned|floatformat:2 }}</td>
+            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+            <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+            <td class="text-end">₹{{ item.tax_amount|floatformat:2 }}</td>
+            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="6" class="text-end">Subtotal</td>
+            <td class="text-end">₹{{ credit_note.subtotal|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td colspan="6" class="text-end">Tax</td>
+            <td class="text-end">₹{{ credit_note.tax_amount|floatformat:2 }}</td>
+        </tr>
+        <tr class="grand-total">
+            <td colspan="6" class="text-end">CREDIT TOTAL</td>
+            <td class="text-end">₹{{ credit_note.total_amount|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="footer">
+    <p style="margin: 4px 0;">
+        This credit note is issued against the referenced invoice and
+        reverses the corresponding sale (fully or partially).
+    </p>
+    <div class="signatures">
+        <div class="signature-block">
+            <div class="signature-line"></div>
+            <div>Customer Signature</div>
+        </div>
+        <div class="signature-block">
+            <div class="signature-line"></div>
+            <div>For {{ company.name|default:"A1 Computer Solutions" }}</div>
+            <div style="font-size: 8pt; color: #666;">Authorized Signatory</div>
+        </div>
+    </div>
+    <p style="margin-top: 15px; font-style: italic;">
+        Computer-generated credit note. Generated on {% now "d M Y, h:i A" %}.
+    </p>
+</div>
+
+<div class="no-print" style="text-align:center; margin-top:15px;">
+    <hr>
+    <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+    <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+</div>
+
+</body>
+</html>

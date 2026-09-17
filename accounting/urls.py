@@ -76,6 +76,13 @@ urlpatterns = [
     path('sales/<int:pk>/delete/', sales.invoice_delete, name='invoice_delete'),
     path('sales/<int:pk>/duplicate/', sales.invoice_duplicate, name='invoice_duplicate'),
     path('sales/<int:pk>/whatsapp/', sales.invoice_whatsapp, name='invoice_whatsapp'),
+    # ===== Credit Notes (Sales Returns) =====
+    path('credit-notes/', sales.credit_note_list, name='credit_note_list'),
+    path('credit-notes/<int:pk>/', sales.credit_note_detail, name='credit_note_detail'),
+    path('credit-notes/<int:pk>/print/', sales.credit_note_print, name='credit_note_print'),
+    path('credit-notes/<int:pk>/delete/', sales.credit_note_delete, name='credit_note_delete'),
+    path('credit-notes/<int:pk>/whatsapp/', sales.credit_note_whatsapp, name='credit_note_whatsapp'),
+    path('sales/<int:invoice_pk>/credit-note/create/', sales.credit_note_create, name='credit_note_create'),
     path('sales/<int:pk>/add-payment/', payments.payment_create, name='add_payment'),
     path('sales/add-item/', sales.add_invoice_item, name='add_invoice_item'),
     path('sales/remove-item/<int:index>/', sales.remove_invoice_item, name='remove_invoice_item'),

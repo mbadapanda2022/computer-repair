@@ -33,6 +33,12 @@
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-warning"
+                    hx-get="{% url 'accounting:credit_note_create' invoice.pk %}"
+                    hx-target="#mainModalContent"
+                    hx-trigger="click">
+                <i class="bi bi-arrow-return-left me-1"></i>Credit Note
+            </button>
             {% if invoice.payment_status != 'paid' %}
             <button class="btn btn-success"
                     hx-get="{% url 'accounting:add_payment' invoice.pk %}" 
@@ -301,6 +307,68 @@
             </div>
         </div>
     </div>
+
+    <!-- ==================== CREDIT NOTES ==================== -->
+    {% if invoice.has_credit_notes %}
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-light fw-bold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-arrow-return-left text-warning me-1"></i>Credit Notes</span>
+            <div>
+                <span class="badge bg-warning text-dark">
+                    Total: ₹{{ invoice.credit_note_total|floatformat:2 }}
+                </span>
+                {% if invoice.is_fully_returned %}
+                    <span class="badge bg-danger ms-1">Fully Returned</span>
+                {% else %}
+                    <span class="badge bg-info text-dark ms-1">Partially Returned</span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>CN #</th>
+                            <th>Date</th>
+                            <th>Reason</th>
+                            <th class="text-end">Amount</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cn in invoice.credit_notes.all %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'accounting:credit_note_detail' cn.pk %}"
+                                   class="fw-bold text-decoration-none">
+                                    {{ cn.credit_note_number }}
+                                </a>
+                            </td>
+                            <td>{{ cn.date|date:"d M Y" }}</td>
+                            <td><span class="badge bg-secondary">{{ cn.get_reason_display }}</span></td>
+                            <td class="text-end fw-bold text-danger">−₹{{ cn.total_amount|floatformat:2 }}</td>
+                            <td class="text-center">
+                                <a href="{% url 'accounting:credit_note_print' cn.pk %}"
+                                   class="btn btn-sm btn-outline-info" target="_blank">
+                                    <i class="bi bi-printer"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="3" class="text-end"><strong>Net Invoice Value</strong></td>
+                            <td class="text-end fw-bold text-primary">₹{{ invoice.net_amount|floatformat:2 }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- ==================== CUSTOMER QUICK VIEW ==================== -->
     <div class="card border-0 shadow-sm mt-4">

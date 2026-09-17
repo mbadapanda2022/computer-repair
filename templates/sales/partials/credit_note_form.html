@@ -1,0 +1,177 @@
+{% load static %}
+<form method="post"
+      hx-post="{% url 'accounting:credit_note_create' invoice.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      id="creditNoteForm"
+      novalidate>
+    {% csrf_token %}
+
+    <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title">
+            <i class="bi bi-arrow-return-left me-2"></i>Create Credit Note
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        {% if error %}
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-1"></i>{{ error }}
+            </div>
+        {% endif %}
+
+        <!-- Context Banner -->
+        <div class="alert alert-light border mb-3">
+            <div class="row small">
+                <div class="col-md-6">
+                    <strong>Invoice:</strong> {{ invoice.invoice_number }}<br>
+                    <strong>Customer:</strong> {{ invoice.customer.name }}
+                </div>
+                <div class="col-md-6">
+                    <strong>Invoice Total:</strong> ₹{{ invoice.grand_total|floatformat:2 }}<br>
+                    <strong>Paid:</strong> ₹{{ invoice.paid_amount|floatformat:2 }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Type toggle -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Return Type</label>
+            <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" id="is_stock_return"
+                       name="is_stock_return" checked>
+                <label class="form-check-label" for="is_stock_return">
+                    <strong>Physical Return</strong>
+                    <small class="text-muted">— Stock will be added back. Uncheck for value-only credit (rate diff / discount).</small>
+                </label>
+            </div>
+        </div>
+
+        <!-- Date & Reason -->
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Date</label>
+                <input type="date" name="date" class="form-control"
+                       value="{{ invoice.date|date:'Y-m-d' }}" required>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Reason <span class="text-danger">*</span></label>
+                <select name="reason" class="form-select" required>
+                    <option value="sales_return">Sales Return (Defective/Damaged)</option>
+                    <option value="rate_difference">Rate Difference</option>
+                    <option value="excess_quantity">Excess Quantity Supplied</option>
+                    <option value="post_sale_discount">Post-Sale Discount</option>
+                    <option value="order_cancelled">Order Cancelled</option>
+                    <option value="gst_correction">GST / Invoice Correction</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-semibold">Refund Method</label>
+                <select name="refund_method" class="form-select">
+                    <option value="credit">Credit to Account</option>
+                    <option value="cash">Cash Refund</option>
+                    <option value="bank">Bank Refund</option>
+                    <option value="none">No Refund (Stock Only)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Items -->
+        <label class="form-label fw-semibold">Select Items to Return</label>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;">
+                            <input type="checkbox" class="form-check-input" id="cn-select-all">
+                        </th>
+                        <th>Product</th>
+                        <th class="text-center" style="width:90px;">Invoiced Qty</th>
+                        <th class="text-center" style="width:110px;">Return Qty</th>
+                        <th class="text-end" style="width:110px;">Rate</th>
+                        <th class="text-end" style="width:110px;">Tax %</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in invoice.items.all %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" class="form-check-input cn-item-check"
+                                   name="item_{{ item.pk }}" id="cn_item_{{ item.pk }}">
+                        </td>
+                        <td>
+                            <label for="cn_item_{{ item.pk }}" class="mb-0">
+                                {{ item.product.name }}
+                            </label>
+                            {% if item.description %}
+                                <br><small class="text-muted">{{ item.description }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm cn-qty"
+                                   name="qty_{{ item.pk }}"
+                                   min="0.01" max="{{ item.quantity }}" step="any"
+                                   value="{{ item.quantity }}"
+                                   data-max="{{ item.quantity }}"
+                                   disabled>
+                        </td>
+                        <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                        <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Notes -->
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Notes / Remarks</label>
+            <textarea name="notes" rows="2" class="form-control"
+                      placeholder="Optional notes (e.g., customer complaint reference)"></textarea>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-warning">
+            <i class="bi bi-check-circle me-1"></i>Create Credit Note
+        </button>
+    </div>
+</form>
+
+<script>
+(function() {
+    'use strict';
+
+    // Select-all toggle
+    const selectAll = document.getElementById('cn-select-all');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            document.querySelectorAll('.cn-item-check').forEach(function(cb) {
+                cb.checked = this.checked;
+                const qtyInput = document.querySelector(
+                    'input[name="qty_' + cb.id.replace('cn_item_', '') + '"]'
+                );
+                if (qtyInput) qtyInput.disabled = !this.checked;
+            }, this);
+        });
+    }
+
+    // Individual checkbox → enable/disable qty input
+    document.querySelectorAll('.cn-item-check').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            const id = this.id.replace('cn_item_', '');
+            const qtyInput = document.querySelector('input[name="qty_' + id + '"]');
+            if (qtyInput) {
+                qtyInput.disabled = !this.checked;
+                if (this.checked && (!qtyInput.value || parseFloat(qtyInput.value) <= 0)) {
+                    qtyInput.value = qtyInput.dataset.max;
+                }
+            }
+        });
+    });
+})();
+</script>

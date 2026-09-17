@@ -1,0 +1,134 @@
+{% load math_filters %}
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>CN #</th>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Against Invoice</th>
+                        <th>Reason</th>
+                        <th class="text-end">Amount</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cn in credit_notes %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'accounting:credit_note_detail' cn.pk %}"
+                               class="fw-bold text-decoration-none">
+                                {{ cn.credit_note_number }}
+                            </a>
+                        </td>
+                        <td class="text-nowrap">{{ cn.date|date:"d M Y" }}</td>
+                        <td>{{ cn.customer.name }}</td>
+                        <td>
+                            <a href="{% url 'accounting:invoice_detail' cn.invoice.pk %}"
+                               class="text-decoration-none small">
+                                {{ cn.invoice.invoice_number }}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">
+                                {{ cn.get_reason_display }}
+                            </span>
+                        </td>
+                        <td class="text-end fw-bold text-danger">−₹{{ cn.total_amount|floatformat:2 }}</td>
+                        <td class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button" data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'accounting:credit_note_detail' cn.pk %}">
+                                            <i class="bi bi-eye me-2 text-primary"></i>View
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'accounting:credit_note_print' cn.pk %}"
+                                           target="_blank">
+                                            <i class="bi bi-printer me-2 text-info"></i>Print
+                                        </a>
+                                    </li>
+                                    {% if cn.whatsapp_share_url %}
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{{ cn.whatsapp_share_url }}" target="_blank">
+                                            <i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item text-danger"
+                                                hx-delete="{% url 'accounting:credit_note_delete' cn.pk %}"
+                                                hx-target="#credit-note-table-container"
+                                                hx-confirm="Delete this credit note? Stock will be reversed.">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <i class="bi bi-inbox display-6 d-block mb-3 text-muted"></i>
+                            <h5 class="text-muted">No credit notes yet</h5>
+                            <p class="text-muted mb-0">
+                                Create them from an invoice detail page.
+                            </p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="5" class="text-end">Total Credited</th>
+                        <th class="text-end text-danger">−₹{{ total_amount|floatformat:2 }}</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0">
+        <nav aria-label="CN pagination">
+            <ul class="pagination justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:credit_note_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if reason %}&reason={{ reason }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#credit-note-table-container">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:credit_note_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if reason %}&reason={{ reason }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#credit-note-table-container">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>

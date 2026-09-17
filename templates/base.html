@@ -97,6 +97,14 @@
                         <span class="link-text">Sales</span>
                     </a>
                 </li>
+                <!-- Credit Notes -->
+                <li>
+                    <a href="{% url 'accounting:credit_note_list' %}" 
+                    class="nav-link {% if 'credit' in request.path %}active{% endif %}">
+                        <i class="bi bi-arrow-return-left"></i>
+                        <span class="link-text">Credit Notes</span>
+                    </a>
+                </li>
                 <!-- Purchases -->
                 <li>
                     <a href="{% url 'accounting:purchase_list' %}" 

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-arrow-return-left text-warning me-2"></i>
+                Credit Note {{ credit_note.credit_note_number }}
+            </h3>
+            <p class="text-muted small mb-0">
+                {{ credit_note.customer.name }}
+                {% if credit_note.customer.phone %} · {{ credit_note.customer.phone }}{% endif %}
+                · <span class="badge bg-secondary">{{ credit_note.get_reason_display }}</span>
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'accounting:credit_note_print' credit_note.pk %}"
+               class="btn btn-info text-white" target="_blank">
+                <i class="bi bi-printer me-1"></i>Print
+            </a>
+            {% if credit_note.whatsapp_share_url %}
+            <a href="{{ credit_note.whatsapp_share_url }}"
+               class="btn btn-success" target="_blank">
+                <i class="bi bi-whatsapp me-1"></i>WhatsApp
+            </a>
+            {% endif %}
+            <a href="{% url 'accounting:invoice_detail' invoice.pk %}"
+               class="btn btn-outline-primary">
+                <i class="bi bi-receipt me-1"></i>View Invoice
+            </a>
+            <a href="{% url 'accounting:credit_note_list' %}"
+               class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light fw-bold">Details</div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr><td class="text-muted">CN #</td><td class="fw-bold">{{ credit_note.credit_note_number }}</td></tr>
+                        <tr><td class="text-muted">Date</td><td>{{ credit_note.date|date:"d M Y" }}</td></tr>
+                        <tr><td class="text-muted">Against Invoice</td>
+                            <td>
+                                <a href="{% url 'accounting:invoice_detail' invoice.pk %}" class="text-decoration-none">
+                                    {{ invoice.invoice_number }}
+                                </a>
+                            </td>
+                        </tr>
+                        <tr><td class="text-muted">Customer</td><td><strong>{{ credit_note.customer.name }}</strong></td></tr>
+                        <tr><td class="text-muted">Stock Return</td>
+                            <td>
+                                {% if credit_note.is_stock_return %}
+                                    <span class="badge bg-success">Yes — stock added back</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">No — value only</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr><td class="text-muted">Refund</td><td>{{ credit_note.get_refund_method_display }}</td></tr>
+                        {% if credit_note.notes %}
+                        <tr><td class="text-muted">Notes</td><td>{{ credit_note.notes }}</td></tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-light fw-bold">Amount</div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr><td>Subtotal</td><td class="text-end">₹{{ credit_note.subtotal|floatformat:2 }}</td></tr>
+                        <tr><td>Tax</td><td class="text-end">₹{{ credit_note.tax_amount|floatformat:2 }}</td></tr>
+                        <tr class="border-top">
+                            <td class="fw-bold">Total Credit</td>
+                            <td class="text-end fw-bold fs-4 text-warning">₹{{ credit_note.total_amount|floatformat:2 }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light fw-bold">Returned Items</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px;">#</th>
+                            <th>Product</th>
+                            <th class="text-center" style="width:110px;">Qty Returned</th>
+                            <th class="text-end" style="width:110px;">Unit Price</th>
+                            <th class="text-end" style="width:80px;">Tax %</th>
+                            <th class="text-end" style="width:110px;">Tax Amt</th>
+                            <th class="text-end" style="width:120px;">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in credit_note.items.all %}
+                        <tr>
+                            <td class="text-center text-muted">{{ forloop.counter }}</td>
+                            <td>{{ item.product.name }}</td>
+                            <td class="text-center">{{ item.quantity_returned|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                            <td class="text-end">₹{{ item.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">No items.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="6" class="text-end">Subtotal</td>
+                            <td class="text-end">₹{{ credit_note.subtotal|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="6" class="text-end">Tax</td>
+                            <td class="text-end">₹{{ credit_note.tax_amount|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-warning fw-bold">
+                            <td colspan="6" class="text-end">Total Credit</td>
+                            <td class="text-end fs-5">₹{{ credit_note.total_amount|floatformat:2 }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

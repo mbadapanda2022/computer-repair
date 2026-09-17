@@ -43,11 +43,13 @@ class SoftDeleteQuerySet(models.QuerySet):
     def delete(self):
         from django.utils import timezone
 
-        # ── Contact: per-instance (needs to anonymize User) ──
-        if self.model.__name__ == 'Contact':
+        # ── Per-instance models (need custom delete logic) ──
+        # Contact: needs User anonymization
+        # StockMovement: needs stock reversal
+        if self.model.__name__ in ('Contact', 'StockMovement'):
             count = 0
             for obj in self.filter(is_deleted=False):
-                obj.soft_delete()
+                obj.delete()   # calls instance delete() → runs custom logic
                 count += 1
             label = self.model._meta.label
             return (count, {label: count})
@@ -409,6 +411,7 @@ class LedgerEntry(SoftDeleteModel):
         ('advance_received', 'Advance Received'),
         ('advance_paid', 'Advance Paid'),
         ('discount', 'Discount Adjustment'),
+        ('credit_note', 'Credit Note'),
     )
     JOURNAL_TYPES = (
         ('discount', 'Discount'), ('advance_received', 'Advance Received'),
@@ -1070,6 +1073,32 @@ class Invoice(SoftDeleteModel):
             parts.append(f"Due Date: {self.due_date.strftime('%d %b %Y')}")
         text = "\n".join(parts)
         return f"https://wa.me/{phone}?text={quote(text)}"
+    
+    
+    # ════════════════════════════════════════════════════════════
+    # CREDIT NOTE HELPERS
+    # ════════════════════════════════════════════════════════════
+
+    @property
+    def credit_note_total(self):
+        """Total amount credited against this invoice (active CNs only)."""
+        return self.credit_notes.aggregate(
+            total=Sum('total_amount')
+        )['total'] or Decimal('0')
+
+    @property
+    def net_amount(self):
+        """Grand total minus credits — the 'real' invoice value."""
+        return (self.grand_total - self.credit_note_total).quantize(TAX_PRECISION)
+
+    @property
+    def is_fully_returned(self):
+        """True if credits >= grand_total."""
+        return self.credit_note_total >= self.grand_total
+
+    @property
+    def has_credit_notes(self):
+        return self.credit_notes.exists()
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:
@@ -1506,6 +1535,294 @@ class PurchaseItem(SoftDeleteModel):
             purchase.save(update_fields=['subtotal', 'tax_amount', 'grand_total'])
             if purchase.vendor:
                 purchase.vendor.recalc_balance()
+                
+# ============================================================
+# 9.1 SALES RETURNS / CREDIT NOTES
+# ============================================================
+
+def sync_credit_note_ledger(credit_note):
+    """
+    Double-entry ledger for credit notes.
+
+    Reverses the original invoice's effect:
+      Original invoice:  Dr Customer  /  Cr Sales + Cr GST
+      Credit note:       Dr Sales Return + Dr GST  /  Cr Customer
+    """
+    with transaction.atomic():
+        entry, created = LedgerEntry.objects.get_or_create(
+            entry_type='credit_note',
+            reference_id=credit_note.id,
+            defaults={
+                'date': credit_note.date,
+                'description': f"Credit Note {credit_note.credit_note_number} "
+                               f"(against {credit_note.invoice.invoice_number})",
+                'total_amount': credit_note.total_amount,
+            }
+        )
+
+        if not created:
+            entry.date = credit_note.date
+            entry.description = (
+                f"Credit Note {credit_note.credit_note_number} "
+                f"(against {credit_note.invoice.invoice_number})"
+            )
+            entry.total_amount = credit_note.total_amount
+            entry.save()
+
+        # Clear old lines (idempotent)
+        LedgerLine.objects.filter(ledger_entry=entry).delete()
+
+        sales_return = get_account('4020', 'Sales Returns', 'income', '4')
+        gst_payable = get_account('2010', 'GST Payable', 'liability', '2')
+        customer_account = get_account('1011', 'Customer Receivable', 'asset', '1')
+
+        # Dr Sales Returns (contra-revenue)
+        if credit_note.subtotal > 0:
+            LedgerLine.objects.create(
+                ledger_entry=entry,
+                account=sales_return,
+                debit=credit_note.subtotal,
+                credit=0,
+            )
+
+        # Dr GST Payable (reverse liability)
+        if credit_note.tax_amount > 0:
+            LedgerLine.objects.create(
+                ledger_entry=entry,
+                account=gst_payable,
+                debit=credit_note.tax_amount,
+                credit=0,
+            )
+
+        # Cr Customer Receivable (reduce balance)
+        LedgerLine.objects.create(
+            ledger_entry=entry,
+            account=customer_account,
+            contact=credit_note.customer,
+            debit=0,
+            credit=credit_note.total_amount,
+        )
+
+        entry.full_clean()
+
+
+class CreditNote(SoftDeleteModel):
+    """
+    Sales Return / Credit Note against an existing Invoice.
+    Supports full return, partial return, and value-only adjustments.
+    """
+
+    REASON_CHOICES = (
+        ('sales_return', 'Sales Return (Defective/Damaged)'),
+        ('rate_difference', 'Rate Difference'),
+        ('excess_quantity', 'Excess Quantity Supplied'),
+        ('post_sale_discount', 'Post-Sale Discount'),
+        ('order_cancelled', 'Order Cancelled'),
+        ('gst_correction', 'GST / Invoice Correction'),
+        ('other', 'Other'),
+    )
+
+    REFUND_METHOD = (
+        ('cash', 'Cash Refund'),
+        ('bank', 'Bank Refund'),
+        ('credit', 'Credit to Account (Adjust in Next Invoice)'),
+        ('none', 'No Refund — Stock Only'),
+    )
+
+    credit_note_number = models.CharField(max_length=50, unique=True, editable=False)
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.PROTECT,
+        related_name='credit_notes',
+    )
+    customer = models.ForeignKey(
+        Contact, on_delete=models.PROTECT,
+        related_name='credit_notes',
+    )
+    date = models.DateField(default=timezone.now)
+    reason = models.CharField(max_length=30, choices=REASON_CHOICES)
+    notes = models.TextField(blank=True)
+
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+
+    refund_method = models.CharField(max_length=10, choices=REFUND_METHOD, default='credit')
+    is_stock_return = models.BooleanField(
+        default=True,
+        help_text="True for physical return (stock auto-added). False for value-only.",
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='credit_notes_created',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+        indexes = [
+            models.Index(fields=['credit_note_number']),
+            models.Index(fields=['invoice']),
+            models.Index(fields=['customer', 'date']),
+        ]
+
+    def __str__(self):
+        return f"CN {self.credit_note_number} — {self.customer.name}"
+
+    def save(self, *args, **kwargs):
+        from django.db import IntegrityError, transaction
+
+        if not self.credit_note_number:
+            max_attempts = 5
+            last_error = None
+            saved = False
+            for attempt in range(max_attempts):
+                next_num = InvoiceCounter.get_next_number("CN")
+                self.credit_note_number = f"CN-{next_num:04d}"
+                try:
+                    with transaction.atomic():
+                        super().save(*args, **kwargs)
+                    saved = True
+                    break
+                except IntegrityError as e:
+                    last_error = e
+                    if 'credit_note_number' in str(e).lower() and attempt < max_attempts - 1:
+                        continue
+                    raise
+            if not saved:
+                raise IntegrityError(
+                    f"Could not generate unique CN number: {last_error}"
+                )
+        else:
+            super().save(*args, **kwargs)
+
+        # Sync ledger + customer balance (skip on partial update_fields saves)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is None and self.pk and self.items.exists():
+            try:
+                self.calculate_totals()
+                super().save(update_fields=[
+                    'subtotal', 'tax_amount', 'total_amount'
+                ])
+                sync_credit_note_ledger(self)
+                if self.customer:
+                    self.customer.recalc_balance()
+            except Exception as e:
+                logger.error(
+                    f"CN ledger sync failed for {self.credit_note_number}: {e}",
+                    exc_info=True,
+                )
+
+    def calculate_totals(self):
+        """Sum up items to compute header totals."""
+        items = self.items.all()
+        self.subtotal = sum(
+            (item.quantity_returned * item.unit_price for item in items),
+            Decimal('0'),
+        ).quantize(TAX_PRECISION)
+        self.tax_amount = sum(
+            (item.tax_amount for item in items),
+            Decimal('0'),
+        ).quantize(TAX_PRECISION)
+        self.total_amount = (self.subtotal + self.tax_amount).quantize(TAX_PRECISION)
+        return self.total_amount
+
+    @property
+    def whatsapp_share_url(self):
+        if not self.customer or not self.customer.phone:
+            return None
+        phone = ''.join(filter(str.isdigit, str(self.customer.phone)))
+        if len(phone) == 10:
+            phone = '91' + phone
+        elif len(phone) < 10:
+            return None
+        from urllib.parse import quote
+        text = "\n".join([
+            f"Hi {self.customer.name},",
+            f"Credit Note {self.credit_note_number} from A1 Computer Solutions.",
+            f"Against Invoice: {self.invoice.invoice_number}",
+            f"Date: {self.date.strftime('%d %b %Y')}",
+            f"Amount: Rs.{self.total_amount:.2f}",
+            f"Reason: {self.get_reason_display()}",
+        ])
+        return f"https://wa.me/{phone}?text={quote(text)}"
+
+
+class CreditNoteItem(SoftDeleteModel):
+    """Line items for a credit note."""
+
+    credit_note = models.ForeignKey(
+        CreditNote, on_delete=models.CASCADE,
+        related_name='items',
+    )
+    invoice_item = models.ForeignKey(
+        InvoiceItem, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='credit_items',
+    )
+    product = models.ForeignKey(Product, on_delete=models.PROTECT)
+    quantity_returned = models.DecimalField(
+        max_digits=10, decimal_places=2, default=1,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+
+    @transaction.atomic
+    def save(self, *args, **kwargs):
+        # Auto-fill tax from product if empty
+        if not self.tax_rate and self.product:
+            self.tax_rate = self.product.tax_rate
+
+        line_amount = self.quantity_returned * self.unit_price
+        self.tax_amount = ((line_amount * self.tax_rate) / 100).quantize(TAX_PRECISION)
+        self.line_total = (line_amount + self.tax_amount).quantize(TAX_PRECISION)
+
+        super().save(*args, **kwargs)
+
+        # Stock IN — only if physical return and product is not service
+        if (not self.is_deleted
+                and self.credit_note.is_stock_return
+                and not self.product.is_service):
+            StockMovement.objects.update_or_create(
+                source_content_type=ContentType.objects.get_for_model(self),
+                source_object_id=self.pk,
+                defaults={
+                    'product': self.product,
+                    'movement_type': 'return_in',
+                    'quantity': Decimal(self.quantity_returned).quantize(TAX_PRECISION),
+                    'date': self.credit_note.date,
+                    'reference': f"CN {self.credit_note.credit_note_number}",
+                },
+            )
+
+        # Refresh header totals
+        if self.credit_note:
+            self.credit_note.calculate_totals()
+            CreditNote.objects.filter(pk=self.credit_note.pk).update(
+                subtotal=self.credit_note.subtotal,
+                tax_amount=self.credit_note.tax_amount,
+                total_amount=self.credit_note.total_amount,
+            )
+
+    def delete(self, *args, **kwargs):
+        """Reverse stock effect per-instance (queryset delete skips reversal)."""
+        if not self.product.is_service:
+            for sm in StockMovement.objects.filter(
+                source_content_type=ContentType.objects.get_for_model(self),
+                source_object_id=self.pk,
+            ):
+                sm.delete()   # instance delete → reverses stock
+        cn = self.credit_note
+        super().delete(*args, **kwargs)
+        if cn:
+            cn.calculate_totals()
+            CreditNote.objects.filter(pk=cn.pk).update(
+                subtotal=cn.subtotal,
+                tax_amount=cn.tax_amount,
+                total_amount=cn.total_amount,
+            )
 
 
 # ============================================================

@@ -2,7 +2,7 @@
 import json
 import logging
 from decimal import Decimal
-
+from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
@@ -728,5 +728,273 @@ def invoice_whatsapp(request, pk):
         return JsonResponse(
             {'error': 'Customer has no phone number on file.'},
             status=400
+        )
+    return JsonResponse({'url': url})
+
+
+# ============================================================
+# 12. CREDIT NOTES — LIST
+# ============================================================
+def _credit_notes_context(request):
+    """Shared context for CN list + table."""
+    search = request.GET.get('search', '').strip()
+    customer_id = request.GET.get('customer', '')
+    reason = request.GET.get('reason', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+    page_number = request.GET.get('page', 1)
+
+    qs = CreditNote.objects.select_related('customer', 'invoice').all().order_by('-date', '-id')
+
+    if search:
+        qs = qs.filter(
+            Q(credit_note_number__icontains=search) |
+            Q(invoice__invoice_number__icontains=search) |
+            Q(customer__name__icontains=search)
+        )
+    if customer_id:
+        qs = qs.filter(customer_id=customer_id)
+    if reason:
+        qs = qs.filter(reason=reason)
+    if date_from:
+        qs = qs.filter(date__gte=date_from)
+    if date_to:
+        qs = qs.filter(date__lte=date_to)
+
+    paginator = Paginator(qs, 20)
+    try:
+        page_obj = paginator.page(page_number)
+    except (PageNotAnInteger, EmptyPage):
+        page_obj = paginator.page(1)
+
+    total_amount = qs.aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+
+    return {
+        'credit_notes': page_obj.object_list,
+        'page_obj': page_obj,
+        'customers': Contact.objects.filter(
+            contact_type__in=['customer', 'both']
+        ).order_by('name'),
+        'reason_choices': CreditNote.REASON_CHOICES,
+        'search': search,
+        'customer_id': customer_id,
+        'reason': reason,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_amount': total_amount,
+    }
+
+
+@handle_errors(default_redirect='accounting:credit_note_list')
+def credit_note_list(request):
+    context = _credit_notes_context(request)
+    if is_htmx(request):
+        return render(request, 'sales/partials/credit_note_table.html', context)
+    return render(request, 'sales/credit_note_list.html', context)
+
+
+# ============================================================
+# 13. CREDIT NOTES — CREATE (from Invoice)
+# ============================================================
+@login_required
+@csrf_protect
+@handle_errors(
+    default_redirect='accounting:invoice_list',
+    htmx_template='sales/partials/credit_note_form.html',
+)
+def credit_note_create(request, invoice_pk):
+    invoice = get_object_or_404(
+        Invoice.objects.select_related('customer'), pk=invoice_pk
+    )
+
+    if request.method == 'POST':
+        # ── Parse item selections ──
+        reason = request.POST.get('reason', 'sales_return')
+        notes = request.POST.get('notes', '').strip()
+        refund_method = request.POST.get('refund_method', 'credit')
+        is_stock_return = request.POST.get('is_stock_return') == 'on'
+        cn_date = request.POST.get('date') or timezone.now().date()
+
+        # items: item_<id>=on  qty_<id>=N
+        selections = []
+        for item in invoice.items.all():
+            checked = request.POST.get(f'item_{item.pk}') == 'on'
+            if not checked:
+                continue
+            qty_str = request.POST.get(f'qty_{item.pk}', '').strip()
+            try:
+                qty = Decimal(qty_str)
+            except (ValueError, TypeError):
+                continue
+            if qty <= 0:
+                continue
+            if qty > item.quantity:
+                messages.error(
+                    request,
+                    f'Quantity for {item.product.name} cannot exceed {item.quantity}.'
+                )
+                # fall-through to render error form
+                break
+            selections.append((item, qty))
+
+        if not selections:
+            return htmx_response(
+                request,
+                'sales/partials/credit_note_form.html',
+                context={
+                    'invoice': invoice,
+                    'error': 'Please select at least one item with quantity > 0.',
+                },
+                extra_headers={'HX-Retarget': '#mainModalContent'},
+                status=400,
+            )
+
+        with transaction.atomic():
+            cn = CreditNote.objects.create(
+                invoice=invoice,
+                customer=invoice.customer,
+                date=cn_date,
+                reason=reason,
+                notes=notes,
+                refund_method=refund_method,
+                is_stock_return=is_stock_return,
+                created_by=request.user,
+            )
+
+            for item, qty in selections:
+                CreditNoteItem.objects.create(
+                    credit_note=cn,
+                    invoice_item=item,
+                    product=item.product,
+                    quantity_returned=qty,
+                    unit_price=item.unit_price,
+                    tax_rate=item.tax_rate,
+                )
+
+            cn.calculate_totals()
+            cn.save()  # triggers ledger sync
+
+        logger.info(
+            f"Credit Note {cn.credit_note_number} created against "
+            f"{invoice.invoice_number} by {request.user.username}"
+        )
+
+        # Customer notification
+        try:
+            if invoice.customer and invoice.customer.user:
+                send_notification_to_customer(
+                    invoice.customer,
+                    title=f"Credit Note: {cn.credit_note_number}",
+                    message=(
+                        f"A credit of ₹{cn.total_amount} has been issued "
+                        f"against invoice {invoice.invoice_number}."
+                    ),
+                    link=reverse('customer:customer_invoices'),
+                    notif_type='info',
+                    category='sales',
+                    send_email=False,
+                )
+            for staff in User.objects.filter(is_staff=True):
+                send_notification_sse(staff)
+        except Exception as notif_err:
+            logger.error(f"CN notification failed: {notif_err}")
+
+        if is_htmx(request):
+            response = HttpResponse()
+            response['HX-Redirect'] = reverse(
+                'accounting:credit_note_detail', args=[cn.pk]
+            )
+            return response
+        return redirect_to_staff('credit_note_detail', pk=cn.pk)
+
+    # GET — show form
+    return render(
+        request,
+        'sales/partials/credit_note_form.html',
+        {'invoice': invoice},
+    )
+
+
+# ============================================================
+# 14. CREDIT NOTES — DETAIL
+# ============================================================
+def credit_note_detail(request, pk):
+    cn = get_object_or_404(
+        CreditNote.objects.select_related('invoice', 'customer'), pk=pk
+    )
+    context = {
+        'credit_note': cn,
+        'invoice': cn.invoice,
+    }
+    return render(request, 'sales/credit_note_detail.html', context)
+
+
+# ============================================================
+# 15. CREDIT NOTES — PRINT
+# ============================================================
+def credit_note_print(request, pk):
+    cn = get_object_or_404(
+        CreditNote.objects.select_related('invoice', 'customer'), pk=pk
+    )
+    company = CompanyProfile.get_instance()
+    logo_exists = bool(
+        company.logo and company.logo.name and company.logo.storage.exists(company.logo.name)
+    )
+    return render(request, 'sales/credit_note_print.html', {
+        'credit_note': cn,
+        'invoice': cn.invoice,
+        'company': company,
+        'logo_exists': logo_exists,
+    })
+
+
+# ============================================================
+# 16. CREDIT NOTES — DELETE
+# ============================================================
+@csrf_protect
+@require_http_methods(["DELETE"])
+@handle_errors(default_redirect='accounting:credit_note_list')
+def credit_note_delete(request, pk):
+    cn = get_object_or_404(CreditNote, pk=pk)
+    cn_number = cn.credit_note_number
+    customer = cn.customer
+
+    with transaction.atomic():
+        # Delete ledger 
+        LedgerEntry.objects.filter(
+            entry_type='credit_note', reference_id=cn.id
+        ).delete()
+        # Delete items (their delete() reverses stock)
+        cn.items.all().delete()
+        # Hard-delete CN row (soft delete would leave ledger out of sync)
+        cn.delete()
+
+    logger.info(f"Credit Note {cn_number} deleted by {request.user.username}")
+
+    if is_htmx(request):
+        response = HttpResponse()
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {
+                'level': 'success',
+                'message': f'Credit Note {cn_number} deleted.',
+            },
+            'reloadCreditNotes': '',
+        })
+        return response
+    messages.success(request, f'Credit Note {cn_number} deleted.')
+    return redirect_to_staff('credit_note_list')
+
+
+# ============================================================
+# 17. CREDIT NOTES — WHATSAPP SHARE URL
+# ============================================================
+@login_required
+@require_http_methods(["GET"])
+def credit_note_whatsapp(request, pk):
+    cn = get_object_or_404(CreditNote, pk=pk)
+    url = cn.whatsapp_share_url
+    if not url:
+        return JsonResponse(
+            {'error': 'Customer has no phone number on file.'}, status=400
         )
     return JsonResponse({'url': url})
