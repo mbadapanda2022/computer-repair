@@ -1,0 +1,143 @@
+
+{% load static %}
+
+<div class="card border-0 shadow-sm mb-4" id="audit-log-widget">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold mb-0">
+            <i class="bi bi-journal-text text-primary me-2"></i>
+            Audit Log Maintenance
+        </h5>
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary"
+                hx-get="{% url 'accounting:audit_log_stats' %}"
+                hx-target="#audit-log-widget"
+                hx-swap="outerHTML"
+                title="Refresh stats">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+
+    <div class="card-body">
+        <p class="text-muted small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Audit logs record every create, update, and delete.
+            Keeping logs for <strong>3 years (1095 days)</strong> is recommended for tax and debugging needs.
+            Older logs can be safely purged to free database space.
+        </p>
+
+        <!-- Stats Grid -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="p-3 bg-light rounded-3 text-center h-100">
+                    <div class="small text-muted">Total Logs</div>
+                    <div class="fs-4 fw-bold text-primary">{{ total|default:0 }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 bg-light rounded-3 text-center h-100">
+                    <div class="small text-muted">Table Size</div>
+                    <div class="fs-4 fw-bold text-success">{{ size_mb|default:0 }} MB</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 bg-light rounded-3 text-center h-100">
+                    <div class="small text-muted">Last 1 Year</div>
+                    <div class="fs-4 fw-bold text-info">{{ within_1y|default:0 }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="p-3 bg-light rounded-3 text-center h-100">
+                    <div class="small text-muted">Last 3 Years</div>
+                    <div class="fs-4 fw-bold text-warning">{{ within_3y|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Date Range Info -->
+        <div class="row g-2 mb-3 small">
+            <div class="col-md-6">
+                <span class="text-muted">Oldest log:</span>
+                <strong>
+                    {% if oldest %}
+                        {{ oldest|date:"d M Y, H:i" }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </strong>
+            </div>
+            <div class="col-md-6">
+                <span class="text-muted">Newest log:</span>
+                <strong>
+                    {% if newest %}
+                        {{ newest|date:"d M Y, H:i" }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </strong>
+            </div>
+        </div>
+
+        <!-- Purge Form -->
+        <form method="post"
+              action="{% url 'accounting:audit_log_purge' %}"
+              onsubmit="return confirmPurge(this);">
+            {% csrf_token %}
+
+            <div class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label fw-semibold small">
+                        Delete logs older than (days)
+                    </label>
+                    <input type="number"
+                           name="days"
+                           class="form-control"
+                           value="1095"
+                           min="30"
+                           max="3650"
+                           required>
+                    <small class="text-muted">
+                        Recommended: 1095 days (3 years)
+                    </small>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-danger w-100">
+                        <i class="bi bi-trash me-1"></i>Purge Old Logs
+                    </button>
+                </div>
+                <div class="col-md-3">
+                    <a href="/admin/accounting/auditlog/"
+                       target="_blank"
+                       class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>Advanced
+                    </a>
+                </div>
+            </div>
+        </form>
+
+        <!-- Warning -->
+        <div class="alert alert-warning small mt-3 mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>Warning:</strong> Purging deletes logs permanently.
+            Make sure you've kept necessary records elsewhere (invoices, payments, etc.).
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        if (window.__auditLogWidgetInit) return;
+        window.__auditLogWidgetInit = true;
+
+        window.confirmPurge = function(form) {
+            const days = parseInt(form.querySelector('[name="days"]').value || '0', 10);
+            if (isNaN(days) || days < 30) {
+                alert('Please enter a valid number of days (minimum 30).');
+                return false;
+            }
+            return confirm(
+                'Delete all audit logs older than ' + days + ' days?\n\n' +
+                'This action cannot be undone.'
+            );
+        };
+    })();
+</script>

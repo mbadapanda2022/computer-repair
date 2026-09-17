@@ -28,6 +28,18 @@
                 </div>
             </div>
 
+            <!-- Audit Log Maintenance (superuser only) -->
+            {% if request.user.is_superuser %}
+                <div hx-get="{% url 'accounting:audit_log_stats' %}"
+                    hx-trigger="load"
+                    hx-swap="outerHTML">
+                    <div class="text-center py-3 text-muted">
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        Loading audit log stats...
+                    </div>
+                </div>
+            {% endif %}
+
             <!-- Database Management -->
             <div class="card shadow-sm mt-4">
                 <div class="card-header bg-light">

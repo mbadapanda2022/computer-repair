@@ -176,6 +176,9 @@ urlpatterns = [
     path('settings/backup/', backup_database, name='backup_database'),
     path('settings/restore/', restore_database, name='restore_database'),
     path('settings/validate-field/', validate_setting_field, name='validate_setting_field'),
+    # ===== Audit Log Management (superuser only) =====
+    path('settings/audit-log/stats/', audit_log_stats, name='audit_log_stats'),
+    path('settings/audit-log/purge/', audit_log_purge, name='audit_log_purge'),
 
     # ===== Authentication =====
     path('login/', unified_login_view, name='login'),

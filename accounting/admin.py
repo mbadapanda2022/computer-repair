@@ -19,7 +19,7 @@ from .models import (
     Notification, NotificationPreference, ContactMessage, 
     FAQ, Testimonial, Service, EmailOTP,
     BankAccount, BankTransaction, PaymentAllocation, AdvanceAdjustment,
-    Account, AccountGroup,
+    Account, AccountGroup, AuditLog
 )
 
 from .models import sync_invoice_ledger
@@ -929,4 +929,132 @@ class CustomUserAdmin(UserAdmin):
             return '-'
     get_phone.short_description = 'Phone'
     get_phone.admin_order_field = 'customer_contact__phone'  # Allow ordering (if needed)
+    
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """Read-mostly admin for AuditLog with bulk-delete capability."""
+
+    list_display = (
+        'timestamp',
+        'action_badge',
+        'content_type',
+        'object_id',
+        'user_display',
+        'ip_address',
+        'short_changes',
+    )
+    list_filter = (
+        'action',
+        'content_type',
+        'timestamp',
+    )
+    search_fields = (
+        'object_id',
+        'user__username',
+        'user__email',
+        'ip_address',
+    )
+    date_hierarchy = 'timestamp'
+    ordering = ('-timestamp',)
+    list_per_page = 50
+    show_full_result_count = True
+
+    readonly_fields = (
+        'content_type',
+        'object_id',
+        'action',
+        'user',
+        'changes_pretty',
+        'timestamp',
+        'ip_address',
+        'user_agent',
+    )
+
+    fieldsets = (
+        ('Target', {
+            'fields': ('content_type', 'object_id', 'action'),
+        }),
+        ('Actor', {
+            'fields': ('user', 'ip_address', 'user_agent'),
+        }),
+        ('Change Details', {
+            'fields': ('changes_pretty',),
+        }),
+        ('Timing', {
+            'fields': ('timestamp',),
+        }),
+    )
+
+    # ─── Permissions ──────────────────────────────────
+    def has_add_permission(self, request):
+        """Logs are auto-generated; never allow manual create."""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """View-only — changes must go through normal business flows."""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Only superusers can delete audit logs."""
+        return request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        """Only superusers can even view logs."""
+        return request.user.is_superuser
+
+    # ─── Custom Columns ───────────────────────────────
+    @admin.display(description='Action', ordering='action')
+    def action_badge(self, obj):
+        colors = {
+            'CREATE': '#198754',       # green
+            'UPDATE': '#0d6efd',       # blue
+            'DELETE': '#dc3545',       # red
+            'SOFT_DELETE': '#fd7e14',  # orange
+            'RESTORE': '#6f42c1',      # purple
+        }
+        color = colors.get(obj.action, '#6c757d')
+        return format_html(
+            '<span style="background:{};color:#fff;padding:2px 8px;'
+            'border-radius:4px;font-size:11px;font-weight:600;">{}</span>',
+            color, obj.action,
+        )
+
+    @admin.display(description='User')
+    def user_display(self, obj):
+        if not obj.user:
+            return '—'
+        name = obj.user.get_full_name() or obj.user.username
+        return format_html(
+            '{} <small style="color:#6c757d;">({})</small>',
+            name, obj.user.username,
+        )
+
+    @admin.display(description='Changes Preview')
+    def short_changes(self, obj):
+        if not obj.changes:
+            return '—'
+        try:
+            items = list(obj.changes.items())[:3]
+            preview = ', '.join(f'{k}: {v}' for k, v in items)
+            if len(preview) > 70:
+                preview = preview[:70] + '...'
+            return preview
+        except Exception:
+            return str(obj.changes)[:70]
+
+    @admin.display(description='Changes')
+    def changes_pretty(self, obj):
+        if not obj.changes:
+            return '—'
+        try:
+            import json
+            pretty = json.dumps(obj.changes, indent=2, default=str)
+            return format_html(
+                '<pre style="background:#f8f9fa;padding:10px;'
+                'border-radius:6px;max-height:300px;overflow:auto;'
+                'font-size:12px;margin:0;">{}</pre>',
+                pretty,
+            )
+        except Exception:
+            return str(obj.changes)
     

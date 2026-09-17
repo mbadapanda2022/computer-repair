@@ -4,24 +4,31 @@ import os
 import json
 import logging
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import StringIO
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.core.management import call_command
 from django.http import HttpResponse, FileResponse
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.db import connection
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 from django.forms import modelform_factory
 from django.urls import reverse
 
-from ..models import CompanyProfile
+from ..models import CompanyProfile, AuditLog
 from ..forms import CompanyProfileForm
 from .utils import is_htmx, htmx_response, redirect_to_staff
 from ..decorators import handle_errors
 
 logger = logging.getLogger(__name__)
+
+
+def _superuser_only(user):
+    return user.is_authenticated and user.is_superuser
 
 
 # =============================================================
@@ -233,3 +240,112 @@ def restore_database(request):
             return render(request, 'settings/restore.html')
 
     return HttpResponse("Method not allowed", status=405)
+
+
+# ════════════════════════════════════════════════════════════
+# AUDIT LOG — STATS (HTMX partial)
+# ════════════════════════════════════════════════════════════
+@login_required
+@user_passes_test(_superuser_only)
+@handle_errors(default_redirect='accounting:company_settings')
+def audit_log_stats(request):
+    """Return AuditLog stats for the settings page widget."""
+    total = AuditLog.objects.count()
+
+    oldest = AuditLog.objects.order_by('timestamp').first()
+    newest = AuditLog.objects.order_by('-timestamp').first()
+
+    # Rough DB size for the auditlog table (PostgreSQL only)
+    size_mb = 0.0
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COALESCE(pg_total_relation_size("
+                "'accounting_auditlog'), 0) / 1024.0 / 1024.0"
+            )
+            size_mb = round(float(cursor.fetchone()[0] or 0), 2)
+    except Exception:
+        pass
+
+    # Age breakdowns (helps user decide retention)
+    now = timezone.now()
+    within_1y = AuditLog.objects.filter(
+        timestamp__gte=now - timedelta(days=365)
+    ).count()
+    within_3y = AuditLog.objects.filter(
+        timestamp__gte=now - timedelta(days=1095)
+    ).count()
+
+    context = {
+        'total': total,
+        'oldest': oldest.timestamp if oldest else None,
+        'newest': newest.timestamp if newest else None,
+        'size_mb': size_mb,
+        'within_1y': within_1y,
+        'within_3y': within_3y,
+    }
+
+    if request.headers.get('HX-Request'):
+        return render(
+            request,
+            'settings/partials/_audit_log_widget.html',
+            context,
+        )
+    return render(
+        request,
+        'settings/partials/_audit_log_widget.html',
+        context,
+    )
+
+
+# ════════════════════════════════════════════════════════════
+# AUDIT LOG — PURGE
+# ════════════════════════════════════════════════════════════
+@login_required
+@user_passes_test(_superuser_only)
+@csrf_protect
+@handle_errors(default_redirect='accounting:company_settings')
+def audit_log_purge(request):
+    """Delete audit logs older than N days."""
+    if request.method != 'POST':
+        return redirect('accounting:company_settings')
+
+    # Validate input
+    try:
+        days = int(request.POST.get('days', 1095))
+    except (ValueError, TypeError):
+        messages.error(request, 'Invalid number of days.')
+        return redirect('accounting:company_settings')
+
+    if days < 30:
+        messages.error(request, 'Minimum retention is 30 days.')
+        return redirect('accounting:company_settings')
+
+    if days > 3650:
+        messages.error(request, 'Maximum retention is 3650 days (10 years).')
+        return redirect('accounting:company_settings')
+
+    cutoff = timezone.now() - timedelta(days=days)
+    qs = AuditLog.objects.filter(timestamp__lt=cutoff)
+    count = qs.count()
+
+    if count == 0:
+        messages.info(
+            request,
+            f'No audit logs older than {days} days. Nothing to clean.',
+        )
+        return redirect('accounting:company_settings')
+
+    # Log the action BEFORE deleting (meta-audit)
+    logger.warning(
+        'AuditLog purge | user=%s | days=%s | count=%s | cutoff=%s',
+        request.user.username, days, count, cutoff.isoformat(),
+    )
+
+    qs.delete()
+
+    messages.success(
+        request,
+        f'Successfully deleted {count} audit log(s) older than {days} days.',
+    )
+    return redirect('accounting:company_settings')
