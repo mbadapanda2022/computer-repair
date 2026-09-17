@@ -76,7 +76,12 @@ def get_paginated_invoices_context(request, queryset=None):
         )
     if customer_id:
         queryset = queryset.filter(customer_id=customer_id)
-    if status:
+    if status == 'overdue':
+        queryset = queryset.filter(
+            payment_status__in=['unpaid', 'partial'],
+            due_date__lt=timezone.now().date(),
+        )
+    elif status:
         queryset = queryset.filter(payment_status=status)
     if date_from:
         queryset = queryset.filter(date__gte=date_from)
@@ -161,7 +166,12 @@ def product_search(request):
 @csrf_protect
 @handle_errors(default_redirect='accounting:invoice_list', htmx_template='sales/partials/invoice_form_modal.html')
 def invoice_create(request):
-    if 'temp_invoice_items' not in request.session:
+    # ── Fresh open (GET): always reset session items ──
+    # This prevents leaking old items from a previously-cancelled form.
+    # POST failures keep the session (form re-renders with items intact).
+    if request.method == 'GET' and request.GET.get('keep') != '1':
+        request.session['temp_invoice_items'] = []
+    elif 'temp_invoice_items' not in request.session:
         request.session['temp_invoice_items'] = []
 
     template_name = 'sales/partials/invoice_form_modal.html' if is_htmx(request) else 'sales/invoice_form.html'
@@ -324,6 +334,20 @@ def invoice_update(request, pk):
 @handle_errors(default_redirect='accounting:invoice_list')
 def invoice_delete(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
+
+    # ── Safety: block delete if payments are allocated ──
+    if invoice.payment_allocations.exists():
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    f'Cannot delete {invoice.invoice_number} — '
+                    f'payments are linked. Remove/reallocate payments first.'
+                )
+            },
+            status=400,
+        )
+
     invoice_number = invoice.invoice_number
     customer = invoice.customer
 
@@ -631,3 +655,78 @@ def invoice_list_excel(request):
     response['Content-Disposition'] = f'attachment; filename="invoices_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
     wb.save(response)
     return response
+
+
+# ============================================================
+# 10. INVOICE DUPLICATE (copy invoice + items for fast entry)
+# ============================================================
+@login_required
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:invoice_list')
+def invoice_duplicate(request, pk):
+    """
+    Clone an invoice into a fresh draft (same customer, items, discount
+    settings). New invoice number, today's date, no payments.
+    """
+    from django.db import transaction
+
+    source = get_object_or_404(Invoice, pk=pk)
+
+    with transaction.atomic():
+        new_invoice = Invoice.objects.create(
+            customer=source.customer,
+            date=timezone.now().date(),
+            due_date=None,
+            gst_type=source.gst_type,
+            discount_amount=source.discount_amount,
+            discount_type=source.discount_type,
+            discount_note=source.discount_note,
+            discount_date=None,
+            notes=source.notes,
+        )
+
+        for item in source.items.all():
+            InvoiceItem.objects.create(
+                invoice=new_invoice,
+                product=item.product,
+                description=item.description,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                tax_rate=item.tax_rate,
+            )
+
+        new_invoice.calculate_totals()
+        new_invoice.save()
+
+    logger.info(
+        f"Invoice {source.invoice_number} duplicated as "
+        f"{new_invoice.invoice_number} by {request.user.username}"
+    )
+
+    if is_htmx(request):
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('accounting:invoice_update', args=[new_invoice.pk])
+        return response
+    messages.success(request, f"Duplicated as {new_invoice.invoice_number}.")
+    return redirect_to_staff('invoice_update', pk=new_invoice.pk)
+
+
+# ============================================================
+# 11. INVOICE WHATSAPP SHARE (returns JSON with wa.me URL)
+# ============================================================
+@login_required
+@require_http_methods(["GET"])
+def invoice_whatsapp(request, pk):
+    """
+    Return JSON { url: <wa.me deep-link> } for sharing invoice via WhatsApp.
+    Frontend opens it in a new tab.
+    """
+    invoice = get_object_or_404(Invoice, pk=pk)
+    url = invoice.whatsapp_share_url
+    if not url:
+        return JsonResponse(
+            {'error': 'Customer has no phone number on file.'},
+            status=400
+        )
+    return JsonResponse({'url': url})

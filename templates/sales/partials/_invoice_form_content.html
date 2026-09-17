@@ -19,9 +19,12 @@
 
                 <div class="card-body">
                     <form method="post"
+                          action="{% if invoice %}{% url 'accounting:invoice_update' invoice.pk %}{% else %}{% url 'accounting:invoice_create' %}{% endif %}"
+                          {% if is_htmx %}
                           hx-post="{% if invoice %}{% url 'accounting:invoice_update' invoice.pk %}{% else %}{% url 'accounting:invoice_create' %}{% endif %}"
-                          hx-target="{% if is_htmx %}#mainModalContent{% else %}#invoice-form-container{% endif %}"
+                          hx-target="#mainModalContent"
                           hx-swap="innerHTML"
+                          {% endif %}
                           id="invoiceForm"
                           novalidate>
                         {% csrf_token %}
@@ -71,7 +74,7 @@
                             </div>
                         </div>
 
-                        <!-- ===== ROW 2: GST Type ===== -->
+                        <!-- ===== ROW 2: GST Type & Notes ===== -->
                         <div class="row g-3 mt-2">
                             <div class="col-md-4">
                                 <label for="id_gst_type" class="form-label fw-semibold">GST Type</label>
@@ -90,7 +93,7 @@
                             </div>
                         </div>
 
-                        <!-- ===== DISCOUNT SECTION (collapsible) ===== -->
+                        <!-- ===== DISCOUNT SECTION ===== -->
                         <div class="mt-3">
                             <a class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse"
                                href="#discountSection" role="button">

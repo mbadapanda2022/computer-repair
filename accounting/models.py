@@ -3,6 +3,7 @@
 from decimal import Decimal
 import json
 import logging
+from datetime import datetime, time, timedelta
 from django.db import models, transaction, IntegrityError
 from django.conf import settings
 from django.db.models import F, Sum, Q, Max
@@ -1017,6 +1018,58 @@ class Invoice(SoftDeleteModel):
                 'cgst': Decimal('0'),
                 'sgst': Decimal('0'),
             }
+            
+    # ════════════════════════════════════════════════════════════
+    # OVERDUE & SHARE HELPERS 
+    # ════════════════════════════════════════════════════════════
+
+    @property
+    def is_overdue(self):
+        """True if unpaid/partial and past due_date."""
+        if self.payment_status == 'paid':
+            return False
+        if not self.due_date:
+            return False
+        return self.due_date < timezone.now().date()
+
+    @property
+    def days_overdue(self):
+        """Days past due_date (0 if not overdue)."""
+        if not self.is_overdue:
+            return 0
+        return (timezone.now().date() - self.due_date).days
+
+    @property
+    def linked_repair(self):
+        """
+        Return the linked RepairJob if any (attribute name safe for templates).
+        NOTE: Django templates can't use leading underscore names.
+        """
+        return RepairJob.objects.filter(invoice=self).first()
+
+    @property
+    def whatsapp_share_url(self):
+        """Return a wa.me deep-link URL to share this invoice summary."""
+        if not self.customer or not self.customer.phone:
+            return None
+        phone = ''.join(filter(str.isdigit, str(self.customer.phone)))
+        if len(phone) == 10:
+            phone = '91' + phone
+        elif len(phone) < 10:
+            return None
+
+        from urllib.parse import quote
+        parts = [
+            f"Hi {self.customer.name},",
+            f"Your invoice {self.invoice_number} from A1 Computer Solutions.",
+            f"Date: {self.date.strftime('%d %b %Y')}",
+            f"Total: Rs.{self.grand_total:.2f}",
+            f"Due: Rs.{self.balance_due:.2f}" if self.balance_due > 0 else "Status: PAID",
+        ]
+        if self.due_date and self.balance_due > 0:
+            parts.append(f"Due Date: {self.due_date.strftime('%d %b %Y')}")
+        text = "\n".join(parts)
+        return f"https://wa.me/{phone}?text={quote(text)}"
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:

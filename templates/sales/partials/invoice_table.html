@@ -10,6 +10,7 @@
                         <th>Date</th>
                         <th>Customer</th>
                         <th class="text-end">Amount</th>
+                        <th class="text-end">Due</th>
                         <th>Status</th>
                         <th class="text-center">Actions</th>
                     </tr>
@@ -17,17 +18,38 @@
                 <tbody>
                     {% for invoice in invoices %}
                     <tr>
-                        <td><strong>{{ invoice.invoice_number }}</strong></td>
-                        <td>{{ invoice.date|date:"d M Y" }}</td>
+                        <td>
+                            <a href="{% url 'accounting:invoice_detail' invoice.pk %}"
+                               class="fw-bold text-decoration-none">
+                                {{ invoice.invoice_number }}
+                            </a>
+                            {% if invoice.linked_repair %}
+                                <span class="badge bg-info text-dark ms-1" title="Linked to repair job">
+                                    <i class="bi bi-tools"></i>
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap">{{ invoice.date|date:"d M Y" }}</td>
                         <td>{{ invoice.customer.name }}</td>
                         <td class="text-end fw-bold">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                        <td class="text-end">
+                            {% if invoice.balance_due > 0 %}
+                                <span class="text-danger fw-bold">₹{{ invoice.balance_due|floatformat:2 }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if invoice.payment_status == 'paid' %}
-                                <span class="badge bg-success"><i class="bi bi-check-circle"></i> Paid</span>
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Paid</span>
+                            {% elif invoice.is_overdue %}
+                                <span class="badge bg-danger" title="{{ invoice.days_overdue }} days overdue">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Overdue
+                                </span>
                             {% elif invoice.payment_status == 'partial' %}
-                                <span class="badge bg-warning text-dark"><i class="bi bi-clock"></i> Partial</span>
+                                <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Partial</span>
                             {% else %}
-                                <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Unpaid</span>
+                                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Unpaid</span>
                             {% endif %}
                         </td>
                         <td class="text-center">
@@ -44,15 +66,33 @@
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item" href="{% url 'accounting:invoice_update' invoice.pk %}">
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:invoice_update' invoice.pk %}"
+                                                hx-target="#mainModalContent"
+                                                hx-trigger="click">
                                             <i class="bi bi-pencil me-2 text-warning"></i>Edit
-                                        </a>
+                                        </button>
                                     </li>
                                     <li>
                                         <a class="dropdown-item" href="{% url 'accounting:invoice_print' invoice.pk %}" target="_blank">
                                             <i class="bi bi-printer me-2 text-info"></i>Print
                                         </a>
                                     </li>
+                                    <li>
+                                        <button class="dropdown-item"
+                                                hx-post="{% url 'accounting:invoice_duplicate' invoice.pk %}"
+                                                hx-swap="none"
+                                                hx-confirm="Duplicate this invoice? A new draft will be created.">
+                                            <i class="bi bi-files me-2 text-secondary"></i>Duplicate
+                                        </button>
+                                    </li>
+                                    {% if invoice.whatsapp_share_url %}
+                                    <li>
+                                        <a class="dropdown-item" href="{{ invoice.whatsapp_share_url }}" target="_blank">
+                                            <i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp
+                                        </a>
+                                    </li>
+                                    {% endif %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
                                         <button class="dropdown-item text-danger" 
@@ -68,7 +108,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center py-5">
+                        <td colspan="7" class="text-center py-5">
                             <i class="bi bi-inbox display-6 d-block mb-3 text-muted"></i>
                             <h5 class="text-muted">No invoices found</h5>
                             <p class="text-muted">Try adjusting your filters or create a new invoice.</p>
@@ -83,7 +123,7 @@
                     <tr>
                         <th colspan="3" class="text-end">Total</th>
                         <th class="text-end fw-bold">₹{{ total_sales|floatformat:2 }}</th>
-                        <th colspan="2"></th>
+                        <th colspan="3"></th>
                     </tr>
                 </tfoot>
             </table>
