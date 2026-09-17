@@ -734,11 +734,13 @@ def vendor_statement(request, contact_id):
         entry = line.ledger_entry
         trans_type = entry.get_entry_type_display()
         ref = ''
+        purchase_id = None
 
         if entry.entry_type == 'purchase' and entry.reference_id:
             try:
                 pur = Purchase.objects.get(pk=entry.reference_id)
                 ref = pur.purchase_number
+                purchase_id = pur.id
             except Purchase.DoesNotExist:
                 ref = f"Purchase #{entry.reference_id}"
         elif entry.entry_type == 'payment' and entry.reference_id:
@@ -767,6 +769,7 @@ def vendor_statement(request, contact_id):
             'debit': debit,
             'credit': credit,
             'balance': running_balance,
+            'purchase_id': purchase_id,
         })
 
     closing_balance = running_balance

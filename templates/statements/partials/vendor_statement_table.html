@@ -29,7 +29,16 @@
                     <tr>
                         <td>{{ line.date|date:"d M Y" }}</td>
                         <td>{{ line.type }}</td>
-                        <td>{{ line.reference|default:"—" }}</td>
+                        <td>
+                            {{ line.reference|default:"—" }}
+                            {% if line.purchase_id %}
+                                <a href="{% url 'accounting:purchase_detail' line.purchase_id %}"
+                                   class="text-decoration-none ms-1" target="_blank"
+                                   title="View purchase">
+                                    <i class="bi bi-box-arrow-up-right"></i>
+                                </a>
+                            {% endif %}
+                        </td>
                         <td>{{ line.description }}</td>
                         <td class="text-end {% if line.debit > 0 %}fw-bold{% endif %}">
                             {% if line.debit > 0 %}₹{{ line.debit|floatformat:2 }}{% else %}—{% endif %}
@@ -74,14 +83,14 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page=1{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#vendor-statement-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page={{ page_obj.previous_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page={{ page_obj.previous_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#vendor-statement-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -93,14 +102,14 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page={{ page_obj.next_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page={{ page_obj.next_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#vendor-statement-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page={{ page_obj.paginator.num_pages }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                       hx-get="{% url 'accounting:vendor_statement' contact.id %}?page={{ page_obj.paginator.num_pages }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#vendor-statement-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>
@@ -112,7 +121,7 @@
     {% endif %}
 
     <div class="card-footer bg-white text-muted small border-0">
-        <i class="bi bi-info-circle"></i> 
+        <i class="bi bi-info-circle"></i>
         Showing transactions from {{ date_from|default:"beginning" }} to {{ date_to|default:"today" }}.
         {% if page_obj %}<span class="float-end">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>{% endif %}
     </div>

@@ -7,9 +7,7 @@
 {% block content %}
 <div class="container-fluid px-4 py-3">
 
-  <!-- ============================================================
-       HEADER
-       ============================================================ -->
+  <!-- HEADER -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
@@ -47,9 +45,7 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       SUMMARY CARDS
-       ============================================================ -->
+  <!-- SUMMARY CARDS -->
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
@@ -103,9 +99,7 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       FILTERS + ACTIONS
-       ============================================================ -->
+  <!-- FILTERS + ACTIONS -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
       <form id="combined-filter-form" class="row g-2 align-items-end">
@@ -135,21 +129,11 @@
                   hx-include="#combined-filter-form"
                   hx-push-url="true">
             <option value="">All Types</option>
-            <option value="invoice" {% if txn_type == 'invoice' %}selected{% endif %}>
-              Invoices / Sales
-            </option>
-            <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>
-              Purchases
-            </option>
-            <option value="payment" {% if txn_type == 'payment' %}selected{% endif %}>
-              Payments & Receipts
-            </option>
-            <option value="discount" {% if txn_type == 'discount' %}selected{% endif %}>
-              Discounts
-            </option>
-            <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>
-              Journals (Adjustments)
-            </option>
+            <option value="invoice" {% if txn_type == 'invoice' %}selected{% endif %}>Invoices / Sales</option>
+            <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>Purchases</option>
+            <option value="payment" {% if txn_type == 'payment' %}selected{% endif %}>Payments & Receipts</option>
+            <option value="discount" {% if txn_type == 'discount' %}selected{% endif %}>Discounts</option>
+            <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>Journals (Adjustments)</option>
           </select>
         </div>
 
@@ -179,29 +163,30 @@
 
         <!-- Reset -->
         <div class="col-md-1">
-          <a href="{% url 'accounting:combined_statement' contact.id %}"
-             class="btn btn-outline-secondary btn-sm w-100"
-             title="Reset filters">
+          <button type="button"
+                  class="btn btn-outline-secondary btn-sm w-100"
+                  onclick="resetCombinedFilters()"
+                  title="Reset filters">
             <i class="bi bi-arrow-clockwise"></i>
-          </a>
+          </button>
         </div>
 
         <!-- Export actions -->
         <div class="col-md-2 text-end">
           <div class="btn-group btn-group-sm w-100">
-            <a href="{% url 'accounting:combined_statement_print' contact.id %}{% if date_from or date_to or txn_type or search %}?{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}{% if txn_type %}txn_type={{ txn_type }}&{% endif %}{% if search %}search={{ search }}{% endif %}{% endif %}"
-               class="btn btn-outline-dark" target="_blank" title="Print">
+            <button type="button" class="btn btn-outline-dark"
+                    onclick="downloadCombined('print')" title="Print">
               <i class="bi bi-printer"></i>
-            </a>
-            <a href="{% url 'accounting:combined_statement_excel' contact.id %}{% if date_from or date_to or txn_type or search %}?{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}&{% endif %}{% if txn_type %}txn_type={{ txn_type }}&{% endif %}{% if search %}search={{ search }}{% endif %}{% endif %}"
-               class="btn btn-success" title="Excel Export">
+            </button>
+            <button type="button" class="btn btn-success"
+                    onclick="downloadCombined('excel')" title="Excel Export">
               <i class="bi bi-file-earmark-excel"></i>
-            </a>
+            </button>
             {% if contact.phone %}
-            <a href="{% url 'accounting:combined_statement_whatsapp' contact.id %}{% if date_from or date_to %}?{% if date_from %}date_from={{ date_from }}&{% endif %}{% if date_to %}date_to={{ date_to }}{% endif %}{% endif %}"
-               class="btn btn-outline-success" target="_blank" title="Share via WhatsApp">
+            <button type="button" class="btn btn-outline-success"
+                    onclick="downloadCombined('whatsapp')" title="Share via WhatsApp">
               <i class="bi bi-whatsapp"></i>
-            </a>
+            </button>
             {% endif %}
           </div>
         </div>
@@ -209,18 +194,14 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       TABLE CONTAINER (HTMX Target)
-       ============================================================ -->
+  <!-- TABLE CONTAINER -->
   <div class="card border-0 shadow-sm">
     <div class="card-body p-0" id="combined-table-container">
       {% include "statements/partials/combined_statement_table.html" %}
     </div>
   </div>
 
-  <!-- ============================================================
-       FOOTER LEGEND
-       ============================================================ -->
+  <!-- FOOTER LEGEND -->
   <div class="mt-3 text-center text-muted small">
     <p class="mb-0">
       <strong>Legend:</strong> Dr = Debit · Cr = Credit ·
@@ -231,4 +212,58 @@
   </div>
 
 </div>
+
+<script>
+// ============================================================
+// Build filter params (properly URL-encoded)
+// ============================================================
+function getCurrentFilterParams() {
+    const form = document.getElementById('combined-filter-form');
+    if (!form) return new URLSearchParams();
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    for (const [key, value] of formData.entries()) {
+        if (value && value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    return params;
+}
+
+// ============================================================
+// Download / Print / WhatsApp with current filters
+// ============================================================
+function downloadCombined(type) {
+    const params = getCurrentFilterParams();
+    const qs = params.toString();
+    const base = qs ? '?' + qs : '';
+
+    let url = '';
+    let target = '_blank';
+
+    if (type === 'print') {
+        url = "{% url 'accounting:combined_statement_print' contact.id %}" + base;
+    } else if (type === 'excel') {
+        url = "{% url 'accounting:combined_statement_excel' contact.id %}" + base;
+        target = '_self';
+    } else if (type === 'whatsapp') {
+        url = "{% url 'accounting:combined_statement_whatsapp' contact.id %}" + base;
+    }
+    window.open(url, target);
+}
+
+// ============================================================
+// Reset filters (HTMX)
+// ============================================================
+function resetCombinedFilters() {
+    const form = document.getElementById('combined-filter-form');
+    if (form) form.reset();
+
+    htmx.ajax('GET', "{% url 'accounting:combined_statement' contact.id %}", {
+        target: '#combined-table-container',
+        swap: 'innerHTML',
+        pushUrl: true
+    });
+}
+</script>
 {% endblock %}
