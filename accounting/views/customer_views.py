@@ -973,7 +973,7 @@ def payment_list(request):
 @handle_errors(default_redirect='customer:customer_dashboard')
 def purchase_list(request):
     """
-    Customer-side purchase list (view-only).
+    Customer-side order list (view-only).
 
     Shows purchases where this contact is the vendor.
     No create / edit / delete actions are exposed.
@@ -1071,8 +1071,10 @@ def purchase_list(request):
 @handle_errors(default_redirect='customer:customer_dashboard')
 def purchase_detail(request, pk):
     """
-    View-only purchase detail for the logged-in customer.
-    Security: get_object_or_404 restricts to vendor=customer.
+    View-only ORDER detail for the logged-in customer.
+    Purchase record from A1's perspective = Order from vendor's
+    perspective. Security: get_object_or_404 restricts to
+    vendor=customer.
     """
     customer = _get_customer(request)
     purchase = get_object_or_404(
@@ -1090,7 +1092,7 @@ def purchase_detail(request, pk):
 @login_required
 @handle_errors(default_redirect='customer:customer_purchases')
 def purchase_print(request, pk):
-    """Print-friendly purchase view (view-only, security-scoped)."""
+    """Print-friendly order view (view-only, security-scoped)."""
     customer = _get_customer(request)
     purchase = get_object_or_404(
         Purchase.objects.select_related('vendor'),
@@ -2039,7 +2041,7 @@ def _customer_purchases_excel(customer, qs):
     company = CompanyProfile.get_instance()
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "My Purchases"
+    ws.title = "My Orders"
 
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
@@ -2054,7 +2056,7 @@ def _customer_purchases_excel(customer, qs):
     ws['A1'].alignment = center
 
     ws.merge_cells('A2:H2')
-    ws['A2'] = f"My Purchases — {customer.name}"
+    ws['A2'] = f"Orders from A1 Computer Solutions — {customer.name}"
     ws['A2'].font = Font(bold=True, size=12)
     ws['A2'].alignment = center
 
@@ -2064,7 +2066,7 @@ def _customer_purchases_excel(customer, qs):
     ws['A3'].font = Font(size=10, italic=True, color="555555")
 
     headers = [
-        'Purchase #', 'Date', 'Items', 'Subtotal',
+        'Order #', 'Date', 'Items', 'Subtotal',
         'Discount', 'Freight', 'Tax', 'Grand Total',
     ]
     for col, h in enumerate(headers, 1):

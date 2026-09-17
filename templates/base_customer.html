@@ -50,8 +50,8 @@
                         <li>
                             <a href="{% url 'customer:customer_purchases' %}" 
                             class="nav-link {% if request.resolver_match.url_name == 'customer_purchases' or request.resolver_match.url_name == 'customer_purchase_detail' or 'purchases' in request.path %}active{% endif %}">
-                                <i class="bi bi-cart"></i>
-                                <span class="link-text">Purchases</span>
+                                <i class="bi bi-bag-check"></i>
+                                <span class="link-text">Orders</span>
                             </a>
                         </li>
                         {% endif %}

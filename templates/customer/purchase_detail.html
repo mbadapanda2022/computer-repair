@@ -129,9 +129,10 @@
                     </span>
                     <span class="purchase-number">{{ purchase.purchase_number }}</span>
                 </div>
-                <h2 class="fw-bold mb-1">{{ purchase.vendor.name }}</h2>
+                <h2 class="fw-bold mb-1">Order for {{ purchase.vendor.name }}</h2>
                 <p class="mb-0" style="opacity:0.9;">
-                    <i class="bi bi-calendar3 me-1"></i> {{ purchase.date|date:"d M Y" }}
+                    <i class="bi bi-shop me-1"></i> Issued by A1 Computer Solutions
+                    <i class="bi bi-calendar3 ms-3 me-1"></i> {{ purchase.date|date:"d M Y" }}
                 </p>
             </div>
             <div class="col-md-5 text-md-end mt-3 mt-md-0">
@@ -210,11 +211,11 @@
             <div class="detail-card">
                 <div class="card-header">
                     <span class="header-icon"><i class="bi bi-info-circle"></i></span>
-                    Purchase Details
+                    Order Details
                 </div>
                 <div class="card-body">
                     <div class="info-row">
-                        <span class="info-label"><i class="bi bi-hash me-2"></i>Purchase #</span>
+                        <span class="info-label"><i class="bi bi-hash me-2"></i>Order #</span>
                         <span class="info-value">{{ purchase.purchase_number }}</span>
                     </div>
                     <div class="info-row">
@@ -222,7 +223,7 @@
                         <span class="info-value">{{ purchase.date|date:"d M Y" }}</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label"><i class="bi bi-shop me-2"></i>Vendor</span>
+                        <span class="info-label"><i class="bi bi-shop me-2"></i>Issued To</span>
                         <span class="info-value">{{ purchase.vendor.name }}</span>
                     </div>
                     <div class="info-row">
@@ -351,13 +352,13 @@
                     <div class="d-grid gap-2">
                         <a href="{% url 'customer:customer_purchase_print' purchase.pk %}"
                            class="btn btn-outline-primary" target="_blank">
-                            <i class="bi bi-printer"></i> Print Purchase
+                            <i class="bi bi-printer"></i> Print Order
                         </a>
                         <a href="{% url 'customer:customer_statement' %}" class="btn btn-outline-secondary">
                             <i class="bi bi-file-text"></i> View My Statement
                         </a>
                         <a href="{% url 'customer:customer_purchases' %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-arrow-left"></i> All Purchases
+                            <i class="bi bi-arrow-left"></i> All Orders
                         </a>
                     </div>
                     <hr>

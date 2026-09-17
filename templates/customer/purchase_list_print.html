@@ -3,7 +3,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>My Purchases – {{ customer.name }}</title>
+    <title>Order – {{ customer.name }}</title>
     <style>
         @page { size: A4 landscape; margin: 10mm; }
         @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
@@ -35,7 +35,7 @@
     <div class="header">
         {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
         <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
-        <p style="margin:2px 0;">My Purchases — {{ customer.name }}
+        <p style="margin:2px 0;">Orders from A1 Computer Solutions — {{ customer.name }}
             {% if customer.phone %} | Phone: {{ customer.phone }}{% endif %}
         </p>
     </div>
@@ -68,7 +68,7 @@
     <table class="table">
         <thead>
             <tr>
-                <th>Purchase #</th>
+                <th>Order #</th>
                 <th>Date</th>
                 <th class="text-center">Items</th>
                 <th class="text-end">Subtotal</th>
@@ -89,7 +89,7 @@
                 <td>{% if p.paid %}Paid{% else %}Unpaid{% endif %}</td>
             </tr>
             {% empty %}
-            <tr><td colspan="7" class="text-center">No purchases found.</td></tr>
+            <tr><td colspan="7" class="text-center">No Orders found.</td></tr>
             {% endfor %}
         </tbody>
         {% if purchases %}

@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Purchase {{ purchase.purchase_number }} – {{ company.name|default:"A1 Computer Solutions" }}</title>
+    <title>Order {{ purchase.purchase_number }} – {{ company.name|default:"A1 Computer Solutions" }}</title>
     <style>
         @page { margin: 0.6cm 0.8cm; size: A4; }
         @media print {
@@ -55,7 +55,7 @@
         <div class="company-details">{{ company.address|default:"" }}</div>
     </div>
 
-    <div class="page-title">Purchase Bill #{{ purchase.purchase_number }}</div>
+    <div class="page-title">Order #{{ purchase.purchase_number }}</div>
 
     <div class="info-grid">
         <div class="info-item">
@@ -69,7 +69,7 @@
             </span>
         </div>
         <div class="info-item">
-            <span class="label">Vendor</span>
+            <span class="label">Issued To</span>
             <span class="value">{{ purchase.vendor.name }}</span>
         </div>
         <div class="info-item">
@@ -147,7 +147,7 @@
 
     <div class="footer">
         <p style="margin:2px 0;">
-            This is a computer-generated purchase bill.
+            This is a computer-generated Order bill.
             <span style="margin:0 6px;">|</span>
             © {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}
             <span style="margin:0 6px;">|</span>
@@ -161,7 +161,7 @@
             <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
             <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
             <a href="{% url 'customer:customer_purchase_detail' purchase.pk %}" class="btn btn-success">
-                ← Back to Purchase
+                ← Back to Order
             </a>
         </div>
     </div>
