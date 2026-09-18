@@ -1,7 +1,8 @@
 {% load static %}
 
-<form method="post" 
+<form method="post"
       id="journal-form"
+      action="{% if entry %}{% url 'accounting:journal_update' entry.id %}{% else %}{% if contact %}{% url 'accounting:journal_create_for_contact' contact.id %}{% else %}{% url 'accounting:journal_create' %}{% endif %}{% endif %}"
       hx-post="{% if entry %}{% url 'accounting:journal_update' entry.id %}{% else %}{% if contact %}{% url 'accounting:journal_create_for_contact' contact.id %}{% else %}{% url 'accounting:journal_create' %}{% endif %}{% endif %}"
       hx-target="#mainModalContent"
       hx-swap="innerHTML"

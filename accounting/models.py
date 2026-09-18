@@ -2405,16 +2405,81 @@ class Payment(SoftDeleteModel):
                 inv.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
 
     def delete(self, *args, **kwargs):
-        """Soft delete the payment and clean up related records."""
-        if not self.is_deleted:
-            # Clean up related records
-            self.allocations.all().delete()
-            AdvanceAdjustment.objects.filter(payment=self).delete()
-            if hasattr(self, 'bank_transaction'):
-                self.bank_transaction.delete()
-            LedgerEntry.objects.filter(reference_id=self.id, entry_type__in=['payment', 'advance_received', 'advance_paid']).delete()
-            # Now soft delete
-            self.soft_delete()
+        """
+        Soft delete the payment and clean up ALL related records.
+
+        Bug #1 fix (Payments audit): bulk soft-delete skips per-instance
+        post_save / post_delete signals, so `sync_payment_allocation`
+        and `sync_advance_adjustment` never fire. As a result,
+        invoice.paid_amount / balance_due / payment_status stayed
+        stale after deleting a payment. We now capture the affected
+        invoice IDs up-front and recalculate them manually.
+
+        Bonus: LedgerLines belonging to this payment's ledger entries
+        were being orphaned (bulk delete on LedgerEntry didn't touch
+        the lines). We now delete the lines first, per-instance, so
+        their post_save signals recalc contact balances.
+        """
+        if self.is_deleted:
+            return
+
+        # ── Capture affected invoice IDs BEFORE deleting anything ──
+        allocation_invoice_ids = list(
+            self.allocations.values_list('invoice_id', flat=True)
+        )
+        advance_invoice_ids = list(
+            AdvanceAdjustment.objects
+            .filter(payment=self)
+            .values_list('invoice_id', flat=True)
+        )
+        affected_invoice_ids = set(allocation_invoice_ids) | set(advance_invoice_ids)
+
+        # ── Capture ledger entry IDs (so we can clean their lines too) ──
+        ledger_entry_ids = list(
+            LedgerEntry.objects.filter(
+                reference_id=self.id,
+                entry_type__in=['payment', 'advance_received', 'advance_paid'],
+            ).values_list('id', flat=True)
+        )
+
+        # ── Delete child records ──
+        self.allocations.all().delete()
+        AdvanceAdjustment.objects.filter(payment=self).delete()
+
+        if hasattr(self, 'bank_transaction'):
+            self.bank_transaction.delete()
+
+        # ── Delete ledger LINES first (per-instance → signals fire),
+        #    then the ledger ENTRIES themselves ──
+        for line in list(LedgerLine.objects.filter(ledger_entry_id__in=ledger_entry_ids)):
+            line.delete()
+        LedgerEntry.objects.filter(id__in=ledger_entry_ids).delete()
+
+        # ── Recalculate affected invoices (now that allocations are gone) ──
+        for inv in Invoice.objects.filter(pk__in=affected_invoice_ids):
+            total_paid = inv.payment_allocations.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0')
+            total_advance = inv.advance_adjustments.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0')
+            inv.paid_amount = total_paid + total_advance
+            inv.balance_due = (inv.grand_total - inv.paid_amount).quantize(TAX_PRECISION)
+            if inv.balance_due <= 0:
+                inv.payment_status = 'paid'
+            elif inv.paid_amount > 0 and inv.balance_due < inv.grand_total:
+                inv.payment_status = 'partial'
+            else:
+                inv.payment_status = 'unpaid'
+            inv.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
+
+        # ── Recalculate contact balances ──
+        if self.contact:
+            self.contact.recalc_balance()
+            self.contact.recalc_advance_balance()
+
+        # ── Finally, soft delete the payment itself ──
+        self.soft_delete()
 
     def __str__(self):
         return f"{self.direction} - {self.contact.name} - ₹{self.amount}"

@@ -5,6 +5,7 @@
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
 
 <form method="post"
+      action="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}"
       hx-post="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}"
       hx-target="#payment-table-container"
       hx-swap="innerHTML"

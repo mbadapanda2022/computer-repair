@@ -8,6 +8,7 @@ from django.http import HttpResponse
 from django.contrib import messages
 from django.db.models import Q, Sum, Prefetch
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.db import transaction
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 from django.utils import timezone
@@ -396,7 +397,11 @@ def journal_update(request, pk):
 def journal_delete(request, pk):
     entry = get_object_or_404(LedgerEntry, pk=pk, entry_type='journal')
     try:
-        entry.delete()
+        with transaction.atomic():
+            for line in list(entry.lines.all()):
+                line.delete()
+            entry.delete()
+
         logger.info(f"Journal entry {pk} deleted by {request.user.username}")
 
         journals = LedgerEntry.objects.filter(entry_type='journal') \

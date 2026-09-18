@@ -1,4 +1,5 @@
 <form method="post"
+      action="{% if txn %}{% url 'accounting:bank_transaction_edit' txn.pk %}{% else %}{% url 'accounting:bank_transaction_add' account.pk %}{% endif %}"
       hx-post="{% if txn %}{% url 'accounting:bank_transaction_edit' txn.pk %}{% else %}{% url 'accounting:bank_transaction_add' account.pk %}{% endif %}"
       hx-target="#mainModalContent"
       hx-swap="innerHTML">

@@ -17,7 +17,7 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-body p-4 p-md-5">
-            <form method="post">
+            <form method="post" action="{% if entry %}{% url 'accounting:journal_update' entry.id %}{% elif contact %}{% url 'accounting:journal_create_for_contact' contact.id %}{% else %}{% url 'accounting:journal_create' %}{% endif %}">
                 {% csrf_token %}
                 
                 {% if form.non_field_errors %}

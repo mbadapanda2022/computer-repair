@@ -26,7 +26,6 @@ from ..decorators import handle_errors
 from accounting.utils.notification_helpers import (
     send_notification_to_customer,
     send_notification_to_staff,
-    send_notification_sse,
 )
 
 logger = logging.getLogger(__name__)
@@ -316,8 +315,6 @@ def payment_create(request, pk=None):
                         send_email=False,
                     )
 
-                    for staff in User.objects.filter(is_staff=True):
-                        send_notification_sse(staff)
                 except Exception as notif_error:
                     logger.error(
                         f"Payment notification failed for #{payment.id}: {notif_error}",
@@ -447,8 +444,7 @@ def payment_update(request, pk):
                             category='payment',
                             send_email=False,
                         )
-                    for staff in User.objects.filter(is_staff=True):
-                        send_notification_sse(staff)
+
                 except Exception as notif_error:
                     logger.error(
                         f"Payment update notification failed for #{pk}: {notif_error}",
@@ -537,8 +533,7 @@ def payment_delete(request, pk):
             category='payment',
             send_email=False,
         )
-        for staff in User.objects.filter(is_staff=True):
-            send_notification_sse(staff)
+
     except Exception as notif_error:
         logger.error(f"Payment deletion notification failed: {notif_error}", exc_info=True)
 
@@ -568,12 +563,6 @@ def reconcile_payment(request, pk):
         f"Payment #{pk} reconciliation toggled to {payment.reconciled} "
         f"by {request.user.username}"
     )
-
-    try:
-        for staff in User.objects.filter(is_staff=True):
-            send_notification_sse(staff)
-    except Exception as notif_error:
-        logger.error(f"Reconciliation notification failed: {notif_error}", exc_info=True)
 
     if is_htmx(request):
         context = get_paginated_payments_context(request)

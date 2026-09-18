@@ -1,8 +1,9 @@
-<form method="post" 
-    {% if account %} 
-        hx-post="{% url 'accounting:bank_account_edit' account.pk %}" 
-    {% else %} 
-        hx-post="{% url 'accounting:bank_account_add' %}" 
+<form method="post"
+    action="{% if account %}{% url 'accounting:bank_account_edit' account.pk %}{% else %}{% url 'accounting:bank_account_add' %}{% endif %}"
+    {% if account %}
+        hx-post="{% url 'accounting:bank_account_edit' account.pk %}"
+    {% else %}
+        hx-post="{% url 'accounting:bank_account_add' %}"
     {% endif %}
     hx-target="#mainModalContent"
     hx-swap="innerHTML">

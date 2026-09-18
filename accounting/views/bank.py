@@ -595,6 +595,10 @@ def bank_transaction_edit(request, pk):
             with transaction.atomic():
                 updated = form.save()
                 recalculate_account_balance(account)
+                if updated.payment and not updated.payment.is_deleted:
+                    if updated.payment.reconciled != updated.reconciled:
+                        updated.payment.reconciled = updated.reconciled
+                        updated.payment.save(update_fields=['reconciled'])
 
             logger.info(f"Bank transaction #{pk} updated by {request.user.username}")
 
