@@ -218,6 +218,15 @@ def customer_statement_excel(request, contact_id):
             desc = f"Payment - {entry.description}"
         elif entry.entry_type == 'journal':
             desc = f"Journal - {entry.description}"
+            
+        if line.debit > 0:
+            running_balance += line.debit
+            debit_amt = line.debit
+            credit_amt = Decimal('0')
+        else:
+            running_balance -= line.credit
+            debit_amt = Decimal('0')
+            credit_amt = line.credit
 
         if search:
             s = search.lower()
@@ -225,17 +234,6 @@ def customer_statement_excel(request, contact_id):
                 and not (desc and s in desc.lower())
                 and not (action_text and s in action_text.lower())):
                 continue
-
-        if line.debit > 0:
-            running_balance += line.debit
-            debit_amt = line.debit
-            credit_amt = Decimal('0')
-            total_debit += debit_amt
-        else:
-            running_balance -= line.credit
-            debit_amt = Decimal('0')
-            credit_amt = line.credit
-            total_credit += credit_amt
 
         statement_data.append({
             'date': entry.date,
@@ -355,6 +353,15 @@ def customer_statement_excel(request, contact_id):
 @handle_errors(default_redirect='accounting:contact_list')
 def customer_statement_whatsapp(request, contact_id):
     contact = get_object_or_404(Contact, pk=contact_id)
+
+    # 'both' type → route to combined WhatsApp (consistency with other views)
+    if contact.contact_type == 'both':
+        query = request.GET.urlencode()
+        url = f"/statements/combined/{contact.pk}/whatsapp/"
+        if query:
+            url += f"?{query}"
+        return redirect(url)
+
     company = CompanyProfile.get_instance()
     phone = contact.phone
 
@@ -439,7 +446,10 @@ def customer_statement(request, contact_id):
     opening = _get_customer_opening_balance(contact, date_from)
 
     if date_from:
-        opening_as_on_date = date_from
+        try:
+            opening_as_on_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            opening_as_on_date = None
         opening_label = "Opening Balance (Carried Forward)"
     else:
         opening_as_on_date = contact.opening_balance_date
@@ -491,18 +501,6 @@ def customer_statement(request, contact_id):
             else:
                 desc = entry.description or "Journal Entry"
 
-        if search:
-            s = search.lower()
-            match = (
-                (invoice_no and s in invoice_no.lower())
-                or (issue_text and s in issue_text.lower())
-                or (action_text and s in action_text.lower())
-                or (desc and s in desc.lower())
-                or (device_model and s in device_model.lower())
-            )
-            if not match:
-                continue
-
         if line.debit > 0:
             running_balance += line.debit
             debit_amt = line.debit
@@ -514,6 +512,19 @@ def customer_statement(request, contact_id):
 
         if debit_amt == 0 and credit_amt == 0:
             continue
+
+        # ── Search filter: display-only ──
+        if search:
+            s = search.lower()
+            match = (
+                (invoice_no and s in invoice_no.lower())
+                or (issue_text and s in issue_text.lower())
+                or (action_text and s in action_text.lower())
+                or (desc and s in desc.lower())
+                or (device_model and s in device_model.lower())
+            )
+            if not match:
+                continue
 
         statement_lines.append({
             'date': entry.date,
@@ -596,7 +607,10 @@ def customer_statement_print(request, contact_id):
     opening = _get_customer_opening_balance(contact, date_from)
 
     if date_from:
-        opening_as_on_date = date_from
+        try:
+            opening_as_on_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            opening_as_on_date = None
         opening_label = "Opening Balance (Carried Forward)"
     else:
         opening_as_on_date = contact.opening_balance_date
@@ -635,6 +649,15 @@ def customer_statement_print(request, contact_id):
         elif entry.entry_type == 'journal':
             desc = f"Journal - {entry.description}"
 
+        if line.debit > 0:
+            running_balance += line.debit
+            debit_amt = line.debit
+            credit_amt = Decimal('0')
+        else:
+            running_balance -= line.credit
+            debit_amt = Decimal('0')
+            credit_amt = line.credit
+
         if search:
             s = search.lower()
             match = (
@@ -646,15 +669,6 @@ def customer_statement_print(request, contact_id):
             )
             if not match:
                 continue
-
-        if line.debit > 0:
-            running_balance += line.debit
-            debit_amt = line.debit
-            credit_amt = Decimal('0')
-        else:
-            running_balance -= line.credit
-            debit_amt = Decimal('0')
-            credit_amt = line.credit
 
         statement_lines.append({
             'date': entry.date,
@@ -730,7 +744,10 @@ def vendor_statement(request, contact_id):
     opening_balance = _get_vendor_opening_balance(contact, date_from)
 
     if date_from:
-        opening_as_on_date = date_from
+        try:
+            opening_as_on_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            opening_as_on_date = None
         opening_label = "Opening Balance (Carried Forward)"
     else:
         opening_as_on_date = contact.opening_balance_date
@@ -757,18 +774,14 @@ def vendor_statement(request, contact_id):
         elif entry.entry_type == 'journal' and entry.reference_id:
             ref = f"Journal #{entry.reference_id}"
 
-        # Search filter
-        if search:
-            s = search.lower()
-            if not (
-                (ref and s in ref.lower())
-                or (entry.description and s in entry.description.lower())
-            ):
-                continue
-
         debit = line.debit
         credit = line.credit
         running_balance = running_balance + credit - debit
+
+        if search:
+            s = search.lower()
+            if not ((ref and s in ref.lower()) or (entry.description and s in entry.description.lower())):
+                continue
 
         statement_lines.append({
             'date': entry.date,
@@ -823,16 +836,20 @@ def vendor_statement(request, contact_id):
 # ============================================================
 # VENDOR STATEMENT - CSV
 # ============================================================
-@handle_errors(default_redirect='accounting:contact_list')
 def vendor_statement_csv(request, contact_id):
     contact = get_object_or_404(Contact, pk=contact_id, contact_type__in=['vendor', 'both'])
 
-    # For 'both' type, redirect to combined statement excel (CSV not supported for combined)
+    # For 'both' type, redirect to combined statement Excel (filters preserved)
     if contact.contact_type == 'both':
-        return redirect('accounting:combined_statement', contact_id=contact.pk)
+        query = request.GET.urlencode()
+        url = f"/statements/combined/{contact.pk}/excel/"
+        if query:
+            url += f"?{query}"
+        return redirect(url)
 
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
+    search = request.GET.get('search', '').strip()
 
     lines = LedgerLine.objects.filter(
         contact=contact,
@@ -869,6 +886,15 @@ def vendor_statement_csv(request, contact_id):
         debit = line.debit
         credit = line.credit
         running_balance = running_balance + credit - debit
+
+        if search:
+            s = search.lower()
+            if not (
+                (entry.description and s in entry.description.lower())
+                or (entry.reference_id and s in str(entry.reference_id).lower())
+            ):
+                continue
+
         writer.writerow([
             entry.date.strftime("%d-%m-%Y"),
             entry.get_entry_type_display(),
@@ -898,6 +924,7 @@ def vendor_statement_print(request, contact_id):
 
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
+    search = request.GET.get('search', '').strip()
 
     lines = LedgerLine.objects.filter(
         contact=contact,
@@ -914,7 +941,10 @@ def vendor_statement_print(request, contact_id):
     opening_balance = _get_vendor_opening_balance(contact, date_from)
 
     if date_from:
-        opening_as_on_date = date_from
+        try:
+            opening_as_on_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            opening_as_on_date = None
         opening_label = "Opening Balance (Carried Forward)"
     else:
         opening_as_on_date = contact.opening_balance_date
@@ -922,6 +952,8 @@ def vendor_statement_print(request, contact_id):
 
     running_balance = opening_balance
     statement_lines = []
+
+    search = request.GET.get('search', '').strip()
 
     for line in lines:
         entry = line.ledger_entry
@@ -941,6 +973,14 @@ def vendor_statement_print(request, contact_id):
         debit = line.debit
         credit = line.credit
         running_balance = running_balance + credit - debit
+
+        if search:
+            s = search.lower()
+            if not (
+                (ref and s in ref.lower())
+                or (entry.description and s in entry.description.lower())
+            ):
+                continue
 
         statement_lines.append({
             'date': entry.date,
@@ -997,7 +1037,7 @@ def vendor_statement_excel(request, contact_id):
 
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
-
+    search = request.GET.get('search', '').strip()
     lines = LedgerLine.objects.filter(
         contact=contact,
         subledger_type='payable',
@@ -1083,6 +1123,14 @@ def vendor_statement_excel(request, contact_id):
         running_balance = running_balance + credit - debit
         total_debit += debit
         total_credit += credit
+
+        if search:
+            s = search.lower()
+            if not (
+                (ref and s in ref.lower())
+                or (entry.description and s in entry.description.lower())
+            ):
+                continue
 
         ws.cell(row=row, column=1, value=entry.date.strftime("%d-%m-%Y"))
         ws.cell(row=row, column=2, value=trans_type)
@@ -1177,20 +1225,29 @@ def _get_combined_opening_balances(contact, date_from=None):
             opening_pay.quantize(Decimal('0.01')))
 
 
-def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
-                         search=None, sort='desc'):
+def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None, search=None, sort='desc'):
     """
     Build combined statement data (rows + totals + opening/closing).
     Both sides computed independently; net position = receivable - payable.
 
-    sort='desc' → newest first (default, for screen)
-    sort='asc'  → oldest first (used by print/excel)
+    sort='desc' → newest first
+    sort='asc'  → oldest first (bank-style)
+
+    Each row gets:
+      recv_dr, recv_cr, pay_dr, pay_cr      — original split
+      running_recv, running_pay, net        — running positions
+      debit_amount, credit_amount           — merged single-column (bank-style)
+
+    Legacy-data fallback:
+      Rows created before `subledger_type` field existed have it empty.
+      We derive the side from the linked account's code so older
+      purchases / invoices still appear in statements.
     """
     opening_recv, opening_pay = _get_combined_opening_balances(contact, date_from)
 
     qs = LedgerLine.objects.filter(contact=contact) \
         .exclude(ledger_entry__entry_type='opening') \
-        .select_related('ledger_entry') \
+        .select_related('ledger_entry', 'account') \
         .order_by('ledger_entry__date', 'ledger_entry__id')
 
     if date_from:
@@ -1205,7 +1262,6 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
         qs = qs.filter(ledger_entry__entry_type='purchase')
 
     elif txn_type == 'payment':
-        # Payment filter — includes legacy journal-payments
         qs = qs.filter(
             Q(ledger_entry__entry_type__in=[
                 'payment', 'advance_received', 'advance_paid',
@@ -1226,7 +1282,6 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
         )
 
     elif txn_type == 'journal':
-        # True journals only — exclude payment-like entries
         qs = qs.filter(
             ledger_entry__entry_type='journal'
         ).exclude(
@@ -1245,9 +1300,26 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
     total_pay_dr = Decimal('0')
     total_pay_cr = Decimal('0')
 
+    # Account-code sets for legacy-row fallback detection.
+    # Rows created before `subledger_type` field existed have it empty —
+    # derive the side from the linked account's code.
+    _RECV_CODES = frozenset({'1011', '1012'})
+    _PAY_CODES = frozenset({'2011', '1014'})
+
     for line in qs:
         entry = line.ledger_entry
         sub = line.subledger_type
+
+        # ── Fallback: derive subledger from account code if empty ──
+        if not sub and line.contact_id:
+            try:
+                code = line.account.code
+                if code in _RECV_CODES:
+                    sub = 'receivable'
+                elif code in _PAY_CODES:
+                    sub = 'payable'
+            except Exception:
+                pass
 
         if sub not in ('receivable', 'payable'):
             continue
@@ -1261,6 +1333,8 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
         repair_job_id = None
         purchase_id = None
         purchase_no = None
+        payment_id = None
+        journal_entry_id = None
 
         if entry.entry_type == 'sales' and entry.reference_id:
             try:
@@ -1271,7 +1345,7 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
                 if repair:
                     repair_job_id = repair.id
                     device_model = repair.device_model
-                    description = f"Repair Invoice: {device_model}"
+                    description = f"Repair — {device_model}"
                 else:
                     description = "Sales Invoice"
                 reference = inv.invoice_number
@@ -1284,19 +1358,23 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
                 reference = pur.purchase_number
                 purchase_id = pur.id
                 purchase_no = pur.purchase_number
-                description = f"Purchase Bill — {pur.purchase_number}"
+                # Customer-facing: "Order" (not "Purchase")
+                description = f"Order — {pur.purchase_number}"
             except Purchase.DoesNotExist:
-                pass
+                continue
 
         elif entry.entry_type in ('payment', 'advance_received', 'advance_paid') and entry.reference_id:
             try:
                 pay = Payment.objects.get(pk=entry.reference_id)
+                payment_id = pay.id
                 reference = f"PMT-{pay.id:04d}"
                 method = pay.get_method_display()
                 bank = pay.bank_account.name if pay.bank_account else 'Cash'
                 direction = 'Received' if pay.direction == 'received' else 'Paid'
                 prefix = 'Advance' if pay.is_advance else 'Payment'
-                description = f"{prefix} {direction} · {method} · {bank}"
+                description = f"{prefix} {direction} — {method}"
+                if pay.bank_account:
+                    description += f" ({bank})"
                 if pay.upi_ref:
                     description += f" · UPI: {pay.upi_ref}"
                 elif pay.reference:
@@ -1305,7 +1383,7 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
                 pass
 
         elif entry.entry_type == 'journal':
-            # Make description self-explanatory based on journal_type
+            journal_entry_id = entry.id
             jtype = (entry.journal_type or '').lower()
             base_desc = entry.description or ''
 
@@ -1322,19 +1400,8 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
             else:
                 description = base_desc or "Journal Entry"
 
-        # ---- Search filter ----
-        if search:
-            s = search.lower()
-            match = (
-                (invoice_no and s in invoice_no.lower())
-                or (reference and s in reference.lower())
-                or (description and s in description.lower())
-                or (device_model and s in device_model.lower())
-            )
-            if not match:
-                continue
-
-        # ---- Running balances ----
+        # ---- Running balances: ALWAYS computed on full rowset ----
+        # (search filter is display-only, must not alter balances)
         recv_dr = recv_cr = pay_dr = pay_cr = Decimal('0')
 
         if sub == 'receivable':
@@ -1350,6 +1417,22 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
             total_pay_dr += pay_dr
             total_pay_cr += pay_cr
 
+        # ---- Search filter: display-only ----
+        if search:
+            s = search.lower()
+            match = (
+                (invoice_no and s in invoice_no.lower())
+                or (reference and s in reference.lower())
+                or (description and s in description.lower())
+                or (device_model and s in device_model.lower())
+            )
+            if not match:
+                continue
+
+        # Merged single-column amounts (bank-style)
+        debit_amount = (recv_dr + pay_dr).quantize(Decimal('0.01'))
+        credit_amount = (recv_cr + pay_cr).quantize(Decimal('0.01'))
+
         rows.append({
             'date': entry.date,
             'entry_type': entry.entry_type,
@@ -1362,6 +1445,7 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
             'repair_job_id': repair_job_id,
             'purchase_id': purchase_id,
             'purchase_no': purchase_no,
+            'payment_id': payment_id,
             'recv_dr': recv_dr,
             'recv_cr': recv_cr,
             'pay_dr': pay_dr,
@@ -1369,16 +1453,21 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
             'running_recv': running_recv,
             'running_pay': running_pay,
             'net': running_recv - running_pay,
+            'debit_amount': debit_amount,
+            'credit_amount': credit_amount,
         })
 
-    # Display order — newest first if requested (running balances stay baked in)
     if sort == 'desc':
         rows.reverse()
+
+    total_debit = (total_recv_dr + total_pay_dr).quantize(Decimal('0.01'))
+    total_credit = (total_recv_cr + total_pay_cr).quantize(Decimal('0.01'))
 
     return {
         'rows': rows,
         'opening_recv': opening_recv,
         'opening_pay': opening_pay,
+        'opening_net': (opening_recv - opening_pay).quantize(Decimal('0.01')),
         'closing_recv': running_recv.quantize(Decimal('0.01')),
         'closing_pay': running_pay.quantize(Decimal('0.01')),
         'net_position': (running_recv - running_pay).quantize(Decimal('0.01')),
@@ -1386,6 +1475,8 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
         'total_recv_cr': total_recv_cr.quantize(Decimal('0.01')),
         'total_pay_dr': total_pay_dr.quantize(Decimal('0.01')),
         'total_pay_cr': total_pay_cr.quantize(Decimal('0.01')),
+        'total_debit': total_debit,
+        'total_credit': total_credit,
     }
 
 
@@ -1394,7 +1485,13 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None,
 # ============================================================
 @handle_errors(default_redirect='accounting:contact_list')
 def combined_statement(request, contact_id, is_print=None):
-    """Combined statement (receivable + payable) for any contact type."""
+    """Combined statement (receivable + payable) for any contact type.
+
+    Stage 4:
+      - Default sort = 'asc' (bank-style chronological)
+      - view_mode = 'bank' (single balance) | 'detailed' (two-sided)
+      - Bank mode forces ASC regardless of sort param
+    """
     contact = get_object_or_404(Contact, pk=contact_id)
 
     if request.GET.get('reset'):
@@ -1404,15 +1501,59 @@ def combined_statement(request, contact_id, is_print=None):
     date_to = request.GET.get('date_to', '')
     txn_type = request.GET.get('txn_type', '')
     search = request.GET.get('search', '').strip()
-    sort = request.GET.get('sort', 'desc')
+    sort = request.GET.get('sort', 'asc')
+    view_mode = request.GET.get('view', 'bank')
+    if view_mode not in ('bank', 'detailed'):
+        view_mode = 'bank'
     page_number = request.GET.get('page', 1)
 
-    # Print always chronological
+    # Print always chronological & bank-style
     print_requested = (is_print == '1') or (request.GET.get('print') == '1')
-    effective_sort = 'asc' if print_requested else sort
 
-    data = _build_combined_rows(contact, date_from or None, date_to or None, txn_type or None, search or None, sort=effective_sort)
+    # Bank style is always chronological
+    if view_mode == 'bank' or print_requested:
+        effective_sort = 'asc'
+    else:
+        effective_sort = sort
+
+    data = _build_combined_rows(
+        contact,
+        date_from or None,
+        date_to or None,
+        txn_type or None,
+        search or None,
+        sort=effective_sort,
+    )
     rows = data.pop('rows')
+
+    # Opening "as on" date
+    if date_from:
+        try:
+            opening_as_on_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            opening_as_on_date = None
+    else:
+        opening_as_on_date = contact.opening_balance_date
+
+    # Unfiltered period totals (all transaction types)
+    period_qs = LedgerLine.objects.filter(contact=contact) \
+        .exclude(ledger_entry__entry_type='opening')
+    if date_from:
+        period_qs = period_qs.filter(ledger_entry__date__gte=date_from)
+    if date_to:
+        period_qs = period_qs.filter(ledger_entry__date__lte=date_to)
+
+    recv_agg = period_qs.filter(subledger_type='receivable').aggregate(
+        dr=Sum('debit'), cr=Sum('credit')
+    )
+    pay_agg = period_qs.filter(subledger_type='payable').aggregate(
+        dr=Sum('debit'), cr=Sum('credit')
+    )
+
+    period_billed = (recv_agg['dr'] or Decimal('0')).quantize(Decimal('0.01'))
+    period_received = (recv_agg['cr'] or Decimal('0')).quantize(Decimal('0.01'))
+    period_purchased = (pay_agg['cr'] or Decimal('0')).quantize(Decimal('0.01'))
+    period_paid = (pay_agg['dr'] or Decimal('0')).quantize(Decimal('0.01'))
 
     paginator = Paginator(rows, 25)
     try:
@@ -1424,6 +1565,12 @@ def combined_statement(request, contact_id, is_print=None):
 
     company = CompanyProfile.get_instance()
 
+    # Base query string (used by view-mode toggle buttons)
+    qp = request.GET.copy()
+    qp.pop('view', None)
+    qp.pop('page', None)
+    base_query_string = qp.urlencode()
+
     context = {
         'contact': contact,
         'company': company,
@@ -1434,7 +1581,14 @@ def combined_statement(request, contact_id, is_print=None):
         'date_to': date_to,
         'txn_type': txn_type,
         'search': search,
-        'sort': sort,
+        'sort': effective_sort,
+        'view_mode': view_mode,
+        'base_query_string': base_query_string,
+        'opening_as_on_date': opening_as_on_date,
+        'period_billed': period_billed,
+        'period_received': period_received,
+        'period_purchased': period_purchased,
+        'period_paid': period_paid,
         **data,
     }
 
@@ -1442,16 +1596,20 @@ def combined_statement(request, contact_id, is_print=None):
         return render(request, 'statements/combined_statement_print.html', context)
 
     if is_htmx(request):
+        if view_mode == 'detailed':
+            return render(request, 'statements/partials/combined_statement_table_detailed.html', context)
         return render(request, 'statements/partials/combined_statement_table.html', context)
     return render(request, 'statements/combined_statement.html', context)
-
 
 # ============================================================
 # COMBINED STATEMENT — Excel
 # ============================================================
+# ============================================================
+# COMBINED STATEMENT — Excel (Bank Style)
+# ============================================================
 @handle_errors(default_redirect='accounting:contact_list')
 def combined_statement_excel(request, contact_id):
-    """Export combined statement to Excel (all rows, no pagination)."""
+    """Export combined statement to Excel (bank-style, single balance column)."""
     if openpyxl is None:
         messages.error(request, "Openpyxl library is not installed.")
         return redirect_to_staff('combined_statement', contact_id=contact_id)
@@ -1462,19 +1620,36 @@ def combined_statement_excel(request, contact_id):
     txn_type = request.GET.get('txn_type', '')
     search = request.GET.get('search', '').strip()
 
-    data = _build_combined_rows(contact, date_from or None, date_to or None, txn_type or None, search or None, sort='asc')
+    data = _build_combined_rows(
+        contact,
+        date_from or None,
+        date_to or None,
+        txn_type or None,
+        search or None,
+        sort='asc',   # always chronological for excel
+    )
     rows = data.pop('rows')
+
+    # Opening "as on" date
+    if date_from:
+        try:
+            opening_as_on_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            opening_as_on_date = None
+    else:
+        opening_as_on_date = contact.opening_balance_date
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Combined Statement"
+    ws.title = "Statement of Account"
 
     title_font = Font(bold=True, size=14, color="1F4E78")
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-    green_fill = PatternFill(start_color="D9EAD3", end_color="D9EAD3", fill_type="solid")
-    yellow_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
-    net_fill = PatternFill(start_color="E8F0FE", end_color="E8F0FE", fill_type="solid")
+    opening_fill = PatternFill(start_color="EEF2F7", end_color="EEF2F7", fill_type="solid")
+    total_fill = PatternFill(start_color="E2E6EA", end_color="E2E6EA", fill_type="solid")
+    closing_fill = PatternFill(start_color="D4EDDA", end_color="D4EDDA", fill_type="solid")
+    alt_fill = PatternFill(start_color="F8F9FA", end_color="F8F9FA", fill_type="solid")
 
     thin = Side(style='thin', color="BFBFBF")
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -1484,170 +1659,148 @@ def combined_statement_excel(request, contact_id):
     money_fmt = '#,##0.00'
 
     company = CompanyProfile.get_instance()
-    ws.merge_cells('A1:I1')
+
+    # ---- Title block ----
+    ws.merge_cells('A1:F1')
     ws['A1'] = company.name or "A1 Computer Solutions"
     ws['A1'].font = title_font
     ws['A1'].alignment = center
 
-    ws.merge_cells('A2:I2')
-    ws['A2'] = f"Combined Statement — {contact.name}"
+    ws.merge_cells('A2:F2')
+    ws['A2'] = f"Statement of Account — {contact.name}"
     ws['A2'].font = Font(bold=True, size=12)
     ws['A2'].alignment = center
 
-    ws.merge_cells('A3:I3')
+    ws.merge_cells('A3:F3')
     period = f"Period: {date_from or 'Beginning'} to {date_to or 'Today'}"
     ws['A3'] = period
     ws['A3'].alignment = center
 
-    # 2-tier headers
-    # Top-left merged block: A5:B6
-    ws.merge_cells('A5:B6')
-    ws['A5'] = 'Date / Particulars'
-    ws['A5'].font = header_font
-    ws['A5'].fill = header_fill
+    # ---- Snapshot rows ----
+    ws.merge_cells('A4:F4')
+    opening_text = f"Opening Balance (B/F): ₹{data['opening_net']:,.2f}"
+    if opening_as_on_date:
+        opening_text += f"  (as on {opening_as_on_date.strftime('%d-%m-%Y')})"
+    ws['A4'] = opening_text
+    ws['A4'].font = Font(bold=True, size=10)
+    ws['A4'].alignment = center
+
+    ws.merge_cells('A5:F5')
+    closing_text = f"Closing Balance (C/F): ₹{data['net_position']:,.2f}"
+    if date_to:
+        closing_text += f"  (as on {date_to})"
+    ws['A5'] = closing_text
+    ws['A5'].font = Font(bold=True, size=10)
     ws['A5'].alignment = center
-    ws['A5'].border = border
-    ws['B5'].border = border
-    ws['A6'].border = border
-    ws['B6'].border = border
 
-    # Receivable block
-    ws.merge_cells('C5:E5')
-    ws['C5'] = 'Receivable (They Owe Us)'
-    ws['C5'].font = header_font
-    ws['C5'].fill = green_fill
-    ws['C5'].alignment = center
-    for col in ['C5', 'D5', 'E5']:
-        ws[col].fill = green_fill
-        ws[col].border = border
-
-    # Payable block
-    ws.merge_cells('F5:H5')
-    ws['F5'] = 'Payable (We Owe Them)'
-    ws['F5'].font = header_font
-    ws['F5'].fill = yellow_fill
-    ws['F5'].alignment = center
-    for col in ['F5', 'G5', 'H5']:
-        ws[col].fill = yellow_fill
-        ws[col].border = border
-
-    # Net block
-    ws.merge_cells('I5:I6')
-    ws['I5'] = 'Net Position'
-    ws['I5'].font = header_font
-    ws['I5'].fill = net_fill
-    ws['I5'].alignment = center
-    ws['I5'].border = border
-    ws['I6'].border = border
-    ws['I6'].fill = net_fill
-
-    # Row 6 sub-headers — only non-merged cells (C6:H6)
-    sub_headers = {
-        3: 'Dr', 4: 'Cr', 5: 'Balance',
-        6: 'Dr', 7: 'Cr', 8: 'Balance',
-    }
-    for col_idx, header_text in sub_headers.items():
-        c = ws.cell(row=6, column=col_idx, value=header_text)
-        c.font = Font(bold=True, size=10)
+    # ---- Header row (row 7) ----
+    headers = ['Date', 'Particulars', 'Ref', 'Debit (₹)', 'Credit (₹)', 'Balance']
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=7, column=col, value=h)
+        c.font = header_font
+        c.fill = header_fill
         c.alignment = center
         c.border = border
-        if 3 <= col_idx <= 5:
-            c.fill = green_fill
-        else:
-            c.fill = yellow_fill
 
-    row = 7
-    # Opening row
-    ws.cell(row=row, column=1, value='—')
-    ws.cell(row=row, column=2, value='Opening Balance').font = Font(bold=True)
-    ws.cell(row=row, column=3, value=float(data['opening_recv']) if data['opening_recv'] > 0 else '')
-    ws.cell(row=row, column=4, value=float(abs(data['opening_recv'])) if data['opening_recv'] < 0 else '')
-    ws.cell(row=row, column=5, value=float(data['opening_recv']))
-    ws.cell(row=row, column=6, value=float(abs(data['opening_pay'])) if data['opening_pay'] < 0 else '')
-    ws.cell(row=row, column=7, value=float(data['opening_pay']) if data['opening_pay'] > 0 else '')
-    ws.cell(row=row, column=8, value=float(data['opening_pay']))
-    ws.cell(row=row, column=9, value=float(data['opening_recv'] - data['opening_pay']))
-    for col in range(1, 10):
+    row = 8
+
+    # ---- Opening Balance row ----
+    opening_date_str = opening_as_on_date.strftime('%d-%m-%Y') if opening_as_on_date else '—'
+    ws.cell(row=row, column=1, value=opening_date_str)
+    ws.cell(row=row, column=2, value='Opening Balance (B/F)')
+    ws.cell(row=row, column=3, value='—')
+    ws.cell(row=row, column=4, value='')
+    ws.cell(row=row, column=5, value='')
+    ws.cell(row=row, column=6, value=float(data['opening_net']))
+    ws.cell(row=row, column=6).number_format = money_fmt
+    for col in range(1, 7):
         c = ws.cell(row=row, column=col)
         c.border = border
-        c.fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-        if col in (3, 4, 5, 6, 7, 8, 9):
-            c.number_format = money_fmt
+        c.fill = opening_fill
+        c.font = Font(bold=True)
+        if col == 1 or col == 3:
+            c.alignment = center
+        elif col == 6:
             c.alignment = right
+        else:
+            c.alignment = left
     row += 1
 
-    # Data rows
-    for r in rows:
-        ws.cell(row=row, column=1, value=r['date'].strftime('%d-%m-%Y'))
+    # ---- Transaction rows ----
+    for idx, r in enumerate(rows):
         desc = r['description']
-        if r['reference']:
-            desc += f"  [{r['reference']}]"
-        ws.cell(row=row, column=2, value=desc)
-        ws.cell(row=row, column=3, value=float(r['recv_dr']) if r['recv_dr'] else '')
-        ws.cell(row=row, column=4, value=float(r['recv_cr']) if r['recv_cr'] else '')
-        ws.cell(row=row, column=5, value=float(r['running_recv']))
-        ws.cell(row=row, column=6, value=float(r['pay_dr']) if r['pay_dr'] else '')
-        ws.cell(row=row, column=7, value=float(r['pay_cr']) if r['pay_cr'] else '')
-        ws.cell(row=row, column=8, value=float(r['running_pay']))
-        ws.cell(row=row, column=9, value=float(r['net']))
+        ref = r['reference'] or '—'
 
-        for col in range(1, 10):
+        ws.cell(row=row, column=1, value=r['date'].strftime('%d-%m-%Y'))
+        ws.cell(row=row, column=2, value=desc)
+        ws.cell(row=row, column=3, value=ref)
+        ws.cell(row=row, column=4, value=float(r['debit_amount']) if r['debit_amount'] else '')
+        ws.cell(row=row, column=5, value=float(r['credit_amount']) if r['credit_amount'] else '')
+        ws.cell(row=row, column=6, value=float(r['net']))
+        ws.cell(row=row, column=6).number_format = money_fmt
+
+        if r['debit_amount']:
+            ws.cell(row=row, column=4).number_format = money_fmt
+        if r['credit_amount']:
+            ws.cell(row=row, column=5).number_format = money_fmt
+
+        for col in range(1, 7):
             c = ws.cell(row=row, column=col)
             c.border = border
-            if col in (3, 4, 5, 6, 7, 8, 9):
-                c.number_format = money_fmt
-                c.alignment = right
-            elif col == 1:
+            if idx % 2 == 1:
+                c.fill = alt_fill
+            if col == 1 or col == 3:
                 c.alignment = center
+            elif col in (4, 5, 6):
+                c.alignment = right
             else:
                 c.alignment = left
         row += 1
 
-    # Totals
-    ws.cell(row=row, column=2, value='Period Totals').font = Font(bold=True)
-    ws.cell(row=row, column=3, value=float(data['total_recv_dr'])).number_format = money_fmt
-    ws.cell(row=row, column=4, value=float(data['total_recv_cr'])).number_format = money_fmt
-    ws.cell(row=row, column=6, value=float(data['total_pay_dr'])).number_format = money_fmt
-    ws.cell(row=row, column=7, value=float(data['total_pay_cr'])).number_format = money_fmt
-    for col in range(1, 10):
+    # ---- Period Totals row ----
+    ws.cell(row=row, column=2, value='Period Totals →')
+    ws.cell(row=row, column=2).font = Font(bold=True)
+    ws.cell(row=row, column=2).alignment = right
+    ws.cell(row=row, column=4, value=float(data['total_debit'])).number_format = money_fmt
+    ws.cell(row=row, column=5, value=float(data['total_credit'])).number_format = money_fmt
+    for col in range(1, 7):
         c = ws.cell(row=row, column=col)
         c.border = border
+        c.fill = total_fill
         c.font = Font(bold=True)
-        if col in (3, 4, 6, 7):
+        if col in (4, 5):
             c.alignment = right
     row += 1
 
-    # Closing
-    ws.cell(row=row, column=2, value='Closing Balance').font = Font(bold=True, size=11)
-    ws.merge_cells(start_row=row, start_column=3, end_row=row, end_column=5)
-    ws.cell(row=row, column=3, value=float(data['closing_recv'])).number_format = money_fmt
-    ws.cell(row=row, column=3).font = Font(bold=True)
-    ws.cell(row=row, column=3).alignment = right
-    ws.merge_cells(start_row=row, start_column=6, end_row=row, end_column=8)
-    ws.cell(row=row, column=6, value=float(data['closing_pay'])).number_format = money_fmt
-    ws.cell(row=row, column=6).font = Font(bold=True)
+    # ---- Closing Balance row ----
+    ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=5)
+    ws.cell(row=row, column=2, value='Closing Balance (C/F)')
+    ws.cell(row=row, column=2).font = Font(bold=True, size=11)
+    ws.cell(row=row, column=2).alignment = right
+    ws.cell(row=row, column=6, value=float(data['net_position'])).number_format = money_fmt
+    ws.cell(row=row, column=6).font = Font(bold=True, size=11)
     ws.cell(row=row, column=6).alignment = right
-    ws.cell(row=row, column=9, value=float(data['net_position'])).number_format = money_fmt
-    ws.cell(row=row, column=9).font = Font(bold=True)
-    for col in range(1, 10):
+    for col in range(1, 7):
         c = ws.cell(row=row, column=col)
         c.border = border
-        c.fill = net_fill
+        c.fill = closing_fill
 
-    widths = [12, 42, 13, 13, 14, 13, 13, 14, 14]
+    # ---- Column widths ----
+    widths = [12, 45, 15, 15, 15, 16]
     for idx, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(idx)].width = w
 
-    ws.freeze_panes = 'A7'
+    ws.freeze_panes = 'A8'
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     safe_name = contact.name.replace(' ', '_').replace('/', '_')
-    response['Content-Disposition'] = f'attachment; filename="combined_{safe_name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    response['Content-Disposition'] = (
+        f'attachment; filename="statement_{safe_name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    )
     wb.save(response)
     return response
-
 
 # ============================================================
 # COMBINED STATEMENT — WhatsApp
@@ -1693,3 +1846,73 @@ def combined_statement_whatsapp(request, contact_id):
 
     encoded = quote(message)
     return redirect(f"https://wa.me/{phone_clean}?text={encoded}")
+
+# ============================================================
+# VENDOR STATEMENT - WHATSAPP
+# ============================================================
+@handle_errors(default_redirect='accounting:contact_list')
+def vendor_statement_whatsapp(request, contact_id):
+    contact = get_object_or_404(Contact, pk=contact_id)
+
+    # 'both' type → combined WhatsApp (consistency)
+    if contact.contact_type == 'both':
+        query = request.GET.urlencode()
+        url = f"/statements/combined/{contact.pk}/whatsapp/"
+        if query:
+            url += f"?{query}"
+        return redirect(url)
+
+    company = CompanyProfile.get_instance()
+    phone = contact.phone
+
+    if not phone:
+        messages.error(request, "Vendor phone number not available.")
+        return redirect_to_staff('vendor_statement', contact_id=contact_id)
+
+    phone_clean = phone.replace(' ', '').replace('-', '').replace('+', '')
+    if not phone_clean:
+        messages.error(request, "Invalid phone number.")
+        return redirect_to_staff('vendor_statement', contact_id=contact_id)
+
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    opening = _get_vendor_opening_balance(contact, date_from)
+
+    lines = LedgerLine.objects.filter(
+        contact=contact,
+        subledger_type='payable',
+    ).exclude(
+        ledger_entry__entry_type='opening'
+    ).order_by('ledger_entry__date', 'ledger_entry__id')
+
+    if date_from:
+        lines = lines.filter(ledger_entry__date__gte=date_from)
+    if date_to:
+        lines = lines.filter(ledger_entry__date__lte=date_to)
+
+    running_balance = opening
+    for line in lines:
+        debit = line.debit
+        credit = line.credit
+        running_balance = running_balance + credit - debit
+    closing = running_balance
+
+    period = f"{date_from if date_from else 'Start'} to {date_to if date_to else 'Today'}"
+
+    message = f"""📊 *Vendor Statement*
+
+🏢 Vendor: {contact.name}
+📅 Period: {period}
+💰 Opening Balance: ₹{opening:,.2f}
+💵 Closing Balance: ₹{closing:,.2f}
+
+For complete statement, please visit our portal https://a1computersolutions.onrender.com/
+
+Thank you,
+{company.name}
+{company.phone or ''}"""
+
+    encoded_msg = quote(message)
+    whatsapp_url = f"https://wa.me/{phone_clean}?text={encoded_msg}"
+    return redirect(whatsapp_url)

@@ -1458,15 +1458,9 @@ class Purchase(SoftDeleteModel):
         should_sync = (update_fields is None)
 
         if should_sync and self.pk and self.items.exists():
-            try:
-                sync_purchase_ledger(self)
-                if self.vendor:
-                    self.vendor.recalc_balance()
-            except Exception as e:
-                logger.error(
-                    f"Purchase ledger sync failed for {self.purchase_number}: {e}",
-                    exc_info=True,
-                )
+            sync_purchase_ledger(self)
+            if self.vendor:
+                self.vendor.recalc_balance()
 
 
     def calculate_totals(self):

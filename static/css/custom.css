@@ -1023,3 +1023,150 @@ html {
     }
 }
 
+/* =============================================
+   COMPACT APP FOOTER (Staff / Customer)
+   ============================================= */
+.app-footer {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+    margin-top: auto;
+}
+
+/* =============================================
+   DEVELOPER CREDIT (Footer – all portals)
+   ============================================= */
+.dev-credit {
+    letter-spacing: 0.2px;
+    opacity: 0.9;
+    transition: opacity 0.25s ease;
+}
+.dev-credit:hover {
+    opacity: 1;
+}
+
+.dev-credit-link {
+    color: var(--bs-primary);
+    position: relative;
+    transition: color 0.25s ease;
+}
+.dev-credit-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    width: 0;
+    height: 1.5px;
+    background: var(--bs-primary);
+    transition: width 0.3s ease;
+}
+.dev-credit-link:hover {
+    color: var(--bs-primary-text-emphasis);
+}
+.dev-credit-link:hover::after {
+    width: 100%;
+}
+
+/* Dark theme – footer ke andar light text */
+[data-bs-theme="dark"] .app-footer .dev-credit-link {
+    color: #8bb9fe;
+}
+[data-bs-theme="dark"] .app-footer .dev-credit-link:hover {
+    color: #cfe0ff;
+}
+[data-bs-theme="dark"] .app-footer .dev-credit-link::after {
+    background: #8bb9fe;
+}
+
+/* =============================================
+   SIDEBAR DRAG-RESIZE HANDLE
+   ============================================= */
+#sidebar,
+#customer-sidebar {
+    position: relative;
+}
+
+.sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 30;
+    transition: background 0.15s ease;
+}
+/* Visual grip indicator */
+.sidebar-resize-handle::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    transition: background 0.15s ease, height 0.2s ease;
+}
+.sidebar-resize-handle:hover,
+.sidebar-resize-handle.resizing {
+    background: rgba(13, 110, 253, 0.5);
+}
+.sidebar-resize-handle:hover::before,
+.sidebar-resize-handle.resizing::before {
+    background: rgba(255, 255, 255, 0.9);
+    height: 60px;
+}
+
+/* Collapsed state me handle chhupa do */
+#sidebar.collapsed .sidebar-resize-handle,
+#customer-sidebar.collapsed .sidebar-resize-handle {
+    display: none;
+}
+
+/* Mobile pe handle ki zarurat nahi */
+@media (max-width: 768px) {
+    .sidebar-resize-handle {
+        display: none !important;
+    }
+}
+
+/* Drag ke dauraan transition off + text select band */
+#sidebar.resizing,
+#customer-sidebar.resizing {
+    transition: none !important;
+    user-select: none;
+}
+body.sidebar-resizing {
+    user-select: none;
+    cursor: col-resize;
+}
+
+/* =============================================
+   SIDEBAR NARROW MODE (auto text-hide on <120px)
+   ============================================= */
+#sidebar.narrow .link-text,
+#customer-sidebar.narrow .link-text {
+    display: none;
+}
+#sidebar.narrow .nav-link,
+#customer-sidebar.narrow .nav-link {
+    justify-content: center;
+    padding: 10px;
+}
+#sidebar.narrow .sidebar-brand,
+#customer-sidebar.narrow .sidebar-brand {
+    display: none;
+}
+#sidebar.narrow .sub-link,
+#customer-sidebar.narrow .sub-link {
+    padding-left: 20px;
+}
+#sidebar.narrow .badge,
+#customer-sidebar.narrow .badge {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    transform: scale(0.7);
+}

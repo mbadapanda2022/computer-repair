@@ -96,9 +96,24 @@
             </div>
         </div>
 
-        <!-- Copyright -->
-        <div class="text-center border-top border-secondary pt-3 mt-3">
-            &copy; {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.
+        <!-- Copyright + Developer Credit -->
+        <div class="border-top border-secondary pt-3 mt-3">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 text-center text-md-start">
+                <small class="text-white-50">
+                    &copy; {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.
+                </small>
+
+                <small class="text-white-50 dev-credit">
+                    <i class="bi bi-code-slash text-info me-1"></i>
+                    Designed &amp; Developed by
+                    <a href="mailto:manojbadapanda@example.com"
+                    class="dev-credit-link fw-semibold text-decoration-none">
+                        Manoj Badapanda
+                    </a>
+                    <span class="text-secondary mx-1">•</span>
+                    <span class="text-info-emphasis">Full Stack Software Developer</span>
+                </small>
+            </div>
         </div>
     </div>
 </footer>

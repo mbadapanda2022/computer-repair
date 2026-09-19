@@ -102,9 +102,6 @@
                 <td>{{ forloop.counter }}</td>
                 <td>
                     {{ item.product.name }}
-                    {% if item.is_office_use %}
-                        <span style="font-size:7pt; color:#b8860b;">[Office Use]</span>
-                    {% endif %}
                 </td>
                 <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
                 <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>

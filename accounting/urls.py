@@ -158,6 +158,7 @@ urlpatterns = [
     path('statements/vendor/<int:contact_id>/csv/', statements.vendor_statement_csv, name='vendor_statement_csv'),
     path('statements/vendor/<int:contact_id>/print/', statements.vendor_statement_print, name='vendor_statement_print'),
     path('statements/vendor/<int:contact_id>/excel/', statements.vendor_statement_excel, name='vendor_statement_excel'),
+    path('statements/vendor/<int:contact_id>/whatsapp/', statements.vendor_statement_whatsapp, name='vendor_statement_whatsapp'),
 
     # ===== Journal Entries =====
     path('journals/', journal.journal_list, name='journal_list'),

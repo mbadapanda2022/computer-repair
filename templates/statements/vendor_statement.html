@@ -28,6 +28,12 @@
                     onclick="downloadWithFilters('print')" title="Print Statement">
                 <i class="bi bi-printer"></i> Print
             </button>
+            {% if contact.phone %}
+            <button type="button" class="btn btn-warning" 
+                    onclick="downloadWithFilters('whatsapp')" title="Send via WhatsApp">
+                <i class="bi bi-whatsapp"></i> WhatsApp
+            </button>
+            {% endif %}
             <a href="{% url 'accounting:contact_list' %}" class="btn btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
@@ -103,6 +109,20 @@
         <div class="card-body">
             <form id="vendor-filter-form" class="row g-3">
                 <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" 
+                               placeholder="Search reference, description..." 
+                               name="search" value="{{ search }}"
+                               hx-get="{% url 'accounting:vendor_statement' contact.id %}" 
+                               hx-trigger="keyup changed delay:300ms" 
+                               hx-target="#vendor-statement-container"
+                               hx-include="#vendor-filter-form"
+                               hx-push-url="true"
+                               onkeyup="updateActiveFilters()">
+                    </div>
+                </div>
+                <div class="col-md-2">
                     <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
                            placeholder="From Date"
                            hx-get="{% url 'accounting:vendor_statement' contact.id %}" 
@@ -112,7 +132,7 @@
                            hx-push-url="true"
                            onchange="updateActiveFilters()">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
                            placeholder="To Date"
                            hx-get="{% url 'accounting:vendor_statement' contact.id %}" 
@@ -122,7 +142,7 @@
                            hx-push-url="true"
                            onchange="updateActiveFilters()">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <select class="form-select" name="sort"
                             title="Sort Order"
                             hx-get="{% url 'accounting:vendor_statement' contact.id %}" 
@@ -188,6 +208,9 @@ function downloadWithFilters(type) {
     } else if (type === 'csv') {
         url = "{% url 'accounting:vendor_statement_csv' contact.id %}" + baseParams;
         target = '_self';
+    } else if (type === 'whatsapp') {
+        url = "{% url 'accounting:vendor_statement_whatsapp' contact.id %}" + baseParams;
+        target = '_blank';
     }
 
     if (queryString) {
@@ -204,6 +227,7 @@ function resetFilters() {
     const form = document.getElementById('vendor-filter-form');
     form.reset();
     
+    form.querySelector('[name="search"]').value = '';
     form.querySelector('[name="date_from"]').value = '';
     form.querySelector('[name="date_to"]').value = '';
     const sortField = form.querySelector('[name="sort"]');
@@ -232,11 +256,12 @@ function updateActiveFilters() {
     }
     
     const parts = [];
+    if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
     if (params.get('sort') && params.get('sort') !== 'desc') parts.push('Sort: ' + params.get('sort'));
     if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
     if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
     
-    textEl.textContent = parts.join(' • ') + ' — Print/Excel/CSV will use these filters';
+    textEl.textContent = parts.join(' • ') + ' — Print/Excel/CSV/WhatsApp will use these filters';
     container.classList.remove('d-none');
 }
 

@@ -1,24 +1,23 @@
 <!-- templates/statements/combined_statement.html -->
 {% extends "base.html" %}
-{% load static %}
+{% load static math_filters %}
 
-{% block title %}Combined Statement — {{ contact.name }}{% endblock %}
+{% block title %}Statement of Account — {{ contact.name }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
 
-  <!-- ============================================================
-       HEADER
-       ============================================================ -->
+  <!-- HEADER -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
       <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
         <div>
           <h3 class="mb-1 fw-semibold">
-            <i class="bi bi-file-earmark-text text-primary me-2"></i>{{ contact.name }}
+            <i class="bi bi-file-earmark-text text-primary me-2"></i>Statement of Account
           </h3>
           <p class="text-muted mb-0">
-            <span class="badge
+            <strong class="fs-6">{{ contact.name }}</strong>
+            <span class="badge ms-2
               {% if contact.contact_type == 'both' %}bg-info text-dark
               {% elif contact.contact_type == 'customer' %}bg-primary
               {% else %}bg-warning text-dark{% endif %}">
@@ -30,7 +29,7 @@
           <p class="text-muted small mb-0 mt-1">
             <i class="bi bi-calendar-event me-1"></i>
             {% if date_from or date_to %}
-              Period: {{ date_from|default:"Start" }} → {{ date_to|default:"Today" }}
+              Period: {{ date_from|default:"Beginning" }} → {{ date_to|default:"Today" }}
             {% else %}
               Complete History (all transactions)
             {% endif %}
@@ -47,18 +46,133 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       SUMMARY CARDS
-       ============================================================ -->
+  <!-- ACTIVE FILTERS -->
+  <div id="active-filters" class="alert alert-info py-2 mb-3 d-none">
+    <small>
+      <i class="bi bi-funnel-fill"></i> <strong>Active Filters:</strong>
+      <span id="active-filters-text"></span>
+    </small>
+  </div>
+
+  <!-- SNAPSHOT -->
+  <div class="card border-0 shadow-sm mb-3"
+       style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+    <div class="card-body py-3">
+      <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+        <i class="bi bi-info-circle-fill text-primary me-2"></i>
+        <strong class="text-uppercase small text-muted" style="letter-spacing: 0.5px;">
+          Account Snapshot
+        </strong>
+        <span class="badge bg-secondary-subtle text-dark small">
+          {{ date_from|default:"Beginning" }} → {{ date_to|default:"Today" }}
+        </span>
+      </div>
+
+      <div class="row g-3 small">
+        <div class="col-md-3 col-6">
+          <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px;">
+            Opening Balance (B/F)
+          </div>
+          <div class="fw-bold fs-5 text-dark">
+            ₹{{ opening_net|abs_filter|floatformat:2 }}
+            {% if opening_net > 0 %}
+              <small class="badge bg-success-subtle text-success">Dr</small>
+            {% elif opening_net < 0 %}
+              <small class="badge bg-warning-subtle text-warning">Cr</small>
+            {% endif %}
+          </div>
+          <div class="text-muted" style="font-size: 0.7rem;">
+            {% if opening_as_on_date %}
+              as on {{ opening_as_on_date|date:"d M Y" }}
+            {% else %}
+              starting point
+            {% endif %}
+          </div>
+          <div class="text-muted" style="font-size: 0.7rem;">
+            {% if opening_net > 0 %}(They owed us)
+            {% elif opening_net < 0 %}(We owed them)
+            {% else %}(Settled){% endif %}
+          </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+          <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px;">
+            Billed / Purchased
+          </div>
+          <div class="fw-bold fs-5 text-success">
+            + ₹{{ period_billed|floatformat:2 }}
+          </div>
+          <div class="text-muted" style="font-size: 0.7rem;">
+            Invoices raised this period
+          </div>
+          <div class="text-muted" style="font-size: 0.7rem;">
+            {% if period_purchased > 0 %}
+              Orders: ₹{{ period_purchased|floatformat:2 }}
+            {% else %}&nbsp;{% endif %}
+          </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+          <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px;">
+            Received / Paid
+          </div>
+          <div class="fw-bold fs-5 text-danger">
+            − ₹{{ period_received|floatformat:2 }}
+          </div>
+          <div class="text-muted" style="font-size: 0.7rem;">
+            Payments received this period
+          </div>
+          <div class="text-muted" style="font-size: 0.7rem;">
+            {% if period_paid > 0 %}
+              Paid: ₹{{ period_paid|floatformat:2 }}
+            {% else %}&nbsp;{% endif %}
+          </div>
+        </div>
+
+        <div class="col-md-3 col-6">
+          <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px;">
+            Balance Now
+          </div>
+          <div class="fw-bold fs-5 {% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
+            ₹{{ net_position|abs_filter|floatformat:2 }}
+            {% if net_position > 0 %}
+              <small class="badge bg-success-subtle text-success">Dr</small>
+            {% elif net_position < 0 %}
+              <small class="badge bg-warning-subtle text-warning">Cr</small>
+            {% endif %}
+          </div>
+          <div class="text-muted" style="font-size: 0.7rem;">
+            {% if net_position > 0 %}They owe us (settle this)
+            {% elif net_position < 0 %}We owe them (settle this)
+            {% else %}Settled ✅{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
         <div class="card-body">
           <div class="d-flex align-items-center justify-content-between">
             <div>
-              <small class="text-muted text-uppercase fw-semibold">Receivable</small>
+              <small class="text-muted text-uppercase fw-semibold">Receivable (They Owe Us)</small>
               <h3 class="mb-0 text-success fw-bold">₹{{ closing_recv|floatformat:2 }}</h3>
-              <small class="text-muted">They owe us</small>
+              <small class="text-muted d-block">
+                {% if opening_recv != 0 %}
+                  Opening ₹{{ opening_recv|floatformat:2 }}
+                  {% if opening_as_on_date %}
+                    <span class="text-secondary">({{ opening_as_on_date|date:"d M Y" }})</span>
+                  {% endif %}
+                {% else %}
+                  No opening balance
+                {% endif %}
+              </small>
+              <small class="text-muted d-block">
+                + Billed ₹{{ total_recv_dr|floatformat:2 }} − Received ₹{{ total_recv_cr|floatformat:2 }}
+              </small>
             </div>
             <i class="bi bi-arrow-down-circle text-success fs-2 opacity-50"></i>
           </div>
@@ -70,9 +184,18 @@
         <div class="card-body">
           <div class="d-flex align-items-center justify-content-between">
             <div>
-              <small class="text-muted text-uppercase fw-semibold">Payable</small>
+              <small class="text-muted text-uppercase fw-semibold">Payable (We Owe Them)</small>
               <h3 class="mb-0 text-warning fw-bold">₹{{ closing_pay|floatformat:2 }}</h3>
-              <small class="text-muted">We owe them</small>
+              <small class="text-muted d-block">
+                {% if opening_pay != 0 %}
+                  Opening ₹{{ opening_pay|floatformat:2 }}
+                {% else %}
+                  No opening balance
+                {% endif %}
+              </small>
+              <small class="text-muted d-block">
+                + Ordered ₹{{ total_pay_cr|floatformat:2 }} − Paid ₹{{ total_pay_dr|floatformat:2 }}
+              </small>
             </div>
             <i class="bi bi-arrow-up-circle text-warning fs-2 opacity-50"></i>
           </div>
@@ -87,7 +210,9 @@
             <div>
               <small class="text-muted text-uppercase fw-semibold">Net Position</small>
               <h3 class="mb-0 {% if net_position >= 0 %}text-primary{% else %}text-danger{% endif %} fw-bold">
-                ₹{{ net_position|floatformat:2 }}
+                ₹{{ net_position|abs_filter|floatformat:2 }}
+                {% if net_position > 0 %}<small class="badge bg-primary-subtle text-primary">Dr</small>
+                {% elif net_position < 0 %}<small class="badge bg-warning-subtle text-warning">Cr</small>{% endif %}
               </h3>
               <small class="text-muted">
                 {% if net_position > 0 %}They owe us (settle this)
@@ -103,12 +228,37 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       FILTERS + ACTIONS
-       ============================================================ -->
+  <!-- VIEW MODE TOGGLE + FILTERS -->
   <div class="card border-0 shadow-sm mb-3">
     <div class="card-body">
+
+      <!-- View mode toggle -->
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+          <a href="?{% if base_query_string %}{{ base_query_string }}&{% endif %}view=bank"
+             class="btn {% if view_mode == 'bank' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <i class="bi bi-list-ul"></i> Bank Style
+          </a>
+          <a href="?{% if base_query_string %}{{ base_query_string }}&{% endif %}view=detailed"
+             class="btn {% if view_mode == 'detailed' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+            <i class="bi bi-grid-3x3-gap"></i> Detailed
+          </a>
+        </div>
+        <small class="text-muted">
+          {% if view_mode == 'bank' %}
+            <i class="bi bi-info-circle"></i>
+            Bank-style: single running balance, oldest → newest
+          {% else %}
+            <i class="bi bi-info-circle"></i>
+            Detailed: separate receivable & payable columns
+          {% endif %}
+        </small>
+      </div>
+
       <form id="combined-filter-form" class="row g-2 align-items-end">
+        <!-- Preserve view mode -->
+        <input type="hidden" name="view" value="{{ view_mode }}">
+
         <!-- Search -->
         <div class="col-md-3">
           <label class="form-label small fw-semibold">Search</label>
@@ -125,7 +275,7 @@
           </div>
         </div>
 
-        <!-- Transaction Type -->
+        <!-- Type -->
         <div class="col-md-2">
           <label class="form-label small fw-semibold">Type</label>
           <select name="txn_type" class="form-select form-select-sm"
@@ -136,14 +286,15 @@
                   hx-push-url="true">
             <option value="">All Types</option>
             <option value="invoice" {% if txn_type == 'invoice' %}selected{% endif %}>Invoices / Sales</option>
-            <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>Purchases</option>
+            <option value="purchase" {% if txn_type == 'purchase' %}selected{% endif %}>Orders / Purchases</option>
             <option value="payment" {% if txn_type == 'payment' %}selected{% endif %}>Payments & Receipts</option>
             <option value="discount" {% if txn_type == 'discount' %}selected{% endif %}>Discounts</option>
             <option value="journal" {% if txn_type == 'journal' %}selected{% endif %}>Journals</option>
           </select>
         </div>
 
-        <!-- Sort -->
+        <!-- Sort (only in detailed mode) -->
+        {% if view_mode == 'detailed' %}
         <div class="col-md-2">
           <label class="form-label small fw-semibold">Sort</label>
           <select name="sort" class="form-select form-select-sm"
@@ -152,10 +303,11 @@
                   hx-target="#combined-table-container"
                   hx-include="#combined-filter-form"
                   hx-push-url="true">
-            <option value="desc" {% if sort != 'asc' %}selected{% endif %}>↓ Newest First</option>
             <option value="asc"  {% if sort == 'asc' %}selected{% endif %}>↑ Oldest First</option>
+            <option value="desc" {% if sort != 'asc' %}selected{% endif %}>↓ Newest First</option>
           </select>
         </div>
+        {% endif %}
 
         <!-- From Date -->
         <div class="col-md-2">
@@ -214,24 +366,27 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       TABLE CONTAINER
-       ============================================================ -->
+  <!-- TABLE CONTAINER -->
   <div class="card border-0 shadow-sm">
     <div class="card-body p-0" id="combined-table-container">
-      {% include "statements/partials/combined_statement_table.html" %}
+      {% if view_mode == 'detailed' %}
+        {% include "statements/partials/combined_statement_table_detailed.html" %}
+      {% else %}
+        {% include "statements/partials/combined_statement_table.html" %}
+      {% endif %}
     </div>
   </div>
 
-  <!-- ============================================================
-       FOOTER LEGEND
-       ============================================================ -->
+  <!-- LEGEND -->
   <div class="mt-3 text-center text-muted small">
+    <p class="mb-1">
+      <strong>Legend:</strong>
+      <span class="badge bg-success-subtle text-success">Dr</span> = They owe us ·
+      <span class="badge bg-warning-subtle text-warning">Cr</span> = We owe them ·
+      Balance = running net position
+    </p>
     <p class="mb-0">
-      <strong>Legend:</strong> Dr = Debit · Cr = Credit ·
-      Receivable Dr = increases what they owe us ·
-      Payable Cr = increases what we owe them ·
-      Net = Receivable − Payable
+      <strong>Verify:</strong> Opening Balance + Total Debits − Total Credits = Closing Balance
     </p>
   </div>
 
@@ -251,7 +406,6 @@ function getCurrentFilterParams() {
 
 function downloadCombined(type) {
     const params = getCurrentFilterParams();
-    // Always chronological for print/excel
     params.set('sort', 'asc');
     const qs = params.toString();
     const base = qs ? '?' + qs : '';
@@ -271,16 +425,37 @@ function downloadCombined(type) {
 }
 
 function resetCombinedFilters() {
-    const form = document.getElementById('combined-filter-form');
-    if (form) form.reset();
-    const sortField = form ? form.querySelector('[name="sort"]') : null;
-    if (sortField) sortField.value = 'desc';
-
-    htmx.ajax('GET', "{% url 'accounting:combined_statement' contact.id %}?sort=desc", {
-        target: '#combined-table-container',
-        swap: 'innerHTML',
-        pushUrl: true
-    });
+    const mode = "{{ view_mode }}";
+    window.location.href = "{% url 'accounting:combined_statement' contact.id %}?view=" + mode;
 }
+
+function updateActiveFilters() {
+    const params = new URLSearchParams(window.location.search);
+    const container = document.getElementById('active-filters');
+    const textEl = document.getElementById('active-filters-text');
+    if (!container || !textEl) return;
+
+    const parts = [];
+    if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
+    if (params.get('txn_type')) parts.push('Type: ' + params.get('txn_type'));
+    if (params.get('sort') && params.get('sort') !== 'asc' && params.get('view') === 'detailed')
+        parts.push('Sort: ' + params.get('sort'));
+    if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
+    if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
+
+    if (parts.length === 0) {
+        container.classList.add('d-none');
+        return;
+    }
+    textEl.textContent = parts.join(' • ') + ' — Print/Excel/WhatsApp will use these filters';
+    container.classList.remove('d-none');
+}
+
+document.addEventListener('DOMContentLoaded', updateActiveFilters);
+document.body.addEventListener('htmx:afterSwap', function(e) {
+    if (e.detail && e.detail.target && e.detail.target.id === 'combined-table-container') {
+        updateActiveFilters();
+    }
+});
 </script>
 {% endblock %}

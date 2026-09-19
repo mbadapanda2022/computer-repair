@@ -559,4 +559,137 @@
         });
     }
 
+    // ==============================
+    // SIDEBAR DRAG-RESIZE (Staff + Customer) 
+    // ==============================
+    function setupSidebarResize(sidebar, opts) {
+        if (!sidebar) return;
+
+        // Auto-inject handle (HTML me kuch add karne ki zarurat nahi)
+        let handle = sidebar.querySelector('.sidebar-resize-handle');
+        if (!handle) {
+            handle = document.createElement('div');
+            handle.className = 'sidebar-resize-handle';
+            handle.setAttribute('title', 'Drag to resize · Double-click to reset');
+            sidebar.appendChild(handle);
+        }
+
+        const minWidth = opts.min || 50;
+        const maxWidth = opts.max || 420;
+        const narrowBreakpoint = 120;
+        const storageKey = opts.storageKey;
+
+        // Inline styles with !important → base CSS ko override karega
+        function applyWidth(px) {
+            const w = Math.max(minWidth, Math.min(maxWidth, Math.round(px)));
+            sidebar.style.setProperty('width', w + 'px', 'important');
+            sidebar.style.setProperty('min-width', w + 'px', 'important');
+            sidebar.style.setProperty('max-width', w + 'px', 'important');
+            sidebar.classList.toggle('narrow', w < narrowBreakpoint);
+        }
+
+        function clearInlineWidth() {
+            sidebar.style.removeProperty('width');
+            sidebar.style.removeProperty('min-width');
+            sidebar.style.removeProperty('max-width');
+            sidebar.classList.remove('narrow');
+        }
+
+        // Restore saved width (desktop + expanded only)
+        if (!isMobile() && !sidebar.classList.contains('collapsed')) {
+            const saved = parseInt(localStorage.getItem(storageKey) || '0', 10);
+            if (saved >= minWidth && saved <= maxWidth) applyWidth(saved);
+        }
+
+        let resizing = false;
+        let startX = 0;
+        let startW = 0;
+
+        handle.addEventListener('mousedown', function (e) {
+            if (isMobile()) return;
+            if (sidebar.classList.contains('collapsed')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            resizing = true;
+            startX = e.clientX;
+            startW = sidebar.getBoundingClientRect().width;
+            sidebar.classList.add('resizing');
+            handle.classList.add('resizing');
+            document.body.classList.add('sidebar-resizing');
+        });
+
+        document.addEventListener('mousemove', function (e) {
+            if (!resizing) return;
+            applyWidth(startW + (e.clientX - startX));
+        });
+
+        document.addEventListener('mouseup', function () {
+            if (!resizing) return;
+            resizing = false;
+            sidebar.classList.remove('resizing');
+            handle.classList.remove('resizing');
+            document.body.classList.remove('sidebar-resizing');
+
+            const w = parseInt(sidebar.style.width, 10);
+            if (w >= minWidth && w <= maxWidth) {
+                localStorage.setItem(storageKey, w);
+            }
+        });
+
+        // Double-click → reset to default (base CSS width)
+        handle.addEventListener('dblclick', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            localStorage.removeItem(storageKey);
+            clearInlineWidth();
+        });
+
+        // Watch ONLY collapsed state, ignore resizing class changes
+        let lastCollapsedState = sidebar.classList.contains('collapsed');
+        const mo = new MutationObserver(function () {
+            if (resizing) return; // drag ke dauraan kuch mat karo
+            const isCollapsedNow = sidebar.classList.contains('collapsed');
+            if (isCollapsedNow === lastCollapsedState) return; // ignore 'resizing' + 'narrow' changes
+            lastCollapsedState = isCollapsedNow;
+
+            if (isCollapsedNow) {
+                // Collapse hone se pehle current width localStorage me save karo
+                const w = parseInt(sidebar.style.width, 10);
+                if (w && w >= minWidth && w <= maxWidth) {
+                    localStorage.setItem(storageKey, w);
+                }
+                clearInlineWidth();
+            } else if (!isMobile()) {
+                const saved = parseInt(localStorage.getItem(storageKey) || '0', 10);
+                if (saved >= minWidth && saved <= maxWidth) applyWidth(saved);
+            } else {
+                clearInlineWidth();
+            }
+        });
+        mo.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+
+        // Mobile pe switch hone par inline widths clear
+        window.addEventListener('resize', function () {
+            if (isMobile()) clearInlineWidth();
+        });
+    }
+
+    // Attach to Staff sidebar
+    if (hasStaffSidebar) {
+        setupSidebarResize(document.getElementById('sidebar'), {
+            min: 50,
+            max: 420,
+            storageKey: 'staffSidebarWidth'
+        });
+    }
+
+    // Attach to Customer sidebar
+    if (hasCustomerSidebar) {
+        setupSidebarResize(document.getElementById('customer-sidebar'), {
+            min: 50,
+            max: 420,
+            storageKey: 'customerSidebarWidth'
+        });
+    }
+
 })();

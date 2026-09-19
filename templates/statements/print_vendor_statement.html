@@ -49,11 +49,12 @@
 
     <!-- FILTERS -->
     <div class="filters-box">
-        <strong>Filters:</strong>
-        {% if date_from %}<span>From: {{ date_from }}</span>{% endif %}
-        {% if date_to %}<span>To: {{ date_to }}</span>{% endif %}
-        {% if not date_from and not date_to %}<span>All Records</span>{% endif %}
-        <br><small>Generated: {% now "d M Y, h:i A" %}</small>
+        <strong>📋 Filters:</strong>
+        {% if search %}<span>🔍 Search: <strong>{{ search }}</strong></span>{% endif %}
+        {% if date_from %}<span>📅 From: <strong>{{ date_from }}</strong></span>{% endif %}
+        {% if date_to %}<span>📅 To: <strong>{{ date_to }}</strong></span>{% endif %}
+        {% if not search and not date_from and not date_to %}<span>📊 All Records</span>{% endif %}
+        <br><small>📅 Generated: {% now "d M Y, h:i A" %}</small>
     </div>
 
     <!-- TABLE -->
