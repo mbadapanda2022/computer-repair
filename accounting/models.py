@@ -414,9 +414,16 @@ class LedgerEntry(SoftDeleteModel):
         ('credit_note', 'Credit Note'),
     )
     JOURNAL_TYPES = (
-        ('discount', 'Discount'), ('advance_received', 'Advance Received'),
-        ('advance_paid', 'Advance Paid'), ('payment', 'Payment to Vendor'),
-        ('receipt', 'Receipt from Customer'), ('general', 'General Journal'),
+        # Professional types (shown in form)
+        ('discount_allowed', 'Discount Allowed'),
+        ('discount_received', 'Discount Received'),
+        ('advance_received', 'Advance Received'),
+        ('advance_paid', 'Advance Paid'),
+        ('general', 'General Journal'),
+        # Legacy types (backward compat)
+        ('discount', 'Discount (Legacy)'),
+        ('payment', 'Payment (Legacy)'),
+        ('receipt', 'Receipt (Legacy)'),
     )
     date = models.DateField(default=timezone.now)
     entry_type = models.CharField(max_length=20, choices=ENTRY_TYPE)

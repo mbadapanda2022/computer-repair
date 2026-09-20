@@ -30,6 +30,49 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
+# HELPER: Orphan-safe ledger line filter
+# ============================================================
+def _valid_ledger_line_filter():
+    """
+    Returns a Q object that matches only ledger lines whose parent record
+    (if any) still exists.
+
+    Silently hides orphan entries left behind by legacy delete bugs —
+    no manual cleanup command needed.
+
+    Rule:
+      - journal / opening entries → always valid (no reference)
+      - purchase entries → parent Purchase must exist & not deleted
+      - payment / advance entries → parent Payment must exist & not deleted
+      - sales entries → parent Invoice must exist & not deleted
+      - credit_note entries → parent CreditNote must exist & not deleted
+    """
+    from ..models import Purchase, Payment, Invoice, CreditNote
+
+    return (
+        Q(ledger_entry__entry_type__in=['journal', 'opening']) |
+        Q(
+            ledger_entry__entry_type='purchase',
+            ledger_entry__reference_id__in=Purchase.objects.values('pk'),
+        ) |
+        Q(
+            ledger_entry__entry_type__in=[
+                'payment', 'advance_received', 'advance_paid',
+            ],
+            ledger_entry__reference_id__in=Payment.objects.values('pk'),
+        ) |
+        Q(
+            ledger_entry__entry_type='sales',
+            ledger_entry__reference_id__in=Invoice.objects.values('pk'),
+        ) |
+        Q(
+            ledger_entry__entry_type='credit_note',
+            ledger_entry__reference_id__in=CreditNote.objects.values('pk'),
+        )
+    )
+
+
+# ============================================================
 # HELPER: Get statement lines with filters + subledger filter
 # ============================================================
 def get_statement_lines(contact, date_from=None, date_to=None,
@@ -43,8 +86,10 @@ def get_statement_lines(contact, date_from=None, date_to=None,
         None         → all lines (legacy behaviour)
     """
     lines = LedgerLine.objects.filter(contact=contact) \
+        .filter(ledger_entry__is_deleted=False) \
+        .filter(_valid_ledger_line_filter()) \
         .exclude(ledger_entry__entry_type='opening') \
-        .select_related('ledger_entry') \
+        .select_related('ledger_entry', 'account') \
         .order_by('ledger_entry__date', 'ledger_entry__id')
 
     if subledger:
@@ -114,9 +159,10 @@ def _get_customer_opening_balance(contact, date_from=None):
 
     if date_from:
         prior_lines = LedgerLine.objects.filter(contact=contact) \
+            .filter(ledger_entry__is_deleted=False) \
+            .filter(_valid_ledger_line_filter()) \
             .exclude(ledger_entry__entry_type='opening') \
-            .filter(ledger_entry__date__lt=date_from,
-                    subledger_type='receivable')
+            .filter(ledger_entry__date__lt=date_from, subledger_type='receivable')
 
         prior_debit = prior_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
         prior_credit = prior_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
@@ -139,9 +185,10 @@ def _get_vendor_opening_balance(contact, date_from=None):
 
     if date_from:
         prior_lines = LedgerLine.objects.filter(contact=contact) \
+            .filter(ledger_entry__is_deleted=False) \
+            .filter(_valid_ledger_line_filter()) \
             .exclude(ledger_entry__entry_type='opening') \
-            .filter(ledger_entry__date__lt=date_from,
-                    subledger_type='payable')
+            .filter(ledger_entry__date__lt=date_from, subledger_type='payable')
 
         prior_debit = prior_lines.aggregate(Sum('debit'))['debit__sum'] or Decimal('0')
         prior_credit = prior_lines.aggregate(Sum('credit'))['credit__sum'] or Decimal('0')
@@ -1209,7 +1256,8 @@ def _get_combined_opening_balances(contact, date_from=None):
     prior = LedgerLine.objects.filter(
         contact=contact,
         ledger_entry__date__lt=date_from,
-    ).exclude(ledger_entry__entry_type='opening')
+        ledger_entry__is_deleted=False,
+    ).filter(_valid_ledger_line_filter()).exclude(ledger_entry__entry_type='opening')
 
     pr = prior.filter(subledger_type='receivable').aggregate(
         dr=Sum('debit'), cr=Sum('credit')
@@ -1246,6 +1294,8 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None, s
     opening_recv, opening_pay = _get_combined_opening_balances(contact, date_from)
 
     qs = LedgerLine.objects.filter(contact=contact) \
+        .filter(ledger_entry__is_deleted=False) \
+        .filter(_valid_ledger_line_filter()) \
         .exclude(ledger_entry__entry_type='opening') \
         .select_related('ledger_entry', 'account') \
         .order_by('ledger_entry__date', 'ledger_entry__id')
@@ -1300,9 +1350,6 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None, s
     total_pay_dr = Decimal('0')
     total_pay_cr = Decimal('0')
 
-    # Account-code sets for legacy-row fallback detection.
-    # Rows created before `subledger_type` field existed have it empty —
-    # derive the side from the linked account's code.
     _RECV_CODES = frozenset({'1011', '1012'})
     _PAY_CODES = frozenset({'2011', '1014'})
 
@@ -1380,14 +1427,18 @@ def _build_combined_rows(contact, date_from=None, date_to=None, txn_type=None, s
                 elif pay.reference:
                     description += f" · Ref: {pay.reference}"
             except Payment.DoesNotExist:
-                pass
+                continue
 
         elif entry.entry_type == 'journal':
             journal_entry_id = entry.id
             jtype = (entry.journal_type or '').lower()
             base_desc = entry.description or ''
 
-            if jtype == 'receipt':
+            if jtype == 'discount_allowed':
+                description = f"Discount Allowed — {base_desc}" if base_desc else "Discount Allowed"
+            elif jtype == 'discount_received':
+                description = f"Discount Received — {base_desc}" if base_desc else "Discount Received"
+            elif jtype == 'receipt':
                 description = f"Receipt — {base_desc}" if base_desc else "Receipt from Customer"
             elif jtype == 'payment':
                 description = f"Payment — {base_desc}" if base_desc else "Payment to Vendor"

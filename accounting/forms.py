@@ -1227,18 +1227,24 @@ class BankTransactionForm(forms.ModelForm):
 
 
 # ============================================================
-# 11. JOURNAL
+# 11. JOURNAL (Professional — Tally/Zoho style)
 # ============================================================
 class JournalForm(forms.Form):
+    """Professional journal entry form (Tally/Zoho style)."""
+
     ENTRY_TYPE_CHOICES = [
-        ('discount', 'Discount Allowed / Received'),
-        ('advance_received', 'Advance Received (Customer)'),
-        ('advance_paid', 'Advance Paid (Vendor)'),
-        ('payment', 'Payment (Vendor)'),
-        ('receipt', 'Receipt (Customer)'),
-        ('general', 'General Journal'),
+        ('discount_allowed', 'Discount Allowed (Customer को दिया)'),
+        ('discount_received', 'Discount Received (Vendor से मिला)'),
+        ('advance_received', 'Advance Received (Customer से)'),
+        ('advance_paid', 'Advance Paid (Vendor को)'),
+        ('general', 'General Journal (Correction / Adjustment)'),
     ]
-    
+
+    MONEY_ACCOUNT_CHOICES = [
+        ('cash', 'Cash'),
+        ('bank', 'Bank / UPI'),
+    ]
+
     contact = forms.ModelChoiceField(
         queryset=Contact.objects.all(),
         widget=BS_SELECT,
@@ -1249,27 +1255,36 @@ class JournalForm(forms.Form):
         widget=BS_SELECT,
         label="Transaction Type"
     )
+    money_account = forms.ChoiceField(
+        choices=MONEY_ACCOUNT_CHOICES,
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+        initial='cash',
+        required=True,
+        label="Money Account",
+    )
+    bank_account = forms.ModelChoiceField(
+        queryset=BankAccount.objects.filter(is_active=True),
+        required=False,
+        widget=BS_SELECT,
+        label="Bank Account",
+        help_text="Required when Money Account = Bank/UPI",
+    )
     amount = forms.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        widget=BS_NUMBER,
-        label="Amount"
+        max_digits=12, decimal_places=2,
+        widget=BS_NUMBER, label="Amount"
     )
     date = forms.DateField(
-        widget=BS_DATE,
-        required=False,
-        label="Date",
+        widget=BS_DATE, required=False, label="Date",
         initial=timezone.now().date
     )
     narration = forms.CharField(
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-        required=False,
-        label="Narration"
+        required=False, label="Narration"
     )
 
     def clean_amount(self):
         amount = self.cleaned_data.get('amount')
-        if amount <= 0:
+        if amount is not None and amount <= 0:
             raise ValidationError("Amount must be positive.")
         return amount
 
@@ -1277,20 +1292,27 @@ class JournalForm(forms.Form):
         cleaned_data = super().clean()
         contact = cleaned_data.get('contact')
         entry_type = cleaned_data.get('entry_type')
+        money_account = cleaned_data.get('money_account')
+        bank_account = cleaned_data.get('bank_account')
 
         if contact and entry_type:
-            # Customer-only types
-            customer_types = ['advance_received', 'receipt', 'discount']
-            vendor_types = ['advance_paid', 'payment']
+            customer_types = ['discount_allowed', 'advance_received']
+            vendor_types = ['discount_received', 'advance_paid']
 
-            if entry_type in customer_types and contact.contact_type not in ['customer', 'both']:
+            if entry_type in customer_types and contact.contact_type not in ('customer', 'both'):
                 self.add_error('entry_type', "This transaction type is only for customers.")
                 self.add_error('contact', "Please select a customer for this transaction.")
 
-            if entry_type in vendor_types and contact.contact_type not in ['vendor', 'both']:
+            if entry_type in vendor_types and contact.contact_type not in ('vendor', 'both'):
                 self.add_error('entry_type', "This transaction type is only for vendors.")
                 self.add_error('contact', "Please select a vendor for this transaction.")
-                
+
+        if money_account == 'bank' and not bank_account:
+            self.add_error('bank_account', "Please select a bank account for Bank/UPI transactions.")
+
+        if money_account == 'cash':
+            cleaned_data['bank_account'] = None
+
         return cleaned_data
 
 

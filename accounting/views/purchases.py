@@ -653,10 +653,13 @@ def purchase_delete(request, pk):
     vendor = purchase.vendor
 
     with transaction.atomic():
-        # Delete ledger entry (Purchase.delete does not auto-delete ledger)
-        LedgerEntry.objects.filter(
+        # Delete ledger entry AND its lines (Purchase.delete does not auto-delete ledger)
+        for entry in LedgerEntry.objects.filter(
             reference_id=purchase.id, entry_type='purchase'
-        ).delete()
+        ):
+            for line in list(entry.lines.all()):
+                line.delete()
+            entry.delete()
 
         # Delete purchase (cascade deletes items, which reverse stock)
         purchase.delete()

@@ -30,15 +30,16 @@
                         </td>
                         <td>
                             <span class="badge
-                                {% if journal.journal_type == 'discount' %}bg-warning text-dark
+                                {% if journal.journal_type == 'discount_allowed' %}bg-warning text-dark
+                                {% elif journal.journal_type == 'discount_received' %}bg-info text-dark
                                 {% elif journal.journal_type == 'advance_received' %}bg-info
                                 {% elif journal.journal_type == 'advance_paid' %}bg-primary
+                                {% elif journal.journal_type == 'general' %}bg-secondary
+                                {% elif journal.journal_type == 'discount' %}bg-warning text-dark
                                 {% elif journal.journal_type == 'payment' %}bg-danger
                                 {% elif journal.journal_type == 'receipt' %}bg-success
                                 {% else %}bg-secondary
                                 {% endif %}">
-                                {{ journal.get_journal_type_display|default:journal.journal_type|title }}
-                            </span>
                         </td>
                         <td class="text-end fw-bold">₹{{ journal.total_amount|floatformat:2 }}</td>
                         <td>{{ journal.description|truncatechars:40 }}</td>

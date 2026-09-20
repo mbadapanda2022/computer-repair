@@ -31,12 +31,16 @@ def detect_journal_type(entry):
         return entry.journal_type
 
     description = (entry.description or '').lower()
-    # FIXED: line.account is FK → use .name
+    # line.account is FK → use .name
     account_names = [line.account.name.lower() for line in entry.lines.all() if line.account]
     combined = ' '.join(account_names)
 
+    if 'discount received' in description or 'discount received' in combined:
+        return 'discount_received'
+    if 'discount allowed' in description or 'discount allowed' in combined:
+        return 'discount_allowed'
     if 'discount' in description or 'discount' in combined:
-        return 'discount'
+        return 'discount'  # legacy fallback
     if 'advance received' in description or 'advance_received' in description:
         return 'advance_received'
     if 'advance paid' in description or 'advance_paid' in description:
@@ -46,6 +50,43 @@ def detect_journal_type(entry):
     if 'receipt' in description or 'customer' in combined:
         return 'receipt'
     return 'general'
+
+
+# ============================================================
+# HELPER: Dynamic entry-type choices for a contact
+# ============================================================
+def _choices_for_contact(contact):
+    """
+    Return (choices, default) for entry_type based on contact type.
+
+    - 'both'     → all 4 professional types (staff decides side)
+    - 'vendor'   → discount_received, advance_paid, general
+    - customer   → discount_allowed, advance_received, general
+    """
+    if contact is None:
+        return JournalForm.ENTRY_TYPE_CHOICES, 'general'
+
+    if contact.contact_type == 'both':
+        return [
+            ('discount_allowed', 'Discount Allowed (हमने छूट दी)'),
+            ('discount_received', 'Discount Received (उन्होंने छूट दी)'),
+            ('advance_received', 'Advance Received (उनसे मिला)'),
+            ('advance_paid', 'Advance Paid (उन्हें दिया)'),
+        ], 'discount_allowed'
+
+    if contact.contact_type == 'vendor':
+        return [
+            ('discount_received', 'Discount Received (Vendor से मिला)'),
+            ('advance_paid', 'Advance Paid (Vendor को)'),
+            ('general', 'General Journal'),
+        ], 'discount_received'
+
+    # customer
+    return [
+        ('discount_allowed', 'Discount Allowed (Customer को दिया)'),
+        ('advance_received', 'Advance Received (Customer से)'),
+        ('general', 'General Journal'),
+    ], 'discount_allowed'
 
 
 # ============================================================
@@ -74,7 +115,6 @@ def journal_list(request):
         .order_by('-date', '-id')
 
     if search:
-        # FIXED: use lines__account__name (not lines__account)
         journals = journals.filter(
             Q(description__icontains=search) |
             Q(lines__account__name__icontains=search) |
@@ -133,6 +173,7 @@ def journal_create(request):
                 entry_type = form.cleaned_data['entry_type']
                 narration = form.cleaned_data['narration']
                 date_val = form.cleaned_data['date'] or timezone.now().date()
+                bank_account = form.cleaned_data.get('bank_account')
 
                 entry = LedgerEntry.objects.create(
                     date=date_val,
@@ -141,7 +182,7 @@ def journal_create(request):
                     description=narration or f"{entry_type} for {contact.name}",
                     total_amount=amount,
                 )
-                create_journal_lines(entry, contact, amount, entry_type)
+                create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
                 logger.info(f"Journal entry created: {entry.id} by {request.user.username}")
 
@@ -187,18 +228,7 @@ def journal_create_for_contact(request, contact_id):
     contact = get_object_or_404(Contact, pk=contact_id)
 
     # Dynamic choices based on contact type
-    if contact.contact_type in ('vendor', 'both'):
-        entry_type_choices = [
-            ('payment', 'Payment to Vendor'),
-            ('advance_paid', 'Advance Paid'),
-            ('discount', 'Discount Received'),
-        ]
-    else:
-        entry_type_choices = [
-            ('receipt', 'Receipt from Customer'),
-            ('advance_received', 'Advance Received'),
-            ('discount', 'Discount Allowed'),
-        ]
+    entry_type_choices, default_choice = _choices_for_contact(contact)
 
     template_name = (
         'journal/partials/journal_form_modal.html'
@@ -215,6 +245,7 @@ def journal_create_for_contact(request, contact_id):
                 entry_type = form.cleaned_data['entry_type']
                 narration = form.cleaned_data['narration']
                 date_val = form.cleaned_data['date'] or timezone.now().date()
+                bank_account = form.cleaned_data.get('bank_account')
 
                 entry = LedgerEntry.objects.create(
                     date=date_val,
@@ -223,7 +254,7 @@ def journal_create_for_contact(request, contact_id):
                     description=narration or f"{entry_type} for {contact.name}",
                     total_amount=amount,
                 )
-                create_journal_lines(entry, contact, amount, entry_type)
+                create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
                 logger.info(
                     f"Journal entry for contact {contact.id} created: {entry.id} "
@@ -248,7 +279,7 @@ def journal_create_for_contact(request, contact_id):
 
                 messages.success(request, "Transaction recorded.")
 
-                # FIXED: 'both' type → combined statement
+                # 'both' type → combined statement
                 if contact.contact_type == 'both':
                     return redirect('accounting:combined_statement', contact_id=contact.pk)
                 elif contact.contact_type == 'customer':
@@ -273,7 +304,7 @@ def journal_create_for_contact(request, contact_id):
         form = JournalForm(initial=initial)
         form.fields['entry_type'].choices = entry_type_choices
         if entry_type_choices:
-            form.fields['entry_type'].initial = entry_type_choices[0][0]
+            form.fields['entry_type'].initial = default_choice
 
     return render(request, template_name, {'form': form, 'contact': contact})
 
@@ -300,18 +331,8 @@ def journal_update(request, pk):
     if request.method == 'POST':
         form = JournalForm(request.POST)
         if contact:
-            if contact.contact_type in ('vendor', 'both'):
-                form.fields['entry_type'].choices = [
-                    ('payment', 'Payment to Vendor'),
-                    ('advance_paid', 'Advance Paid'),
-                    ('discount', 'Discount Received'),
-                ]
-            else:
-                form.fields['entry_type'].choices = [
-                    ('receipt', 'Receipt from Customer'),
-                    ('advance_received', 'Advance Received'),
-                    ('discount', 'Discount Allowed'),
-                ]
+            entry_type_choices, _ = _choices_for_contact(contact)
+            form.fields['entry_type'].choices = entry_type_choices
 
         if form.is_valid():
             try:
@@ -320,6 +341,7 @@ def journal_update(request, pk):
                 entry_type = form.cleaned_data['entry_type']
                 narration = form.cleaned_data['narration']
                 date_val = form.cleaned_data['date'] or timezone.now().date()
+                bank_account = form.cleaned_data.get('bank_account')
 
                 entry.date = date_val
                 entry.journal_type = entry_type
@@ -328,7 +350,7 @@ def journal_update(request, pk):
                 entry.save()
 
                 entry.lines.all().delete()
-                create_journal_lines(entry, contact, amount, entry_type)
+                create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
                 logger.info(f"Journal entry {pk} updated by {request.user.username}")
 
@@ -370,19 +392,21 @@ def journal_update(request, pk):
             'narration': entry.description,
         }
         form = JournalForm(initial=initial)
+
+        # Detect money_account from existing lines (bank vs cash)
+        if entry.pk:
+            bank_line = entry.lines.filter(account__code='1010').exists()
+            initial['money_account'] = 'bank' if bank_line else 'cash'
+            form = JournalForm(initial=initial)
+            # Restore bank_account FK if present
+            first_bank_line = entry.lines.filter(account__code='1010').first()
+            if first_bank_line and contact:
+                # bank_account not directly stored on line — best-effort: leave blank
+                pass
+
         if contact:
-            if contact.contact_type in ('vendor', 'both'):
-                form.fields['entry_type'].choices = [
-                    ('payment', 'Payment to Vendor'),
-                    ('advance_paid', 'Advance Paid'),
-                    ('discount', 'Discount Received'),
-                ]
-            else:
-                form.fields['entry_type'].choices = [
-                    ('receipt', 'Receipt from Customer'),
-                    ('advance_received', 'Advance Received'),
-                    ('discount', 'Discount Allowed'),
-                ]
+            entry_type_choices, _ = _choices_for_contact(contact)
+            form.fields['entry_type'].choices = entry_type_choices
             form.fields['entry_type'].initial = current_type
 
     return render(request, template_name, {'form': form, 'entry': entry})

@@ -45,12 +45,14 @@
                             hx-include="#journal-filter-form"
                             hx-push-url="true">
                         <option value="">All Types</option>
-                        <option value="discount" {% if entry_type_filter == 'discount' %}selected{% endif %}>Discount</option>
+                        <option value="discount_allowed" {% if entry_type_filter == 'discount_allowed' %}selected{% endif %}>Discount Allowed</option>
+                        <option value="discount_received" {% if entry_type_filter == 'discount_received' %}selected{% endif %}>Discount Received</option>
                         <option value="advance_received" {% if entry_type_filter == 'advance_received' %}selected{% endif %}>Advance Received</option>
                         <option value="advance_paid" {% if entry_type_filter == 'advance_paid' %}selected{% endif %}>Advance Paid</option>
-                        <option value="payment" {% if entry_type_filter == 'payment' %}selected{% endif %}>Payment (Vendor)</option>
-                        <option value="receipt" {% if entry_type_filter == 'receipt' %}selected{% endif %}>Receipt (Customer)</option>
                         <option value="general" {% if entry_type_filter == 'general' %}selected{% endif %}>General</option>
+                        <option value="discount" {% if entry_type_filter == 'discount' %}selected{% endif %}>Discount (Legacy)</option>
+                        <option value="payment" {% if entry_type_filter == 'payment' %}selected{% endif %}>Payment (Legacy)</option>
+                        <option value="receipt" {% if entry_type_filter == 'receipt' %}selected{% endif %}>Receipt (Legacy)</option>
                     </select>
                 </div>
                 <div class="col-md-2">
