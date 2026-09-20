@@ -357,61 +357,6 @@ Fixed 5 bugs:
 
 ---
 
-## Current Production Status (as of latest deploy)
-
-### Working ✅
-- Staff dashboard, contacts, products, sales, purchases, repairs, payments, bank, journal
-- **Repairs Module — Phase 1 fixes** (duplicate notifications, submitted_at, HTMX links, action attr, modal footer)
-- **Payments + Bank + Journal — Phase 1 fixes** (data integrity, SSE cleanup, action attrs)
-- **Purchase module** — HTMX form, ledger sync, quick-add product
-- **Product module** — Phase 1 + Category Management
-- **Sales module** — B.1 + B.3 (Credit Notes)
-- Statements (all 3 types) with sort toggle
-- Global search (Ctrl+K)
-- Customer portal (dashboard, invoices, orders, repairs, payments, statement, profile)
-- Repair tracking (public signed URL, 90-day expiry)
-- Notifications polling (30s)
-- Soft delete with User anonymization
-- Audit log (backend, no UI viewer)
-
-### Pending / Planned
-- **Repairs Module — Phase 1 remaining:**
-  - A1: `send_estimate_to_customer` email option — decision pending (currently still has email radio)
-  - A2: `openWhatsApp` listener in `app.js` — missing, WhatsApp link doesn't auto-open
-  - A4: `parts_table.html` — likely legacy, confirm/delete
-- **Payments + Bank + Journal — Phase 2 remaining:**
-  - Bug #7: payment update notification spam
-  - Bug #8: TomSelect CSS/JS re-inject on modal open
-  - Bug #9: Journal spinner listener stacking
-  - Bug #12: Journal table contact duplicate rendering
-- **Feature Gaps:**
-  - F1: Ledger Viewer (superuser, all entries)
-  - F2: Bank account selector in Journal (currently assumes cash)
-  - F3: Purchase.paid_amount field (partial vendor payments)
-  - F4: Bulk payment entry
-  - F5: Bank Transaction → Payment direct link
-  - F6: Audit log viewer UI
-- **Repairs Module — Phase 2/3:**
-  - Estimate status filter in list
-  - `WARRANTY_DAYS` configurable
-  - `repair_form_from_contact.html` refactor
-  - Duplicate/Clone repair
-  - Customer repair history sidebar
-  - WhatsApp direct button
-  - Photo attachments
-  - Bulk status update
-- **Customer Portal:** Credit Notes section (B.3.1 — skipped)
-- **Accounts Module:** Statements, Ledgers, Journal, Reports (broader scope)
-- **Payments Module upgrade:** Receipt print, WhatsApp, bulk recording, reconciliation UI
-- **Overdue invoice alerts** (dashboard widget)
-- **Bulk actions** (multi-select on lists)
-- **WhatsApp Business API automation**
-- **SMS notifications**
-- **Customer feedback / rating system**
-- **GSTR-1 auto-summary**
-- **Multi-branch support**
-
----
 
 ## Environment Variables (Render)
 
@@ -427,12 +372,7 @@ Required:
 
 ## Roadmap / Next Steps
 
-1. **Repairs Module Phase 1 remaining items** (A1, A2, A4)
-2. **Payments + Bank + Journal Phase 2** (notification spam, TomSelect, spinner, journal duplicate)
-3. **Accounts Module** (Ledger Viewer, Reports, Statements expansion)
-4. **Feature Gaps** (F1-F6)
-5. **Customer Portal: Credit Notes** (B.3.1 — if needed)
-6. **Payments Module professional upgrade** (Receipt print, WhatsApp, bulk, reconciliation)
+
 
 ---
 
@@ -486,7 +426,7 @@ git push origin main
 ## How to Ask AI for Help
 
 When starting a new chat, paste:
-1. This entire file
+1. This entire file 
 2. The specific issue/feature you want
 3. Files that are relevant (AI will ask if needed)
 
@@ -505,4 +445,3 @@ AI should:
 
 ---
 
-**Last Updated:** After Payments + Bank + Journal Phase 1 fixes + Repairs Phase 1 fixes.

@@ -253,6 +253,7 @@ def journal_create_for_contact(request, contact_id):
                     journal_type=entry_type,
                     description=narration or f"{entry_type} for {contact.name}",
                     total_amount=amount,
+                    bank_account=bank_account,  
                 )
                 create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
@@ -347,9 +348,12 @@ def journal_update(request, pk):
                 entry.journal_type = entry_type
                 entry.description = narration or f"{entry_type} for {contact.name}"
                 entry.total_amount = amount
+                entry.bank_account = bank_account   # ← persist selection
                 entry.save()
 
-                entry.lines.all().delete()
+                # Delete old lines per-instance (fires LedgerLine signals)
+                for line in list(entry.lines.all()):
+                    line.delete()
                 create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
                 logger.info(f"Journal entry {pk} updated by {request.user.username}")

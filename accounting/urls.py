@@ -86,7 +86,7 @@ urlpatterns = [
     path('sales/<int:pk>/add-payment/', payments.payment_create, name='add_payment'),
     path('sales/add-item/', sales.add_invoice_item, name='add_invoice_item'),
     path('sales/remove-item/<int:index>/', sales.remove_invoice_item, name='remove_invoice_item'),
-    path('sales/search-products/', sales.product_search, name='product_search'),
+    path('sales/search-products/', sales.product_search, name='sales_product_search'),
 
     # ===== Purchase Module =====
     path('purchases/', purchases.purchase_list, name='purchase_list'),

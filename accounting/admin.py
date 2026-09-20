@@ -204,6 +204,10 @@ class LedgerEntryAdmin(admin.ModelAdmin):
         (None, {
             'fields': ('date', 'entry_type', 'reference_id', 'description')
         }),
+        ('Bank (journal / manual entries)', {
+            'fields': ('bank_account', 'bank_transaction'),
+            'classes': ('collapse',),
+        }),
         ('Auto-calculated', {
             'fields': ('total_amount', 'created_at')
         }),

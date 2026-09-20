@@ -661,7 +661,10 @@ def purchase_delete(request, pk):
                 line.delete()
             entry.delete()
 
-        # Delete purchase (cascade deletes items, which reverse stock)
+        for item in purchase.items.all():
+            item.delete()
+
+        # Now soft-delete the purchase header itself.
         purchase.delete()
 
     logger.info(f"Purchase {purchase_name} deleted by {request.user.username}")

@@ -7,7 +7,7 @@
         <div class="position-relative">
             <input type="text" id="product-search" name="q" class="form-control form-control-sm"
                 placeholder="Search product by name or HSN..."
-                hx-get="{% url 'accounting:product_search' %}"
+                hx-get="{% url 'accounting:sales_product_search' %}"
                 hx-trigger="keyup changed delay:300ms"
                 hx-target="#product-suggestions"
                 hx-swap="innerHTML"

@@ -29,24 +29,17 @@ POSITIVE_VALIDATOR = [MinValueValidator(MONEY_ZERO)]
 # ============================================================
 
 class SoftDeleteQuerySet(models.QuerySet):
-    """
-    QuerySet that soft-deletes records when .delete() is called.
-
-    Special handling for Contact:
-    ─────────────────────────────
-    Contact.soft_delete() also anonymizes the linked User (frees up
-    email/username for re-registration). Because bulk `.update()`
-    bypasses instance methods, we iterate Contact querysets one by
-    one. All other models use a fast bulk UPDATE.
-    """
-
     def delete(self):
         from django.utils import timezone
-
-        # ── Per-instance models (need custom delete logic) ──
-        # Contact: needs User anonymization
-        # StockMovement: needs stock reversal
-        if self.model.__name__ in ('Contact', 'StockMovement'):
+        if self.model.__name__ in (
+            'Contact',
+            'StockMovement',
+            'InvoiceItem',
+            'PurchaseItem',
+            'CreditNoteItem',
+            'RepairPart',
+            'Payment',
+        ):
             count = 0
             for obj in self.filter(is_deleted=False):
                 obj.delete()   # calls instance delete() → runs custom logic
@@ -412,6 +405,7 @@ class LedgerEntry(SoftDeleteModel):
         ('advance_paid', 'Advance Paid'),
         ('discount', 'Discount Adjustment'),
         ('credit_note', 'Credit Note'),
+        ('bank_manual', 'Bank Transaction (Manual)'),
     )
     JOURNAL_TYPES = (
         # Professional types (shown in form)
@@ -431,6 +425,23 @@ class LedgerEntry(SoftDeleteModel):
     reference_id = models.PositiveIntegerField(blank=True, null=True)
     description = models.CharField(max_length=200)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+
+    bank_account = models.ForeignKey(
+        'BankAccount',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ledger_entries',
+        help_text="Specific bank account used (journal / bank_manual entries).",
+    )
+    bank_transaction = models.OneToOneField(
+        'BankTransaction',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ledger_entry',
+        help_text="Originating bank transaction (bank_manual entries).",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1051,11 +1062,15 @@ class Invoice(SoftDeleteModel):
 
     @property
     def linked_repair(self):
-        """
-        Return the linked RepairJob if any (attribute name safe for templates).
-        NOTE: Django templates can't use leading underscore names.
-        """
+        # Prefer value cached by the view (bulk-prefetched)
+        if '_linked_repair_cache' in self.__dict__:
+            return self.__dict__['_linked_repair_cache']
         return RepairJob.objects.filter(invoice=self).first()
+
+    @linked_repair.setter
+    def linked_repair(self, value):
+        """Allow views to attach a prefetched RepairJob instance."""
+        self.__dict__['_linked_repair_cache'] = value
 
     @property
     def whatsapp_share_url(self):
@@ -1459,10 +1474,16 @@ class Purchase(SoftDeleteModel):
                 )
         else:
             super().save(*args, **kwargs)
-
-        # Sync ledger only on full save (not on partial update_fields saves)
+            
         update_fields = kwargs.get('update_fields')
-        should_sync = (update_fields is None)
+        SYNC_TRIGGERS = {
+            'subtotal', 'tax_amount', 'grand_total',
+            'discount_amount', 'freight_charge',
+        }
+        if update_fields is None:
+            should_sync = True
+        else:
+            should_sync = bool(SYNC_TRIGGERS & set(update_fields))
 
         if should_sync and self.pk and self.items.exists():
             sync_purchase_ledger(self)
@@ -2083,11 +2104,109 @@ class RepairPart(SoftDeleteModel):
         super().delete(*args, **kwargs)
         if repair_job:
             repair_job.calculate_final_amount()
+            
+            
+# ============================================================
+# BANK TRANSACTION ↔ LEDGER SYNC (Manual entries only)
+# ============================================================
+
+# Manual-source counter-account mapping
+_BANK_SOURCE_ACCOUNTS = {
+    # source_type → (code, name, type, group_code)
+    'interest':     ('4012', 'Interest Income', 'income', '4'),
+    'bank_charge':  ('5014', 'Bank Charges', 'expense', '5'),
+    # 'transfer', 'manual', 'payment_received', 'payment_made' → Suspense
+}
+_BANK_SUSPENSE = ('1020', 'Bank Suspense', 'asset', '1')
+
+
+def sync_bank_transaction_ledger(txn):
+    """
+    Create/refresh a LedgerEntry mirror for a MANUAL BankTransaction.
+
+    SKIPPED (no ledger sync — by design):
+      - Transactions with a linked Payment (`txn.payment_id`)
+        → the Payment already writes its own ledger entry.
+      - Transactions with source_type in
+        {'payment_received', 'payment_made'} — these are always
+        auto-created by Payment, so a duplicate would double-count.
+      - Soft-deleted rows.
+
+    ACCOUNT MAPPING:
+      deposit + interest     → Dr Bank (1010) / Cr Interest Income (4012)
+      withdrawal + bank_charge → Dr Bank Charges (5014) / Cr Bank (1010)
+      everything else        → Dr/Cr Bank ↔ Dr/Cr Bank Suspense (1020)
+
+    Idempotent — safe to call multiple times.
+    """
+    if not txn or txn.is_deleted:
+        return
+    if txn.payment_id:
+        return
+    if txn.source_type in ('payment_received', 'payment_made'):
+        return
+    if not txn.bank_account_id:
+        return
+
+    with transaction.atomic():
+        entry, _created = LedgerEntry.objects.get_or_create(
+            entry_type='bank_manual',
+            reference_id=txn.pk,
+            defaults={
+                'date': txn.date,
+                'description': txn.description or txn.get_source_type_display(),
+                'total_amount': txn.amount,
+                'bank_account': txn.bank_account,
+                'bank_transaction': txn,
+            },
+        )
+        # Always refresh (date/amount/desc may have changed)
+        entry.date = txn.date
+        entry.description = txn.description or txn.get_source_type_display()
+        entry.total_amount = txn.amount
+        entry.bank_account = txn.bank_account
+        entry.bank_transaction = txn
+        entry.save()
+
+        # Clear old lines — idempotent
+        LedgerLine.objects.filter(ledger_entry=entry).delete()
+
+        bank_ledger = get_account('1010', 'Bank Account', 'asset', '1')
+
+        if txn.transaction_type == 'deposit':
+            code, name, atype, grp = _BANK_SOURCE_ACCOUNTS.get(
+                txn.source_type, _BANK_SUSPENSE
+            )
+            counter = get_account(code, name, atype, grp)
+            LedgerLine.objects.create(
+                ledger_entry=entry, account=bank_ledger,
+                debit=txn.amount, credit=0,
+            )
+            LedgerLine.objects.create(
+                ledger_entry=entry, account=counter,
+                debit=0, credit=txn.amount,
+            )
+        else:  # withdrawal
+            code, name, atype, grp = _BANK_SOURCE_ACCOUNTS.get(
+                txn.source_type, _BANK_SUSPENSE
+            )
+            counter = get_account(code, name, atype, grp)
+            LedgerLine.objects.create(
+                ledger_entry=entry, account=counter,
+                debit=txn.amount, credit=0,
+            )
+            LedgerLine.objects.create(
+                ledger_entry=entry, account=bank_ledger,
+                debit=0, credit=txn.amount,
+            )
+
+        entry.full_clean()
 
 
 # ============================================================
 # 12. BANK ACCOUNTS & TRANSACTIONS
 # ============================================================
+
 
 class BankAccount(SoftDeleteModel):
     ACCOUNT_TYPES = (('savings', 'Savings Account'), ('current', 'Current Account'), ('upi', 'UPI / Wallet'))
@@ -2136,6 +2255,27 @@ class BankTransaction(SoftDeleteModel):
     class Meta:
         ordering = ['-date', '-created_at']
         indexes = [models.Index(fields=['bank_account', 'date']), models.Index(fields=['transaction_type'])]
+
+    def delete(self, *args, **kwargs):
+        """
+        Soft-delete the transaction AND remove its mirror LedgerEntry
+        (if it was a manual entry). Without this, soft-deleted bank
+        transactions would leave orphan ledger lines that skewed
+        Trial Balance and Chart of Accounts.
+        """
+        if self.is_deleted:
+            return
+
+        # Remove ledger mirror (if exists) — per-instance so signals fire
+        for entry in LedgerEntry.objects.filter(
+            entry_type='bank_manual',
+            reference_id=self.pk,
+        ):
+            for line in list(entry.lines.all()):
+                line.delete()
+            entry.delete()
+
+        super().delete(*args, **kwargs)
 
     def __str__(self):
         return f"{self.get_transaction_type_display()} - {self.amount} ({self.bank_account.name})"
@@ -2486,38 +2626,132 @@ class Payment(SoftDeleteModel):
         return f"{self.direction} - {self.contact.name} - ₹{self.amount}"
 
 
-# ============================================================
-# 13.1 SIGNALS: Audit Log + Payment Allocation Sync
-# ============================================================
+# ────────────────────────────────────────────────────────────
+# Audit Trail — Production Grade
+# ────────────────────────────────────────────────────────────
+# Design:
+#   • pre_save  → capture old state (for diff)
+#   • post_save → log CREATE / UPDATE / SOFT_DELETE / RESTORE
+#                 - skips noise-only saves (e.g. updated_at only)
+#                 - captures real user via thread-local (audit.py)
+#   • post_delete → log hard DELETE
+# ────────────────────────────────────────────────────────────
 
-@receiver(post_save, sender=Invoice)
-@receiver(post_save, sender=Purchase)
-@receiver(post_save, sender=Payment)
-@receiver(post_save, sender=Contact)
-@receiver(post_save, sender=Product)
-def audit_log_save(sender, instance, created, **kwargs):
-    action = 'CREATE' if created else 'UPDATE'
-    AuditLog.objects.create(
-        content_type=ContentType.objects.get_for_model(instance),
-        object_id=instance.id,
-        action=action,
-        user=None,
-        changes=getattr(instance, 'get_audit_changes', lambda: {})()
+_AUDITED_MODELS = (Invoice, Purchase, Payment, Contact, Product)
+
+
+@receiver(pre_save)
+def _audit_pre_save(sender, instance, **kwargs):
+    """Snapshot the current DB state so post_save can diff it."""
+    if sender not in _AUDITED_MODELS:
+        return
+    if not instance.pk:
+        instance._audit_old = None
+        return
+    try:
+        instance._audit_old = sender.all_objects.get(pk=instance.pk)
+    except sender.DoesNotExist:
+        instance._audit_old = None
+
+
+@receiver(post_save)
+def _audit_post_save(sender, instance, created, **kwargs):
+    """Write an AuditLog row for CREATE / UPDATE / SOFT_DELETE / RESTORE."""
+    if sender not in _AUDITED_MODELS:
+        return
+
+    # Local imports — avoid circular import at module load
+    from .audit import (
+        build_change_diff,
+        get_current_ip,
+        get_current_user,
+        get_current_user_agent,
     )
 
-@receiver(post_delete, sender=Invoice)
-@receiver(post_delete, sender=Purchase)
-@receiver(post_delete, sender=Payment)
-@receiver(post_delete, sender=Contact)
-@receiver(post_delete, sender=Product)
-def audit_log_delete(sender, instance, **kwargs):
-    AuditLog.objects.create(
-        content_type=ContentType.objects.get_for_model(instance),
-        object_id=instance.id,
-        action='DELETE',
-        user=None,
-        changes={}
+    old = getattr(instance, '_audit_old', None)
+
+    # ── Determine action ────────────────────────────────
+    if created:
+        action = 'CREATE'
+        changes = {}
+    else:
+        was_deleted = bool(old and old.is_deleted)
+        is_deleted = bool(getattr(instance, 'is_deleted', False))
+
+        if is_deleted and not was_deleted:
+            action = 'SOFT_DELETE'
+            changes = {}
+        elif was_deleted and not is_deleted:
+            action = 'RESTORE'
+            changes = {}
+        else:
+            action = 'UPDATE'
+            changes = build_change_diff(old, instance)
+            if not changes:
+                # No meaningful business field changed — skip noise row
+                return
+
+    try:
+        AuditLog.objects.create(
+            content_type=ContentType.objects.get_for_model(instance),
+            object_id=instance.pk,
+            action=action,
+            user=get_current_user(),
+            changes=changes,
+            ip_address=get_current_ip(),
+            user_agent=get_current_user_agent(),
+        )
+    except Exception:
+        logger.exception(
+            "Audit log write failed | model=%s | pk=%s",
+            sender._meta.label, instance.pk,
+        )
+
+
+@receiver(post_delete)
+def _audit_post_delete(sender, instance, **kwargs):
+    """Write AuditLog for HARD deletes only (soft deletes don't fire post_delete)."""
+    if sender not in _AUDITED_MODELS:
+        return
+
+    from .audit import (
+        get_current_ip,
+        get_current_user,
+        get_current_user_agent,
     )
+
+    try:
+        AuditLog.objects.create(
+            content_type=ContentType.objects.get_for_model(instance),
+            object_id=instance.pk,
+            action='DELETE',
+            user=get_current_user(),
+            changes={},
+            ip_address=get_current_ip(),
+            user_agent=get_current_user_agent(),
+        )
+    except Exception:
+        logger.exception(
+            "Audit log delete write failed | model=%s | pk=%s",
+            sender._meta.label, instance.pk,
+        )
+
+
+# ────────────────────────────────────────────────────────────
+# Bank Transaction → Ledger mirror (manual entries)
+# ────────────────────────────────────────────────────────────
+
+@receiver(post_save, sender=BankTransaction)
+def _sync_bank_txn_ledger_on_save(sender, instance, **kwargs):
+    """Auto-create/refresh the mirror LedgerEntry for manual bank txns."""
+    if instance.is_deleted:
+        return
+    try:
+        sync_bank_transaction_ledger(instance)
+    except Exception:
+        logger.exception(
+            "Bank txn ledger sync failed | txn_id=%s", instance.pk,
+        )
 
 
 @receiver(post_save, sender=PaymentAllocation)

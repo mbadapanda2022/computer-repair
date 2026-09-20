@@ -2,6 +2,9 @@
 """
 Role-based access control middleware — Production Grade.
 
+Also acts as the request-context provider for audit logging
+(via accounting.audit thread-local storage).
+
 Rules (in order):
 ─────────────────
 1. Static / media always allowed (normalised path prefixes).
@@ -21,6 +24,8 @@ from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect
 from django.urls import Resolver404, resolve
+
+from .audit import clear_current_request, set_current_request
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +58,16 @@ class AccessControlMiddleware:
         self.media_url = self._normalize_url(getattr(settings, 'MEDIA_URL', ''))
 
     def __call__(self, request):
+        # Expose request to signal handlers (audit trail).
+        set_current_request(request)
+        try:
+            return self._handle(request)
+        finally:
+            # Thread reuse on Gunicorn → must clear.
+            clear_current_request()
+
+    # ────────────────────────────────────────────────
+    def _handle(self, request):
         path = request.path
 
         # 1. Static / media
@@ -106,10 +121,8 @@ class AccessControlMiddleware:
         # 10. Everything else
         return self.get_response(request)
 
-    # ────────────────────────────────────────────────
     @staticmethod
     def _normalize_url(url: str) -> str:
-        """Ensure exactly one leading and trailing slash."""
         if not url:
             return ''
         if url.startswith(('http://', 'https://')):

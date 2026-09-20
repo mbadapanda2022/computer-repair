@@ -622,8 +622,10 @@ def trial_balance(request):
         else:
             as_on_date = date.today()
         
-        # Get all ledger accounts with balances
-        accounts = LedgerLine.objects.values('account__name').annotate(
+        accounts = LedgerLine.objects.filter(
+            ledger_entry__is_deleted=False,
+            ledger_entry__date__lte=as_on_date,
+        ).values('account__name').annotate(
             total_dr=Sum('debit'),
             total_cr=Sum('credit')
         ).order_by('account__name')

@@ -364,7 +364,17 @@ def invoice_delete(request, pk):
     except Exception as e:
         logger.error(f"Error reverting repair job status: {e}")
 
-    # 2. Delete the invoice (cascades to items, which reverse stock automatically)
+    for entry in LedgerEntry.objects.filter(
+        reference_id=invoice.id, entry_type='sales'
+    ):
+        for line in list(entry.lines.all()):
+            line.delete()
+        entry.delete()
+
+    for item in invoice.items.all():
+        item.delete()
+
+    # 4. Soft-delete the invoice header itself.
     invoice.delete()
     logger.info(f"Invoice {invoice_number} deleted by {request.user.username}")
 

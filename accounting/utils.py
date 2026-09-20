@@ -9,18 +9,25 @@ def create_journal_lines(entry, contact, amount, journal_type, bank_account=None
     """
     Create ledger lines for a journal entry.
 
-    Supported journal_type:
-        Professional:
-            discount_allowed   → Dr Discount Allowed / Cr Customer Receivable
-            discount_received  → Dr Vendor Payable / Cr Discount Received
-            advance_received   → Dr Cash/Bank / Cr Advance from Customer
-            advance_paid       → Dr Advance to Vendor / Cr Cash/Bank
-            general            → Dr Customer Receivable / Cr Cash/Bank
-        Legacy (backward compat):
-            discount  → contact_type based (customer/both = allowed, vendor = received)
-            payment   → Dr Vendor Payable / Cr Cash/Bank
-            receipt   → Dr Cash/Bank / Cr Customer Receivable
+    Idempotent: clears existing lines first (per-instance so their
+    post_delete signals fire and Contact balances recalc correctly).
+
+    Persists the specific bank_account on the entry (for Journal edit
+    restore — see journal.py). If bank_account is None, entry stays
+    as Cash.
     """
+    # Persist / clear the specific bank account on the entry
+    if bank_account is not None and entry.bank_account_id != bank_account.pk:
+        entry.bank_account = bank_account
+        entry.save(update_fields=['bank_account'])
+    elif bank_account is None and entry.bank_account_id:
+        entry.bank_account = None
+        entry.save(update_fields=['bank_account'])
+
+    # Clear existing lines — per-instance (fires post_delete signals)
+    for old_line in list(entry.lines.all()):
+        old_line.delete()
+
     # Money account (Cash or Bank)
     if bank_account:
         money_account = get_account('1010', 'Bank Account', 'asset', '1')
