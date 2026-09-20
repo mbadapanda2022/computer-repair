@@ -396,9 +396,14 @@ def payment_update(request, pk):
 
                 # Handle allocation changes ONLY if amount changed
                 # (For simplicity: recompute allocations to match new amount)
-                # Delete old allocations and re-create from POST if provided
+                #
+                # IMPORTANT: We must HARD-delete old allocations (not soft-delete),
+                # because PaymentAllocation has a DB unique constraint on
+                # (payment, invoice) that does NOT respect soft-delete.
+                # Soft-deleting would leave rows behind that block re-creation.
                 if not payment.is_advance and 'reset_allocations' in request.POST:
-                    payment.allocations.all().delete()
+                    for alloc in list(payment.allocations.all()):
+                        alloc.hard_delete()
 
                     for key, value in request.POST.items():
                         if not key.startswith('allocation_amount_'):

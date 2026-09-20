@@ -1153,8 +1153,18 @@ class Invoice(SoftDeleteModel):
         if not self.pk:
             return
         items = self.items.all()
-        self.subtotal = sum(item.quantity * item.unit_price for item in items)
-        self.tax_amount = sum(item.tax_amount for item in items)
+        # NOTE: start value Decimal('0') is MANDATORY here. sum() on an
+        # empty iterable returns the *start* value; without an explicit
+        # Decimal start it returns int 0, and .quantize() below would
+        # crash with AttributeError when the last item is removed.
+        self.subtotal = sum(
+            (item.quantity * item.unit_price for item in items),
+            Decimal('0'),
+        )
+        self.tax_amount = sum(
+            (item.tax_amount for item in items),
+            Decimal('0'),
+        )
         discounted_subtotal = max(Decimal('0'), self.subtotal - self.discount_amount)
         self.grand_total = (discounted_subtotal + self.tax_amount).quantize(TAX_PRECISION)
         self.subtotal = self.subtotal.quantize(TAX_PRECISION)
@@ -1193,16 +1203,18 @@ class InvoiceItem(SoftDeleteModel):
 
         super().save(*args, **kwargs)
 
-        # Skip stock movement for soft-deleted rows to avoid unique-constraint conflicts
         if not self.is_deleted and not self.product.is_service:
-            StockMovement.objects.update_or_create(
+            StockMovement.all_objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
                 defaults={
                     'product': self.product,
                     'movement_type': 'sale_out',
                     'quantity': (-Decimal(self.quantity)).quantize(TAX_PRECISION),
-                    'date': self.invoice.date
+                    'date': self.invoice.date,
+                    'is_deleted': False,
+                    'deleted_at': None,
+                    'deleted_by': None,
                 }
             )
             
@@ -1493,8 +1505,17 @@ class Purchase(SoftDeleteModel):
 
     def calculate_totals(self):
         items = self.items.all()
-        self.subtotal = sum(item.quantity * item.unit_price for item in items)
-        self.tax_amount = sum(item.tax_amount for item in items)
+        # NOTE: start value Decimal('0') is MANDATORY — same reason as
+        # Invoice.calculate_totals(). Prevents int-vs-Decimal crash when
+        # the last item is removed.
+        self.subtotal = sum(
+            (item.quantity * item.unit_price for item in items),
+            Decimal('0'),
+        )
+        self.tax_amount = sum(
+            (item.tax_amount for item in items),
+            Decimal('0'),
+        )
         discounted_subtotal = max(Decimal('0'), self.subtotal - self.discount_amount)
         self.grand_total = (discounted_subtotal + self.tax_amount + self.freight_charge).quantize(TAX_PRECISION)
         self.subtotal = self.subtotal.quantize(TAX_PRECISION)
@@ -1526,14 +1547,17 @@ class PurchaseItem(SoftDeleteModel):
         super().save(*args, **kwargs)
 
         if not self.is_deleted and not self.product.is_service and not self.is_office_use:
-            StockMovement.objects.update_or_create(
+            StockMovement.all_objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
                 defaults={
                     'product': self.product,
                     'movement_type': 'purchase_in',
                     'quantity': Decimal(self.quantity).quantize(TAX_PRECISION),
-                    'date': self.purchase.date
+                    'date': self.purchase.date,
+                    'is_deleted': False,
+                    'deleted_at': None,
+                    'deleted_by': None,
                 }
             )
 
@@ -1807,7 +1831,7 @@ class CreditNoteItem(SoftDeleteModel):
         if (not self.is_deleted
                 and self.credit_note.is_stock_return
                 and not self.product.is_service):
-            StockMovement.objects.update_or_create(
+            StockMovement.all_objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
                 defaults={
@@ -1816,6 +1840,9 @@ class CreditNoteItem(SoftDeleteModel):
                     'quantity': Decimal(self.quantity_returned).quantize(TAX_PRECISION),
                     'date': self.credit_note.date,
                     'reference': f"CN {self.credit_note.credit_note_number}",
+                    'is_deleted': False,
+                    'deleted_at': None,
+                    'deleted_by': None,
                 },
             )
 
@@ -2081,14 +2108,17 @@ class RepairPart(SoftDeleteModel):
         super().save(*args, **kwargs)
 
         if not self.is_deleted and not self.product.is_service:
-            StockMovement.objects.update_or_create(
+            StockMovement.all_objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
                 defaults={
                     'product': self.product,
                     'movement_type': 'repair_out',
                     'quantity': (-Decimal(self.quantity)).quantize(TAX_PRECISION),
-                    'date': self.repair_job.date_in
+                    'date': self.repair_job.date_in,
+                    'is_deleted': False,
+                    'deleted_at': None,
+                    'deleted_by': None,
                 }
             )
 
@@ -2348,6 +2378,14 @@ class Payment(SoftDeleteModel):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
+        old_amount = None
+        if not is_new:
+            # Capture previous amount so we can detect a decrease
+            try:
+                old_amount = Payment.all_objects.get(pk=self.pk).amount
+            except Payment.DoesNotExist:
+                old_amount = None
+
         with transaction.atomic():
             super().save(*args, **kwargs)
             if is_new:
@@ -2356,14 +2394,48 @@ class Payment(SoftDeleteModel):
             else:
                 self.update_ledger_entry()
                 self.update_bank_transaction()
-            
+
+                # ── Auto-trim overallocations when amount decreases ──
+                # Without this, editing a payment to a smaller value leaves
+                # allocations exceeding the new amount → invoices show
+                # paid_amount > grand_total and status flags go wrong.
+                if old_amount is not None and self.amount < old_amount:
+                    self._trim_allocations_to_amount()
+
             # Update contact balances
             if self.contact:
                 self.contact.recalc_balance()
                 self.contact.recalc_advance_balance()
-            
+
             # Update invoice statuses
             self.update_invoices()
+
+    def _trim_allocations_to_amount(self):
+        """
+        Trim allocations (and advance adjustments) from the newest first
+        until the total allocated ≤ payment.amount.
+
+        Called automatically when Payment.amount decreases on edit.
+        """
+        allocations = list(
+            self.allocations.select_related('invoice').order_by('-id')
+        )
+        total = sum(a.amount for a in allocations)
+
+        for alloc in allocations:
+            if total <= self.amount:
+                break
+            excess = total - self.amount
+            if alloc.amount <= excess:
+                # Remove this allocation entirely — HARD delete so the
+                # (payment, invoice) unique constraint is freed for reuse.
+                total -= alloc.amount
+                alloc.hard_delete()
+            else:
+                # Partial trim — reduce this allocation's amount
+                alloc.amount = (alloc.amount - excess).quantize(TAX_PRECISION)
+                alloc.save(update_fields=['amount'])
+                total -= excess
 
     def _get_account_name(self):
         """Get the appropriate account for this payment."""
