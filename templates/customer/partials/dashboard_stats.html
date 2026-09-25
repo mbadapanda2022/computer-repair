@@ -1,6 +1,7 @@
 {% load math_filters %}
 
 <div class="row g-3 mb-4">
+
     <!-- 1. Total Invoices -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
@@ -27,24 +28,44 @@
                 <div>
                     <small class="text-muted d-block">Total Payments</small>
                     <h5 class="mb-0 fw-bold text-success">₹{{ total_payments|default:0|floatformat:2 }}</h5>
-                    <small class="text-muted">Received from you</small>
+                    <small class="text-muted">Paid by you</small>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 3. Total Due -->
+    <!-- 3. Total Due (FIXED — handles negative / advance) -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Total Due</small>
-                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_due|default:0|floatformat:2 }}</h5>
-                    <small class="text-muted">Outstanding balance</small>
-                </div>
+                {% if total_due > 0 %}
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Amount Payable</small>
+                        <h5 class="mb-0 fw-bold text-danger">₹{{ total_due|floatformat:2 }}</h5>
+                        <small class="text-muted">Outstanding balance</small>
+                    </div>
+                {% elif total_due < 0 %}
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-check-circle fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Advance Credit</small>
+                        <h5 class="mb-0 fw-bold text-success">₹{{ total_due|abs_filter|floatformat:2 }}</h5>
+                        <small class="text-muted">Credit with us</small>
+                    </div>
+                {% else %}
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-check-circle fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Balance</small>
+                        <h5 class="mb-0 fw-bold text-success">₹0.00</h5>
+                        <small class="text-muted">No dues</small>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -59,7 +80,7 @@
                 <div>
                     <small class="text-muted d-block">Pending Repairs</small>
                     <h5 class="mb-0 fw-bold text-warning">{{ pending_repairs|default:0 }}</h5>
-                    <small class="text-muted">{{ ready_repairs|default:0 }} ready for delivery</small>
+                    <small class="text-muted">{{ ready_repairs|default:0 }} ready</small>
                 </div>
             </div>
         </div>
@@ -75,13 +96,13 @@
                 <div>
                     <small class="text-muted d-block">Completed Repairs</small>
                     <h5 class="mb-0 fw-bold text-info">{{ completed_repairs|default:0 }}</h5>
-                    <small class="text-muted">Delivered successfully</small>
+                    <small class="text-muted">Delivered</small>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 6. Month Sales (Current Month) -->
+    <!-- 6. This Month Invoices -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -97,7 +118,7 @@
         </div>
     </div>
 
-    <!-- 7. Month Payments -->
+    <!-- 7. This Month Payments -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -113,7 +134,7 @@
         </div>
     </div>
 
-    <!-- 8. Total Repairs (All) -->
+    <!-- 8. Total Repairs -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">

@@ -244,3 +244,51 @@ def sum_value(items, field):
             continue
     return float(total)
 
+
+@register.filter
+def number_to_words_inr(value):
+    """Convert number to Indian Rupees in words."""
+    try:
+        amount = int(Decimal(str(value)))
+    except (TypeError, ValueError, InvalidOperation):
+        return "Zero Rupees Only"
+
+    if amount == 0:
+        return "Zero Rupees Only"
+
+    ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+            'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+            'Seventeen', 'Eighteen', 'Nineteen']
+    tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+
+    def _two_digit(n):
+        if n < 20:
+            return ones[n]
+        return tens[n // 10] + (' ' + ones[n % 10] if n % 10 else '')
+
+    def _three_digit(n):
+        if n >= 100:
+            return ones[n // 100] + ' Hundred' + (' ' + _two_digit(n % 100) if n % 100 else '')
+        return _two_digit(n)
+
+    # Indian numbering: crore, lakh, thousand, hundred
+    crore = amount // 10000000
+    amount %= 10000000
+    lakh = amount // 100000
+    amount %= 100000
+    thousand = amount // 1000
+    amount %= 1000
+    hundred = amount
+
+    parts = []
+    if crore:
+        parts.append(_three_digit(crore) + ' Crore')
+    if lakh:
+        parts.append(_three_digit(lakh) + ' Lakh')
+    if thousand:
+        parts.append(_three_digit(thousand) + ' Thousand')
+    if hundred:
+        parts.append(_three_digit(hundred))
+
+    return ' '.join(parts) + ' Rupees Only'
+

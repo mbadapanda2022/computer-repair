@@ -82,7 +82,7 @@
             <tr>
                 <td><strong>{{ p.purchase_number }}</strong></td>
                 <td>{{ p.date|date:"d M Y" }}</td>
-                <td class="text-center">{{ p.items.count }}</td>
+                <td class="text-center">{{ p.item_count }}</td>
                 <td class="text-end">₹{{ p.subtotal|floatformat:2 }}</td>
                 <td class="text-end">₹{{ p.tax_amount|floatformat:2 }}</td>
                 <td class="text-end">₹{{ p.grand_total|floatformat:2 }}</td>

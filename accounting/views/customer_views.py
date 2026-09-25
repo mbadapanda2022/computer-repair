@@ -638,14 +638,17 @@ def repair_create(request):
     """
     Customer submits a new repair request via portal.
 
-    Professional flow:
-      - contact pulled from logged-in user (never from form)
-      - clear validation errors on failure
-      - submit button loading state
-      - HX-Redirect to detail page on success
+    - Full page (browser URL): renders base_customer template
+    - HTMX request (modal): renders form partial only
     """
     customer = _get_customer(request)
-    template = 'customer/repair_create.html'
+    htmx = is_htmx(request)
+
+    # Choose template based on request type
+    if htmx:
+        template = 'customer/partials/_repair_create_form.html'
+    else:
+        template = 'customer/repair_create.html'
 
     if request.method == 'POST':
         form = CustomerRepairForm(request.POST)
@@ -675,12 +678,13 @@ def repair_create(request):
             except Exception:
                 logger.exception("Staff notification failed for repair %s", job.job_number)
 
-            if is_htmx(request):
+            if htmx:
                 response = HttpResponse()
                 response['HX-Redirect'] = reverse(
                     'customer:customer_repair_detail', args=[job.pk],
                 )
                 response['HX-Trigger'] = json.dumps({
+                    'closeModal': '',
                     'showToast': {
                         'level': 'success',
                         'message': (
@@ -697,17 +701,15 @@ def repair_create(request):
             )
             return redirect('customer:customer_repair_detail', pk=job.pk)
 
-        # ── Validation failed ──
+        # Validation failed
         logger.warning(
             "Customer repair create failed validation | customer=%s | errors=%s",
             customer.pk, dict(form.errors),
         )
-        if is_htmx(request):
-            return render(request, template, {'form': form}, status=200)
+        return render(request, template, {'form': form})
 
-    else:
-        form = CustomerRepairForm()
-
+    # GET
+    form = CustomerRepairForm()
     return render(request, template, {'form': form})
 
 
@@ -1171,7 +1173,7 @@ def customer_purchases_excel(request):
         Purchase.objects
         .filter(vendor=customer)
         .select_related('vendor')
-        .prefetch_related('items')
+        .annotate(item_count=Count('items', distinct=True))
         .order_by('-date', '-id')
     )
 

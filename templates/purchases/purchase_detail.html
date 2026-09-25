@@ -26,8 +26,8 @@
                 <i class="bi bi-printer me-1"></i>Print
             </a>
             {% if purchase.vendor.phone %}
-            <a href="https://wa.me/91{{ purchase.vendor.phone }}?text=Purchase%20{{ purchase.purchase_number }}%20-%20Rs.{{ purchase.grand_total }}"
-               class="btn btn-success" target="_blank" title="Share on WhatsApp">
+            <a href="https://wa.me/91{{ purchase.vendor.phone }}?text={{ 'Purchase '|urlencode }}{{ purchase.purchase_number|urlencode }}{{ ' - Rs.'|urlencode }}{{ purchase.grand_total|urlencode }}"
+            class="btn btn-success" target="_blank" rel="noopener" title="Share on WhatsApp">
                 <i class="bi bi-whatsapp me-1"></i>WhatsApp
             </a>
             {% endif %}
@@ -261,7 +261,7 @@
         <div class="card-header bg-light fw-bold d-flex justify-content-between align-items-center">
             <span><i class="bi bi-shop me-1"></i>Vendor Quick View</span>
             <div class="d-flex gap-2">
-                {% if purchase.vendor.contact_type in 'vendor,both' or purchase.vendor.contact_type == 'vendor' or purchase.vendor.contact_type == 'both' %}
+                {% if purchase.vendor.contact_type == 'vendor' or purchase.vendor.contact_type == 'both' %}
                 <a href="{% url 'accounting:vendor_statement' purchase.vendor.pk %}"
                    class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-file-text me-1"></i>View Statement

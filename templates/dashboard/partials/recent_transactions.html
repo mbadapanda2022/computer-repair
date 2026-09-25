@@ -3,8 +3,8 @@
 <div class="card border-0 shadow-sm">
     <div class="card-header bg-white d-flex justify-content-between align-items-center fw-semibold">
         <span><i class="bi bi-clock-history me-2 text-primary"></i>Recent Activity</span>
-        <button class="btn btn-sm btn-outline-secondary" 
-                hx-get="{% url 'accounting:recent_transactions' %}" 
+        <button class="btn btn-sm btn-outline-secondary"
+                hx-get="{% url 'accounting:recent_transactions' %}"
                 hx-target="#recent-transactions-container"
                 hx-swap="innerHTML">
             <i class="bi bi-arrow-clockwise"></i>
@@ -12,17 +12,26 @@
     </div>
     <div class="card-body p-0">
         <ul class="list-group list-group-flush">
+
+            {# ══════════ RECENT INVOICES ══════════ #}
+            {% if recent_invoices %}
+            <li class="list-group-item bg-light fw-semibold small text-uppercase text-muted py-2">
+                <i class="bi bi-receipt me-1"></i>Recent Invoices
+            </li>
             {% for invoice in recent_invoices %}
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
                     <i class="bi bi-receipt text-primary me-2"></i>
-                    <strong>{{ invoice.invoice_number }}</strong>
+                    <a href="{% url 'accounting:invoice_detail' invoice.pk %}"
+                       class="text-decoration-none fw-semibold">
+                        {{ invoice.invoice_number }}
+                    </a>
                     <span class="text-muted ms-2">- {{ invoice.customer.name }}</span>
                 </div>
                 <div>
-                    <span class="badge 
+                    <span class="badge
                         {% if invoice.payment_status == 'paid' %}bg-success
-                        {% elif invoice.payment_status == 'partial' %}bg-warning
+                        {% elif invoice.payment_status == 'partial' %}bg-warning text-dark
                         {% else %}bg-danger{% endif %} me-2">
                         {{ invoice.get_payment_status_display }}
                     </span>
@@ -30,24 +39,31 @@
                     <small class="text-muted ms-2">{{ invoice.date|date:"d M" }}</small>
                 </div>
             </li>
-            {% empty %}
-            <li class="list-group-item text-center text-muted py-3">No recent invoices</li>
             {% endfor %}
-            
+            {% endif %}
+
+            {# ══════════ RECENT REPAIRS ══════════ #}
+            {% if recent_repairs %}
+            <li class="list-group-item bg-light fw-semibold small text-uppercase text-muted py-2">
+                <i class="bi bi-tools me-1"></i>Recent Repairs
+            </li>
             {% for repair in recent_repairs %}
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
                     <i class="bi bi-tools text-warning me-2"></i>
-                    <strong>{{ repair.job_number }}</strong>
+                    <a href="{% url 'accounting:repair_detail' repair.pk %}"
+                       class="text-decoration-none fw-semibold">
+                        {{ repair.job_number }}
+                    </a>
                     <span class="text-muted ms-2">- {{ repair.customer.name }}</span>
                     <span class="text-muted ms-2">({{ repair.device_model }})</span>
                 </div>
                 <div>
-                    <span class="badge 
+                    <span class="badge
                         {% if repair.status == 'delivered' %}bg-success
                         {% elif repair.status == 'pending' %}bg-secondary
-                        {% elif repair.status == 'diagnosis' %}bg-info
-                        {% elif repair.status == 'repairing' %}bg-warning
+                        {% elif repair.status == 'diagnosis' %}bg-info text-dark
+                        {% elif repair.status == 'repairing' %}bg-warning text-dark
                         {% elif repair.status == 'ready' %}bg-primary
                         {% else %}bg-danger{% endif %} me-2">
                         {{ repair.get_status_display }}
@@ -55,10 +71,14 @@
                     <small class="text-muted">{{ repair.date_in|date:"d M" }}</small>
                 </div>
             </li>
-            {% empty %}
-            <li class="list-group-item text-center text-muted py-3">No recent repairs</li>
             {% endfor %}
-            
+            {% endif %}
+
+            {# ══════════ RECENT PAYMENTS ══════════ #}
+            {% if recent_payments %}
+            <li class="list-group-item bg-light fw-semibold small text-uppercase text-muted py-2">
+                <i class="bi bi-credit-card me-1"></i>Recent Payments
+            </li>
             {% for payment in recent_payments %}
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
@@ -68,7 +88,7 @@
                     <span class="text-muted ms-2">({{ payment.get_method_display }})</span>
                 </div>
                 <div>
-                    <span class="fw-bold 
+                    <span class="fw-bold
                         {% if payment.direction == 'received' %}text-success{% else %}text-danger{% endif %}">
                         {% if payment.direction == 'received' %}+{% else %}-{% endif %}
                         ₹{{ payment.amount|floatformat:2 }}
@@ -76,12 +96,20 @@
                     <small class="text-muted ms-2">{{ payment.date|date:"d M" }}</small>
                 </div>
             </li>
-            {% empty %}
-            <li class="list-group-item text-center text-muted py-3">No recent payments</li>
             {% endfor %}
+            {% endif %}
+
+            {# ══════════ EMPTY STATE ══════════ #}
+            {% if not recent_invoices and not recent_repairs and not recent_payments %}
+            <li class="list-group-item text-center text-muted py-4">
+                <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
+                No recent activity yet
+            </li>
+            {% endif %}
+
         </ul>
     </div>
     <div class="card-footer bg-white text-muted small">
-        <i class="bi bi-info-circle"></i> Showing latest 10 transactions in each category
+        <i class="bi bi-info-circle"></i> Showing latest 10 transactions per category
     </div>
 </div>

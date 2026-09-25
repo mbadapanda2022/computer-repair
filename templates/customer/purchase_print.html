@@ -84,62 +84,101 @@
         {% endif %}
     </div>
 
-    {% if purchase_items %}
-    <table class="table">
-        <thead>
-            <tr>
-                <th style="width:5%;">#</th>
-                <th style="width:42%;">Product</th>
-                <th class="text-center" style="width:10%;">Qty</th>
-                <th class="text-end" style="width:16%;">Unit Price</th>
-                <th class="text-end" style="width:12%;">Tax</th>
-                <th class="text-end" style="width:15%;">Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in purchase_items %}
-            <tr>
-                <td>{{ forloop.counter }}</td>
-                <td>
-                    {{ item.product.name }}
-                </td>
-                <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
-                <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
-                <td class="text-end">
-                    {% if item.tax_rate > 0 %}{{ item.tax_rate }}%{% else %}—{% endif %}
-                </td>
-                <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
-            </tr>
-            {% endfor %}
+        {% if purchase_items %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width:5%;">#</th>
+                    <th style="width:42%;">Product</th>
+                    <th class="text-center" style="width:10%;">Qty</th>
+                    <th class="text-end" style="width:16%;">Unit Price</th>
+                    <th class="text-end" style="width:12%;">Tax</th>
+                    <th class="text-end" style="width:15%;">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in purchase_items %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        {{ item.product.name }}
+                        {% if item.is_office_use %}
+                            <span style="font-size: 7.5pt; color: #b8860b; font-weight: 600;">[Office]</span>
+                        {% endif %}
+                        {% if item.description %}
+                            <br><small style="color:#6c757d;">{{ item.description }}</small>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                    <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                    <td class="text-end">
+                        {% if item.tax_rate > 0 %}{{ item.tax_rate }}%{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
 
-            <tr class="total-row">
-                <td colspan="4" class="text-end">Subtotal</td>
-                <td colspan="2" class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
-            </tr>
-            {% if purchase.discount_amount > 0 %}
-            <tr class="total-row">
-                <td colspan="4" class="text-end text-danger">Discount</td>
-                <td colspan="2" class="text-end text-danger">-₹{{ purchase.discount_amount|floatformat:2 }}</td>
-            </tr>
-            {% endif %}
-            {% if purchase.freight_charge > 0 %}
-            <tr class="total-row">
-                <td colspan="4" class="text-end">Freight</td>
-                <td colspan="2" class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
-            </tr>
-            {% endif %}
-            <tr class="total-row">
-                <td colspan="4" class="text-end">Tax</td>
-                <td colspan="2" class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
-            </tr>
-            <tr class="grand-total">
-                <td colspan="4" class="text-end" style="font-size:10pt;">Grand Total</td>
-                <td colspan="2" class="text-end" style="font-size:12pt; font-weight:700;">
-                    ₹{{ purchase.grand_total|floatformat:2 }}
+                <tr class="total-row">
+                    <td colspan="4" class="text-end">Subtotal</td>
+                    <td colspan="2" class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                </tr>
+                {% if purchase.discount_amount > 0 %}
+                <tr class="total-row">
+                    <td colspan="4" class="text-end text-danger">Discount</td>
+                    <td colspan="2" class="text-end text-danger">−₹{{ purchase.discount_amount|floatformat:2 }}</td>
+                </tr>
+                {% endif %}
+                {% if purchase.freight_charge > 0 %}
+                <tr class="total-row">
+                    <td colspan="4" class="text-end">Freight</td>
+                    <td colspan="2" class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+                </tr>
+                {% endif %}
+                <tr class="total-row">
+                    <td colspan="4" class="text-end">Tax</td>
+                    <td colspan="2" class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                </tr>
+                <tr class="grand-total">
+                    <td colspan="4" class="text-end" style="font-size:10pt;">Grand Total</td>
+                    <td colspan="2" class="text-end" style="font-size:12pt; font-weight:700;">
+                        ₹{{ purchase.grand_total|floatformat:2 }}
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align: center; padding: 20px; color: #6c757d;">
+            No items in this order.
+        </div>
+        {% endif %}
+
+    <!-- GST Breakup -->
+    {% if purchase.gst_type != 'non_gst' and purchase.tax_amount > 0 %}
+    <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+        <table style="width: 300px; font-size: 8.5pt;">
+            {% if purchase.gst_type == 'intrastate' %}
+            <tr>
+                <td style="border: 1px solid #dee2e6; padding: 3px 8px;">CGST (9%)</td>
+                <td class="text-end" style="border: 1px solid #dee2e6; padding: 3px 8px;">
+                    ₹{{ purchase.tax_amount|divide:2|floatformat:2 }}
                 </td>
             </tr>
-        </tbody>
-    </table>
+            <tr>
+                <td style="border: 1px solid #dee2e6; padding: 3px 8px;">SGST (9%)</td>
+                <td class="text-end" style="border: 1px solid #dee2e6; padding: 3px 8px;">
+                    ₹{{ purchase.tax_amount|divide:2|floatformat:2 }}
+                </td>
+            </tr>
+            {% elif purchase.gst_type == 'interstate' %}
+            <tr>
+                <td style="border: 1px solid #dee2e6; padding: 3px 8px;">IGST (18%)</td>
+                <td class="text-end" style="border: 1px solid #dee2e6; padding: 3px 8px;">
+                    ₹{{ purchase.tax_amount|floatformat:2 }}
+                </td>
+            </tr>
+            {% endif %}
+        </table>
+    </div>
     {% endif %}
 
     <div class="footer">

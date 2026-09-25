@@ -131,13 +131,12 @@
                            hx-push-url="true">
                 </div>
                 <div class="col-md-1">
-                    <a href="{% url 'accounting:purchase_list' %}"
-                       class="btn btn-secondary w-100"
-                       hx-get="{% url 'accounting:purchase_list' %}"
-                       hx-target="#purchase-table-container"
-                       title="Reset filters">
+                    <button type="button"
+                            class="btn btn-secondary w-100"
+                            onclick="resetPurchaseFilters()"
+                            title="Reset filters">
                         <i class="bi bi-arrow-counterclockwise"></i>
-                    </a>
+                    </button>
                 </div>
             </form>
         </div>
@@ -150,37 +149,47 @@
 </div>
 
 <script>
-function getCurrentFilterParams() {
-    const form = document.getElementById('purchase-filter-form');
-    const formData = new FormData(form);
-    const params = new URLSearchParams();
-    for (const [key, value] of formData.entries()) {
-        if (value && value.trim() !== '') params.append(key, value);
+    function getCurrentFilterParams() {
+        const form = document.getElementById('purchase-filter-form');
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+            if (value && value.trim() !== '') params.append(key, value);
+        }
+        return params;
     }
-    return params;
-}
 
-function downloadWithFilters(type) {
-    const params = getCurrentFilterParams();
-    const qs = params.toString();
-    if (type === 'print') {
-        let url = "{% url 'accounting:purchase_list_print' %}";
-        if (qs) url += '?' + qs;
-        window.open(url, '_blank');
-    } else if (type === 'excel') {
-        let url = "{% url 'accounting:purchase_list_excel' %}";
-        if (qs) url += '?' + qs;
-        window.location.href = url;
+    function downloadWithFilters(type) {
+        const params = getCurrentFilterParams();
+        const qs = params.toString();
+        if (type === 'print') {
+            let url = "{% url 'accounting:purchase_list_print' %}";
+            if (qs) url += '?' + qs;
+            window.open(url, '_blank');
+        } else if (type === 'excel') {
+            let url = "{% url 'accounting:purchase_list_excel' %}";
+            if (qs) url += '?' + qs;
+            window.location.href = url;
+        }
     }
-}
 
-document.body.addEventListener('reloadPurchases', function() {
-    const params = getCurrentFilterParams();
-    const qs = params.toString();
-    htmx.ajax('GET', "{% url 'accounting:purchase_list' %}" + (qs ? '?' + qs : ''), {
-        target: '#purchase-table-container',
-        swap: 'innerHTML'
+    document.body.addEventListener('reloadPurchases', function() {
+        const params = getCurrentFilterParams();
+        const qs = params.toString();
+        htmx.ajax('GET', "{% url 'accounting:purchase_list' %}" + (qs ? '?' + qs : ''), {
+            target: '#purchase-table-container',
+            swap: 'innerHTML'
+        });
     });
-});
+
+    function resetPurchaseFilters() {
+        const form = document.getElementById('purchase-filter-form');
+        if (form) form.reset();
+        htmx.ajax('GET', "{% url 'accounting:purchase_list' %}", {
+            target: '#purchase-table-container',
+            swap: 'innerHTML'
+        });
+        window.history.pushState({}, '', "{% url 'accounting:purchase_list' %}");
+    }
 </script>
 {% endblock %}

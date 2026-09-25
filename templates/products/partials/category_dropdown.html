@@ -1,17 +1,24 @@
 <!-- templates/products/partials/category_dropdown.html -->
-<select name="category" id="id_category" class="form-select">
-    <option value="">---------</option>
-    {% for cat in categories %}
-        <option value="{{ cat.id }}" {% if selected_category_id == cat.id|stringformat:"s" %}selected{% endif %}>
-            {{ cat.name }}
-        </option>
-    {% endfor %}
-</select>
-<button type="button" class="btn btn-outline-secondary" 
-        id="add-category-btn"
-        hx-get="{% url 'accounting:add_category_inline' %}" 
-        hx-target="#category-field-container"
-        hx-swap="innerHTML"
-        hx-trigger="click">
-    <i class="bi bi-plus-circle"></i>
-</button>
+<div class="d-flex align-items-stretch gap-2">
+    <select name="category" id="id_category" class="form-select">
+        <option value="">— Select Category —</option>
+        {% for cat in categories %}
+            <option value="{{ cat.id }}" {% if selected_category_id == cat.id|stringformat:"s" %}selected{% endif %}>
+                {{ cat.name }}
+            </option>
+        {% endfor %}
+    </select>
+    <button type="button"
+            class="btn btn-outline-primary text-nowrap"
+            id="add-category-btn"
+            hx-get="{% url 'accounting:add_category_inline' %}"
+            hx-target="#category-field-container"
+            hx-swap="innerHTML"
+            hx-trigger="click"
+            title="Add new category">
+        <i class="bi bi-plus-circle"></i>
+    </button>
+</div>
+
+{# Hidden input for preserving selection on cancel #}
+<input type="hidden" id="current-category-id" value="{{ selected_category_id|default:'' }}">

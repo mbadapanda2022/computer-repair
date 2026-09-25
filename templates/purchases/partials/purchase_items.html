@@ -222,7 +222,6 @@
                 is_office_use: (officeChk && officeChk.checked) ? 'on' : ''
             }
         }).then(function() {
-            // Small delay so the new DOM is settled before resetting
             setTimeout(function() {
                 const c = getContainer();
                 if (!c) return;
@@ -235,6 +234,11 @@
                 if (nq) nq.value = '1';
                 if (no) no.checked = false;
             }, 100);
+        }).catch(function(err) {
+            if (window.showToast) {
+                window.showToast('danger', 'Failed to add item. Please try again.');
+            }
+            console.error('Add item failed:', err);
         });
     }
 

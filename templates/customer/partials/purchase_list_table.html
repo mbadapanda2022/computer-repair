@@ -47,7 +47,16 @@
                     <tr>
                         <td colspan="8" class="text-center py-5 text-muted">
                             <i class="bi bi-inbox display-6 d-block mb-2 opacity-50"></i>
-                            <p class="mb-0">No purchases match your filters.</p>
+                            <h5 class="text-muted mb-2">No orders found</h5>
+                            {% if search or paid_filter or date_from or date_to %}
+                                <p class="mb-2">Try adjusting your filters or</p>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        onclick="resetFilters()">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i>Clear Filters
+                                </button>
+                            {% else %}
+                                <p class="mb-0">You don't have any orders from us yet.</p>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -72,18 +81,21 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_purchases' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#purchase-list-container">
+                    hx-get="{% url 'customer:customer_purchases' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#purchase-list-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_purchases' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#purchase-list-container">
+                    hx-get="{% url 'customer:customer_purchases' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#purchase-list-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-left"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
                 {% endif %}
 
                 <li class="page-item active">
@@ -93,21 +105,28 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_purchases' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#purchase-list-container">
+                    hx-get="{% url 'customer:customer_purchases' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#purchase-list-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'customer:customer_purchases' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#purchase-list-container">
+                    hx-get="{% url 'customer:customer_purchases' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if paid_filter %}&paid={{ paid_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#purchase-list-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-right"></i></span></li>
                 {% endif %}
             </ul>
         </nav>
+        <p class="text-center text-muted small mb-0 mt-2">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} —
+            showing {{ page_obj.object_list|length }} of {{ page_obj.paginator.count }} orders.
+        </p>
     </div>
     {% endif %}
 </div>

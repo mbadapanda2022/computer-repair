@@ -2,6 +2,7 @@
 {% load static %}
 
 <form method="post"
+      action="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}"
       id="productForm"
       hx-post="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}"
       hx-target="#product-table-container"

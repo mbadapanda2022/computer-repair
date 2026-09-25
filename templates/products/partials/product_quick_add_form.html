@@ -1,25 +1,25 @@
 {% load static %}
 
-<form method="post" 
+<form method="post"
+      action="{% url 'accounting:product_quick_add' %}"
       id="quickAddForm"
-      hx-post="{% url 'accounting:product_quick_add' %}" 
+      hx-post="{% url 'accounting:product_quick_add' %}"
       hx-target="#quickAddModalContent"
       hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       hx-indicator="#quick-add-spinner"
       novalidate>
-    
+
     {% csrf_token %}
-    
+
     <div class="modal-header">
         <h5 class="modal-title fw-bold">
             <i class="bi bi-plus-circle text-primary me-2"></i>Quick Add Product
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
     </div>
-    
+
     <div class="modal-body">
-        <!-- Non-field errors -->
         {% if form.non_field_errors %}
             <div class="alert alert-danger py-2">
                 {% for error in form.non_field_errors %}
@@ -27,8 +27,7 @@
                 {% endfor %}
             </div>
         {% endif %}
-        
-        <!-- Product Name -->
+
         <div class="mb-3" id="field-name">
             <label for="{{ form.name.id_for_label }}" class="form-label fw-semibold">
                 Product Name <span class="text-danger">*</span>
@@ -42,8 +41,7 @@
                 </div>
             {% endif %}
         </div>
-        
-        <!-- HSN Code -->
+
         <div class="mb-3" id="field-hsn_code">
             <label for="{{ form.hsn_code.id_for_label }}" class="form-label fw-semibold">HSN/SAC Code</label>
             {{ form.hsn_code }}
@@ -56,14 +54,13 @@
                 </div>
             {% endif %}
         </div>
-        
-        <!-- Category -->
+
         <div class="mb-3" id="field-category">
             <label for="{{ form.category.id_for_label }}" class="form-label fw-semibold">Category</label>
             {{ form.category }}
             <small class="text-muted">
-                <a href="#" 
-                   hx-get="{% url 'accounting:add_category_inline' %}" 
+                <a href="#"
+                   hx-get="{% url 'accounting:add_category_inline' %}"
                    hx-target="#field-category"
                    hx-swap="afterend"
                    class="text-decoration-none">
@@ -78,8 +75,7 @@
                 </div>
             {% endif %}
         </div>
-        
-        <!-- Unit -->
+
         <div class="mb-3" id="field-unit">
             <label for="{{ form.unit.id_for_label }}" class="form-label fw-semibold">Unit</label>
             {{ form.unit }}
@@ -91,8 +87,7 @@
                 </div>
             {% endif %}
         </div>
-        
-        <!-- Purchase & Selling Price -->
+
         <div class="row g-3">
             <div class="col-md-6" id="field-purchase_price">
                 <div class="mb-3">
@@ -121,8 +116,7 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Stock & Threshold -->
+
         <div class="row g-3">
             <div class="col-md-6" id="field-current_stock">
                 <div class="mb-3">
@@ -152,8 +146,7 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Tax Rate -->
+
         <div class="mb-3" id="field-tax_rate">
             <label for="{{ form.tax_rate.id_for_label }}" class="form-label fw-semibold">Tax Rate (%)</label>
             {{ form.tax_rate }}
@@ -166,8 +159,7 @@
                 </div>
             {% endif %}
         </div>
-        
-        <!-- Checkboxes -->
+
         <div class="row g-3">
             <div class="col-md-6">
                 <div class="form-check">
@@ -201,7 +193,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
             <i class="bi bi-x-circle"></i> Cancel
@@ -213,23 +205,28 @@
     </div>
 </form>
 
-<!-- HTMX Spinner Toggle -->
 <script>
-    document.addEventListener('htmx:beforeRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
-            const spinner = document.getElementById('quick-add-spinner');
-            const btnText = document.querySelector('#quick-add-submit');
-            if (spinner) spinner.classList.remove('d-none');
-            if (btnText) btnText.disabled = true;
-        }
-    });
+    (function () {
+        'use strict';
 
-    document.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
+        document.body.addEventListener('htmx:beforeRequest', function (evt) {
+            const elt = evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#quickAddForm')) return;
+
             const spinner = document.getElementById('quick-add-spinner');
-            const btnText = document.querySelector('#quick-add-submit');
+            const btn = document.getElementById('quick-add-submit');
+            if (spinner) spinner.classList.remove('d-none');
+            if (btn) btn.disabled = true;
+        });
+
+        document.body.addEventListener('htmx:afterRequest', function (evt) {
+            const elt = evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#quickAddForm')) return;
+
+            const spinner = document.getElementById('quick-add-spinner');
+            const btn = document.getElementById('quick-add-submit');
             if (spinner) spinner.classList.add('d-none');
-            if (btnText) btnText.disabled = false;
-        }
-    });
+            if (btn) btn.disabled = false;
+        });
+    })();
 </script>

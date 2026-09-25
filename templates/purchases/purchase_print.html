@@ -212,7 +212,7 @@
 <!-- ========================= AMOUNT IN WORDS ========================= -->
 <div class="amount-words">
     <strong>Amount in Words:</strong>
-    Rupees {{ purchase.grand_total|floatformat:2 }} Only
+    {{ purchase.grand_total|number_to_words_inr }}
 </div>
 
 <!-- ========================= TERMS ========================= -->

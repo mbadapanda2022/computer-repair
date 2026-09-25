@@ -208,22 +208,28 @@
 </form>
 
 <script>
-    document.addEventListener('htmx:beforeRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
+    (function () {
+        'use strict';
+
+        document.body.addEventListener('htmx:beforeRequest', function (evt) {
+            const elt = evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#quickAddForm')) return;
+
             const spinner = document.getElementById('quick-add-spinner');
             const btn = document.querySelector('#quick-add-submit');
             if (spinner) spinner.classList.remove('d-none');
             if (btn) btn.disabled = true;
-        }
-    });
+        });
 
-    document.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#quickAddForm')) {
+        document.body.addEventListener('htmx:afterRequest', function (evt) {
+            const elt = evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#quickAddForm')) return;
+
             const spinner = document.getElementById('quick-add-spinner');
             const btn = document.querySelector('#quick-add-submit');
             if (spinner) spinner.classList.add('d-none');
             if (btn) btn.disabled = false;
-        }
-    });
+        });
+    })();
 </script>
 

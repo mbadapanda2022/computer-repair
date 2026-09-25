@@ -100,6 +100,27 @@ def dashboard(request):
             is_read=False
         ).count()
         
+        # ── Overdue Invoices ──
+        from datetime import date as _date
+        overdue_qs = Invoice.objects.filter(
+            payment_status__in=['unpaid', 'partial'],
+            due_date__lt=today,
+            due_date__isnull=False,
+        )
+        overdue_count = overdue_qs.count()
+        overdue_amount = overdue_qs.aggregate(
+            total=Sum('balance_due')
+        )['total'] or Decimal('0')
+
+        # ── Low Stock Products (top 10) ──
+        low_stock_products = list(
+            Product.objects.filter(
+                is_service=False,
+                is_active=True,
+                current_stock__lte=F('low_stock_threshold'),
+            ).order_by('current_stock')[:10]
+        )
+        
         context = {
             # Stats
             'today_sales': today_sales,
@@ -115,6 +136,9 @@ def dashboard(request):
             'total_paid_amount': total_paid_amount,
             'total_due_amount': total_due_amount,
             'unread_notifications': unread_notifications,
+            'overdue_count': overdue_count,
+            'overdue_amount': overdue_amount,
+            'low_stock_products': low_stock_products,
             # Recent
             'recent_invoices': recent_invoices,
             'recent_repairs': recent_repairs,
@@ -148,6 +172,9 @@ def dashboard(request):
             'total_paid_amount': Decimal('0'),
             'total_due_amount': Decimal('0'),
             'unread_notifications': 0,
+            'overdue_count': 0,
+            'overdue_amount': Decimal('0'),
+            'low_stock_products': [],
             'recent_invoices': [],
             'recent_repairs': [],
             'recent_payments': [],

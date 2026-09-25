@@ -3,7 +3,23 @@
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
-    <!-- Header -->
+
+    <!-- ══════════ OVERDUE ALERT (if any) ══════════ -->
+    {% if overdue_count %}
+    <div class="alert alert-warning d-flex align-items-center mb-3 shadow-sm">
+        <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+        <div class="flex-grow-1">
+            <strong>{{ overdue_count }} invoice{{ overdue_count|pluralize }} overdue</strong>
+            <div class="small">₹{{ overdue_amount|floatformat:2 }} pending collection</div>
+        </div>
+        <a href="{% url 'accounting:invoice_list' %}?status=overdue"
+           class="btn btn-sm btn-warning">
+            View Overdue
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- ══════════ HEADER ══════════ -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>
             <h3 class="fw-semibold mb-0">
@@ -17,8 +33,8 @@
             </p>
         </div>
         <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-outline-primary" 
-                    hx-get="{% url 'accounting:refresh_stats' %}" 
+            <button class="btn btn-outline-primary"
+                    hx-get="{% url 'accounting:refresh_stats' %}"
                     hx-target="#stats-container"
                     hx-swap="innerHTML"
                     hx-indicator="#refresh-spinner">
@@ -31,12 +47,46 @@
         </div>
     </div>
 
-    <!-- Stats Cards -->
+    <!-- ══════════ STATS CARDS ══════════ -->
     <div id="stats-container">
         {% include "dashboard/partials/stats_cards.html" %}
     </div>
 
-    <!-- Charts -->
+    <!-- ══════════ LOW STOCK WIDGET ══════════ -->
+    {% if low_stock_products %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center fw-semibold text-danger">
+            <span>
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                Low Stock Alert ({{ low_stock }} item{{ low_stock|pluralize }})
+            </span>
+            <a href="{% url 'accounting:product_list' %}?stock_filter=low"
+               class="btn btn-sm btn-outline-danger">
+                View All
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <ul class="list-group list-group-flush">
+                {% for p in low_stock_products %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ p.name }}</strong>
+                        {% if p.hsn_code %}
+                            <small class="text-muted ms-2">HSN: {{ p.hsn_code }}</small>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <span class="badge bg-danger me-2">{{ p.current_stock|floatformat:0 }} left</span>
+                        <small class="text-muted">Threshold: {{ p.low_stock_threshold }}</small>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ══════════ CHARTS ══════════ -->
     <div class="row g-3 mb-4">
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm">
@@ -44,7 +94,12 @@
                     <i class="bi bi-graph-up me-2 text-primary"></i>Sales & Purchase Trend
                 </div>
                 <div class="card-body">
-                    <canvas id="salesChart" height="280"></canvas>
+                    <div id="salesChart-wrap" style="height: 280px; position: relative;">
+                        <canvas id="salesChart"></canvas>
+                        <div class="chart-loader position-absolute top-50 start-50 translate-middle text-muted">
+                            <span class="spinner-border spinner-border-sm me-2"></span> Loading...
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -54,7 +109,12 @@
                     <i class="bi bi-pie-chart me-2 text-success"></i>Top Products
                 </div>
                 <div class="card-body">
-                    <canvas id="productsChart" height="280"></canvas>
+                    <div id="productsChart-wrap" style="height: 280px; position: relative;">
+                        <canvas id="productsChart"></canvas>
+                        <div class="chart-loader position-absolute top-50 start-50 translate-middle text-muted">
+                            <span class="spinner-border spinner-border-sm me-2"></span> Loading...
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -67,7 +127,12 @@
                     <i class="bi bi-credit-card me-2 text-info"></i>Payment Methods
                 </div>
                 <div class="card-body">
-                    <canvas id="paymentChart" height="200"></canvas>
+                    <div id="paymentChart-wrap" style="height: 200px; position: relative;">
+                        <canvas id="paymentChart"></canvas>
+                        <div class="chart-loader position-absolute top-50 start-50 translate-middle text-muted">
+                            <span class="spinner-border spinner-border-sm me-2"></span> Loading...
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -77,18 +142,23 @@
                     <i class="bi bi-tools me-2 text-warning"></i>Repair Status Distribution
                 </div>
                 <div class="card-body">
-                    <canvas id="repairStatusChart" height="200"></canvas>
+                    <div id="repairStatusChart-wrap" style="height: 200px; position: relative;">
+                        <canvas id="repairStatusChart"></canvas>
+                        <div class="chart-loader position-absolute top-50 start-50 translate-middle text-muted">
+                            <span class="spinner-border spinner-border-sm me-2"></span> Loading...
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Recent Transactions -->
+    <!-- ══════════ RECENT TRANSACTIONS ══════════ -->
     <div id="recent-transactions-container">
         {% include "dashboard/partials/recent_transactions.html" %}
     </div>
 
-    <!-- Quick Actions -->
+    <!-- ══════════ QUICK ACTIONS ══════════ -->
     <div class="card border-0 shadow-sm mt-3">
         <div class="card-header bg-white fw-semibold">
             <i class="bi bi-lightning me-2 text-warning"></i>Quick Actions
@@ -112,36 +182,35 @@
                 </div>
                 <div class="col-md-3 col-sm-6">
                     <button class="btn btn-outline-info w-100"
-                        hx-get="{% url 'accounting:payment_create' %}"
-                        hx-target="#mainModalContent"
-                        hx-trigger="click">
+                            hx-get="{% url 'accounting:payment_create' %}"
+                            hx-target="#mainModalContent"
+                            hx-trigger="click">
                         <i class="bi bi-credit-card me-1"></i> New Payment
                     </button>
                 </div>
-                
                 <div class="col-md-3 col-sm-6">
-                    <button class="btn btn-outline-secondary w-100" 
-                        hx-get="{% url 'accounting:contact_create' %}" 
-                        hx-target="#mainModalContent" 
-                        hx-trigger="click">
+                    <button class="btn btn-outline-secondary w-100"
+                            hx-get="{% url 'accounting:contact_create' %}"
+                            hx-target="#mainModalContent"
+                            hx-trigger="click">
                         <i class="bi bi-plus-circle me-1"></i> Add Contact
                     </button>
                 </div>
                 <div class="col-md-3 col-sm-6">
-                    <button hx-get="{% url 'accounting:product_create' %}" 
-                        hx-target="#mainModalContent"
-                        hx-trigger="click"
-                        class="btn btn-outline-secondary w-100">
+                    <button class="btn btn-outline-secondary w-100"
+                            hx-get="{% url 'accounting:product_create' %}"
+                            hx-target="#mainModalContent"
+                            hx-trigger="click">
                         <i class="bi bi-box me-1"></i> Add Product
                     </button>
                 </div>
                 <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'accounting:journal_create' %}" class="btn btn-outline-secondary w-100"
-                       hx-get="{% url 'accounting:journal_create' %}"
-                       hx-target="#mainModalContent"
-                       hx-trigger="click">
+                    <button class="btn btn-outline-secondary w-100"
+                            hx-get="{% url 'accounting:journal_create' %}"
+                            hx-target="#mainModalContent"
+                            hx-trigger="click">
                         <i class="bi bi-journal-text me-1"></i> New Journal
-                    </a>
+                    </button>
                 </div>
                 <div class="col-md-3 col-sm-6">
                     <a href="{% url 'accounting:stock_adjustment_add' %}" class="btn btn-outline-secondary w-100">
@@ -152,147 +221,286 @@
         </div>
     </div>
 </div>
+
+<style>
+    .chart-loader {
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+    .chart-loaded .chart-loader {
+        opacity: 0;
+    }
+    .chart-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // ============================================================
-    // CHARTS
-    // ============================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        // Fetch chart data
-        fetch("{% url 'accounting:dashboard_stats' %}")
-            .then(response => response.json())
+(function () {
+    'use strict';
+
+    // ════════════════════════════════════════════════════════════
+    // Global chart registry — destroys previous instance on re-init
+    // ════════════════════════════════════════════════════════════
+    window.staffCharts = window.staffCharts || {};
+
+    const CHART_LOAD_URL = "{% url 'accounting:dashboard_stats' %}";
+
+    function showLoader(wrapId) {
+        const wrap = document.getElementById(wrapId);
+        if (!wrap) return;
+        wrap.classList.remove('chart-loaded');
+    }
+
+    function hideLoader(wrapId) {
+        const wrap = document.getElementById(wrapId);
+        if (!wrap) return;
+        wrap.classList.add('chart-loaded');
+    }
+
+    function showEmpty(wrapId, msg) {
+        const wrap = document.getElementById(wrapId);
+        if (!wrap) return;
+        // Remove canvas, add placeholder
+        const canvas = wrap.querySelector('canvas');
+        if (canvas) canvas.remove();
+        const loader = wrap.querySelector('.chart-loader');
+        if (loader) loader.remove();
+
+        if (!wrap.querySelector('.chart-empty')) {
+            const div = document.createElement('div');
+            div.className = 'chart-empty';
+            div.innerHTML = `<div class="text-center">
+                <i class="bi bi-bar-chart fs-1 d-block mb-2 opacity-50"></i>
+                <div>${msg}</div>
+            </div>`;
+            wrap.appendChild(div);
+        }
+    }
+
+    function destroyChart(canvasId) {
+        if (window.staffCharts[canvasId]) {
+            try { window.staffCharts[canvasId].destroy(); } catch (e) {}
+            delete window.staffCharts[canvasId];
+        }
+    }
+
+    function hasData(arr) {
+        return Array.isArray(arr) && arr.length > 0 && arr.some(v => v > 0);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Chart renderers
+    // ════════════════════════════════════════════════════════════
+    function renderSalesChart(data) {
+        const canvasId = 'salesChart';
+        destroyChart(canvasId);
+
+        if (!hasData(data.sales) && !hasData(data.purchases)) {
+            showEmpty('salesChart-wrap', 'No sales/purchase data in last 7 days');
+            return;
+        }
+
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        window.staffCharts[canvasId] = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels.length ? data.labels : ['No data'],
+                datasets: [
+                    {
+                        label: 'Sales',
+                        data: data.sales.length ? data.sales : [0],
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13,110,253,0.1)',
+                        fill: true,
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Purchases',
+                        data: data.purchases.length ? data.purchases : [0],
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220,53,69,0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function (v) { return '₹' + v.toLocaleString('en-IN'); }
+                        }
+                    }
+                }
+            }
+        });
+
+        hideLoader('salesChart-wrap');
+    }
+
+    function renderProductsChart(data) {
+        const canvasId = 'productsChart';
+        destroyChart(canvasId);
+
+        if (!hasData(data.top_products_data)) {
+            showEmpty('productsChart-wrap', 'No product sales yet');
+            return;
+        }
+
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const colors = ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545'];
+        window.staffCharts[canvasId] = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: data.top_products_labels,
+                datasets: [{
+                    data: data.top_products_data,
+                    backgroundColor: colors.slice(0, data.top_products_labels.length),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 10 } } }
+                }
+            }
+        });
+
+        hideLoader('productsChart-wrap');
+    }
+
+    function renderPaymentChart(data) {
+        const canvasId = 'paymentChart';
+        destroyChart(canvasId);
+
+        if (!hasData(data.payment_data)) {
+            showEmpty('paymentChart-wrap', 'No payment data yet');
+            return;
+        }
+
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const colors = ['#28a745', '#0d6efd', '#ffc107', '#dc3545', '#6f42c1'];
+        window.staffCharts[canvasId] = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: data.payment_labels,
+                datasets: [{
+                    data: data.payment_data,
+                    backgroundColor: colors.slice(0, data.payment_labels.length),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 10 } } }
+                }
+            }
+        });
+
+        hideLoader('paymentChart-wrap');
+    }
+
+    function renderRepairStatusChart(data) {
+        const canvasId = 'repairStatusChart';
+        destroyChart(canvasId);
+
+        if (!hasData(data.status_data)) {
+            showEmpty('repairStatusChart-wrap', 'No repair jobs yet');
+            return;
+        }
+
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        const colors = ['#ffc107', '#17a2b8', '#007bff', '#28a745', '#dc3545', '#6c757d'];
+        window.staffCharts[canvasId] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.status_labels,
+                datasets: [{
+                    label: 'Repair Jobs',
+                    data: data.status_data,
+                    backgroundColor: colors.slice(0, data.status_labels.length),
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                }
+            }
+        });
+
+        hideLoader('repairStatusChart-wrap');
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Main loader
+    // ════════════════════════════════════════════════════════════
+    function loadStaffCharts() {
+        ['salesChart-wrap', 'productsChart-wrap', 'paymentChart-wrap', 'repairStatusChart-wrap']
+            .forEach(showLoader);
+
+        fetch(CHART_LOAD_URL, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+            .then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
             .then(data => {
                 if (data.error) {
-                    console.error(data.error);
+                    console.error('Chart API error:', data.error);
+                    ['salesChart-wrap', 'productsChart-wrap', 'paymentChart-wrap', 'repairStatusChart-wrap']
+                        .forEach(id => showEmpty(id, data.error));
                     return;
                 }
 
-                // --- Sales & Purchase Chart ---
-                const ctx1 = document.getElementById('salesChart').getContext('2d');
-                new Chart(ctx1, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels,
-                        datasets: [
-                            {
-                                label: 'Sales',
-                                data: data.sales,
-                                borderColor: '#0d6efd',
-                                backgroundColor: 'rgba(13,110,253,0.1)',
-                                fill: true,
-                                tension: 0.4
-                            },
-                            {
-                                label: 'Purchases',
-                                data: data.purchases,
-                                borderColor: '#dc3545',
-                                backgroundColor: 'rgba(220,53,69,0.1)',
-                                fill: true,
-                                tension: 0.4
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: { position: 'top' }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    callback: function(value) { return '₹' + value.toLocaleString(); }
-                                }
-                            }
-                        }
-                    }
-                });
-
-                // --- Top Products Chart ---
-                if (data.top_products_labels.length > 0) {
-                    const ctx2 = document.getElementById('productsChart').getContext('2d');
-                    const colors = ['#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545'];
-                    new Chart(ctx2, {
-                        type: 'doughnut',
-                        data: {
-                            labels: data.top_products_labels,
-                            datasets: [{
-                                data: data.top_products_data,
-                                backgroundColor: colors,
-                                borderWidth: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                    labels: { font: { size: 10 } }
-                                }
-                            }
-                        }
-                    });
-                }
-
-                // --- Payment Methods Chart ---
-                if (data.payment_labels.length > 0) {
-                    const ctx3 = document.getElementById('paymentChart').getContext('2d');
-                    const colors = ['#28a745', '#0d6efd', '#ffc107'];
-                    new Chart(ctx3, {
-                        type: 'doughnut',
-                        data: {
-                            labels: data.payment_labels,
-                            datasets: [{
-                                data: data.payment_data,
-                                backgroundColor: colors,
-                                borderWidth: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                legend: {
-                                    position: 'bottom',
-                                    labels: { font: { size: 10 } }
-                                }
-                            }
-                        }
-                    });
-                }
-
-                // --- Repair Status Chart ---
-                if (data.status_labels.length > 0) {
-                    const ctx4 = document.getElementById('repairStatusChart').getContext('2d');
-                    const colors = ['#ffc107', '#17a2b8', '#007bff', '#28a745', '#dc3545', '#6c757d'];
-                    new Chart(ctx4, {
-                        type: 'bar',
-                        data: {
-                            labels: data.status_labels,
-                            datasets: [{
-                                label: 'Repair Jobs',
-                                data: data.status_data,
-                                backgroundColor: colors,
-                                borderWidth: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                legend: { display: false }
-                            },
-                            scales: {
-                                y: {
-                                    beginAtZero: true,
-                                    ticks: { stepSize: 1 }
-                                }
-                            }
-                        }
-                    });
-                }
+                renderSalesChart(data);
+                renderProductsChart(data);
+                renderPaymentChart(data);
+                renderRepairStatusChart(data);
             })
-            .catch(error => console.error('Error loading chart data:', error));
-    });
+            .catch(err => {
+                console.error('Chart load failed:', err);
+                ['salesChart-wrap', 'productsChart-wrap', 'paymentChart-wrap', 'repairStatusChart-wrap']
+                    .forEach(id => showEmpty(id, 'Unable to load chart data'));
+            });
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Auto-load on page ready
+    // ════════════════════════════════════════════════════════════
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadStaffCharts);
+    } else {
+        loadStaffCharts();
+    }
+})();
 </script>
 {% endblock %}

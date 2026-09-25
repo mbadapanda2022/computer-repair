@@ -2,6 +2,7 @@
 {% load static %}
 
 <form method="post"
+      action="{% url 'accounting:add_category_inline' %}"
       id="categoryInlineForm"
       hx-post="{% url 'accounting:add_category_inline' %}"
       hx-target="#category-field-container"
@@ -35,6 +36,7 @@
                 <button type="button" class="btn btn-secondary"
                         id="category-cancel-btn"
                         hx-get="{% url 'accounting:add_category_inline' %}?cancel=1"
+                        hx-include="#current-category-id"
                         hx-target="#category-field-container"
                         hx-swap="innerHTML">
                     <i class="bi bi-x-circle"></i>

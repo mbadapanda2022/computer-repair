@@ -14,8 +14,9 @@
                 </div>
                 <div class="card-body">
                     <form method="post" 
-                          id="repairCreateForm" 
-                          novalidate>
+                        action="{% url 'customer:customer_repair_create' %}"
+                        id="repairCreateForm" 
+                        novalidate>
                         {% csrf_token %}
 
                         {% if form.non_field_errors %}
@@ -53,7 +54,12 @@
                             <div class="col-12">
                                 <label for="id_issue_description" class="form-label fw-semibold">Issue Description *</label>
                                 <textarea name="issue_description" id="id_issue_description" rows="4" 
-                                          class="form-control">{{ form.issue_description.value|default:'' }}</textarea>
+                                        class="form-control"
+                                        hx-get="{% url 'customer:customer_validate_repair_field' %}" 
+                                        hx-trigger="blur" 
+                                        hx-target="#field-issue_description" 
+                                        hx-swap="outerHTML"
+                                        hx-include="#id_issue_description">{{ form.issue_description.value|default:'' }}</textarea>
                                 <div id="field-issue_description" class="invalid-feedback d-block">
                                     {{ form.issue_description.errors|join:", " }}
                                 </div>

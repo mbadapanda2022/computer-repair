@@ -1,6 +1,7 @@
 {% load math_filters %}
 
 <div class="row g-3 mb-4">
+    <!-- 1. Today's Sales -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -15,7 +16,8 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- 2. Pending Repairs -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -25,12 +27,13 @@
                 <div>
                     <small class="text-muted d-block">Pending Repairs</small>
                     <h5 class="mb-0 fw-bold text-warning">{{ pending_repairs }}</h5>
-                    <small class="text-muted">Ready for delivery</small>
+                    <small class="text-muted">In-progress jobs</small>
                 </div>
             </div>
         </div>
     </div>
-    
+
+    <!-- 3. Low Stock -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -40,12 +43,13 @@
                 <div>
                     <small class="text-muted d-block">Low Stock</small>
                     <h5 class="mb-0 fw-bold text-danger">{{ low_stock }}</h5>
-                    <small class="text-muted">Products below threshold</small>
+                    <small class="text-muted">Below threshold</small>
                 </div>
             </div>
         </div>
     </div>
-    
+
+    <!-- 4. Customers -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -60,7 +64,8 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- 5. Products -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -75,7 +80,8 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- 6. Pending Invoices -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -90,7 +96,8 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- 7. Today's Receipts (FIXED LABEL) -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">
@@ -100,12 +107,13 @@
                 <div>
                     <small class="text-muted d-block">Today's Receipts</small>
                     <h5 class="mb-0 fw-bold text-primary">₹{{ total_payments_today|floatformat:2 }}</h5>
-                    <small class="text-muted">Total paid: ₹{{ total_paid_amount|floatformat:2 }}</small>
+                    <small class="text-muted">All-time: ₹{{ total_paid_amount|floatformat:2 }}</small>
                 </div>
             </div>
         </div>
     </div>
-    
+
+    <!-- 8. Total Due -->
     <div class="col-xl-3 col-md-6">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center">

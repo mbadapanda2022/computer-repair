@@ -143,12 +143,8 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-secondary w-100" 
-                            hx-get="{% url 'accounting:product_list' %}" 
-                            hx-target="#product-table-container"
-                            hx-include="#product-filter-form"
-                            hx-vals='{"reset": "true"}'
-                            hx-push-url="true">
+                    <button type="button" class="btn btn-secondary w-100"
+                            onclick="resetProductFilters()">
                         <i class="bi bi-arrow-counterclockwise"></i> Reset
                     </button>
                 </div>
@@ -195,6 +191,17 @@
         let url = "{% url 'accounting:export_products_excel' %}";
         if (qs) url += '?' + qs;
         window.location.href = url;
+    }
+
+    function resetProductFilters() {
+        const form = document.getElementById('product-filter-form');
+        if (!form) return;
+        form.reset();
+        htmx.ajax('GET', "{% url 'accounting:product_list' %}", {
+            target: '#product-table-container',
+            swap: 'innerHTML'
+        });
+        window.history.pushState({}, '', "{% url 'accounting:product_list' %}");
     }
 </script>
 

@@ -26,9 +26,11 @@
                         </td>
                         <td class="text-center">
                             {% if category.product_count > 0 %}
-                                <span class="badge bg-primary">
+                                <a href="{% url 'accounting:product_list' %}?category={{ category.pk }}"
+                                class="badge bg-primary text-decoration-none"
+                                title="View products in this category">
                                     {{ category.product_count }}
-                                </span>
+                                </a>
                             {% else %}
                                 <span class="badge bg-secondary-subtle text-secondary">
                                     0

@@ -2,6 +2,7 @@
 {% load static %}
 
 <form method="post"
+      action="{% if category %}{% url 'accounting:category_update' category.pk %}{% else %}{% url 'accounting:category_create' %}{% endif %}"
       id="categoryForm"
       hx-post="{% if category %}{% url 'accounting:category_update' category.pk %}{% else %}{% url 'accounting:category_create' %}{% endif %}"
       hx-target="#category-table-container"

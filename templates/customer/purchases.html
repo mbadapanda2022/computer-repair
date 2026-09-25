@@ -161,68 +161,80 @@
 </div>
 
 <script>
-function getCurrentFilterParams() {
-    const form = document.getElementById('purchase-filter-form');
-    const formData = new FormData(form);
-    const params = new URLSearchParams();
-    for (const [key, value] of formData.entries()) {
-        if (value && value.trim() !== '') params.append(key, value);
+    function getCurrentFilterParams() {
+        const form = document.getElementById('purchase-filter-form');
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+            if (value && value.trim() !== '') params.append(key, value);
+        }
+        return params;
     }
-    return params;
-}
 
-function downloadWithFilters(type) {
-    const params = getCurrentFilterParams();
-    const queryString = params.toString();
-    let url = '';
-    let target = '_blank';
+    function downloadWithFilters(type) {
+        const params = getCurrentFilterParams();
+        let url = '';
 
-    if (type === 'print') {
-        url = "{% url 'customer:customer_purchases' %}?print=1";
-        if (queryString) url += '&' + queryString;
-    } else if (type === 'excel') {
-        url = "{% url 'customer:customer_purchases_excel' %}";
-        if (queryString) url += '?' + queryString;
-        target = '_self';
+        if (type === 'print') {
+            params.set('print', '1');
+            url = "{% url 'customer:customer_purchases' %}?" + params.toString();
+            window.open(url, '_blank');
+        } else if (type === 'excel') {
+            url = "{% url 'customer:customer_purchases_excel' %}";
+            const qs = params.toString();
+            if (qs) url += '?' + qs;
+            window.location.href = url;
+        }
     }
-    window.open(url, target);
-}
 
-function resetFilters() {
-    const form = document.getElementById('purchase-filter-form');
-    form.reset();
-    form.querySelector('[name="search"]').value = '';
-    form.querySelector('[name="paid"]').value = '';
-    form.querySelector('[name="date_from"]').value = '';
-    form.querySelector('[name="date_to"]').value = '';
+    function resetFilters() {
+        const form = document.getElementById('purchase-filter-form');
+        form.reset();
+        form.querySelector('[name="search"]').value = '';
+        form.querySelector('[name="paid"]').value = '';
+        form.querySelector('[name="date_from"]').value = '';
+        form.querySelector('[name="date_to"]').value = '';
 
-    htmx.ajax('GET', "{% url 'customer:customer_purchases' %}", {
-        target: '#purchase-list-container',
-        swap: 'innerHTML'
-    });
-    window.history.pushState({}, '', "{% url 'customer:customer_purchases' %}");
-    updateActiveFilters();
-}
-
-function updateActiveFilters() {
-    const params = getCurrentFilterParams();
-    const container = document.getElementById('active-filters');
-    const textEl = document.getElementById('active-filters-text');
-
-    if (params.toString() === '') {
-        container.classList.add('d-none');
-        return;
+        htmx.ajax('GET', "{% url 'customer:customer_purchases' %}", {
+            target: '#purchase-list-container',
+            swap: 'innerHTML'
+        });
+        window.history.pushState({}, '', "{% url 'customer:customer_purchases' %}");
+        updateActiveFilters();
     }
-    const parts = [];
-    if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
-    if (params.get('paid')) parts.push('Status: ' + params.get('paid'));
-    if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
-    if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
 
-    textEl.textContent = parts.join(' • ');
-    container.classList.remove('d-none');
-}
+    function updateActiveFilters() {
+        const params = getCurrentFilterParams();
+        const container = document.getElementById('active-filters');
+        const textEl = document.getElementById('active-filters-text');
 
-document.addEventListener('DOMContentLoaded', updateActiveFilters);
+        if (params.toString() === '') {
+            container.classList.add('d-none');
+            return;
+        }
+        const parts = [];
+        if (params.get('search')) parts.push('Search: "' + params.get('search') + '"');
+        if (params.get('paid')) parts.push('Status: ' + params.get('paid'));
+        if (params.get('date_from')) parts.push('From: ' + params.get('date_from'));
+        if (params.get('date_to')) parts.push('To: ' + params.get('date_to'));
+
+        textEl.textContent = parts.join(' • ');
+        container.classList.remove('d-none');
+    }
+
+    document.addEventListener('DOMContentLoaded', updateActiveFilters);
+
+    // Auto-update filters indicator with debounce
+    (function() {
+        const form = document.getElementById('purchase-filter-form');
+        if (!form) return;
+        let timer = null;
+        function debounceUpdate() {
+            clearTimeout(timer);
+            timer = setTimeout(updateActiveFilters, 300);
+        }
+        form.addEventListener('input', debounceUpdate);
+        form.addEventListener('change', debounceUpdate);
+    })();
 </script>
 {% endblock %}

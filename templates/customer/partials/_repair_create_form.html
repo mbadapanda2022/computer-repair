@@ -1,0 +1,136 @@
+{% load static %}
+
+<form method="post"
+      action="{% url 'customer:customer_repair_create' %}"
+      id="repairCreateForm"
+      hx-post="{% url 'customer:customer_repair_create' %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      novalidate>
+    {% csrf_token %}
+
+    <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-tools me-2"></i>New Repair Request
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+                {% for error in form.non_field_errors %}
+                    <div><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_device_model" class="form-label fw-semibold">
+                    Device Model <span class="text-danger">*</span>
+                </label>
+                <input type="text" name="device_model" id="id_device_model"
+                       class="form-control {% if form.device_model.errors %}is-invalid{% endif %}"
+                       value="{{ form.device_model.value|default:'' }}"
+                       placeholder="e.g., HP LaserJet 1020"
+                       hx-get="{% url 'customer:customer_validate_repair_field' %}"
+                       hx-trigger="blur"
+                       hx-target="#field-device_model"
+                       hx-swap="outerHTML"
+                       hx-include="#id_device_model"
+                       required>
+                <div id="field-device_model" class="invalid-feedback d-block">
+                    {{ form.device_model.errors|join:", " }}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_serial_number" class="form-label fw-semibold">Serial Number</label>
+                <input type="text" name="serial_number" id="id_serial_number"
+                       class="form-control"
+                       value="{{ form.serial_number.value|default:'' }}"
+                       placeholder="Optional">
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-12">
+                <label for="id_issue_description" class="form-label fw-semibold">
+                    Issue Description <span class="text-danger">*</span>
+                </label>
+                <textarea name="issue_description" id="id_issue_description" rows="4"
+                          class="form-control {% if form.issue_description.errors %}is-invalid{% endif %}"
+                          placeholder="Describe the issue in detail..."
+                          hx-get="{% url 'customer:customer_validate_repair_field' %}"
+                          hx-trigger="blur"
+                          hx-target="#field-issue_description"
+                          hx-swap="outerHTML"
+                          hx-include="#id_issue_description"
+                          required>{{ form.issue_description.value|default:'' }}</textarea>
+                <div id="field-issue_description" class="invalid-feedback d-block">
+                    {{ form.issue_description.errors|join:", " }}
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_accessories" class="form-label fw-semibold">Accessories</label>
+                <textarea name="accessories" id="id_accessories" rows="2"
+                          class="form-control"
+                          placeholder="e.g., Charger, Bag, Mouse">{{ form.accessories.value|default:'' }}</textarea>
+            </div>
+            <div class="col-md-6">
+                <label for="id_device_condition" class="form-label fw-semibold">Device Condition</label>
+                <textarea name="device_condition" id="id_device_condition" rows="2"
+                          class="form-control"
+                          placeholder="e.g., Scratched, Battery weak">{{ form.device_condition.value|default:'' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
+        <button type="submit" class="btn btn-primary" id="repairCreateSubmit">
+            <span class="submit-text">
+                <i class="bi bi-check-circle me-1"></i>Submit Repair
+            </span>
+            <span class="submit-spinner d-none">
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                Submitting...
+            </span>
+        </button>
+    </div>
+</form>
+
+<script>
+    (function () {
+        'use strict';
+        const form = document.getElementById('repairCreateForm');
+        if (!form || form.dataset.submitBound === '1') return;
+        form.dataset.submitBound = '1';
+
+        form.addEventListener('submit', function () {
+            const btn = document.getElementById('repairCreateSubmit');
+            if (!btn) return;
+            const txt = btn.querySelector('.submit-text');
+            const spn = btn.querySelector('.submit-spinner');
+            if (txt) txt.classList.add('d-none');
+            if (spn) spn.classList.remove('d-none');
+            btn.disabled = true;
+        });
+
+        // Restore on HTMX response (error re-render or success)
+        form.addEventListener('htmx:afterRequest', function () {
+            const btn = document.getElementById('repairCreateSubmit');
+            if (!btn) return;
+            const txt = btn.querySelector('.submit-text');
+            const spn = btn.querySelector('.submit-spinner');
+            if (txt) txt.classList.remove('d-none');
+            if (spn) spn.classList.add('d-none');
+            btn.disabled = false;
+        });
+    })();
+</script>

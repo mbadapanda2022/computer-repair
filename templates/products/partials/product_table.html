@@ -2,11 +2,11 @@
 {% load static %}
 
 {% if is_htmx %}
-{# ---- OOB (out-of-band) updates: refresh stat cards after CRUD/filter change ---- #}
-<div hx-swap-oob="outerHTML:#stat-total-products"><h5 class="mb-0 fw-bold" id="stat-total-products">{{ total_products|default:0 }}</h5></div>
-<div hx-swap-oob="outerHTML:#stat-low-stock"><h5 class="mb-0 fw-bold" id="stat-low-stock">{{ low_stock_count|default:0 }}</h5></div>
-<div hx-swap-oob="outerHTML:#stat-service"><h5 class="mb-0 fw-bold" id="stat-service">{{ service_count|default:0 }}</h5></div>
-<div hx-swap-oob="outerHTML:#stat-active"><h5 class="mb-0 fw-bold" id="stat-active">{{ active_count|default:0 }}</h5></div>
+{# OOB updates: refresh stat cards after CRUD/filter change #}
+<h5 class="mb-0 fw-bold" id="stat-total-products" hx-swap-oob="outerHTML">{{ total_products|default:0 }}</h5>
+<h5 class="mb-0 fw-bold" id="stat-low-stock" hx-swap-oob="outerHTML">{{ low_stock_count|default:0 }}</h5>
+<h5 class="mb-0 fw-bold" id="stat-service" hx-swap-oob="outerHTML">{{ service_count|default:0 }}</h5>
+<h5 class="mb-0 fw-bold" id="stat-active" hx-swap-oob="outerHTML">{{ active_count|default:0 }}</h5>
 {% endif %}
 
 <div class="card border-0 shadow-sm">
@@ -68,41 +68,41 @@
                         </td>
                         <td class="text-center">
                             <div class="dropdown">
-                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
-                                        type="button" data-bs-toggle="dropdown" 
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button" data-bs-toggle="dropdown"
                                         data-bs-auto-close="outside"
                                         aria-expanded="false">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
                                     <li>
-                                        <button class="dropdown-item" 
-                                                hx-get="{% url 'accounting:product_update' product.pk %}" 
-                                                hx-target="#mainModalContent" 
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:product_update' product.pk %}"
+                                                hx-target="#mainModalContent"
                                                 hx-trigger="click">
                                             <i class="bi bi-pencil me-2 text-warning"></i>Edit
                                         </button>
                                     </li>
                                     <li>
-                                        <button class="dropdown-item" 
-                                                hx-get="{% url 'accounting:product_detail_modal' product.pk %}" 
-                                                hx-target="#mainModalContent" 
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:product_detail_modal' product.pk %}"
+                                                hx-target="#mainModalContent"
                                                 hx-trigger="click">
                                             <i class="bi bi-eye me-2 text-primary"></i>Detail
                                         </button>
                                     </li>
                                     <li>
-                                        <button class="dropdown-item" 
-                                                hx-get="{% url 'accounting:product_stock_history' product.pk %}" 
-                                                hx-target="#mainModalContent" 
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:product_stock_history' product.pk %}"
+                                                hx-target="#mainModalContent"
                                                 hx-trigger="click">
                                             <i class="bi bi-clock-history me-2 text-info"></i>Stock History
                                         </button>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <button class="dropdown-item text-danger" 
-                                                hx-delete="{% url 'accounting:product_delete' product.pk %}" 
+                                        <button class="dropdown-item text-danger"
+                                                hx-delete="{% url 'accounting:product_delete' product.pk %}"
                                                 hx-target="#product-table-container"
                                                 hx-confirm="Delete this product? This cannot be undone if it has transactions.">
                                             <i class="bi bi-trash me-2"></i>Delete
@@ -118,9 +118,9 @@
                             <i class="bi bi-inbox display-6 d-block mb-3 text-muted"></i>
                             <h5 class="text-muted">No products found</h5>
                             <p class="text-muted">Try adjusting your filters or add a new product.</p>
-                            <button class="btn btn-primary mt-2" 
-                                    hx-get="{% url 'accounting:product_create' %}" 
-                                    hx-target="#mainModalContent" 
+                            <button class="btn btn-primary mt-2"
+                                    hx-get="{% url 'accounting:product_create' %}"
+                                    hx-target="#mainModalContent"
                                     hx-trigger="click">
                                 <i class="bi bi-plus-circle"></i> New Product
                             </button>
@@ -139,41 +139,54 @@
             <ul class="pagination justify-content-center mb-0">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:product_list' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}"
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}"
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-left"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
                 {% endif %}
 
-                <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
 
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}"
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:product_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if selected_category_id %}&category={{ selected_category_id }}{% endif %}{% if is_active_filter %}&is_active={{ is_active_filter }}{% endif %}{% if stock_filter %}&stock_filter={{ stock_filter }}{% endif %}"
                        hx-target="#product-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-right"></i></span></li>
                 {% endif %}
             </ul>
         </nav>
+        <p class="text-center text-muted small mb-0 mt-2">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} —
+            showing {{ page_obj.object_list|length }} of {{ page_obj.paginator.count }} products.
+            {% if page_obj.has_next %}See next page for more.{% endif %}
+        </p>
     </div>
     {% endif %}
 </div>

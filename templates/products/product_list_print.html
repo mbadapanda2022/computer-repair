@@ -45,11 +45,11 @@
 
 <div class="filters-box">
     <strong>Filters:</strong>
-    {% if search %} Search: {{ search }}{% endif %}
-    {% if selected_category_id %} | Category ID: {{ selected_category_id }}{% endif %}
+    {% if search %} Search: "{{ search }}"{% endif %}
+    {% if category_name %} | Category: {{ category_name }}{% endif %}
     {% if is_active_filter %} | Status: {{ is_active_filter|title }}{% endif %}
     {% if stock_filter %} | Stock: {{ stock_filter|title }}{% endif %}
-    {% if not search and not selected_category_id and not is_active_filter and not stock_filter %}All Products{% endif %}
+    {% if not search and not category_name and not is_active_filter and not stock_filter %}All Products{% endif %}
     | Total: {{ products|length }}
 </div>
 

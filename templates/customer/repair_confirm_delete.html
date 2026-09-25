@@ -13,7 +13,7 @@
     <form method="post"
         hx-post="{% url 'customer:customer_repair_delete' repair.pk %}"
         hx-swap="none">  
-        {% csrf_token %}
+        {% csrf_token %} 
         <button type="submit" class="btn btn-danger">
             <i class="bi bi-trash"></i> Yes, Delete
         </button>

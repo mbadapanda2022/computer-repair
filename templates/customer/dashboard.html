@@ -155,9 +155,12 @@
         <div class="card-body">
             <div class="row g-2">
                 <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-outline-warning w-100">
+                    <button class="btn btn-outline-warning w-100"
+                            hx-get="{% url 'customer:customer_repair_create' %}"
+                            hx-target="#mainModalContent"
+                            hx-trigger="click">
                         <i class="bi bi-tools me-1"></i> New Repair
-                    </a>
+                    </button>
                 </div>
                 <div class="col-md-3 col-sm-6">
                     <a href="{% url 'customer:customer_invoices' %}" class="btn btn-outline-primary w-100">

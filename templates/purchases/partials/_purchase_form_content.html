@@ -1,4 +1,4 @@
-<!-- templates/purchases/partials/_purchase_form_content.html.html -->
+<!-- templates/purchases/partials/_purchase_form_content.html -->
 {% load static %}
 <div class="{% if is_htmx %}container-fluid{% else %}container py-4{% endif %}">
     <div class="row justify-content-center">
@@ -44,7 +44,12 @@
                                 <label for="id_vendor" class="form-label fw-semibold">
                                     Vendor <span class="text-danger">*</span>
                                 </label>
-                                <select name="vendor" id="id_vendor" class="form-select">
+                                <select name="vendor" id="id_vendor" class="form-select"
+                                        hx-get="{% url 'accounting:validate_purchase_field' %}"
+                                        hx-trigger="change"
+                                        hx-target="#field-vendor"
+                                        hx-swap="innerHTML"
+                                        hx-include="#id_vendor, #id_purchase_id">
                                     <option value="">--------- Select Vendor ---------</option>
                                     {% for vendor in form.fields.vendor.queryset %}
                                         <option value="{{ vendor.id }}"

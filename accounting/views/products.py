@@ -39,7 +39,7 @@ def get_paginated_products_context(request, queryset=None):
     search = request.GET.get('search', '').strip()
     category_id = request.GET.get('category', '')
     is_active = request.GET.get('is_active', '')
-    stock_filter = request.GET.get('stock_filter', '')  # low | out | ok
+    stock_filter = request.GET.get('stock_filter', '') 
     page_number = request.GET.get('page', 1)
 
     filtered_qs = queryset.all()
@@ -136,6 +136,14 @@ def product_list_print(request):
     is_active = request.GET.get('is_active', '')
     stock_filter = request.GET.get('stock_filter', '')
 
+    # Resolve category name for display
+    category_name = None
+    if category_id:
+        try:
+            category_name = ProductCategory.objects.get(pk=category_id).name
+        except (ProductCategory.DoesNotExist, ValueError, TypeError):
+            pass
+
     if search:
         qs = qs.filter(Q(name__icontains=search) | Q(hsn_code__icontains=search))
     if category_id:
@@ -154,6 +162,7 @@ def product_list_print(request):
         'products': qs.order_by('name'),
         'company': company,
         'logo_exists': bool(company.logo and company.logo.name),
+        'category_name': category_name,
     })
 
 
@@ -261,7 +270,7 @@ def product_delete(request, pk):
         'products/partials/product_table.html',
         context=context,
         toast={'level': 'success', 'message': f'Product "{name}" deleted.'},
-        close_modal=True,   # ← ADD THIS (cleanup if modal was open)
+        close_modal=True,  
     )
 
 
@@ -314,10 +323,6 @@ def validate_category_field(request):
 @csrf_protect
 @handle_errors(default_redirect='accounting:product_list')
 def add_category_inline(request):
-    """
-    GET  -> show inline form (or dropdown if cancel=1)
-    POST -> create category, return dropdown
-    """
     if request.method == 'POST':
         form = ProductCategoryForm(request.POST)
         if form.is_valid():
@@ -325,7 +330,7 @@ def add_category_inline(request):
             categories = ProductCategory.objects.all().order_by('name')
             html = render_to_string('products/partials/category_dropdown.html', {
                 'categories': categories,
-                'selected_category_id': new_cat.id,
+                'selected_category_id': str(new_cat.id),
             }, request=request)
             response = HttpResponse(html)
             response['HX-Trigger'] = json.dumps({
@@ -341,11 +346,12 @@ def add_category_inline(request):
     # GET
     cancel = request.GET.get('cancel')
     if cancel == '1':
-        # Return the dropdown view (used by Cancel button)
+        # Preserve any previously selected category
+        current_id = request.GET.get('current', '').strip()
         categories = ProductCategory.objects.all().order_by('name')
         return render(request, 'products/partials/category_dropdown.html', {
             'categories': categories,
-            'selected_category_id': '',
+            'selected_category_id': current_id,
         })
 
     form = ProductCategoryForm()
@@ -801,7 +807,7 @@ def get_category_table_context(request):
     """Shared context for category table (used by list + CRUD)."""
     search = request.GET.get('search', '').strip()
 
-    categories = ProductCategory.objects.annotate(
+    categories_qs = ProductCategory.objects.annotate(
         product_count=Count(
             'products',
             filter=Q(products__is_deleted=False)
@@ -809,14 +815,18 @@ def get_category_table_context(request):
     ).order_by('name')
 
     if search:
-        categories = categories.filter(
+        categories_qs = categories_qs.filter(
             Q(name__icontains=search) | Q(description__icontains=search)
         )
 
+    categories_list = list(categories_qs)
+
     return {
-        'categories': categories,
+        'categories': categories_list,
         'search': search,
-        'total_categories': categories.count(),
+        'total_categories': len(categories_list),
+        'categories_in_use': sum(1 for c in categories_list if c.product_count > 0),
+        'empty_categories': sum(1 for c in categories_list if c.product_count == 0),
         'is_htmx': is_htmx(request),
     }
 

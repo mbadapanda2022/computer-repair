@@ -12,16 +12,19 @@
     </div>
     <div>
         <div class="d-flex gap-2 flex-wrap">
-            <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-primary">
+            <button class="btn btn-primary"
+                    hx-get="{% url 'customer:customer_repair_create' %}"
+                    hx-target="#mainModalContent"
+                    hx-trigger="click">
                 <i class="bi bi-plus-circle"></i> New Repair
-            </a>
+            </button>
             <button type="button" class="btn btn-success"
-                    onclick="window.location.href='{% url 'customer:customer_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()"
-                    title="Download as Excel">
+                onclick="exportRepairExcel()"
+                title="Download as Excel">
                 <i class="bi bi-file-earmark-excel"></i> Export to Excel
             </button>
             <button type="button" class="btn btn-secondary"
-                    onclick="window.open('{% url 'customer:customer_repairs' %}?print=1&' + new URLSearchParams(window.location.search).toString(), '_blank')"
+                    onclick="printRepairList()"
                     title="Print filtered list">
                 <i class="bi bi-printer"></i> Print List
             </button>
@@ -93,43 +96,54 @@
 </div>
 
 <script>
-// ============================================================
-// Reload repairs list preserving current filters
-// Triggered by delete/create via HX-Trigger
-// ============================================================
-document.body.addEventListener('reloadCustomerRepairs', function() {
-    const form = document.getElementById('repair-filter-form');
-    const params = new URLSearchParams();
-    if (form) {
-        const fd = new FormData(form);
-        for (const [k, v] of fd.entries()) {
-            if (v && v.trim() !== '') params.append(k, v);
+    // ============================================================
+    // Reload repairs list preserving current filters
+    // Triggered by delete/create via HX-Trigger
+    // ============================================================
+    document.body.addEventListener('reloadCustomerRepairs', function() {
+        const form = document.getElementById('repair-filter-form');
+        const params = new URLSearchParams();
+        if (form) {
+            const fd = new FormData(form);
+            for (const [k, v] of fd.entries()) {
+                if (v && v.trim() !== '') params.append(k, v);
+            }
         }
+        const qs = params.toString();
+        htmx.ajax('GET', "{% url 'customer:customer_repairs' %}" + (qs ? '?' + qs : ''), {
+            target: '#repair-list-container',
+            swap: 'innerHTML',
+        });
+    });
+
+    // ============================================================
+    // Reset filters
+    // ============================================================
+    function resetRepairFilters() {
+        const form = document.getElementById('repair-filter-form');
+        if (!form) return;
+        form.reset();
+        form.querySelector('[name="search"]').value = '';
+        form.querySelector('[name="status"]').value = '';
+        form.querySelector('[name="date_from"]').value = '';
+        form.querySelector('[name="date_to"]').value = '';
+
+        htmx.ajax('GET', "{% url 'customer:customer_repairs' %}", {
+            target: '#repair-list-container',
+            swap: 'innerHTML',
+        });
+        window.history.pushState({}, '', "{% url 'customer:customer_repairs' %}");
     }
-    const qs = params.toString();
-    htmx.ajax('GET', "{% url 'customer:customer_repairs' %}" + (qs ? '?' + qs : ''), {
-        target: '#repair-list-container',
-        swap: 'innerHTML',
-    });
-});
 
-// ============================================================
-// Reset filters
-// ============================================================
-function resetRepairFilters() {
-    const form = document.getElementById('repair-filter-form');
-    if (!form) return;
-    form.reset();
-    form.querySelector('[name="search"]').value = '';
-    form.querySelector('[name="status"]').value = '';
-    form.querySelector('[name="date_from"]').value = '';
-    form.querySelector('[name="date_to"]').value = '';
+    function printRepairList() {
+        const params = new URLSearchParams(window.location.search);
+        params.set('print', '1');
+        window.open("{% url 'customer:customer_repairs' %}?" + params.toString(), '_blank');
+    }
 
-    htmx.ajax('GET', "{% url 'customer:customer_repairs' %}", {
-        target: '#repair-list-container',
-        swap: 'innerHTML',
-    });
-    window.history.pushState({}, '', "{% url 'customer:customer_repairs' %}");
-}
+    function exportRepairExcel() {
+        const params = new URLSearchParams(window.location.search);
+        window.location.href = "{% url 'customer:customer_repairs_excel' %}?" + params.toString();
+    }
 </script>
 {% endblock %}
