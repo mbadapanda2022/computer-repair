@@ -633,14 +633,23 @@ def repair_print(request, pk):
 # ════════════════════════════════════════════════════════════
 @csrf_protect
 @login_required
-@handle_errors(default_redirect='customer:customer_repairs',
-               htmx_template='customer/repair_create.html')
+@handle_errors(default_redirect='customer:customer_repairs')
 def repair_create(request):
-    """Customer submits a new repair request via portal."""
+    """
+    Customer submits a new repair request via portal.
+
+    Professional flow:
+      - contact pulled from logged-in user (never from form)
+      - clear validation errors on failure
+      - submit button loading state
+      - HX-Redirect to detail page on success
+    """
     customer = _get_customer(request)
+    template = 'customer/repair_create.html'
 
     if request.method == 'POST':
         form = CustomerRepairForm(request.POST)
+
         if form.is_valid():
             with transaction.atomic():
                 job = form.save(commit=False)
@@ -650,18 +659,21 @@ def repair_create(request):
                 job.submitted_at = timezone.now()
                 job.save()
 
-            # Notify staff
-            send_notification_to_staff(
-                title=f"New Repair Request: {job.job_number}",
-                message=(
-                    f"{customer.name} submitted a repair for "
-                    f"{job.device_model}. Awaiting device drop-off."
-                ),
-                link=reverse('accounting:repair_detail', args=[job.pk]),
-                notif_type='warning',
-                category='repairs',
-                send_email=True,
-            )
+            # Notify staff — outside transaction
+            try:
+                send_notification_to_staff(
+                    title=f"New Repair Request: {job.job_number}",
+                    message=(
+                        f"{customer.name} submitted a repair for "
+                        f"{job.device_model}. Awaiting device drop-off."
+                    ),
+                    link=reverse('accounting:repair_detail', args=[job.pk]),
+                    notif_type='warning',
+                    category='repairs',
+                    send_email=True,
+                )
+            except Exception:
+                logger.exception("Staff notification failed for repair %s", job.job_number)
 
             if is_htmx(request):
                 response = HttpResponse()
@@ -685,15 +697,18 @@ def repair_create(request):
             )
             return redirect('customer:customer_repair_detail', pk=job.pk)
 
-        # Form invalid
+        # ── Validation failed ──
+        logger.warning(
+            "Customer repair create failed validation | customer=%s | errors=%s",
+            customer.pk, dict(form.errors),
+        )
         if is_htmx(request):
-            return render(request, 'customer/repair_create.html', {'form': form},
-                          status=400)
+            return render(request, template, {'form': form}, status=200)
 
     else:
         form = CustomerRepairForm()
 
-    return render(request, 'customer/repair_create.html', {'form': form})
+    return render(request, template, {'form': form})
 
 
 @csrf_protect
@@ -1321,6 +1336,8 @@ def statement(request):
     }
 
     if print_requested:
+        # Print must show ALL rows (paginated view is for browser only).
+        context['statement_rows'] = rows
         return render(request, 'customer/statement_print.html', context)
 
     if is_htmx(request):

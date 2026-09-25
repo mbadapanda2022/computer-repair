@@ -300,3 +300,25 @@ def health_check(request):
         }, status=500)
         
         
+# ============================================================
+# SAFE DECIMAL PARSER (shared by sales, purchases, etc.)
+# ============================================================
+from decimal import Decimal, InvalidOperation
+
+
+def safe_decimal(value, default=Decimal('0')):
+    """
+    Safely parse a value to Decimal.
+
+    Returns `default` on None, empty string, or invalid input.
+    Never raises.
+    """
+    if value is None:
+        return default
+    s = str(value).strip()
+    if s == '':
+        return default
+    try:
+        return Decimal(s)
+    except (ValueError, TypeError, ArithmeticError, InvalidOperation):
+        return default

@@ -20,7 +20,8 @@
 
         <div class="alert alert-info small">
             <i class="bi bi-info-circle me-1"></i>
-            Only <strong>provided fields</strong> will be updated. Leave blank to keep existing values.
+            Only the fields you change here will be saved. Fields you leave
+            untouched keep their current values.
         </div>
 
         <!-- Financial Section -->
@@ -36,7 +37,7 @@
                        id="id_estimated_cost" class="form-control"
                        value="{{ job.estimated_cost|default_if_none:'' }}"
                        placeholder="e.g., 1500">
-                <small class="text-muted">Customer को यह भेजा जाएगा</small>
+                <small class="text-muted">This amount will be sent to the customer.</small>
             </div>
             <div class="col-md-6">
                 <label for="id_labour_charge" class="form-label fw-semibold">
@@ -61,7 +62,7 @@
                 </label>
                 <textarea name="diagnosis_report" id="id_diagnosis_report" rows="3"
                           class="form-control"
-                          placeholder="क्या खराबी मिली...">{{ job.diagnosis_report|default:'' }}</textarea>
+                          placeholder="What fault was found...">{{ job.diagnosis_report|default:'' }}</textarea>
             </div>
             <div class="col-12">
                 <label for="id_action_taken" class="form-label fw-semibold">
@@ -69,7 +70,7 @@
                 </label>
                 <textarea name="action_taken" id="id_action_taken" rows="3"
                           class="form-control"
-                          placeholder="क्या repair किया...">{{ job.action_taken|default:'' }}</textarea>
+                          placeholder="What repair was performed...">{{ job.action_taken|default:'' }}</textarea>
             </div>
         </div>
 

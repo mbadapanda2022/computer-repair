@@ -1,34 +1,45 @@
 <!-- templates/contacts/partials/contact_table.html -->
-{% load static %}
+{% load static math_filters %}
 
-<div class="table-responsive">
+<div class="table-responsive contacts-table-wrapper">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light">
             <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th class="text-end">Receivable</th>
-                <th class="text-end">Payable</th>
-                <th class="text-end">Net Position</th>
-                <th class="text-center">Actions</th>
+                <th style="min-width: 180px;">Name</th>
+                <th style="width: 90px;">Type</th>
+                <th style="min-width: 120px;">Contact</th>
+                <th class="text-end" style="min-width: 130px;"
+                    title="Amount they owe us — Dr means they owe us">
+                    Receivable
+                </th>
+                <th class="text-end" style="min-width: 130px;"
+                    title="Amount we owe them — Cr means we owe them">
+                    Payable
+                </th>
+                <th class="text-end" style="min-width: 140px;"
+                    title="Net exposure — receivable minus payable">
+                    Net Position
+                </th>
+                <th class="text-center" style="width: 90px;">Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for contact in contacts %}
             <tr>
+                {# ══════════ NAME ══════════ #}
                 <td>
-                    <button class="btn btn-link p-0 fw-bold text-decoration-none"
+                    <button class="btn btn-link p-0 fw-bold text-decoration-none d-block text-start"
                             hx-get="{% url 'accounting:contact_detail_modal' contact.pk %}"
                             hx-target="#mainModalContent"
                             title="View details">
                         {{ contact.name }}
                     </button>
                     {% if contact.company_name %}
-                        <br><small class="text-muted">{{ contact.company_name }}</small>
+                        <small class="text-muted d-block">{{ contact.company_name }}</small>
                     {% endif %}
                 </td>
+
+                {# ══════════ TYPE ══════════ #}
                 <td>
                     <span class="badge
                         {% if contact.contact_type == 'customer' %}bg-primary
@@ -37,39 +48,115 @@
                         {{ contact.get_contact_type_display }}
                     </span>
                 </td>
-                <td>{{ contact.phone|default:"—" }}</td>
-                <td class="small">{{ contact.email|default:"—" }}</td>
+
+                {# ══════════ CONTACT INFO ══════════ #}
+                <td class="small">
+                    {% if contact.phone %}
+                        <div class="text-nowrap">
+                            <i class="bi bi-phone text-muted me-1"></i>{{ contact.phone }}
+                        </div>
+                    {% endif %}
+                    {% if contact.email %}
+                        <div class="text-nowrap text-truncate" style="max-width: 200px;">
+                            <i class="bi bi-envelope text-muted me-1"></i>{{ contact.email }}
+                        </div>
+                    {% endif %}
+                    {% if not contact.phone and not contact.email %}
+                        <span class="text-muted fst-italic">No contact info</span>
+                    {% endif %}
+                </td>
+
+                {# ══════════ RECEIVABLE ══════════ #}
                 <td class="text-end">
                     {% if contact.receivable_balance > 0 %}
-                        <span class="text-success fw-semibold">₹{{ contact.receivable_balance|floatformat:2 }}</span>
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="text-success fw-semibold">
+                                ₹{{ contact.receivable_balance|floatformat:2 }}
+                            </span>
+                            <small class="badge bg-success-subtle text-success mt-1" style="font-size: 0.65rem;">
+                                Dr — they owe us
+                            </small>
+                        </div>
+                    {% elif contact.receivable_balance < 0 %}
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="text-warning fw-semibold">
+                                ₹{{ contact.receivable_balance|abs_filter|floatformat:2 }}
+                            </span>
+                            <small class="badge bg-warning-subtle text-warning mt-1" style="font-size: 0.65rem;">
+                                Cr — we owe them
+                            </small>
+                        </div>
                     {% else %}
                         <span class="text-muted">—</span>
                     {% endif %}
                 </td>
+
+                {# ══════════ PAYABLE ══════════ #}
                 <td class="text-end">
                     {% if contact.payable_balance > 0 %}
-                        <span class="text-warning fw-semibold">₹{{ contact.payable_balance|floatformat:2 }}</span>
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="text-warning fw-semibold">
+                                ₹{{ contact.payable_balance|floatformat:2 }}
+                            </span>
+                            <small class="badge bg-warning-subtle text-warning mt-1" style="font-size: 0.65rem;">
+                                Cr — we owe them
+                            </small>
+                        </div>
+                    {% elif contact.payable_balance < 0 %}
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="text-success fw-semibold">
+                                ₹{{ contact.payable_balance|abs_filter|floatformat:2 }}
+                            </span>
+                            <small class="badge bg-success-subtle text-success mt-1" style="font-size: 0.65rem;">
+                                Dr — they owe us
+                            </small>
+                        </div>
                     {% else %}
                         <span class="text-muted">—</span>
                     {% endif %}
                 </td>
-                <td class="text-end fw-bold">
+
+                {# ══════════ NET POSITION ══════════ #}
+                <td class="text-end">
                     {% if contact.current_balance > 0 %}
-                        <span class="text-success">₹{{ contact.current_balance|floatformat:2 }}</span>
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="text-success fw-bold fs-6">
+                                ₹{{ contact.current_balance|floatformat:2 }}
+                            </span>
+                            <small class="badge bg-success-subtle text-success mt-1" style="font-size: 0.65rem;">
+                                Dr — net receivable
+                            </small>
+                        </div>
                     {% elif contact.current_balance < 0 %}
-                        <span class="text-danger">₹{{ contact.current_balance|floatformat:2 }}</span>
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="text-danger fw-bold fs-6">
+                                ₹{{ contact.current_balance|abs_filter|floatformat:2 }}
+                            </span>
+                            <small class="badge bg-danger-subtle text-danger mt-1" style="font-size: 0.65rem;">
+                                Cr — net payable
+                            </small>
+                        </div>
                     {% else %}
-                        <span class="text-muted">₹0.00</span>
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="text-muted">₹0.00</span>
+                            <small class="badge bg-secondary-subtle text-secondary mt-1" style="font-size: 0.65rem;">
+                                Settled
+                            </small>
+                        </div>
                     {% endif %}
                 </td>
+
+                {# ══════════ ACTIONS ══════════ #}
                 <td class="text-center">
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                type="button" data-bs-toggle="dropdown">
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                data-bs-strategy="fixed"
+                                data-bs-boundary="viewport">
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow">
-                            <!-- View Details -->
                             <li>
                                 <button class="dropdown-item"
                                         hx-get="{% url 'accounting:contact_detail_modal' contact.pk %}"
@@ -78,13 +165,18 @@
                                 </button>
                             </li>
 
-                            <!-- Statement (type-aware) -->
                             <li>
                                 {% if contact.contact_type == 'vendor' %}
                                     <a class="dropdown-item"
                                        href="{% url 'accounting:vendor_statement' contact.id %}"
                                        target="_blank">
                                         <i class="bi bi-file-text me-2 text-primary"></i>Vendor Statement
+                                    </a>
+                                {% elif contact.contact_type == 'both' %}
+                                    <a class="dropdown-item"
+                                       href="{% url 'accounting:combined_statement' contact.id %}"
+                                       target="_blank">
+                                        <i class="bi bi-file-text me-2 text-primary"></i>Full Statement
                                     </a>
                                 {% else %}
                                     <a class="dropdown-item"
@@ -95,7 +187,6 @@
                                 {% endif %}
                             </li>
 
-                            <!-- New Repair -->
                             {% if contact.contact_type != 'vendor' %}
                             <li>
                                 <button class="dropdown-item"
@@ -106,7 +197,6 @@
                             </li>
                             {% endif %}
 
-                            <!-- New Journal -->
                             <li>
                                 <a class="dropdown-item"
                                    href="{% url 'accounting:journal_create_for_contact' contact.pk %}">
@@ -116,7 +206,6 @@
 
                             <li><hr class="dropdown-divider"></li>
 
-                            <!-- Edit -->
                             <li>
                                 <button class="dropdown-item"
                                         hx-get="{% url 'accounting:contact_update' contact.pk %}"
@@ -125,7 +214,6 @@
                                 </button>
                             </li>
 
-                            <!-- Delete -->
                             <li>
                                 <button class="dropdown-item text-danger"
                                         hx-delete="{% url 'accounting:contact_delete' contact.pk %}"
@@ -140,7 +228,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="8" class="text-center text-muted py-5">
+                <td colspan="7" class="text-center text-muted py-5">
                     <i class="bi bi-inbox display-6 d-block mb-2"></i>
                     No contacts found.
                 </td>
@@ -150,21 +238,20 @@
     </table>
 </div>
 
-<!-- Pagination -->
 {% if page_obj.has_other_pages %}
 <nav aria-label="Contacts pagination" class="mt-3">
     <ul class="pagination justify-content-center mb-0">
         {% if page_obj.has_previous %}
             <li class="page-item">
                 <a class="page-link" href="#"
-                   hx-get="{% url 'accounting:contact_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+                   hx-get="{% url 'accounting:contact_list' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter|urlencode }}{% endif %}{% if sort %}&sort={{ sort|urlencode }}{% endif %}"
                    hx-target="#contacts-table-container">
                     <i class="bi bi-chevron-double-left"></i>
                 </a>
             </li>
             <li class="page-item">
                 <a class="page-link" href="#"
-                   hx-get="{% url 'accounting:contact_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+                   hx-get="{% url 'accounting:contact_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter|urlencode }}{% endif %}{% if sort %}&sort={{ sort|urlencode }}{% endif %}"
                    hx-target="#contacts-table-container">
                     <i class="bi bi-chevron-left"></i>
                 </a>
@@ -178,14 +265,14 @@
         {% if page_obj.has_next %}
             <li class="page-item">
                 <a class="page-link" href="#"
-                   hx-get="{% url 'accounting:contact_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+                   hx-get="{% url 'accounting:contact_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter|urlencode }}{% endif %}{% if sort %}&sort={{ sort|urlencode }}{% endif %}"
                    hx-target="#contacts-table-container">
                     <i class="bi bi-chevron-right"></i>
                 </a>
             </li>
             <li class="page-item">
                 <a class="page-link" href="#"
-                   hx-get="{% url 'accounting:contact_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
+                   hx-get="{% url 'accounting:contact_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if contact_type_filter %}&contact_type={{ contact_type_filter|urlencode }}{% endif %}{% if sort %}&sort={{ sort|urlencode }}{% endif %}"
                    hx-target="#contacts-table-container">
                     <i class="bi bi-chevron-double-right"></i>
                 </a>

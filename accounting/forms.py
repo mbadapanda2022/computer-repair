@@ -1,3 +1,4 @@
+# accounting/forms.py
 import re
 from decimal import Decimal
 from django import forms
@@ -72,9 +73,7 @@ class HTMXValidationMixin:
 # ============================================================
 
 class CustomerRegistrationForm(forms.ModelForm):
-    # ============================================================
-    # HONEYPOT FIELD - Bots isko fill karenge, real users nahi
-    # ============================================================
+    # Honeypot field - bots fill this, real users leave empty
     website = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
@@ -130,10 +129,9 @@ class CustomerRegistrationForm(forms.ModelForm):
         required=True
     )
 
-    # Phone – optional
     phone = forms.CharField(
         max_length=15,
-        required=False,  
+        required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '10-digit Mobile Number (Optional)',
@@ -179,7 +177,7 @@ class CustomerRegistrationForm(forms.ModelForm):
         return website
 
     def clean_username(self):
-        username = self.cleaned_data.get('username', '').strip()
+        username = (self.cleaned_data.get('username') or '').strip()
         if not username:
             raise ValidationError("Username is required.")
         if len(username) < 3:
@@ -189,36 +187,43 @@ class CustomerRegistrationForm(forms.ModelForm):
         return username
 
     def clean_full_name(self):
-        name = self.cleaned_data.get('full_name', '').strip()
+        name = (self.cleaned_data.get('full_name') or '').strip()
         if not name or len(name) < 2:
             raise ValidationError("Full name is required (min 2 chars).")
         return name
 
     def clean_email(self):
-        email = self.cleaned_data.get('email', '').strip().lower()
+        email = (self.cleaned_data.get('email') or '').strip().lower()
         if not email:
             raise ValidationError("Email is required.")
         if User.objects.filter(email__iexact=email).exists():
             raise ValidationError("This email is already registered.")
         return email
 
-    # Modified clean_phone – अब Optional, और Uniqueness Check सिर्फ तब होगा जब Phone दिया हो
     def clean_phone(self):
-        phone = self.cleaned_data.get('phone', '').strip()
+        """
+        Phone is optional. If provided:
+          - normalize to digits
+          - keep last 10 digits (Indian mobile)
+          - must start with 6, 7, 8, or 9
+          - must be unique across active Contacts
+        """
+        phone = (self.cleaned_data.get('phone') or '').strip()
         if not phone:
-            return ''   # Optional – empty allowed
+            return ''
 
-        # Normalize: keep only digits, and take last 10 digits (Indian mobile)
         phone_clean = ''.join(filter(str.isdigit, phone))
         if len(phone_clean) < 10:
-            raise ValidationError("Enter a valid 10-digit mobile number (or leave blank).")
-        phone_clean = phone_clean[-10:]   # Ensure 10 digits
+            raise ValidationError(
+                "Enter a valid 10-digit mobile number (or leave blank)."
+            )
+        phone_clean = phone_clean[-10:]
 
-        # Indian mobile number must start with 6,7,8,9
         if not phone_clean.startswith(('6', '7', '8', '9')):
-            raise ValidationError("Enter a valid Indian mobile number starting with 6-9.")
+            raise ValidationError(
+                "Enter a valid Indian mobile number starting with 6-9."
+            )
 
-        # Uniqueness check – only if phone is provided
         if Contact.objects.filter(phone=phone_clean).exists():
             raise ValidationError("This phone number is already registered.")
 
@@ -252,7 +257,7 @@ class CustomerRegistrationForm(forms.ModelForm):
                     user=user,
                     name=self.cleaned_data['full_name'],
                     email=self.cleaned_data['email'],
-                    phone=self.cleaned_data.get('phone', ''),
+                    phone=self.cleaned_data.get('phone') or '',
                     contact_type='customer',
                 )
         return user
@@ -280,13 +285,12 @@ class CustomPasswordChangeForm(PasswordChangeForm):
         for field in self.fields.values():
             field.widget.attrs.update({'class': 'form-control'})
 
+
 # ============================================================
-# CONTACT MESSAGE FORM (single definition)
+# CONTACT MESSAGE FORM
 # ============================================================
 class ContactMessageForm(forms.ModelForm):
-    # ============================================================
-    # HONEYPOT FIELD - Bots isko fill karenge, real users nahi
-    # ============================================================
+    # Honeypot field - bots fill this, real users leave empty
     website = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
@@ -300,7 +304,7 @@ class ContactMessageForm(forms.ModelForm):
 
     class Meta:
         model = ContactMessage
-        fields = ['name', 'email', 'phone', 'subject', 'message']  
+        fields = ['name', 'email', 'phone', 'subject', 'message']
         widgets = {
             'phone': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -309,46 +313,45 @@ class ContactMessageForm(forms.ModelForm):
         }
 
     def clean_name(self):
-        name = self.cleaned_data.get('name')
-        if len(name.strip()) < 2:
+        name = (self.cleaned_data.get('name') or '').strip()
+        if len(name) < 2:
             raise ValidationError("Name must be at least 2 characters.")
-        return name.strip()
+        return name
 
     def clean_phone(self):
-        phone = self.cleaned_data.get('phone', '').strip()
-        if phone:
-            # Validate phone format (optional, so only if provided)
-            phone_clean = ''.join(filter(str.isdigit, phone))
-            if len(phone_clean) < 10 or len(phone_clean) > 15:
-                raise ValidationError("Enter a valid phone number (10-15 digits).")
-            if len(phone_clean) == 10:
-                return phone_clean
-            elif len(phone_clean) > 10:
-                # if longer, keep last 10
-                return phone_clean[-10:]
-        return phone
+        phone = (self.cleaned_data.get('phone') or '').strip()
+        if not phone:
+            return ''
+
+        phone_clean = ''.join(filter(str.isdigit, phone))
+        if len(phone_clean) < 10 or len(phone_clean) > 15:
+            raise ValidationError("Enter a valid phone number (10-15 digits).")
+        if len(phone_clean) == 10:
+            return phone_clean
+        return phone_clean[-10:]
 
     def clean_subject(self):
-        subject = self.cleaned_data.get('subject')
-        if len(subject.strip()) < 3:
+        subject = (self.cleaned_data.get('subject') or '').strip()
+        if len(subject) < 3:
             raise ValidationError("Subject must be at least 3 characters.")
-        return subject.strip()
+        return subject
 
     def clean_message(self):
-        message = self.cleaned_data.get('message')
-        if len(message.strip()) < 10:
+        message = (self.cleaned_data.get('message') or '').strip()
+        if len(message) < 10:
             raise ValidationError("Message must be at least 10 characters.")
-        return message.strip()
+        return message
 
     def clean_website(self):
-        """HONEYPOT: Agar ye field filled hai toh spam samjho."""
+        """Honeypot: if this field is filled, treat as spam."""
         website = self.cleaned_data.get('website')
         if website:
             raise ValidationError("Spam detected. This field should be empty.")
         return website
 
+
 # ============================================================
-# 1. COMPANY SETTINGS (UPDATED with accept attributes)
+# 1. COMPANY SETTINGS
 # ============================================================
 class CompanyProfileForm(forms.ModelForm):
     class Meta:
@@ -383,7 +386,7 @@ class CompanyProfileForm(forms.ModelForm):
             }),
             'about_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'About the company'}),
             'google_map_embed': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Paste iframe code'}),
-            'working_hours': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Mon–Sat: 10:00 AM – 8:00 PM'}),
+            'working_hours': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Mon-Sat: 10:00 AM - 8:00 PM'}),
             'facebook_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://facebook.com/yourpage'}),
             'instagram_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://instagram.com/yourprofile'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://youtube.com/yourchannel'}),
@@ -401,8 +404,8 @@ class CompanyProfileForm(forms.ModelForm):
             'tagline': 'Short tagline displayed in the hero section',
             'hero_image': 'Upload hero image (recommended: 1200x600)',
             'about_text': 'Brief description of the company (used in footer)',
-            'google_map_embed': 'Full iframe code from Google Maps (e.g., <iframe src="..."></iframe>)',
-            'working_hours': 'Display working hours (e.g., Mon–Sat: 10 AM – 8 PM)',
+            'google_map_embed': 'Full iframe code from Google Maps',
+            'working_hours': 'Display working hours (e.g., Mon-Sat: 10 AM - 8 PM)',
             'facebook_url': 'Full URL to your Facebook page',
             'instagram_url': 'Full URL to your Instagram profile',
             'youtube_url': 'Full URL to your YouTube channel',
@@ -429,14 +432,17 @@ class CompanyProfileForm(forms.ModelForm):
             if len(clean) < 10 or len(clean) > 15:
                 raise ValidationError("WhatsApp number must be between 10 and 15 digits.")
         return number
-    
+
     def clean_logo(self):
         logo = self.cleaned_data.get('logo')
-        if logo and hasattr(logo, 'file') and logo.name:
+        if logo and hasattr(logo, 'name') and logo.name:
             if 'logo' in self.files:
                 from .validators import validate_image_file_extension, validate_image_binary
+                from .image_processor import process_uploaded_image
                 validate_image_file_extension(logo)
                 validate_image_binary(logo)
+                # Process the image — resize + compress
+                logo = process_uploaded_image(logo, max_size=(400, 400))
         return logo
 
     def clean_hero_image(self):
@@ -447,6 +453,7 @@ class CompanyProfileForm(forms.ModelForm):
                 validate_image_file_extension(hero)
                 validate_image_binary(hero)
         return hero
+
 
 # ============================================================
 # SERVICE FORM
@@ -467,7 +474,7 @@ class ServiceForm(forms.ModelForm):
             'is_active': BS_CHECKBOX,
         }
         help_texts = {
-            'icon': 'Bootstrap icon class (e.g., bi-tools, bi-display). See <a href="https://icons.getbootstrap.com/" target="_blank">Bootstrap Icons</a>.',
+            'icon': 'Bootstrap icon class (e.g., bi-tools, bi-display).',
             'order': 'Lower numbers appear first.',
         }
 
@@ -478,7 +485,7 @@ class ServiceForm(forms.ModelForm):
 class TestimonialForm(forms.ModelForm):
     class Meta:
         model = Testimonial
-        fields = ['customer_name', 'customer_photo', 'designation', 'company_name', 
+        fields = ['customer_name', 'customer_photo', 'designation', 'company_name',
                   'review_text', 'rating', 'order', 'is_active']
         widgets = {
             'customer_name': BS_TEXT,
@@ -518,7 +525,6 @@ class FAQForm(forms.ModelForm):
         }
 
 
-
 # ============================================================
 # 2. CONTACTS
 # ============================================================
@@ -544,7 +550,7 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
-            'opening_balance': 'Opening Balance (₹)',
+            'opening_balance': 'Opening Balance (Rs.)',
             'opening_balance_date': 'Opening Balance Date',
         }
         help_texts = {
@@ -560,24 +566,28 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
                 self.fields['opening_balance_date'].initial = timezone.now().date()
 
         self.add_htmx_validation(
-            validate_url=reverse('accounting:validate_contact_field'),
+            validate_url=reverse('accounting:validate_accounting_contact_field'),
             include_id_field='contact_id'
         )
 
     def clean_phone(self):
-        phone = self.cleaned_data.get('phone', '').strip()
+        """
+        Phone is optional. If provided:
+          - normalize to digits
+          - keep last 10 digits (Indian mobile)
+          - must be unique across active Contacts (exclude self on update)
+        """
+        phone = (self.cleaned_data.get('phone') or '').strip()
         if not phone:
             return ''
 
-        # Normalize: keep only digits, take last 10 for Indian mobile
         phone_clean = ''.join(filter(str.isdigit, phone))
         if len(phone_clean) < 10:
             raise ValidationError("Phone number must contain at least 10 digits.")
         phone_clean = phone_clean[-10:]
 
-        # Uniqueness check on normalized number
         qs = Contact.objects.filter(phone=phone_clean)
-        if self.instance.pk:
+        if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise ValidationError("This phone number is already in use.")
@@ -587,28 +597,27 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
     def clean_opening_balance(self):
         """
         Opening balance validation:
-        - Naya contact -> free to set
-        - Existing contact with transactions -> cannot change
-        - Reason: opening balance is a one-time setup, not for adjustments
+        - New contact: free to set.
+        - Existing contact with any real transaction (invoice, purchase,
+          payment, repair, or non-opening ledger line): cannot change.
         """
-        balance = self.cleaned_data.get('opening_balance', Decimal('0'))
+        balance = self.cleaned_data.get('opening_balance') or Decimal('0')
 
-        # Existing contact check karo
         if self.instance and self.instance.pk:
-            # Original value DB se lo
             try:
                 original = Contact.objects.get(pk=self.instance.pk).opening_balance
             except Contact.DoesNotExist:
                 original = Decimal('0')
 
-            # Agar value change ho rahi hai
             if balance != original:
-                # Check for any transaction
                 has_transactions = (
                     self.instance.sales_invoices.exists()
                     or self.instance.purchases.exists()
                     or self.instance.payments.exists()
                     or self.instance.repair_jobs.exists()
+                    or self.instance.ledger_lines.exclude(
+                        ledger_entry__entry_type='opening'
+                    ).exists()
                 )
 
                 if has_transactions:
@@ -633,7 +642,7 @@ class ProductCategoryForm(forms.ModelForm):
         }
 
     def clean_name(self):
-        name = self.cleaned_data.get('name', '').strip()
+        name = (self.cleaned_data.get('name') or '').strip()
         if not name:
             raise ValidationError("Category name is required.")
         if ProductCategory.objects.filter(name__iexact=name).exists():
@@ -679,13 +688,15 @@ class ProductForm(forms.ModelForm):
         if is_service:
             return Decimal('0')
         if value is None or value == '':
-            return Decimal('0')  
+            return Decimal('0')
         try:
             val = Decimal(value)
             if val < 0:
                 raise ValidationError("Stock cannot be negative.")
             return val
-        except:
+        except ValidationError:
+            raise
+        except Exception:
             raise ValidationError("Enter a valid number.")
 
     def clean_low_stock_threshold(self):
@@ -694,20 +705,22 @@ class ProductForm(forms.ModelForm):
         if is_service:
             return 0
         if value is None or value == '':
-            return 5  
+            return 5
         try:
             val = int(value)
             if val < 0:
                 raise ValidationError("Threshold cannot be negative.")
             return val
-        except:
+        except ValidationError:
+            raise
+        except Exception:
             raise ValidationError("Enter a valid integer.")
 
     def clean(self):
         cleaned_data = super().clean()
         is_service = cleaned_data.get('is_service', False)
-        purchase_price = cleaned_data.get('purchase_price', Decimal('0'))
-        selling_price = cleaned_data.get('selling_price', Decimal('0'))
+        purchase_price = cleaned_data.get('purchase_price') or Decimal('0')
+        selling_price = cleaned_data.get('selling_price') or Decimal('0')
 
         if is_service:
             cleaned_data['current_stock'] = Decimal('0')
@@ -748,10 +761,11 @@ class InvoiceForm(forms.ModelForm):
         }
 
     def clean_discount_amount(self):
-        disc = self.cleaned_data.get('discount_amount', Decimal('0'))
+        disc = self.cleaned_data.get('discount_amount') or Decimal('0')
         if disc < 0:
             raise ValidationError("Discount amount cannot be negative.")
         return disc
+
 
 class InvoiceItemForm(forms.ModelForm):
     class Meta:
@@ -760,7 +774,7 @@ class InvoiceItemForm(forms.ModelForm):
         widgets = {
             'product': forms.Select(attrs={
                 'class': 'form-select',
-                'hx-get': reverse_lazy('accounting:get_product_price'), 
+                'hx-get': reverse_lazy('accounting:get_product_price'),
                 'hx-trigger': 'change',
                 'hx-target': '#id_unit_price, #id_tax_rate',
                 'hx-swap': 'outerHTML',
@@ -788,13 +802,13 @@ class InvoiceItemForm(forms.ModelForm):
 
     def clean_quantity(self):
         qty = self.cleaned_data.get('quantity')
-        if qty <= 0:
+        if qty is not None and qty <= 0:
             raise ValidationError("Quantity must be greater than zero.")
         return qty
 
     def clean_unit_price(self):
         price = self.cleaned_data.get('unit_price')
-        if price < 0:
+        if price is not None and price < 0:
             raise ValidationError("Unit price cannot be negative.")
         return price
 
@@ -822,7 +836,7 @@ class PurchaseForm(forms.ModelForm, HTMXValidationMixin):
             'discount_date': BS_DATE,
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
-        
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.add_htmx_validation(
@@ -831,16 +845,17 @@ class PurchaseForm(forms.ModelForm, HTMXValidationMixin):
         )
 
     def clean_discount_amount(self):
-        disc = self.cleaned_data.get('discount_amount', Decimal('0'))
+        disc = self.cleaned_data.get('discount_amount') or Decimal('0')
         if disc < 0:
             raise ValidationError("Discount amount cannot be negative.")
         return disc
 
     def clean_freight_charge(self):
-        freight = self.cleaned_data.get('freight_charge', Decimal('0'))
+        freight = self.cleaned_data.get('freight_charge') or Decimal('0')
         if freight < 0:
             raise ValidationError("Freight charge cannot be negative.")
         return freight
+
 
 class PurchaseItemForm(forms.ModelForm):
     class Meta:
@@ -849,7 +864,7 @@ class PurchaseItemForm(forms.ModelForm):
         widgets = {
             'product': forms.Select(attrs={
                 'class': 'form-select',
-                'hx-get': reverse_lazy('accounting:get_product_price'), 
+                'hx-get': reverse_lazy('accounting:get_product_price'),
                 'hx-trigger': 'change',
                 'hx-target': '#id_unit_price, #id_tax_rate',
                 'hx-swap': 'outerHTML',
@@ -877,13 +892,13 @@ class PurchaseItemForm(forms.ModelForm):
 
     def clean_quantity(self):
         qty = self.cleaned_data.get('quantity')
-        if qty <= 0:
+        if qty is not None and qty <= 0:
             raise ValidationError("Quantity must be greater than zero.")
         return qty
 
     def clean_unit_price(self):
         price = self.cleaned_data.get('unit_price')
-        if price < 0:
+        if price is not None and price < 0:
             raise ValidationError("Unit price cannot be negative.")
         return price
 
@@ -891,11 +906,10 @@ class PurchaseItemForm(forms.ModelForm):
 # ============================================================
 # 7. REPAIR JOBS
 # ============================================================
-
 class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
     """
-    Staff ke liye repair form.
-    Staff saare timeline dates, delivery details, aur status edit kar sakta hai.
+    Repair form for staff. Staff can edit all timeline dates,
+    delivery details, and status.
     """
     class Meta:
         model = RepairJob
@@ -904,7 +918,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'issue_description', 'diagnosis_report', 'action_taken',
             'accessories', 'device_condition',
             'status',
-            # Timeline tracking (staff-editable)
             'received_at', 'ready_at', 'delivery_date',
             'received_by', 'received_remarks',
             'delivered_by',
@@ -925,13 +938,11 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'accessories': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'E.g., Adaptor, Bag, CD'}),
             'device_condition': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'E.g., Battery missing, Hard disk removed'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
-            # Timeline fields
             'received_at': BS_DATE,
             'ready_at': BS_DATE,
             'delivery_date': BS_DATE,
             'received_by': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Staff name who received device'}),
             'received_remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Device condition at reception (e.g., scratched screen, missing charger)'}),
-            # Delivery
             'delivered_by': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Staff name who delivered'}),
             'delivered_to_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Recipient name (if different from customer)'}),
             'delivered_to_phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Recipient phone number'}),
@@ -957,7 +968,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Add HTMX validation to all fields except status (dynamic)
         field_names = [f for f in self.fields.keys() if f != 'status']
         self.add_htmx_validation(
             validate_url=reverse('accounting:validate_repair_field'),
@@ -965,7 +975,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             include_id_field='repair_id',
         )
 
-        # Make delivery fields optional by default
         for field in ['delivered_to_name', 'delivered_to_phone',
                       'delivered_to_designation', 'delivery_remarks',
                       'received_at', 'ready_at', 'delivery_date',
@@ -980,7 +989,7 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
         return cost
 
     def clean_labour_charge(self):
-        labour = self.cleaned_data.get('labour_charge', Decimal('0'))
+        labour = self.cleaned_data.get('labour_charge') or Decimal('0')
         if labour < 0:
             raise ValidationError("Labour charge cannot be negative.")
         return labour
@@ -990,7 +999,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
         status = cleaned_data.get('status')
         delivery_date = cleaned_data.get('delivery_date')
 
-        # Delivery date recommended when status='delivered'
         if status == 'delivered' and not delivery_date:
             self.add_error('delivery_date', "Delivery date is required when status is 'Delivered'.")
 
@@ -1004,7 +1012,7 @@ class RepairPartForm(forms.ModelForm):
         widgets = {
             'product': forms.Select(attrs={
                 'class': 'form-select',
-                'hx-get': reverse_lazy('accounting:get_product_price'),  
+                'hx-get': reverse_lazy('accounting:get_product_price'),
                 'hx-trigger': 'change',
                 'hx-target': '#id_unit_price',
                 'hx-swap': 'outerHTML',
@@ -1023,13 +1031,13 @@ class RepairPartForm(forms.ModelForm):
 
     def clean_quantity(self):
         qty = self.cleaned_data.get('quantity')
-        if qty <= 0:
+        if qty is not None and qty <= 0:
             raise ValidationError("Quantity must be at least 1.")
         return qty
 
     def clean_unit_price(self):
         price = self.cleaned_data.get('unit_price')
-        if price <= 0:
+        if price is not None and price <= 0:
             raise ValidationError("Unit price must be greater than zero.")
         return price
 
@@ -1037,7 +1045,6 @@ class RepairPartForm(forms.ModelForm):
 # ============================================================
 # 8. PAYMENTS
 # ============================================================
-
 class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
@@ -1076,15 +1083,12 @@ class PaymentForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # ---- Contact dropdown: all active contacts, sorted by name ----
         self.fields['contact'].queryset = Contact.objects.all().order_by('name')
         self.fields['contact'].empty_label = "— Select Customer / Vendor —"
         self.fields['contact'].required = True
 
-        # ---- Bank accounts ----
         self.fields['bank_account'].queryset = BankAccount.objects.filter(is_active=True)
 
-        # ---- Discount fields: optional ----
         self.fields['discount_amount'].required = False
         self.fields['discount_type'].required = False
         self.fields['discount_note'].required = False
@@ -1092,9 +1096,6 @@ class PaymentForm(forms.ModelForm):
         if not self.instance.pk and not self.initial.get('discount_amount'):
             self.fields['discount_amount'].initial = Decimal('0.00')
 
-    # ============================================================
-    # CLEAN METHODS
-    # ============================================================
     def clean_amount(self):
         amount = self.cleaned_data.get('amount')
         if amount is None or amount <= 0:
@@ -1120,14 +1121,12 @@ class PaymentForm(forms.ModelForm):
         contact = cleaned_data.get('contact')
         direction = cleaned_data.get('direction')
 
-        # Bank / UPI requires a bank account
         if method in ('bank', 'upi') and not bank_account:
             self.add_error(
                 'bank_account',
                 "Please select a bank account for bank/UPI payments."
             )
 
-        # Contact type vs direction validation
         if contact and direction:
             if direction == 'received' and contact.contact_type not in ('customer', 'both'):
                 self.add_error(
@@ -1184,7 +1183,7 @@ class BankAccountForm(forms.ModelForm):
         }
 
     def clean_opening_balance(self):
-        balance = self.cleaned_data.get('opening_balance', Decimal('0'))
+        balance = self.cleaned_data.get('opening_balance') or Decimal('0')
         if balance < 0:
             raise ValidationError("Opening balance cannot be negative.")
         return balance
@@ -1206,7 +1205,7 @@ class BankTransactionForm(forms.ModelForm):
 
     def clean_amount(self):
         amount = self.cleaned_data.get('amount')
-        if amount <= 0:
+        if amount is None or amount <= 0:
             raise ValidationError("Amount must be greater than zero.")
         return amount
 
@@ -1222,21 +1221,23 @@ class BankTransactionForm(forms.ModelForm):
 
         if transaction_type and source_type:
             if source_type not in valid_sources.get(transaction_type, []):
-                raise ValidationError(f"Invalid source type '{source_type}' for {transaction_type} transaction.")
+                raise ValidationError(
+                    f"Invalid source type '{source_type}' for {transaction_type} transaction."
+                )
         return cleaned
 
 
 # ============================================================
-# 11. JOURNAL (Professional — Tally/Zoho style)
+# 11. JOURNAL (Tally/Zoho style)
 # ============================================================
 class JournalForm(forms.Form):
     """Professional journal entry form (Tally/Zoho style)."""
 
     ENTRY_TYPE_CHOICES = [
-        ('discount_allowed', 'Discount Allowed (Customer को दिया)'),
-        ('discount_received', 'Discount Received (Vendor से मिला)'),
-        ('advance_received', 'Advance Received (Customer से)'),
-        ('advance_paid', 'Advance Paid (Vendor को)'),
+        ('discount_allowed', 'Discount Allowed (given to customer)'),
+        ('discount_received', 'Discount Received (from vendor)'),
+        ('advance_received', 'Advance Received (from customer)'),
+        ('advance_paid', 'Advance Paid (to vendor)'),
         ('general', 'General Journal (Correction / Adjustment)'),
     ]
 
@@ -1341,17 +1342,15 @@ class CustomerProfileForm(forms.ModelForm):
         }
 
     def clean_phone(self):
-        phone = self.cleaned_data.get('phone', '').strip()
+        phone = (self.cleaned_data.get('phone') or '').strip()
         if not phone:
             return phone
 
-        # Normalize: keep only digits, take last 10 for Indian mobile
         phone_clean = ''.join(filter(str.isdigit, phone))
         if len(phone_clean) < 10:
             raise ValidationError("Phone number must contain at least 10 digits.")
         phone_clean = phone_clean[-10:]
 
-        # Uniqueness check (exclude self)
         qs = Contact.objects.filter(phone=phone_clean)
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
@@ -1383,7 +1382,7 @@ class ContactFilterForm(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Search by name, phone, email...',
-            'hx-get': reverse_lazy('accounting:contact_list'), 
+            'hx-get': reverse_lazy('accounting:contact_list'),
             'hx-trigger': 'keyup changed delay:500ms',
             'hx-target': '#contacts-table',
             'hx-include': 'this'
@@ -1397,7 +1396,7 @@ class ProductFilterForm(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Search products...',
-            'hx-get': reverse_lazy('accounting:product_list'), 
+            'hx-get': reverse_lazy('accounting:product_list'),
             'hx-trigger': 'keyup changed delay:500ms',
             'hx-target': '#product-table',
         })
@@ -1407,7 +1406,7 @@ class ProductFilterForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={
             'class': 'form-select',
-            'hx-get': reverse_lazy('accounting:product_list'),  
+            'hx-get': reverse_lazy('accounting:product_list'),
             'hx-trigger': 'change',
             'hx-target': '#product-table',
             'hx-include': '[name=search]'
@@ -1422,7 +1421,7 @@ class InvoiceFilterForm(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Invoice # or customer',
-            'hx-get': reverse_lazy('accounting:invoice_list'), 
+            'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'keyup changed delay:500ms',
             'hx-target': '#invoice-table-container',
             'hx-include': '#filter-form'
@@ -1433,7 +1432,7 @@ class InvoiceFilterForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={
             'class': 'form-select',
-            'hx-get': reverse_lazy('accounting:invoice_list'),  
+            'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
             'hx-include': '#filter-form'
@@ -1445,7 +1444,7 @@ class InvoiceFilterForm(forms.Form):
         required=False,
         widget=forms.Select(attrs={
             'class': 'form-select',
-            'hx-get': reverse_lazy('accounting:invoice_list'), 
+            'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
             'hx-include': '#filter-form'
@@ -1455,7 +1454,7 @@ class InvoiceFilterForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={
             'class': 'form-control', 'type': 'date',
-            'hx-get': reverse_lazy('accounting:invoice_list'), 
+            'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
             'hx-include': '#filter-form'
@@ -1465,18 +1464,17 @@ class InvoiceFilterForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={
             'class': 'form-control', 'type': 'date',
-            'hx-get': reverse_lazy('accounting:invoice_list'), 
+            'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
             'hx-include': '#filter-form'
         })
     )
 
-    
+
 # ============================================================
 # EMAIL CHANGE REQUEST FORM
 # ============================================================
-
 class EmailChangeRequestForm(forms.Form):
     """Form to request email change."""
     new_email = forms.EmailField(
@@ -1489,7 +1487,7 @@ class EmailChangeRequestForm(forms.Form):
         super().__init__(*args, **kwargs)
 
     def clean_new_email(self):
-        email = self.cleaned_data.get('new_email').strip().lower()
+        email = (self.cleaned_data.get('new_email') or '').strip().lower()
         if User.objects.filter(email=email).exclude(pk=self.user.pk).exists():
             raise ValidationError("This email is already registered by another user.")
         if email == self.user.email:

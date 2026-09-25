@@ -82,38 +82,26 @@
 </form>
 
 <script>
-    (function() {
+    (function () {
         'use strict';
 
-        // Guard: attach once only
-        if (window.__partFormInit) return;
-        window.__partFormInit = true;
+        // Delegate at document level so it survives every modal reload.
+        // Attach the listener only once (global guard).
+        if (!window.__partFormDelegated) {
+            window.__partFormDelegated = true;
 
-        function initPartForm() {
-            const sel = document.getElementById('id_product');
-            if (!sel || sel.__bound) return;
-            sel.__bound = true;
+            document.addEventListener('change', function (e) {
+                const sel = e.target;
+                if (!sel || sel.id !== 'id_product') return;
 
-            sel.addEventListener('change', function() {
-                const opt = this.options[this.selectedIndex];
-                if (opt && opt.value) {
-                    const price = opt.dataset.price;
-                    const priceField = document.getElementById('id_unit_price');
-                    if (priceField && (!priceField.value || priceField.value === '0')) {
-                        priceField.value = price;
-                    }
+                const opt = sel.options[sel.selectedIndex];
+                if (!opt || !opt.value) return;
+
+                const priceField = document.getElementById('id_unit_price');
+                if (priceField && (!priceField.value || priceField.value === '0')) {
+                    priceField.value = opt.dataset.price || '';
                 }
             });
         }
-
-        // Init for current DOM
-        initPartForm();
-
-        // Re-init after HTMX swap (guard prevents duplicate listeners)
-        document.body.addEventListener('htmx:afterSwap', function(e) {
-            if (e.detail.target && e.detail.target.closest('#mainModalContent')) {
-                initPartForm();
-            }
-        });
     })();
 </script>

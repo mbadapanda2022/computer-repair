@@ -1,112 +1,166 @@
 # accounting/views/contacts.py
-import csv
 import json
 import logging
 from decimal import Decimal
 
-from django.shortcuts import render, redirect, get_object_or_404
-from django.http import HttpResponse, JsonResponse
-from django.db.models import (
-    Q, Sum, F, Case, When, Value, IntegerField, Prefetch,
-)
-from django.db.models.functions import Coalesce
-from django.db import transaction
 from django.contrib import messages
-from django.template.loader import render_to_string
+from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db.models import Q, Sum
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, numbers
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side, numbers
 from openpyxl.utils import get_column_letter
 
-from ..models import (
-    Contact, LedgerLine, Invoice, RepairJob, Payment,
-)
-from ..forms import ContactForm
-from .utils import is_htmx, htmx_response, redirect_to_staff
 from ..decorators import handle_errors
+from ..forms import ContactForm
+from ..models import Contact, Invoice, LedgerLine, Payment, RepairJob
+from .utils import is_htmx, redirect_to_staff
 
 logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# HELPER: Annotate contacts with receivable / payable / net
+# HELPERS
 # ============================================================
+
+def _has_real_transactions(contact):
+    """
+    Return True if the contact has any real transaction.
+
+    Opening-balance ledger lines are excluded so that a contact whose
+    only activity is an opening balance can still be deleted.
+    """
+    return bool(
+        contact.sales_invoices.exists()
+        or contact.purchases.exists()
+        or contact.repair_jobs.exists()
+        or contact.payments.exists()
+        or contact.ledger_lines.exclude(
+            ledger_entry__entry_type='opening'
+        ).exists()
+    )
+
+
 def annotate_contact_balances(contacts):
     """
-    Annotate each Contact with:
-      - receivable_balance: net amount the party owes us (Dr - Cr on receivable lines)
-      - payable_balance:    net amount we owe the party (Cr - Dr on payable lines)
-      - current_balance:    net position (receivable - payable) for customer/both,
-                            or just payable for vendor-only.
-    Uses `subledger_type` so customer and vendor sides stay separate.
+    Annotate each Contact with receivable, payable, and net position.
+
+    Uses ACCOUNT CODES as the single source of truth so contact list
+    numbers MATCH the statement view exactly:
+
+      Receivable side (they owe us):
+        1011 — Customer Receivable
+        1012 — Advance from Customer (reduces receivable)
+
+      Payable side (we owe them):
+        2011 — Vendor Payable
+        1014 — Advance to Vendor (reduces payable)
+
+    Why account codes and not subledger_type?
+      subledger_type is only set for 1011 and 2011 (not for advances).
+      Using account codes ensures advances are correctly included,
+      so contact list and statement never disagree.
     """
     if not contacts:
         return
 
     contact_ids = [c.id for c in contacts]
 
-    # --- Receivable side ---
-    recv = (
+    RECV_CODES = ['1011', '1012']
+    PAY_CODES = ['2011', '1014']
+
+    # ── Receivable side ──
+    recv_rows = (
         LedgerLine.objects
-        .filter(contact__in=contact_ids, subledger_type='receivable')
+        .filter(
+            contact__in=contact_ids,
+            account__code__in=RECV_CODES,
+            ledger_entry__is_deleted=False,   
+        )
         .values('contact')
         .annotate(dr=Sum('debit'), cr=Sum('credit'))
     )
     recv_map = {
-        item['contact']: (item['dr'] or Decimal('0')) - (item['cr'] or Decimal('0'))
-        for item in recv
+        r['contact']: (r['dr'] or Decimal('0')) - (r['cr'] or Decimal('0'))
+        for r in recv_rows
     }
 
-    # --- Payable side ---
-    pay = (
+    # ── Payable side ──
+    pay_rows = (
         LedgerLine.objects
-        .filter(contact__in=contact_ids, subledger_type='payable')
+        .filter(
+            contact__in=contact_ids,
+            account__code__in=PAY_CODES,
+            ledger_entry__is_deleted=False,   
+        )
         .values('contact')
         .annotate(dr=Sum('debit'), cr=Sum('credit'))
     )
     pay_map = {
-        item['contact']: (item['cr'] or Decimal('0')) - (item['dr'] or Decimal('0'))
-        for item in pay
+        p['contact']: (p['cr'] or Decimal('0')) - (p['dr'] or Decimal('0'))
+        for p in pay_rows
     }
 
+    # ── Attach to each contact ──
     for contact in contacts:
         receivable = recv_map.get(contact.id, Decimal('0')).quantize(Decimal('0.01'))
         payable = pay_map.get(contact.id, Decimal('0')).quantize(Decimal('0.01'))
+
         contact.receivable_balance = receivable
         contact.payable_balance = payable
 
-        if contact.contact_type in ('customer', 'both'):
-            contact.current_balance = (receivable - payable).quantize(Decimal('0.01'))
-        else:
+        # Net position
+        #   customer  → receivable − payable
+        #   vendor    → payable (only)
+        #   both      → receivable − payable (net exposure)
+        if contact.contact_type == 'vendor':
             contact.current_balance = payable
+        else:
+            contact.current_balance = (receivable - payable).quantize(Decimal('0.01'))
 
 
-# ============================================================
-# CORE: Paginated contacts context
-# ============================================================
-def get_paginated_contacts_context(request, queryset=None):
-    """Filter, paginate, and annotate contacts for list views."""
-    search = request.GET.get('search', '').strip()
-    contact_type = request.GET.get('contact_type', '')
-    sort = request.GET.get('sort', 'name')  # name | -created | balance
-    page_number = request.GET.get('page', 1)
+def get_paginated_contacts_context(request, queryset=None, filters=None):
+    """
+    Filter, paginate, and annotate contacts for list views.
+
+    Default sort is newest-first so a freshly created contact always
+    appears at the top of the list without any manual search.
+
+    `filters` may be provided explicitly (e.g. from POST hidden inputs);
+    otherwise query params are read from the request.
+    """
+    if filters is None:
+        filters = {
+            'search': request.GET.get('search', '').strip(),
+            'contact_type': request.GET.get('contact_type', ''),
+            'sort': request.GET.get('sort', 'recent'),
+            'page': request.GET.get('page', 1),
+        }
+
+    search = (filters.get('search') or '').strip()
+    contact_type = filters.get('contact_type') or ''
+    sort = filters.get('sort') or 'recent'
+
+    try:
+        page_number = int(filters.get('page') or 1)
+    except (ValueError, TypeError):
+        page_number = 1
 
     if queryset is None:
         queryset = Contact.objects.all()
 
-    # --- Sorting ---
     sort_map = {
+        'recent': ('-created_at', '-id'),
+        'oldest': ('created_at', 'id'),
         'name': ('name',),
         'name_desc': ('-name',),
-        'recent': ('-created_at',),
-        'oldest': ('created_at',),
     }
-    queryset = queryset.order_by(*sort_map.get(sort, ('name',)))
+    queryset = queryset.order_by(*sort_map.get(sort, ('-created_at', '-id')))
 
-    # --- Filters ---
     if search:
         queryset = queryset.filter(
             Q(name__icontains=search) |
@@ -137,9 +191,20 @@ def get_paginated_contacts_context(request, queryset=None):
     }
 
 
+def _form_filter_context(request):
+    """Build the filter context that the form template receives."""
+    return {
+        'filter_search': request.GET.get('search', ''),
+        'filter_contact_type': request.GET.get('contact_type', ''),
+        'filter_sort': request.GET.get('sort', 'recent'),
+        'filter_page': request.GET.get('page', 1),
+    }
+
+
 # ============================================================
 # FIELD VALIDATION (HTMX)
 # ============================================================
+
 @require_http_methods(["GET"])
 def validate_contact_field(request):
     """Real-time validation for Contact fields."""
@@ -155,20 +220,31 @@ def validate_contact_field(request):
     except (Contact.DoesNotExist, ValueError):
         instance = None
 
-    form = ContactForm(data={field_name: value}, instance=instance)
-    form.full_clean()
-    errors = form.errors.get(field_name, [])
+    try:
+        form = ContactForm(data={field_name: value}, instance=instance)
+        form.full_clean()
+        errors = form.errors.get(field_name, [])
+    except Exception:
+        # Never let a validator crash the page — return generic error
+        errors = ['Unable to validate this field. Please check the value.']
 
-    html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-    for err in errors:
-        html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
-    html += '</div>'
+    if errors:
+        html = (
+            f'<div id="field-{field_name}" '
+            f'class="invalid-feedback d-block">'
+        )
+        for err in errors:
+            html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
+        html += '</div>'
+    else:
+        html = f'<div id="field-{field_name}" class="invalid-feedback"></div>'
     return HttpResponse(html)
 
 
 # ============================================================
 # CONTACT LIST
 # ============================================================
+
 @handle_errors(default_redirect='accounting:contact_list')
 def contact_list(request):
     context = get_paginated_contacts_context(request)
@@ -178,19 +254,19 @@ def contact_list(request):
 
 
 # ============================================================
-# EXCEL EXPORT (Updated for receivable / payable)
+# EXCEL EXPORT
 # ============================================================
+
 @require_http_methods(["GET"])
 def export_contacts_excel(request):
     """Export all contacts to a professional Excel file."""
-    contacts = list(Contact.objects.all().order_by('name'))
+    contacts = list(Contact.objects.all().order_by('-created_at', '-id'))
     annotate_contact_balances(contacts)
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Contacts"
 
-    # Styles
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     title_font = Font(bold=True, size=14, color="1F4E78")
@@ -206,14 +282,12 @@ def export_contacts_excel(request):
     TOTAL_COLS = 13
     last_col = get_column_letter(TOTAL_COLS)
 
-    # Title row
     ws.merge_cells(f'A1:{last_col}1')
-    title_cell = ws.cell(row=1, column=1, value="📇 Contact List – A1 Computer Solutions")
+    title_cell = ws.cell(row=1, column=1, value="Contact List")
     title_cell.font = title_font
     title_cell.alignment = center_align
     ws.row_dimensions[1].height = 30
 
-    # Headers
     headers = [
         'ID', 'Type', 'Name', 'Company', 'Phone', 'Email',
         'GSTIN', 'State', 'Opening',
@@ -227,7 +301,6 @@ def export_contacts_excel(request):
         cell.alignment = center_align
     ws.row_dimensions[2].height = 25
 
-    # Data rows
     for idx, contact in enumerate(contacts, start=3):
         row_fill = PatternFill(
             start_color="F2F6FC" if idx % 2 == 0 else "FFFFFF",
@@ -254,7 +327,6 @@ def export_contacts_excel(request):
             cell = ws.cell(row=idx, column=col_idx, value=value)
             cell.border = thin_border
             cell.fill = row_fill
-
             if col_idx in (1, 2, 5):
                 cell.alignment = center_align
             elif col_idx in (9, 10, 11, 12):
@@ -263,7 +335,6 @@ def export_contacts_excel(request):
             else:
                 cell.alignment = left_align
 
-    # Auto column widths
     for col in ws.columns:
         max_length = 0
         col_letter = get_column_letter(col[0].column)
@@ -288,41 +359,76 @@ def export_contacts_excel(request):
 # ============================================================
 # CONTACT CREATE
 # ============================================================
+
 @csrf_protect
-@handle_errors(default_redirect='accounting:contact_list', htmx_template='contacts/contact_form.html')
+@handle_errors(
+    default_redirect='accounting:contact_list',
+    htmx_template='contacts/contact_form.html',
+)
 def contact_create(request):
     if request.method == 'POST':
         form = ContactForm(request.POST)
         if form.is_valid():
             contact = form.save()
-            logger.info(f"Contact '{contact.name}' created by {request.user.username}")
+            logger.info(
+                "Contact '%s' created by %s",
+                contact.name, request.user.username,
+            )
 
             if is_htmx(request):
-                context = get_paginated_contacts_context(request)
+                # After a successful create, reset filters so the new
+                # contact is always visible at the top of a fresh list.
+                filters = {
+                    'search': '',
+                    'contact_type': '',
+                    'sort': 'recent',
+                    'page': 1,
+                }
+                context = get_paginated_contacts_context(request, filters=filters)
                 response = render(request, 'contacts/partials/contact_table.html', context)
                 response['HX-Trigger'] = json.dumps({
-                    'showToast': {'level': 'success', 'message': f'Contact "{contact.name}" created.'},
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Contact "{contact.name}" created.',
+                    },
                     'closeModal': '',
                 })
                 return response
 
             messages.success(request, f'Contact "{contact.name}" created successfully.')
             return redirect_to_staff('contact_list')
-        else:
-            if is_htmx(request):
-                response = render(request, 'contacts/contact_form.html', {'form': form})
-                response['HX-Retarget'] = '#mainModalContent'
-                return response
 
+        # Invalid form
+        if is_htmx(request):
+            response = render(
+                request, 'contacts/contact_form.html',
+                {'form': form, **_form_filter_context(request)},
+            )
+            response['HX-Retarget'] = '#mainModalContent'
+            return response
+
+        return render(
+            request, 'contacts/contact_form.html',
+            {'form': form, **_form_filter_context(request)},
+        )
+
+    # GET
     form = ContactForm()
-    return render(request, 'contacts/contact_form.html', {'form': form})
+    return render(request, 'contacts/contact_form.html', {
+        'form': form,
+        **_form_filter_context(request),
+    })
 
 
 # ============================================================
 # CONTACT UPDATE
 # ============================================================
+
 @csrf_protect
-@handle_errors(default_redirect='accounting:contact_list', htmx_template='contacts/contact_form.html')
+@handle_errors(
+    default_redirect='accounting:contact_list',
+    htmx_template='contacts/contact_form.html',
+)
 def contact_update(request, pk):
     contact = get_object_or_404(Contact, pk=pk)
 
@@ -330,49 +436,69 @@ def contact_update(request, pk):
         form = ContactForm(request.POST, instance=contact)
         if form.is_valid():
             contact = form.save()
-            logger.info(f"Contact '{contact.name}' updated by {request.user.username}")
+            logger.info(
+                "Contact '%s' updated by %s",
+                contact.name, request.user.username,
+            )
 
             if is_htmx(request):
-                context = get_paginated_contacts_context(request)
+                # After update, preserve the user's current filter/view
+                # so they stay in the same context they were browsing.
+                filters = {
+                    'search': request.POST.get('_filter_search', ''),
+                    'contact_type': request.POST.get('_filter_contact_type', ''),
+                    'sort': request.POST.get('_filter_sort', 'recent'),
+                    'page': request.POST.get('_filter_page', 1),
+                }
+                context = get_paginated_contacts_context(request, filters=filters)
                 response = render(request, 'contacts/partials/contact_table.html', context)
                 response['HX-Trigger'] = json.dumps({
-                    'showToast': {'level': 'success', 'message': f'Contact "{contact.name}" updated.'},
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Contact "{contact.name}" updated.',
+                    },
                     'closeModal': '',
                 })
                 return response
 
             messages.success(request, f'Contact "{contact.name}" updated successfully.')
             return redirect_to_staff('contact_list')
-        else:
-            if is_htmx(request):
-                response = render(request, 'contacts/contact_form.html', {
-                    'form': form, 'contact': contact,
-                })
-                response['HX-Retarget'] = '#mainModalContent'
-                return response
+
+        if is_htmx(request):
+            response = render(
+                request, 'contacts/contact_form.html',
+                {'form': form, 'contact': contact, **_form_filter_context(request)},
+            )
+            response['HX-Retarget'] = '#mainModalContent'
+            return response
+
+        return render(
+            request, 'contacts/contact_form.html',
+            {'form': form, 'contact': contact, **_form_filter_context(request)},
+        )
 
     form = ContactForm(instance=contact)
-    return render(request, 'contacts/contact_form.html', {'form': form, 'contact': contact})
+    return render(request, 'contacts/contact_form.html', {
+        'form': form,
+        'contact': contact,
+        **_form_filter_context(request),
+    })
 
 
 # ============================================================
-# CONTACT DELETE (soft, HTMX)
+# CONTACT DELETE
 # ============================================================
+
 @csrf_protect
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:contact_list')
 def contact_delete(request, pk):
     contact = get_object_or_404(Contact, pk=pk)
 
-    # Block deletion if any transaction exists
-    if (
-        contact.sales_invoices.exists()
-        or contact.purchases.exists()
-        or contact.ledger_lines.exists()
-        or contact.repair_jobs.exists()
-        or contact.payments.exists()
-    ):
-        response = HttpResponse("Cannot delete contact with existing transactions.", status=400)
+    if _has_real_transactions(contact):
+        response = HttpResponse(
+            "Cannot delete contact with existing transactions.", status=400,
+        )
         response['HX-Trigger'] = json.dumps({
             'showToast': {
                 'level': 'danger',
@@ -395,23 +521,19 @@ def contact_delete(request, pk):
 # ============================================================
 # CONTACT DETAIL MODAL
 # ============================================================
+
 def contact_detail_modal(request, pk):
-    """Return contact detail as HTMX modal, with proper stats per type."""
     contact = get_object_or_404(Contact, pk=pk)
 
-    # Invoice stats (customer side)
     invoices = Invoice.objects.filter(customer=contact)
     total_invoiced = invoices.aggregate(t=Sum('grand_total'))['t'] or Decimal('0')
     total_due = invoices.aggregate(t=Sum('balance_due'))['t'] or Decimal('0')
 
-    # Purchases (vendor side)
     purchases = contact.purchases.all()
     total_purchased = purchases.aggregate(t=Sum('grand_total'))['t'] or Decimal('0')
 
-    # Repairs
     repairs = RepairJob.objects.filter(customer=contact)
 
-    # Payments — received (from customer) and paid (to vendor)
     payments_received = Payment.objects.filter(contact=contact, direction='received')
     payments_paid = Payment.objects.filter(contact=contact, direction='paid')
     total_received = payments_received.aggregate(t=Sum('amount'))['t'] or Decimal('0')
@@ -419,16 +541,12 @@ def contact_detail_modal(request, pk):
 
     context = {
         'contact': contact,
-        # Invoice
         'invoice_count': invoices.count(),
         'total_invoiced': total_invoiced,
         'total_due': total_due,
-        # Purchases
         'purchase_count': purchases.count(),
         'total_purchased': total_purchased,
-        # Repairs
         'repair_count': repairs.count(),
-        # Payments
         'total_received': total_received,
         'total_paid': total_paid,
     }
@@ -436,17 +554,16 @@ def contact_detail_modal(request, pk):
 
 
 # ============================================================
-# QUICK JOURNAL / STATEMENT REDIRECTS
+# QUICK REDIRECTS
 # ============================================================
+
 def quick_journal(request, pk):
     contact = get_object_or_404(Contact, pk=pk)
     return redirect_to_staff('journal_create_for_contact', contact_id=contact.pk)
 
 
 def quick_statement(request, pk):
-    """Smart redirect: customer → customer_statement, else vendor."""
     contact = get_object_or_404(Contact, pk=pk)
-    # TODO: Re-enable combined_statement for 'both' when module is ready
     if contact.contact_type in ('customer', 'both'):
         return redirect_to_staff('customer_statement', contact_id=contact.pk)
     return redirect_to_staff('vendor_statement', contact_id=contact.pk)
@@ -455,26 +572,22 @@ def quick_statement(request, pk):
 # ============================================================
 # BULK DELETE
 # ============================================================
+
 @csrf_protect
 @require_http_methods(["POST"])
 @handle_errors(default_redirect='accounting:contact_list')
 def bulk_delete_contacts(request):
     ids = request.POST.getlist('ids')
     if not ids:
-        return JsonResponse({'status': 'error', 'message': 'No contacts selected.'}, status=400)
+        return JsonResponse(
+            {'status': 'error', 'message': 'No contacts selected.'}, status=400,
+        )
 
     contacts = Contact.objects.filter(pk__in=ids)
 
-    # Block whole operation if ANY contact has transactions
     blocking = []
     for contact in contacts:
-        if (
-            contact.sales_invoices.exists()
-            or contact.purchases.exists()
-            or contact.ledger_lines.exists()
-            or contact.repair_jobs.exists()
-            or contact.payments.exists()
-        ):
+        if _has_real_transactions(contact):
             blocking.append(contact.name)
 
     if blocking:
@@ -489,11 +602,11 @@ def bulk_delete_contacts(request):
 
 
 # ============================================================
-# CONTACT SEARCH (JSON — for autocomplete / API use)
+# CONTACT SEARCH (JSON autocomplete)
 # ============================================================
+
 @require_http_methods(["GET"])
 def contact_search(request):
-    """JSON endpoint for contact autocomplete."""
     q = request.GET.get('q', '').strip()
     results = []
 
@@ -516,5 +629,3 @@ def contact_search(request):
         } for c in contacts]
 
     return JsonResponse({'results': results})
-
-

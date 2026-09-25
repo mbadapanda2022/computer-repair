@@ -165,10 +165,7 @@ def stock_adjustment_add(request):
         if form.is_valid():
             with transaction.atomic():
                 movement = form.save()
-                # Update product stock
-                update_product_stock(movement.product, movement.quantity, is_purchase=False)
-                logger.info(f"Stock adjustment added: {movement.product.name} ({movement.quantity}) by {request.user.username}")
-
+                
                 if is_htmx(request):
                     context = get_paginated_stock_context(request)
                     return htmx_response(

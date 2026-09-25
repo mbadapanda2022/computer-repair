@@ -6,11 +6,9 @@ from django.db.models import Sum, Count
 from django.contrib import messages
 from django.utils import timezone
 from decimal import Decimal
-from django.utils.html import format_html
 
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin
-
 from .models import (
     CompanyProfile, LedgerEntry, LedgerLine, Contact,
     ProductCategory, Product, Invoice, InvoiceItem,
@@ -307,7 +305,10 @@ class ProductCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ['name', 'category', 'hsn_code', 'selling_price', 'current_stock', 'is_service', 'is_active']
+    list_display = [
+        'name', 'category', 'hsn_code', 'selling_price',
+        'current_stock', 'low_stock_badge', 'is_service', 'is_active',
+    ]
     list_filter = ['is_service', 'is_active', 'category', 'unit']
     search_fields = ['name', 'hsn_code']
     readonly_fields = ['created_at']
@@ -392,9 +393,6 @@ class InvoiceAdmin(admin.ModelAdmin):
         return format_html('<a href="{}">Edit</a>', url)
     view_invoice_link.short_description = "Link"
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-
 
 @admin.register(InvoiceItem)
 class InvoiceItemAdmin(admin.ModelAdmin):
@@ -444,10 +442,6 @@ class PurchaseAdmin(admin.ModelAdmin):
             'fields': ('created_at',)
         }),
     )
-
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-
 
 @admin.register(PurchaseItem)
 class PurchaseItemAdmin(admin.ModelAdmin):

@@ -1,24 +1,24 @@
-//static/js/app.js
-(function() {
+// static/js/app.js
+(function () {
     'use strict';
 
-    // ==============================
+    // ================================================================
     // PORTAL DETECTION
-    // ==============================
+    // ================================================================
     const hasStaffSidebar = !!document.getElementById('sidebar');
     const hasCustomerSidebar = !!document.getElementById('customer-sidebar');
     const hasPublicThemeToggle = !!document.getElementById('themeTogglePublic');
 
-    // ==============================
+    // ================================================================
     // COMMON HELPERS
-    // ==============================
+    // ================================================================
     function isMobile() {
         return window.innerWidth <= 768;
     }
 
-    // ==============================
+    // ================================================================
     // TOAST NOTIFICATIONS
-    // ==============================
+    // ================================================================
     let lastToastMessage = '';
     let toastTimeout = null;
     let toastCounter = 0;
@@ -46,11 +46,11 @@
 
         const titleHtml = title ? `<strong class="me-2">${title}</strong>` : '';
         const toastHTML = `
-        <div id="${toastId}" class="toast align-items-center ${bgClass} border-0 shadow-lg" 
+        <div id="${toastId}" class="toast align-items-center ${bgClass} border-0 shadow-lg"
              role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
             <div class="d-flex align-items-center">
                 <div class="toast-body">${titleHtml}${message}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" 
+                <button type="button" class="btn-close btn-close-white me-2 m-auto"
                         data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
         </div>`;
@@ -59,20 +59,76 @@
         if (!toastEl) return;
         const toast = new bootstrap.Toast(toastEl, { delay: 5000, autohide: true, animation: true });
         toast.show();
-        toastEl.addEventListener('hidden.bs.toast', () => { if (toastEl.parentNode) toastEl.remove(); });
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            if (toastEl.parentNode) toastEl.remove();
+        });
     }
 
-    document.body.addEventListener('showToast', function(evt) {
+    document.body.addEventListener('showToast', function (evt) {
         if (evt.detail && evt.detail.level && evt.detail.message) {
             showToast(evt.detail.level, evt.detail.message, evt.detail.title || '');
         }
     });
     window.showToast = showToast;
 
-    // ==============================
-    // HTMX: HANDLE HX-Trigger HEADER
-    // ==============================
-    document.addEventListener('htmx:afterRequest', function(evt) {
+
+    // ================================================================
+    // GLOBAL HTMX ERROR HANDLING
+    // ================================================================
+    // Fires when server returns 4xx/5xx
+    document.body.addEventListener('htmx:responseError', function (evt) {
+        const xhr = evt.detail.xhr;
+        if (!xhr) return;
+        const status = xhr.status;
+        let msg = 'Something went wrong. Please try again.';
+
+        if (status === 400) msg = 'Please check the form and try again.';
+        else if (status === 401) msg = 'Please log in again to continue.';
+        else if (status === 403) msg = 'You do not have permission for this action.';
+        else if (status === 404) msg = 'The requested record was not found.';
+        else if (status === 429) msg = 'Too many requests. Please wait a moment.';
+        else if (status >= 500) msg = 'Server error. Please try again in a moment.';
+
+        // Try to extract error from JSON or HTML response
+        try {
+            const ct = (xhr.getResponseHeader('Content-Type') || '').toLowerCase();
+            if (ct.includes('application/json')) {
+                const data = JSON.parse(xhr.responseText);
+                if (data.error) msg = data.error;
+                else if (data.message) msg = data.message;
+            }
+        } catch (e) { /* ignore parse errors */ }
+
+        showToast('danger', msg);
+        console.error('[HTMX responseError]', status, evt.detail);
+    });
+
+    // Fires when network request fails entirely (offline, timeout, DNS)
+    document.body.addEventListener('htmx:sendError', function (evt) {
+        showToast('danger', 'Network error. Please check your connection and try again.');
+        console.error('[HTMX sendError]', evt.detail);
+    });
+
+    // Fires when hx-request hits a timeout
+    document.body.addEventListener('htmx:timeout', function (evt) {
+        showToast('warning', 'Request timed out. Please try again.');
+        console.warn('[HTMX timeout]', evt.detail);
+    });
+
+    // Fires on any swap — if server returned errors HTML, highlight them
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+        const target = evt.detail.target;
+        if (!target) return;
+        const firstError = target.querySelector('.is-invalid, .invalid-feedback.d-block, .alert-danger');
+        if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+
+    // ================================================================
+    // HTMX: HANDLE HX-TRIGGER HEADER
+    // ================================================================
+    document.addEventListener('htmx:afterRequest', function (evt) {
         const xhr = evt.detail.xhr;
         if (!xhr) return;
         const triggerHeader = xhr.getResponseHeader('HX-Trigger');
@@ -85,7 +141,11 @@
                 data = { event: triggerHeader };
             }
             if (data.showToast) {
-                showToast(data.showToast.level || 'info', data.showToast.message || '', data.showToast.title || '');
+                showToast(
+                    data.showToast.level || 'info',
+                    data.showToast.message || '',
+                    data.showToast.title || ''
+                );
             }
             if (data.closeModal) document.dispatchEvent(new CustomEvent('closeModal'));
             if (data.redirect) window.location.href = data.redirect;
@@ -95,15 +155,15 @@
                     document.dispatchEvent(new CustomEvent(key, { detail: value }));
                 }
             }
-        } catch(e) {
+        } catch (e) {
             document.dispatchEvent(new CustomEvent(triggerHeader));
         }
     });
 
-    // ==============================
+    // ================================================================
     // HTMX: SMOOTH SCROLL AFTER SWAP
-    // ==============================
-    document.addEventListener('htmx:afterSwap', function(evt) {
+    // ================================================================
+    document.addEventListener('htmx:afterSwap', function (evt) {
         const target = evt.detail.target;
         if (target) {
             const firstError = target.querySelector('.is-invalid, .invalid-feedback');
@@ -111,25 +171,25 @@
         }
     });
 
-    // ==============================
+    // ================================================================
     // CSRF TOKEN
-    // ==============================
-    document.addEventListener('DOMContentLoaded', function() {
+    // ================================================================
+    document.addEventListener('DOMContentLoaded', function () {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         if (csrfToken) {
-            document.body.addEventListener('htmx:configRequest', function(evt) {
+            document.body.addEventListener('htmx:configRequest', function (evt) {
                 evt.detail.headers['X-CSRFToken'] = csrfToken;
             });
         }
     });
 
-    // ==============================
+    // ================================================================
     // MAIN MODAL HANDLING
-    // ==============================
+    // ================================================================
     const mainModalEl = document.getElementById('mainModal');
 
     if (mainModalEl) {
-        document.body.addEventListener('htmx:afterSwap', function(evt) {
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
             const target = evt.detail && evt.detail.target;
             if (!target || target.id !== 'mainModalContent') return;
             const html = (target.innerHTML || '').trim();
@@ -140,26 +200,26 @@
         });
     }
 
-    document.body.addEventListener('closeModal', function() {
+    document.body.addEventListener('closeModal', function () {
         if (mainModalEl) {
             const modal = bootstrap.Modal.getInstance(mainModalEl);
             if (modal) modal.hide();
         }
     });
 
-    // ==============================
+    // ================================================================
     // QUICK ADD MODAL
-    // ==============================
+    // ================================================================
     const quickAddModalEl = document.getElementById('quickAddModal');
 
     if (quickAddModalEl) {
-        document.body.addEventListener('htmx:afterSwap', function(evt) {
+        document.body.addEventListener('htmx:afterSwap', function (evt) {
             if (evt.detail.target.id === 'quickAddModalContent') {
                 if (mainModalEl) {
                     const mainModal = bootstrap.Modal.getInstance(mainModalEl);
                     if (mainModal) mainModal.hide();
                 }
-                setTimeout(function() {
+                setTimeout(function () {
                     let modal = bootstrap.Modal.getInstance(quickAddModalEl);
                     if (!modal) modal = new bootstrap.Modal(quickAddModalEl, { backdrop: 'static', keyboard: true });
                     modal.show();
@@ -170,7 +230,7 @@
         });
     }
 
-    document.body.addEventListener('closeModal', function() {
+    document.body.addEventListener('closeModal', function () {
         if (quickAddModalEl) {
             const modal = bootstrap.Modal.getInstance(quickAddModalEl);
             if (modal) modal.hide();
@@ -181,9 +241,9 @@
         document.body.style.overflow = '';
     });
 
-    // ==============================
+    // ================================================================
     // STAFF SIDEBAR
-    // ==============================
+    // ================================================================
     if (hasStaffSidebar) {
         const sidebar = document.getElementById('sidebar');
         const toggleBtn = document.getElementById('sidebarToggle');
@@ -249,9 +309,9 @@
         restoreSidebarStaff();
     }
 
-    // ==============================
+    // ================================================================
     // CUSTOMER SIDEBAR
-    // ==============================
+    // ================================================================
     if (hasCustomerSidebar) {
         const sidebar = document.getElementById('customer-sidebar');
         const toggleBtn = document.getElementById('sidebarToggleCustomer');
@@ -325,25 +385,33 @@
 
         if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebarCustomer);
         if (mobileToggleBtn) mobileToggleBtn.addEventListener('click', toggleSidebarCustomer);
-        if (sidebar) sidebar.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', closeCustomerMobile));
+        if (sidebar) {
+            sidebar.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', closeCustomerMobile));
+        }
         const pageWrapper = document.getElementById('page-content-wrapper');
         if (pageWrapper) pageWrapper.addEventListener('click', closeCustomerMobile);
         window.addEventListener('resize', restoreSidebarCustomer);
         restoreSidebarCustomer();
     }
 
-    // ==============================
+    // ================================================================
     // THEME TOGGLES
-    // ==============================
+    // ================================================================
     if (hasStaffSidebar) {
         const htmlEl = document.documentElement;
         const themeToggle = document.getElementById('themeToggle');
         const themeIcon = document.getElementById('themeIcon');
+
         function setThemeStaff(theme) {
             htmlEl.setAttribute('data-bs-theme', theme);
             if (themeIcon) {
-                if (theme === 'dark') { themeIcon.classList.remove('bi-moon-fill'); themeIcon.classList.add('bi-sun-fill'); }
-                else { themeIcon.classList.remove('bi-sun-fill'); themeIcon.classList.add('bi-moon-fill'); }
+                if (theme === 'dark') {
+                    themeIcon.classList.remove('bi-moon-fill');
+                    themeIcon.classList.add('bi-sun-fill');
+                } else {
+                    themeIcon.classList.remove('bi-sun-fill');
+                    themeIcon.classList.add('bi-moon-fill');
+                }
             }
             localStorage.setItem('theme', theme);
         }
@@ -358,11 +426,17 @@
         const htmlEl = document.documentElement;
         const themeToggle = document.getElementById('themeToggleCustomer');
         const themeIcon = document.getElementById('themeIconCustomer');
+
         function setThemeCustomer(theme) {
             htmlEl.setAttribute('data-bs-theme', theme);
             if (themeIcon) {
-                if (theme === 'dark') { themeIcon.classList.remove('bi-moon-fill'); themeIcon.classList.add('bi-sun-fill'); }
-                else { themeIcon.classList.remove('bi-sun-fill'); themeIcon.classList.add('bi-moon-fill'); }
+                if (theme === 'dark') {
+                    themeIcon.classList.remove('bi-moon-fill');
+                    themeIcon.classList.add('bi-sun-fill');
+                } else {
+                    themeIcon.classList.remove('bi-sun-fill');
+                    themeIcon.classList.add('bi-moon-fill');
+                }
             }
             localStorage.setItem('customerTheme', theme);
         }
@@ -377,11 +451,17 @@
         const htmlEl = document.documentElement;
         const themeToggle = document.getElementById('themeTogglePublic');
         const themeIcon = document.getElementById('themeIconPublic');
+
         function setThemePublic(theme) {
             htmlEl.setAttribute('data-bs-theme', theme);
             if (themeIcon) {
-                if (theme === 'dark') { themeIcon.classList.remove('bi-moon-fill'); themeIcon.classList.add('bi-sun-fill'); }
-                else { themeIcon.classList.remove('bi-sun-fill'); themeIcon.classList.add('bi-moon-fill'); }
+                if (theme === 'dark') {
+                    themeIcon.classList.remove('bi-moon-fill');
+                    themeIcon.classList.add('bi-sun-fill');
+                } else {
+                    themeIcon.classList.remove('bi-sun-fill');
+                    themeIcon.classList.add('bi-moon-fill');
+                }
             }
             localStorage.setItem('publicTheme', theme);
         }
@@ -392,10 +472,10 @@
         setThemePublic(localStorage.getItem('publicTheme') || 'light');
     }
 
-    // ==============================
+    // ================================================================
     // KEYBOARD SHORTCUTS
-    // ==============================
-    document.addEventListener('keydown', function(e) {
+    // ================================================================
+    document.addEventListener('keydown', function (e) {
         if (e.ctrlKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
             e.preventDefault();
             if (hasStaffSidebar) document.getElementById('sidebarToggle')?.click();
@@ -416,7 +496,7 @@
         }
     });
 
-    document.addEventListener('refresh-notifications', function() {
+    document.addEventListener('refresh-notifications', function () {
         const badgeContainer = document.querySelector('#notification-badge-container');
         if (badgeContainer) htmx.trigger(badgeContainer, 'refresh');
         const dropdownContainer = document.querySelector('#notification-dropdown');
@@ -425,9 +505,16 @@
         if (listContainer) htmx.trigger(listContainer, 'refresh');
     });
 
-    // ==============================
-    // GLOBAL SEARCH — Vanilla JS (no HTMX)
-    // ==============================
+    // ---- Open WhatsApp when an estimate is dispatched via WhatsApp ----
+    document.addEventListener('openWhatsApp', function (evt) {
+        const url = evt.detail;
+        if (!url || typeof url !== 'string') return;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    });
+
+    // ================================================================
+    // GLOBAL SEARCH - Vanilla JS (no HTMX)
+    // ================================================================
     const searchWrapper = document.getElementById('global-search-wrapper');
     const searchInput = document.getElementById('global-search-input');
     const searchResults = document.getElementById('global-search-results');
@@ -447,7 +534,6 @@
         }
 
         function doSearch(q) {
-            // Cancel previous in-flight request
             if (abortController) abortController.abort();
             abortController = new AbortController();
 
@@ -457,29 +543,28 @@
                 signal: abortController.signal,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             })
-            .then(function(response) {
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                return response.text();
-            })
-            .then(function(html) {
-                searchResults.innerHTML = html;
-                showResults();
-            })
-            .catch(function(err) {
-                if (err.name === 'AbortError') return;
-                console.error('Search error:', err);
-                searchResults.innerHTML =
-                    '<div class="global-search-empty text-danger">Search failed: ' +
-                    err.message + '</div>';
-                showResults();
-            })
-            .finally(function() {
-                if (searchSpinner) searchSpinner.style.display = 'none';
-            });
+                .then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                })
+                .then(function (html) {
+                    searchResults.innerHTML = html;
+                    showResults();
+                })
+                .catch(function (err) {
+                    if (err.name === 'AbortError') return;
+                    console.error('Search error:', err);
+                    searchResults.innerHTML =
+                        '<div class="global-search-empty text-danger">Search failed: ' +
+                        err.message + '</div>';
+                    showResults();
+                })
+                .finally(function () {
+                    if (searchSpinner) searchSpinner.style.display = 'none';
+                });
         }
 
-        // Input — debounced 300ms
-        searchInput.addEventListener('input', function() {
+        searchInput.addEventListener('input', function () {
             const q = this.value.trim();
             clearTimeout(debounceTimer);
 
@@ -492,27 +577,24 @@
 
             if (q === lastQuery) return;
 
-            debounceTimer = setTimeout(function() {
+            debounceTimer = setTimeout(function () {
                 lastQuery = q;
                 doSearch(q);
             }, 300);
         });
 
-        // Focus: reveal if we have any content
-        searchInput.addEventListener('focus', function() {
+        searchInput.addEventListener('focus', function () {
             showResults();
         });
 
-        // Esc: hide
-        searchInput.addEventListener('keydown', function(e) {
+        searchInput.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 hideResults();
                 searchInput.blur();
             }
         });
 
-        // Keyboard nav in results
-        searchInput.addEventListener('keydown', function(e) {
+        searchInput.addEventListener('keydown', function (e) {
             const items = searchResults.querySelectorAll('.global-search-item');
             if (!items.length) return;
 
@@ -541,15 +623,13 @@
             }
         });
 
-        // Outside click: hide
-        document.addEventListener('click', function(e) {
+        document.addEventListener('click', function (e) {
             if (!searchWrapper.contains(e.target)) {
                 hideResults();
             }
         });
 
-        // Ctrl+K / Cmd+K
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
                 e.preventDefault();
                 searchWrapper.classList.remove('search-closed');
@@ -559,18 +639,17 @@
         });
     }
 
-    // ==============================
-    // SIDEBAR DRAG-RESIZE (Staff + Customer) 
-    // ==============================
+    // ================================================================
+    // SIDEBAR DRAG-RESIZE (Staff + Customer)
+    // ================================================================
     function setupSidebarResize(sidebar, opts) {
         if (!sidebar) return;
 
-        // Auto-inject handle (HTML me kuch add karne ki zarurat nahi)
         let handle = sidebar.querySelector('.sidebar-resize-handle');
         if (!handle) {
             handle = document.createElement('div');
             handle.className = 'sidebar-resize-handle';
-            handle.setAttribute('title', 'Drag to resize · Double-click to reset');
+            handle.setAttribute('title', 'Drag to resize - Double-click to reset');
             sidebar.appendChild(handle);
         }
 
@@ -579,7 +658,6 @@
         const narrowBreakpoint = 120;
         const storageKey = opts.storageKey;
 
-        // Inline styles with !important → base CSS ko override karega
         function applyWidth(px) {
             const w = Math.max(minWidth, Math.min(maxWidth, Math.round(px)));
             sidebar.style.setProperty('width', w + 'px', 'important');
@@ -595,7 +673,6 @@
             sidebar.classList.remove('narrow');
         }
 
-        // Restore saved width (desktop + expanded only)
         if (!isMobile() && !sidebar.classList.contains('collapsed')) {
             const saved = parseInt(localStorage.getItem(storageKey) || '0', 10);
             if (saved >= minWidth && saved <= maxWidth) applyWidth(saved);
@@ -636,7 +713,6 @@
             }
         });
 
-        // Double-click → reset to default (base CSS width)
         handle.addEventListener('dblclick', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -644,16 +720,14 @@
             clearInlineWidth();
         });
 
-        // Watch ONLY collapsed state, ignore resizing class changes
         let lastCollapsedState = sidebar.classList.contains('collapsed');
         const mo = new MutationObserver(function () {
-            if (resizing) return; // drag ke dauraan kuch mat karo
+            if (resizing) return;
             const isCollapsedNow = sidebar.classList.contains('collapsed');
-            if (isCollapsedNow === lastCollapsedState) return; // ignore 'resizing' + 'narrow' changes
+            if (isCollapsedNow === lastCollapsedState) return;
             lastCollapsedState = isCollapsedNow;
 
             if (isCollapsedNow) {
-                // Collapse hone se pehle current width localStorage me save karo
                 const w = parseInt(sidebar.style.width, 10);
                 if (w && w >= minWidth && w <= maxWidth) {
                     localStorage.setItem(storageKey, w);
@@ -668,13 +742,11 @@
         });
         mo.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
 
-        // Mobile pe switch hone par inline widths clear
         window.addEventListener('resize', function () {
             if (isMobile()) clearInlineWidth();
         });
     }
 
-    // Attach to Staff sidebar
     if (hasStaffSidebar) {
         setupSidebarResize(document.getElementById('sidebar'), {
             min: 50,
@@ -683,7 +755,6 @@
         });
     }
 
-    // Attach to Customer sidebar
     if (hasCustomerSidebar) {
         setupSidebarResize(document.getElementById('customer-sidebar'), {
             min: 50,

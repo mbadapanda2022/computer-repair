@@ -2,29 +2,42 @@
 import json
 import logging
 from functools import wraps
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.http import HttpResponse
-from django.core.exceptions import ValidationError
+
 from django.conf import settings
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import Http404, HttpResponse
+from django.shortcuts import redirect, render
+
 from .views.utils import is_htmx
 
 logger = logging.getLogger(__name__)
 
 
 def handle_errors(default_redirect=None, htmx_template=None):
+    """
+    Wrap a view with centralized error handling.
+
+    HTTP exceptions (Http404, PermissionDenied) are re-raised so Django's
+    own handlers render proper 404/403 responses instead of 500s.
+    """
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
             try:
                 return view_func(request, *args, **kwargs)
+            except (Http404, PermissionDenied):
+                # Let Django produce the correct status page.
+                raise
             except Exception as e:
-                logger.exception(f"Error in {view_func.__name__}: {e}")
+                logger.exception("Error in %s: %s", view_func.__name__, e)
 
                 if settings.DEBUG:
                     user_error_msg = str(e)
                 else:
-                    user_error_msg = "An unexpected error occurred. Please try again later."
+                    user_error_msg = (
+                        "An unexpected error occurred. Please try again later."
+                    )
 
                 status_code = 500
                 if hasattr(e, 'status_code'):
@@ -33,25 +46,40 @@ def handle_errors(default_redirect=None, htmx_template=None):
                     status_code = 400
 
                 if is_htmx(request):
-                    context = {'error': user_error_msg}
+                    # Attempt to render the provided template (form re-display).
                     if htmx_template:
-                        response = render(request, htmx_template, context, status=status_code)
-                        # Modal-based CRUD: force error form into the modal,
-                        # not into whatever target the form happens to use.
-                        response['HX-Retarget'] = '#mainModalContent'
-                        return response
+                        try:
+                            response = render(
+                                request,
+                                htmx_template,
+                                {'error': user_error_msg},
+                                status=status_code,
+                            )
+                            response['HX-Retarget'] = '#mainModalContent'
+                            response['HX-Trigger'] = json.dumps({
+                                'showToast': {
+                                    'level': 'danger',
+                                    'message': user_error_msg,
+                                }
+                            })
+                            return response
+                        except Exception:
+                            logger.exception(
+                                "handle_errors: htmx_template render failed"
+                            )
 
+                    # Generic fallback alert.
                     response = HttpResponse(
                         f'<div class="alert alert-danger alert-dismissible fade show" role="alert">'
                         f'  {user_error_msg}'
                         f'  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
                         f'</div>',
-                        status=status_code
+                        status=status_code,
                     )
                     response['HX-Trigger'] = json.dumps({
                         'showToast': {
                             'level': 'danger',
-                            'message': user_error_msg
+                            'message': user_error_msg,
                         }
                     })
                     return response

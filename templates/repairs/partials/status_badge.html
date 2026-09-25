@@ -1,3 +1,0 @@
-<span class="badge bg-{% if job.status == 'pending' %}secondary{% elif job.status == 'diagnosis' %}info{% elif job.status == 'repairing' %}primary{% elif job.status == 'ready' %}success{% elif job.status == 'delivered' %}dark{% else %}danger{% endif %}">
-    {{ job.get_status_display }}
-</span>

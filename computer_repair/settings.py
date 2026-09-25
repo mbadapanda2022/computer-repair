@@ -60,7 +60,7 @@ AUTHENTICATION_BACKENDS = [
 
 SESSION_COOKIE_AGE = 1209600
 SESSION_COOKIE_HTTPONLY = True
-SESSION_SAVE_EVERY_REQUEST = True
+SESSION_SAVE_EVERY_REQUEST = False
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
@@ -118,7 +118,8 @@ if DATABASE_URL:
     DATABASES = {
         "default": dj_database_url.parse(
             DATABASE_URL,
-            conn_max_age=0,
+            conn_max_age=600,
+            conn_health_checks=True,
             ssl_require=True,
         )
     }
@@ -289,6 +290,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 CSRF_FAILURE_VIEW = 'accounting.views.error_handlers.csrf_failure'
+
 
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',

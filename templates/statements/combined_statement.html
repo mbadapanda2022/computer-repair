@@ -54,6 +54,18 @@
     </small>
   </div>
 
+  {# Search warning — balances hidden when search is active #}
+  {% if search %}
+    <div class="alert alert-warning py-2 mb-3">
+      <small>
+        <i class="bi bi-info-circle-fill"></i>
+        <strong>Search active:</strong> "{{ search }}".
+        Balance column is hidden because running totals include all transactions
+        (not just the filtered view). Clear search to see balances.
+      </small>
+    </div>
+  {% endif %}
+
   <!-- SNAPSHOT -->
   <div class="card border-0 shadow-sm mb-3"
        style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
@@ -128,25 +140,28 @@
             {% else %}&nbsp;{% endif %}
           </div>
         </div>
-
         <div class="col-md-3 col-6">
           <div class="text-muted" style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.3px;">
-            Balance Now
+            Period Totals
           </div>
-          <div class="fw-bold fs-5 {% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
-            ₹{{ net_position|abs_filter|floatformat:2 }}
-            {% if net_position > 0 %}
-              <small class="badge bg-success-subtle text-success">Dr</small>
-            {% elif net_position < 0 %}
-              <small class="badge bg-warning-subtle text-warning">Cr</small>
-            {% endif %}
+          <div class="fw-bold" style="font-size: 0.95rem;">
+            <span class="text-success">+₹{{ total_debit|floatformat:2 }}</span>
+            <span class="text-muted">/</span>
+            <span class="text-danger">−₹{{ total_credit|floatformat:2 }}</span>
           </div>
           <div class="text-muted" style="font-size: 0.7rem;">
-            {% if net_position > 0 %}They owe us (settle this)
-            {% elif net_position < 0 %}We owe them (settle this)
-            {% else %}Settled ✅{% endif %}
+            Total Debit / Credit (all rows)
+          </div>
+          <div class="text-muted mt-1" style="font-size: 0.72rem;">
+            <strong>Balance Now:</strong>
+            <span class="{% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
+              ₹{{ net_position|abs_filter|floatformat:2 }}
+            </span>
+            {% if net_position > 0 %}<span class="badge bg-success-subtle text-success">Dr</span>
+            {% elif net_position < 0 %}<span class="badge bg-warning-subtle text-warning">Cr</span>{% endif %}
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -376,6 +391,17 @@
       {% endif %}
     </div>
   </div>
+
+  {% if closing_recv < 0 or closing_pay < 0 %}
+  <div class="alert alert-info py-2 mt-3 mb-0">
+    <small>
+      <i class="bi bi-info-circle"></i>
+      <strong>Note:</strong> Negative receivable balance means the customer
+      has paid more than what's owed (advance credit with us).
+      This advance will be adjusted against future invoices automatically.
+    </small>
+  </div>
+  {% endif %}
 
   <!-- LEGEND -->
   <div class="mt-3 text-center text-muted small">

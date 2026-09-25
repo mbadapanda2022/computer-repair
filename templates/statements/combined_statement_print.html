@@ -122,11 +122,13 @@
     <p class="doc-title">STATEMENT OF ACCOUNT</p>
     <div class="party-info">
       <strong>{{ contact.name }}</strong>
+      {% if contact.company_name %} · {{ contact.company_name }}{% endif %}
       <span class="ref-badge">({{ contact.get_contact_type_display }})</span><br>
+      {% if contact.address %}{{ contact.address|linebreaks }}<br>{% endif %}
       {% if contact.phone %}Phone: {{ contact.phone }}<br>{% endif %}
+      {% if contact.email %}Email: {{ contact.email }}<br>{% endif %}
       {% if contact.gstin %}GSTIN: {{ contact.gstin }}<br>{% endif %}
-      Period: {{ date_from|default:"Beginning" }} → {{ date_to|default:"Today" }}
-    </div>
+  </div>
   </div>
 </div>
 
@@ -217,8 +219,17 @@
     <tr {% if forloop.counter|divisibleby:2 %}class="row-alt"{% endif %}>
       <td class="text-center">{{ row.date|date:"d-m-Y" }}</td>
       <td>
-        {{ row.description }}
-        {% if row.reference %}<br><span class="ref-badge">Ref: {{ row.reference }}</span>{% endif %}
+          {{ row.description }}
+          {% if 'Discount' in row.description %}
+              <span style="background:#fff3cd; padding:1px 6px; border-radius:8px; font-size:8px; margin-left:4px; color:#856404;">
+                  ADJUST
+              </span>
+          {% elif 'Advance' in row.description %}
+              <span style="background:#cfe2ff; padding:1px 6px; border-radius:8px; font-size:8px; margin-left:4px; color:#084298;">
+                  ADV
+              </span>
+          {% endif %}
+          {% if row.reference %}<br><span class="ref-badge">Ref: {{ row.reference }}</span>{% endif %}
       </td>
       <td class="text-center">
         {% if row.reference %}{{ row.reference }}{% else %}—{% endif %}

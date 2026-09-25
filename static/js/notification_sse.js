@@ -1,5 +1,5 @@
 // static/js/notification_sse.js
-(function() {
+(function () {
     'use strict';
 
     let eventSource = null;
@@ -18,31 +18,30 @@
 
         eventSource = new EventSource(streamUrl);
 
-        // Listen for 'refresh' event – trigger HTMX reload of badge & dropdown
-        eventSource.addEventListener('refresh', function(e) {
-            // Trigger refresh on badge and dropdown containers
+        // Listen for 'refresh' event - trigger HTMX reload of badge & dropdown
+        eventSource.addEventListener('refresh', function (e) {
             document.dispatchEvent(new CustomEvent('refresh-notification-ui'));
         });
 
-        // Listen for 'badge' event – update count directly (optional)
-        eventSource.addEventListener('badge', function(e) {
+        // Listen for 'badge' event - update count directly (optional)
+        eventSource.addEventListener('badge', function (e) {
             try {
                 const data = JSON.parse(e.data);
                 updateBadge(data.count);
-            } catch (err) {}
+            } catch (err) { /* noop */ }
         });
 
-        // Listen for 'toast' event – show toast notification
-        eventSource.addEventListener('toast', function(e) {
+        // Listen for 'toast' event - show toast notification
+        eventSource.addEventListener('toast', function (e) {
             try {
                 const data = JSON.parse(e.data);
                 if (typeof window.showToast === 'function') {
                     window.showToast(data.type || 'info', data.message, data.title);
                 }
-            } catch (err) {}
+            } catch (err) { /* noop */ }
         });
 
-        eventSource.onerror = function() {
+        eventSource.onerror = function () {
             eventSource.close();
             reconnectAttempts++;
             if (reconnectAttempts <= MAX_RECONNECT) {
@@ -52,7 +51,7 @@
             }
         };
 
-        eventSource.onopen = function() {
+        eventSource.onopen = function () {
             reconnectAttempts = 0;
         };
     }
@@ -66,13 +65,11 @@
     }
 
     // Listen for custom event to refresh UI via HTMX
-    document.addEventListener('refresh-notification-ui', function() {
-        // Refresh badge container
+    document.addEventListener('refresh-notification-ui', function () {
         const badgeContainer = document.querySelector('#notification-badge-container');
         if (badgeContainer) {
             htmx.trigger(badgeContainer, 'refresh');
         }
-        // Refresh dropdown container
         const dropdownContainer = document.querySelector('#notification-dropdown');
         if (dropdownContainer) {
             htmx.trigger(dropdownContainer, 'refresh');
@@ -87,7 +84,7 @@
     }
 
     // Cleanup
-    window.addEventListener('beforeunload', function() {
+    window.addEventListener('beforeunload', function () {
         if (eventSource) {
             eventSource.close();
             eventSource = null;

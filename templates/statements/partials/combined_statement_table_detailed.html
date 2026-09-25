@@ -16,7 +16,7 @@
         <th rowspan="2" class="text-center align-middle bg-primary-subtle text-dark"
           style="min-width: 110px;">
           <i class="bi bi-balance-scale me-1"></i>Net
-      </th>
+        </th>
       </tr>
       <tr>
         <th class="text-end bg-success-subtle text-dark" style="width: 85px;">Dr</th>
@@ -35,7 +35,8 @@
     </thead>
 
     <tbody>
-      {% if sort == 'asc' %}
+      {# Opening Balance — top, only when ASC + no search #}
+      {% if sort == 'asc' and not search %}
       <tr class="table-light fw-semibold">
         <td class="text-nowrap">
           {% if opening_as_on_date %}{{ opening_as_on_date|date:"d-M-Y" }}{% else %}—{% endif %}
@@ -117,14 +118,32 @@
 
         <td class="text-end">{% if row.recv_dr %}₹{{ row.recv_dr|floatformat:2 }}{% endif %}</td>
         <td class="text-end">{% if row.recv_cr %}₹{{ row.recv_cr|floatformat:2 }}{% endif %}</td>
-        <td class="text-end small text-muted">₹{{ row.running_recv|floatformat:2 }}</td>
+        <td class="text-end small text-muted">
+          {% if search %}
+            <i class="bi bi-eye-slash" title="Balance hidden during search"></i>
+          {% else %}
+            ₹{{ row.running_recv|floatformat:2 }}
+          {% endif %}
+        </td>
 
         <td class="text-end">{% if row.pay_dr %}₹{{ row.pay_dr|floatformat:2 }}{% endif %}</td>
         <td class="text-end">{% if row.pay_cr %}₹{{ row.pay_cr|floatformat:2 }}{% endif %}</td>
-        <td class="text-end small text-muted">₹{{ row.running_pay|floatformat:2 }}</td>
+        <td class="text-end small text-muted">
+          {% if search %}
+            <i class="bi bi-eye-slash" title="Balance hidden during search"></i>
+          {% else %}
+            ₹{{ row.running_pay|floatformat:2 }}
+          {% endif %}
+        </td>
 
-        <td class="text-center fw-bold {% if row.net >= 0 %}text-success{% else %}text-danger{% endif %}">
-            ₹{{ row.net|floatformat:2 }}
+        <td class="text-end fw-bold {% if row.net >= 0 %}text-success{% else %}text-danger{% endif %}">
+          {% if search %}
+              <span class="text-muted" title="Balance hidden during search">
+                  <i class="bi bi-eye-slash"></i>
+              </span>
+          {% else %}
+              ₹{{ row.net|floatformat:2 }}
+          {% endif %}
         </td>
       </tr>
       {% empty %}
@@ -136,7 +155,8 @@
       </tr>
       {% endfor %}
 
-      {% if sort != 'asc' %}
+      {# Opening Balance — bottom, only when DESC + no search #}
+      {% if sort != 'asc' and not search %}
       <tr class="table-light fw-semibold">
         <td class="text-nowrap">
           {% if opening_as_on_date %}{{ opening_as_on_date|date:"d-M-Y" }}{% else %}—{% endif %}
@@ -174,13 +194,25 @@
       <tr class="table-info">
         <td colspan="2" class="text-end">Closing Balance (C/F) →</td>
         <td colspan="3" class="text-end text-success">
-          <strong>₹{{ closing_recv|floatformat:2 }}</strong>
+          {% if search %}
+            <strong class="text-muted">—</strong>
+          {% else %}
+            <strong>₹{{ closing_recv|floatformat:2 }}</strong>
+          {% endif %}
         </td>
         <td colspan="3" class="text-end text-warning">
-          <strong>₹{{ closing_pay|floatformat:2 }}</strong>
+          {% if search %}
+            <strong class="text-muted">—</strong>
+          {% else %}
+            <strong>₹{{ closing_pay|floatformat:2 }}</strong>
+          {% endif %}
         </td>
         <td class="text-center {% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
-            <strong>₹{{ net_position|floatformat:2 }}</strong>
+            {% if search %}
+                <strong class="text-muted"><i class="bi bi-eye-slash"></i></strong>
+            {% else %}
+                <strong>₹{{ net_position|floatformat:2 }}</strong>
+            {% endif %}
         </td>
       </tr>
     </tfoot>

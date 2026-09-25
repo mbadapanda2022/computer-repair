@@ -2,26 +2,28 @@
 """
 Staff Portal — Repair Jobs views.
 
-Enhancements:
-─────────────
-- Removed no-op send_notification_sse loops (SSE removed earlier).
-- Added select_related / prefetch_related for N+1 prevention.
-- Added aging calculation + activity timeline for detail view.
-- Enhanced list stats: overdue, this_week, in_progress.
+Professional, transaction-safe implementation.
+
+Key guarantees
+──────────────
+- Notifications dispatched AFTER database commit (never inside transaction.atomic)
+  so an SMTP failure cannot roll back a customer's repair job.
+- Stock movement and ledger sync happen atomically with the model save.
+- final_amount always persisted after parts/labour/status changes.
+- All HTMX responses include proper closeModal / toast / HX-Redirect headers.
 """
 
 import json
 import logging
 import urllib.parse
-from datetime import datetime, time, timedelta
-from decimal import Decimal
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import Q, Sum
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -31,8 +33,10 @@ from django.views.decorators.http import require_http_methods
 
 from ..decorators import handle_errors
 from ..forms import RepairJobForm, RepairPartForm
-from ..models import *
-from ..models import sync_invoice_ledger
+from ..models import (
+    CompanyProfile, Contact, Invoice, InvoiceItem, Product, RepairJob,
+    RepairPart, sync_invoice_ledger,
+)
 from ..utils.notification_helpers import send_notification_to_contact
 from .utils import htmx_response, is_htmx, redirect_to_staff, toast_only_response
 
@@ -43,20 +47,83 @@ logger = logging.getLogger(__name__)
 # CONSTANTS
 # ════════════════════════════════════════════════════════════
 STATUS_ORDER = ['pending', 'received', 'diagnosis', 'repairing', 'ready', 'delivered']
-AGING_WARNING_DAYS = 4      # yellow after this many days
-AGING_URGENT_DAYS = 8       # red after this many days
-WARRANTY_DAYS = 30          # default warranty period
+AGING_WARNING_DAYS = 4
+AGING_URGENT_DAYS = 8
+WARRANTY_DAYS = 30
+
+# Terminal states — no further status transitions allowed
+TERMINAL_STATUSES = frozenset({'delivered', 'cancelled'})
+
+STATUS_MODAL_CONFIG = {
+    'received': {
+        'title': 'Mark as Received',
+        'icon': 'box-arrow-in-down',
+        'color': 'primary',
+        'description': 'Device has physically arrived at the shop. Fill in reception details.',
+    },
+    'diagnosis': {
+        'title': 'Start Diagnosis',
+        'icon': 'search',
+        'color': 'info',
+        'description': 'What did you find after inspecting the device?',
+    },
+    'repairing': {
+        'title': 'Start Repairing',
+        'icon': 'arrow-repeat',
+        'color': 'warning',
+        'description': 'Confirm repair work is starting.',
+    },
+    'ready': {
+        'title': 'Mark Ready for Delivery',
+        'icon': 'check2-circle',
+        'color': 'primary',
+        'description': 'Repair complete. Device ready for customer pickup.',
+    },
+    'delivered': {
+        'title': 'Mark as Delivered',
+        'icon': 'truck',
+        'color': 'success',
+        'description': 'Device is being handed over to the customer. Fill in delivery details.',
+    },
+    'cancelled': {
+        'title': 'Cancel Repair',
+        'icon': 'x-circle',
+        'color': 'danger',
+        'description': 'This will remove all parts and reverse stock. Cannot be undone.',
+    },
+}
 
 
 # ════════════════════════════════════════════════════════════
-# HELPERS
+# HELPER: Safe notification dispatch
+# ════════════════════════════════════════════════════════════
+def _safe_notify(customer, **kwargs):
+    """
+    Dispatch a notification without ever raising.
+
+    Must be called OUTSIDE transaction.atomic() blocks. If SMTP fails,
+    the error is logged and the caller continues — the customer's repair
+    job is never rolled back because of a notification failure.
+    """
+    if customer is None:
+        return None
+    try:
+        return send_notification_to_contact(customer, **kwargs)
+    except Exception:
+        logger.exception(
+            "Notification dispatch failed | customer=%s | title=%s",
+            getattr(customer, 'pk', None),
+            kwargs.get('title', ''),
+        )
+        return None
+
+
+# ════════════════════════════════════════════════════════════
+# HELPERS: Aging / Pipeline / Timeline / Warranty
 # ════════════════════════════════════════════════════════════
 def _compute_aging(job):
-    """
-    Return (days, level) for jobs still active.
-    level: 'ok' | 'warning' | 'danger' | None (if done)
-    """
-    if job.status in ('delivered', 'cancelled'):
+    """Return (days, level). level ∈ {'ok','warning','danger',None}."""
+    if job.status in TERMINAL_STATUSES:
         return None, None
 
     today = timezone.now().date()
@@ -78,10 +145,7 @@ def _compute_aging(job):
 
 
 def _build_status_pipeline(job):
-    """
-    Build visual pipeline steps from STATUS_ORDER.
-    Returns list of {key, label, state} where state ∈ {'done','current','pending'}.
-    """
+    """Build visual pipeline steps for repair_detail template."""
     if job.status == 'cancelled':
         return [{'key': 'cancelled', 'label': 'Cancelled', 'state': 'current'}]
 
@@ -108,7 +172,7 @@ def _build_status_pipeline(job):
 
 
 def _build_activity_timeline(job):
-    """Chronological activity from existing timestamps."""
+    """Build chronological activity feed."""
     events = []
 
     if job.submitted_at:
@@ -186,7 +250,7 @@ def _build_activity_timeline(job):
 
 
 def _compute_warranty(job):
-    """Return (days_remaining, expires_on) if delivered, else (None, None)."""
+    """Return (days_remaining, expires_on). Only meaningful after delivery."""
     if job.status != 'delivered' or not job.delivery_date:
         return None, None
     expires_on = job.delivery_date + timedelta(days=WARRANTY_DAYS)
@@ -195,9 +259,10 @@ def _compute_warranty(job):
 
 
 # ════════════════════════════════════════════════════════════
-# HELPER: PAGINATED REPAIRS CONTEXT
+# HELPER: Paginated repairs context
 # ════════════════════════════════════════════════════════════
 def get_paginated_repairs_context(request, queryset=None):
+    """Build filtered, paginated, annotated repair list context."""
     if queryset is None:
         queryset = (
             RepairJob.objects
@@ -258,7 +323,6 @@ def get_paginated_repairs_context(request, queryset=None):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # Attach aging to each object (no extra DB hits)
     jobs = list(page_obj.object_list)
     for job in jobs:
         days, level = _compute_aging(job)
@@ -290,6 +354,7 @@ def get_paginated_repairs_context(request, queryset=None):
 # ════════════════════════════════════════════════════════════
 @login_required
 def validate_repair_field(request):
+    """Real-time field validation for repair forms."""
     field_name = request.GET.get('field')
     if not field_name:
         return HttpResponse("")
@@ -305,12 +370,17 @@ def validate_repair_field(request):
             form = RepairJobForm(data={field_name: value})
         form.full_clean()
         errors = form.errors.get(field_name, [])
-        html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-        html += ''.join(f'<div>{err}</div>' for err in errors)
-        html += '</div>'
+
+        if errors:
+            html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
+            html += ''.join(f'<div>{err}</div>' for err in errors)
+            html += '</div>'
+        else:
+            html = f'<div id="field-{field_name}" class="invalid-feedback"></div>'
+
         return HttpResponse(html)
     except Exception as e:
-        logger.error(f"Validation error on {field_name}: {e}")
+        logger.error("Validation error on %s: %s", field_name, e)
         return HttpResponse(
             f'<div id="field-{field_name}" class="invalid-feedback d-block">'
             f'Server validation error</div>'
@@ -337,7 +407,9 @@ def repair_list(request):
 # 3. PRINT LIST
 # ════════════════════════════════════════════════════════════
 @login_required
+@handle_errors(default_redirect='accounting:repair_list')
 def repair_list_print(request):
+    """Print-friendly repair list."""
     search = request.GET.get('search', '')
     status = request.GET.get('status', '')
     customer_id = request.GET.get('customer', '')
@@ -373,7 +445,7 @@ def repair_list_print(request):
     if customer_id:
         try:
             customer_name = Contact.objects.get(pk=customer_id).name
-        except Contact.DoesNotExist:
+        except (Contact.DoesNotExist, ValueError, TypeError):
             pass
 
     return render(request, 'repairs/repair_list_print.html', {
@@ -398,6 +470,7 @@ def repair_list_print(request):
 @handle_errors(default_redirect='accounting:repair_list',
                htmx_template='repairs/partials/repair_form_modal.html')
 def repair_create(request):
+    """Create a new repair job (staff-side)."""
     template_name = (
         'repairs/partials/repair_form_modal.html'
         if is_htmx(request) else 'repairs/repair_form.html'
@@ -406,48 +479,57 @@ def repair_create(request):
     if request.method == 'POST':
         form = RepairJobForm(request.POST)
         if form.is_valid():
-             with transaction.atomic():
+            # ── 1. Save atomically ──
+            with transaction.atomic():
                 job = form.save(commit=False)
                 now = timezone.now()
                 job.date_in = now.date()
 
+                # Staff-created repairs imply the device is already in hand.
+                # "pending" only makes sense for customer-submitted requests.
                 if job.status == 'pending':
                     job.status = 'received'
                 if not job.received_at:
                     job.received_at = now.date()
+
                 job.save()
 
-                send_notification_to_contact(
-                    job.customer,
-                    title=f"Repair Job Created: {job.job_number}",
-                    message=f"Your repair for {job.device_model} has been received at the shop.",
-                    link=reverse('customer:customer_repair_detail', args=[job.pk]),
-                    notif_type='success',
-                    category='repairs',
-                    send_email=False,
-                )
+            # ── 2. Notify AFTER commit ──
+            _safe_notify(
+                job.customer,
+                title=f"Repair Job Created: {job.job_number}",
+                message=f"Your repair for {job.device_model} has been received at the shop.",
+                link=reverse('customer:customer_repair_detail', args=[job.pk]),
+                notif_type='success',
+                category='repairs',
+                send_email=False,
+            )
 
-                if is_htmx(request):
-                    response = HttpResponse()
-                    response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
-                    response['HX-Trigger'] = json.dumps({
-                        'showToast': {
-                            'level': 'success',
-                            'message': f'Repair job {job.job_number} created.',
-                        },
-                    })
-                    return response
+            if is_htmx(request):
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Repair job {job.job_number} created.',
+                    },
+                })
+                return response
 
-                messages.success(request, f"Repair job {job.job_number} created.")
-                return redirect_to_staff('repair_detail', pk=job.pk)
+            messages.success(request, f"Repair job {job.job_number} created.")
+            return redirect_to_staff('repair_detail', pk=job.pk)
+
         else:
             if is_htmx(request):
                 return render(request, 'repairs/partials/repair_form_modal.html',
-                              {'form': form})
+                              {'form': form, 'is_htmx': True})
     else:
         form = RepairJobForm()
 
-    return render(request, template_name, {'form': form})
+    return render(request, template_name, {
+        'form': form,
+        'is_htmx': is_htmx(request),
+    })
 
 
 # ════════════════════════════════════════════════════════════
@@ -458,6 +540,7 @@ def repair_create(request):
 @handle_errors(default_redirect='accounting:repair_list',
                htmx_template='repairs/partials/repair_form_modal.html')
 def repair_update(request, pk):
+    """Full-form edit of a repair job."""
     job = get_object_or_404(
         RepairJob.objects.select_related('customer'), pk=pk
     )
@@ -467,64 +550,68 @@ def repair_update(request, pk):
     )
 
     if request.method == 'POST':
-        # Capture pre-form status so we can detect a status change.
         old_status = job.status
         form = RepairJobForm(request.POST, instance=job)
 
         if form.is_valid():
+            # ── 1. Save atomically ──
+            # Model.save() auto-recalculates final_amount and fires its
+            # own status-change notification when status differs.
             with transaction.atomic():
                 job = form.save(commit=False)
-
                 if job.status == 'delivered' and not job.delivery_date:
                     job.delivery_date = timezone.now().date()
-
                 job.save()
 
-                parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-                job.final_amount = parts_total + job.labour_charge
-                job.save(update_fields=['final_amount'])
+            # ── 2. Notify only for non-status edits ──
+            # (Status changes are already notified by RepairJob.save().)
+            if old_status == job.status:
+                _safe_notify(
+                    job.customer,
+                    title=f"Repair Job Updated: {job.job_number}",
+                    message=f"Your repair for {job.device_model} has been updated.",
+                    link=reverse('customer:customer_repair_detail', args=[job.pk]),
+                    notif_type='info',
+                    category='repairs',
+                    send_email=False,
+                )
 
-                if old_status == job.status:
-                    send_notification_to_contact(
-                        job.customer,
-                        title=f"Repair Job Updated: {job.job_number}",
-                        message=f"Your repair for {job.device_model} has been updated.",
-                        link=reverse('customer:customer_repair_detail', args=[job.pk]),
-                        notif_type='info',
-                        category='repairs',
-                        send_email=False,
-                    )
+            if is_htmx(request):
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
+                response['HX-Trigger'] = json.dumps({
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Repair job {job.job_number} updated.',
+                    },
+                })
+                return response
 
-                if is_htmx(request):
-                    response = HttpResponse()
-                    response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
-                    response['HX-Trigger'] = json.dumps({
-                        'showToast': {
-                            'level': 'success',
-                            'message': f'Repair job {job.job_number} updated.',
-                        },
-                    })
-                    return response
-
-                messages.success(request, f"Repair job {job.job_number} updated.")
-                return redirect_to_staff('repair_detail', pk=job.pk)
+            messages.success(request, f"Repair job {job.job_number} updated.")
+            return redirect_to_staff('repair_detail', pk=job.pk)
 
         else:
             if is_htmx(request):
                 return render(request, 'repairs/partials/repair_form_modal.html',
-                              {'form': form, 'job': job})
-            return render(request, template_name, {'form': form, 'job': job})
+                              {'form': form, 'job': job, 'is_htmx': True})
+            return render(request, template_name, {
+                'form': form, 'job': job, 'is_htmx': False,
+            })
 
     else:
         form = RepairJobForm(instance=job)
-        return render(request, template_name, {'form': form, 'job': job})
+        return render(request, template_name, {
+            'form': form, 'job': job, 'is_htmx': is_htmx(request),
+        })
 
 
 # ════════════════════════════════════════════════════════════
 # 6. REPAIR DETAIL
 # ════════════════════════════════════════════════════════════
 @login_required
+@handle_errors(default_redirect='accounting:repair_list')
 def repair_detail(request, pk):
+    """Full-page detail view with timeline, aging, warranty info."""
     job = get_object_or_404(
         RepairJob.objects
         .select_related('customer', 'invoice', 'estimate_approved_by'),
@@ -533,13 +620,11 @@ def repair_detail(request, pk):
     parts = job.parts.select_related('product').all()
     parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
 
-    # Enhanced context
     days_in_shop, aging_level = _compute_aging(job)
     warranty_days, warranty_expires = _compute_warranty(job)
     status_pipeline = _build_status_pipeline(job)
     activity_timeline = _build_activity_timeline(job)
 
-    # Estimate vs actual comparison
     estimate_diff = None
     if job.estimated_cost and job.final_amount:
         estimate_diff = job.final_amount - job.estimated_cost
@@ -554,7 +639,6 @@ def repair_detail(request, pk):
         'part_form': RepairPartForm(),
         'status_choices': RepairJob.STATUS_CHOICES,
 
-        # Enhanced
         'days_in_shop': days_in_shop,
         'aging_level': aging_level,
         'warranty_days': warranty_days,
@@ -569,57 +653,15 @@ def repair_detail(request, pk):
 
 
 # ════════════════════════════════════════════════════════════
-# STATUS CHANGE — Context-aware modal
+# 7. STATUS CHANGE — Two-mode URL
 # ════════════════════════════════════════════════════════════
-
-# Configuration for each new-status modal
-STATUS_MODAL_CONFIG = {
-    'received': {
-        'title': 'Mark as Received',
-        'icon': 'box-arrow-in-down',
-        'color': 'primary',
-        'description': 'Device has physically arrived at the shop. Fill in reception details.',
-    },
-    'diagnosis': {
-        'title': 'Start Diagnosis',
-        'icon': 'search',
-        'color': 'info',
-        'description': 'What did you find after inspecting the device?',
-    },
-    'repairing': {
-        'title': 'Start Repairing',
-        'icon': 'arrow-repeat',
-        'color': 'warning',
-        'description': 'Confirm repair work is starting.',
-    },
-    'ready': {
-        'title': 'Mark Ready for Delivery',
-        'icon': 'check2-circle',
-        'color': 'primary',
-        'description': 'Repair complete. Device ready for customer pickup.',
-    },
-    'delivered': {
-        'title': 'Mark as Delivered',
-        'icon': 'truck',
-        'color': 'success',
-        'description': 'Device is being handed over to the customer. Fill in delivery details.',
-    },
-    'cancelled': {
-        'title': 'Cancel Repair',
-        'icon': 'x-circle',
-        'color': 'danger',
-        'description': 'This will remove all parts and reverse stock. Cannot be undone.',
-    },
-}
-
 def _modal_error_response(level, message, status=200):
     """
-    Return a toast WITHOUT triggering any HTMX swap.
-    Used when a modal-target form returns a validation error
-    (otherwise the empty response would open an empty modal).
+    Return a toast WITHOUT triggering an HTMX swap.
+    Prevents an empty response from wiping the current modal.
     """
     response = HttpResponse(status=status)
-    response['HX-Reswap'] = 'none'   # ← key: don't swap anything
+    response['HX-Reswap'] = 'none'
     response['HX-Trigger'] = json.dumps({
         'showToast': {'level': level, 'message': message}
     })
@@ -634,7 +676,7 @@ def update_repair_status(request, pk):
     Two modes (single URL):
 
     Mode A — Dropdown submit (POST has `status`):
-        → Return context-aware modal for that status.
+        → Return context-aware modal for the new status.
 
     Mode B — Modal submit (POST has `new_status`):
         → Apply status + extra fields atomically.
@@ -650,7 +692,6 @@ def update_repair_status(request, pk):
     if 'new_status' not in request.POST:
         new_status = (request.POST.get('status') or '').strip()
 
-        # Validation
         if not new_status or new_status not in dict(RepairJob.STATUS_CHOICES):
             return _modal_error_response('danger', 'Invalid status.', status=400)
 
@@ -660,7 +701,7 @@ def update_repair_status(request, pk):
                 f'Status is already "{job.get_status_display()}".',
             )
 
-        if job.status in ('delivered', 'cancelled'):
+        if job.status in TERMINAL_STATUSES:
             return _modal_error_response(
                 'error',
                 f'Cannot change from {job.get_status_display()}.',
@@ -691,14 +732,14 @@ def update_repair_status(request, pk):
             {'level': 'danger', 'message': 'Invalid status.'}, status=400,
         )
 
-    if old_status in ('delivered', 'cancelled'):
+    if old_status in TERMINAL_STATUSES:
         return toast_only_response(
             {'level': 'error',
              'message': f'Cannot change from {job.get_status_display()}.'},
             status=400,
         )
 
-    # ── Collect optional fields from POST ─────────────
+    # ── Collect optional fields from POST ──
     DATE_FIELDS = {'received_at', 'ready_at', 'delivery_date'}
     TEXT_FIELDS = {
         'received_by', 'received_remarks', 'diagnosis_report',
@@ -707,8 +748,6 @@ def update_repair_status(request, pk):
     }
 
     extra = {}
-    from datetime import datetime as dt
-
     for field in DATE_FIELDS | TEXT_FIELDS:
         if field not in request.POST:
             continue
@@ -717,15 +756,15 @@ def update_repair_status(request, pk):
             continue
         if field in DATE_FIELDS:
             try:
-                extra[field] = dt.strptime(raw, '%Y-%m-%d').date()
+                extra[field] = datetime.strptime(raw, '%Y-%m-%d').date()
             except (ValueError, TypeError):
                 pass
         else:
             extra[field] = raw
 
-    # ── Apply ─────────────────────────────────────────
+    # ── Apply atomically ──
     with transaction.atomic():
-        # On cancellation: delete parts (reverses stock via RepairPart.delete)
+        # On cancellation: delete parts (their .delete() reverses stock)
         if new_status == 'cancelled' and old_status != 'cancelled':
             for part in job.parts.all():
                 part.delete()
@@ -733,27 +772,25 @@ def update_repair_status(request, pk):
         job.status = new_status
         for field, value in extra.items():
             setattr(job, field, value)
-        update_fields = ['status'] + list(extra.keys())
+
+        # Include final_amount so cancelled-repair amounts are persisted
+        # immediately (model.save() recalcs it from scratch).
+        update_fields = ['status', 'final_amount'] + list(extra.keys())
         job.save(update_fields=update_fields)
-        
+
     logger.info(
         "Status changed | job=%s | %s → %s | by=%s",
         job.job_number, old_status, new_status, request.user.username,
     )
 
-    # ── Response ──────────────────────────────────────
     if is_htmx(request):
         response = HttpResponse()
-        response['HX-Redirect'] = reverse(
-            'accounting:repair_detail', args=[job.pk],
-        )
+        response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
         response['HX-Trigger'] = json.dumps({
             'closeModal': '',
             'showToast': {
                 'level': 'success',
-                'message': (
-                    f'Status updated to {job.get_status_display()}.'
-                ),
+                'message': f'Status updated to {job.get_status_display()}.',
             },
         })
         return response
@@ -763,6 +800,7 @@ def update_repair_status(request, pk):
         f"Status updated to {job.get_status_display()}.",
     )
     return redirect_to_staff('repair_detail', pk=job.pk)
+
 
 # ════════════════════════════════════════════════════════════
 # 8. ADD REPAIR PART
@@ -780,6 +818,7 @@ def add_repair_part(request, pk):
             product = form.cleaned_data['product']
             quantity = form.cleaned_data['quantity']
 
+            # Stock check BEFORE saving
             if not product.is_service and product.current_stock < quantity:
                 error_msg = (
                     f"Insufficient stock for {product.name}. "
@@ -792,39 +831,37 @@ def add_repair_part(request, pk):
                 messages.error(request, error_msg)
                 return redirect_to_staff('repair_detail', pk=job.pk)
 
+            # ── 1. Save atomically ──
             with transaction.atomic():
                 part = form.save(commit=False)
                 part.repair_job = job
-                part.save()
+                part.save()  # model.save() recalculates final_amount
 
-                parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-                job.final_amount = parts_total + job.labour_charge
-                job.save(update_fields=['final_amount'])
+            # ── 2. Notify after commit ──
+            _safe_notify(
+                job.customer,
+                title=f"Part Added to Repair: {job.job_number}",
+                message=f"A new part '{product.name}' has been added to your repair.",
+                link=reverse('customer:customer_repair_detail', args=[job.pk]),
+                notif_type='info',
+                category='repairs',
+                send_email=False,
+            )
 
-                send_notification_to_contact(
-                    job.customer,
-                    title=f"Part Added to Repair: {job.job_number}",
-                    message=f"A new part '{product.name}' has been added to your repair.",
-                    link=reverse('customer:customer_repair_detail', args=[job.pk]),
-                    notif_type='info',
-                    category='repairs',
-                    send_email=False,
-                )
+            if is_htmx(request):
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
+                response['HX-Trigger'] = json.dumps({
+                    'closeModal': '',
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Part "{product.name}" added. Stock updated.',
+                    },
+                })
+                return response
 
-                if is_htmx(request):
-                    response = HttpResponse()
-                    response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
-                    response['HX-Trigger'] = json.dumps({
-                        'closeModal': '',
-                        'showToast': {
-                            'level': 'success',
-                            'message': f'Part "{product.name}" added. Stock updated.',
-                        },
-                    })
-                    return response
-
-                messages.success(request, f"Part '{product.name}' added successfully.")
-                return redirect_to_staff('repair_detail', pk=job.pk)
+            messages.success(request, f"Part '{product.name}' added successfully.")
+            return redirect_to_staff('repair_detail', pk=job.pk)
         else:
             if is_htmx(request):
                 return render(request, 'repairs/partials/part_form_modal.html',
@@ -850,40 +887,42 @@ def remove_repair_part(request, part_pk):
     job = part.repair_job
     product = part.product
 
+    # ── 1. Delete part atomically (reverses stock via model.delete) ──
     with transaction.atomic():
         part.delete()
 
-        parts = job.parts.all()
+    # ── 2. Notify after commit ──
+    _safe_notify(
+        job.customer,
+        title=f"Part Removed from Repair: {job.job_number}",
+        message=f"The part '{product.name}' has been removed from your repair.",
+        link=reverse('customer:customer_repair_detail', args=[job.pk]),
+        notif_type='info',
+        category='repairs',
+        send_email=False,
+    )
+
+    if is_htmx(request):
+        # Reload parts table with fresh totals
+        parts = job.parts.select_related('product').all()
         parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-        job.final_amount = parts_total + job.labour_charge
-        job.save(update_fields=['final_amount'])
+        job.refresh_from_db(fields=['final_amount'])
 
-        send_notification_to_contact(
-            job.customer,
-            title=f"Part Removed from Repair: {job.job_number}",
-            message=f"The part '{product.name}' has been removed from your repair.",
-            link=reverse('customer:customer_repair_detail', args=[job.pk]),
-            notif_type='info',
-            category='repairs',
-            send_email=False,
-        )
+        response = render(request, 'repairs/partials/parts_with_totals.html', {
+            'parts': parts,
+            'job': job,
+            'parts_total': parts_total,
+        })
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {
+                'level': 'success',
+                'message': f'Part "{product.name}" removed successfully.',
+            },
+        })
+        return response
 
-        if is_htmx(request):
-            response = render(request, 'repairs/partials/parts_with_totals.html', {
-                'parts': parts,
-                'job': job,
-                'parts_total': parts_total,
-            })
-            response['HX-Trigger'] = json.dumps({
-                'showToast': {
-                    'level': 'success',
-                    'message': f'Part "{product.name}" removed successfully.',
-                },
-            })
-            return response
-
-        messages.success(request, f'Part "{product.name}" removed successfully.')
-        return redirect_to_staff('repair_detail', pk=job.pk)
+    messages.success(request, f'Part "{product.name}" removed successfully.')
+    return redirect_to_staff('repair_detail', pk=job.pk)
 
 
 # ════════════════════════════════════════════════════════════
@@ -919,6 +958,7 @@ def create_invoice_from_repair(request, pk):
         messages.error(request, "Estimate must be approved before invoicing.")
         return redirect_to_staff('repair_detail', pk=pk)
 
+    # ── 1. Build invoice atomically ──
     with transaction.atomic():
         company = CompanyProfile.get_instance()
         if not job.customer.gstin:
@@ -944,6 +984,7 @@ def create_invoice_from_repair(request, pk):
         )
         invoice.save()
 
+        # Copy parts as invoice lines
         for part in job.parts.select_related('product').all():
             InvoiceItem.objects.create(
                 invoice=invoice,
@@ -954,6 +995,7 @@ def create_invoice_from_repair(request, pk):
                 description=f"Repair part: {part.product.name}",
             )
 
+        # Add labour charge as a service line
         if job.labour_charge > 0:
             tax_rate = company.default_tax_rate or Decimal('18')
             labour_product, _ = Product.objects.get_or_create(
@@ -963,6 +1005,7 @@ def create_invoice_from_repair(request, pk):
                     'selling_price': job.labour_charge,
                     'tax_rate': tax_rate,
                     'hsn_code': '998446',
+                    'is_active': True,
                 },
             )
             InvoiceItem.objects.create(
@@ -981,36 +1024,39 @@ def create_invoice_from_repair(request, pk):
         job.invoice = invoice
         if job.status == 'ready':
             job.status = 'delivered'
-        job.save(update_fields=['invoice', 'status'])
+            if not job.delivery_date:
+                job.delivery_date = invoice_date
+        job.save(update_fields=['invoice', 'status', 'delivery_date'])
 
-        send_notification_to_contact(
-            job.customer,
-            title=f"Invoice Generated: {invoice.invoice_number}",
-            message=f"Invoice for repair job {job.job_number} is ready.",
-            link=reverse('customer:customer_invoice_detail', args=[invoice.pk]),
-            notif_type='success',
-            category='sales',
-            send_email=False,
-        )
+    # ── 2. Notify after commit ──
+    _safe_notify(
+        job.customer,
+        title=f"Invoice Generated: {invoice.invoice_number}",
+        message=f"Invoice for repair job {job.job_number} is ready.",
+        link=reverse('customer:customer_invoice_detail', args=[invoice.pk]),
+        notif_type='success',
+        category='sales',
+        send_email=False,
+    )
 
-        messages.success(
-            request,
-            f"Invoice {invoice.invoice_number} created for {invoice_date}.",
-        )
+    messages.success(
+        request,
+        f"Invoice {invoice.invoice_number} created for {invoice_date}.",
+    )
 
-        if is_htmx(request):
-            response = HttpResponse()
-            response['HX-Redirect'] = reverse('accounting:invoice_detail', args=[invoice.pk])
-            response['HX-Trigger'] = json.dumps({
-                'showToast': {
-                    'level': 'success',
-                    'message': f'Invoice {invoice.invoice_number} created.',
-                },
-                'closeModal': '',
-            })
-            return response
+    if is_htmx(request):
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('accounting:invoice_detail', args=[invoice.pk])
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {
+                'level': 'success',
+                'message': f'Invoice {invoice.invoice_number} created.',
+            },
+            'closeModal': '',
+        })
+        return response
 
-        return redirect_to_staff('invoice_detail', pk=invoice.pk)
+    return redirect_to_staff('invoice_detail', pk=invoice.pk)
 
 
 # ════════════════════════════════════════════════════════════
@@ -1031,25 +1077,26 @@ def repair_delete(request, pk):
 
     with transaction.atomic():
         for part in job.parts.all():
-            part.delete()
+            part.delete()  # reverses stock
         job.delete()
 
-        if is_htmx(request):
-            return htmx_response(
-                request,
-                'repairs/partials/repair_table.html',
-                context=get_paginated_repairs_context(request),
-                toast={'level': 'success', 'message': 'Repair job deleted successfully.'},
-            )
+    if is_htmx(request):
+        return htmx_response(
+            request,
+            'repairs/partials/repair_table.html',
+            context=get_paginated_repairs_context(request),
+            toast={'level': 'success', 'message': 'Repair job deleted successfully.'},
+        )
 
-        messages.success(request, "Repair job deleted successfully.")
-        return redirect_to_staff('repair_list')
+    messages.success(request, "Repair job deleted successfully.")
+    return redirect_to_staff('repair_list')
 
 
 # ════════════════════════════════════════════════════════════
 # 12. PRINT REPAIR
 # ════════════════════════════════════════════════════════════
 @login_required
+@handle_errors(default_redirect='accounting:repair_list')
 def repair_print(request, pk):
     job = get_object_or_404(
         RepairJob.objects.select_related('customer', 'invoice'),
@@ -1077,14 +1124,33 @@ def repair_print(request, pk):
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:repair_list',
-               htmx_template='contacts/repair_form_from_contact.html')
+@handle_errors(default_redirect='accounting:repair_list')
 def repair_create_for_contact(request, contact_id):
+    """
+    Create repair job for a specific contact — customer is ALWAYS
+    pulled from the URL, never trusted from form data.
+
+    Professional safety:
+      - customer field forced from URL (prevents tampering)
+      - errors re-render the form with form + contact in context
+      - status 200 on validation error (so HTMX swaps cleanly)
+      - exception-safe notification dispatch
+    """
     contact = get_object_or_404(Contact, pk=contact_id)
 
+    template = 'repairs/partials/repair_form_from_contact.html'
+
     if request.method == 'POST':
-        form = RepairJobForm(request.POST)
+        # ── Force customer from URL — never trust the form field ──
+        data = request.POST.copy()
+        data['customer'] = contact.pk
+        if not (data.get('status') or '').strip():
+            data['status'] = 'received'
+
+        form = RepairJobForm(data=data)
+
         if form.is_valid():
+            # ── 1. Save atomically ──
             with transaction.atomic():
                 job = form.save(commit=False)
                 job.customer = contact
@@ -1096,35 +1162,48 @@ def repair_create_for_contact(request, contact_id):
                 if job.status == 'pending':
                     job.status = 'received'
                 job.save()
-                form.save_m2m()
 
-                send_notification_to_contact(
-                    job.customer,
-                    title=f"Repair Job Created: {job.job_number}",
-                    message=f"Your repair for {job.device_model} has been received.",
-                    link=reverse('customer:customer_repair_detail', args=[job.pk]),
-                    notif_type='success',
-                    category='repairs',
-                    send_email=False,
-                )
+            # ── 2. Notify AFTER commit ──
+            _safe_notify(
+                job.customer,
+                title=f"Repair Job Created: {job.job_number}",
+                message=f"Your repair for {job.device_model} has been received.",
+                link=reverse('customer:customer_repair_detail', args=[job.pk]),
+                notif_type='success',
+                category='repairs',
+                send_email=False,
+            )
 
-                if is_htmx(request):
-                    response = HttpResponse()
-                    response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
-                    return response
-
-                messages.success(request, f"Repair job {job.job_number} created.")
-                return redirect_to_staff('repair_list')
-        else:
             if is_htmx(request):
-                return render(request, 'contacts/repair_form_from_contact.html',
-                              {'form': form, 'contact': contact})
-    else:
-        form = RepairJobForm(initial={'customer': contact})
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
+                response['HX-Trigger'] = json.dumps({
+                    'closeModal': '',
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Repair job {job.job_number} created.',
+                    },
+                })
+                return response
 
-    return render(request, 'contacts/repair_form_from_contact.html',
+            messages.success(request, f"Repair job {job.job_number} created.")
+            return redirect_to_staff('repair_detail', pk=job.pk)
+
+        # ── Validation failed — re-render form with errors visible ──
+        logger.warning(
+            "Repair create for contact failed validation | contact=%s | errors=%s",
+            contact.pk, dict(form.errors),
+        )
+        if is_htmx(request):
+            return render(request, template,
+                          {'form': form, 'contact': contact})
+        return render(request, template,
+                      {'form': form, 'contact': contact})
+
+    # ── GET — pre-fill and render ──
+    form = RepairJobForm(initial={'customer': contact})
+    return render(request, template,
                   {'form': form, 'contact': contact})
-
 
 # ════════════════════════════════════════════════════════════
 # 14. STAFF APPROVE ESTIMATE
@@ -1135,7 +1214,10 @@ def staff_approve_estimate(request, pk):
     repair = get_object_or_404(RepairJob, pk=pk)
 
     if repair.estimate_status != 'pending':
-        messages.warning(request, f"This estimate is already {repair.get_estimate_status_display()}.")
+        messages.warning(
+            request,
+            f"This estimate is already {repair.get_estimate_status_display()}."
+        )
         return redirect('accounting:repair_detail', pk=repair.pk)
 
     if request.method == 'POST':
@@ -1157,25 +1239,31 @@ def staff_approve_estimate(request, pk):
 
             repair.save()
 
-            send_notification_to_contact(
-                repair.customer,
-                title=f"Your repair {repair.job_number} has been approved",
-                message=f"Your repair for {repair.device_model} has been approved and will start shortly.",
-                link=reverse('customer:customer_repair_detail', args=[repair.pk]),
-                notif_type='success',
-                category='repairs',
-                send_email=False,
-            )
+        # RepairJob.save() already notifies the customer when status changes.
+        # Send the "estimate approved" notification regardless, so the customer
+        # sees a clear message about the approval action specifically.
+        _safe_notify(
+            repair.customer,
+            title=f"Your repair {repair.job_number} has been approved",
+            message=(
+                f"Your repair for {repair.device_model} has been "
+                f"approved and will start shortly."
+            ),
+            link=reverse('customer:customer_repair_detail', args=[repair.pk]),
+            notif_type='success',
+            category='repairs',
+            send_email=False,
+        )
 
-            messages.success(request, f"Estimate for {repair.job_number} approved!")
+        messages.success(request, f"Estimate for {repair.job_number} approved!")
 
-            if is_htmx(request):
-                response = HttpResponse()
-                response['HX-Redirect'] = reverse('accounting:repair_detail', args=[repair.pk])
-                response['HX-Trigger'] = json.dumps({'closeModal': ''})
-                return response
+        if is_htmx(request):
+            response = HttpResponse()
+            response['HX-Redirect'] = reverse('accounting:repair_detail', args=[repair.pk])
+            response['HX-Trigger'] = json.dumps({'closeModal': ''})
+            return response
 
-            return redirect('accounting:repair_detail', pk=repair.pk)
+        return redirect('accounting:repair_detail', pk=repair.pk)
 
     return render(request, 'repairs/partials/staff_approve_modal.html', {'repair': repair})
 
@@ -1186,6 +1274,7 @@ def staff_approve_estimate(request, pk):
 @login_required
 @handle_errors(default_redirect='accounting:repair_list')
 def export_repairs_excel(request):
+    """Export filtered repairs to styled Excel."""
     try:
         import openpyxl
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -1401,15 +1490,6 @@ def export_repairs_excel(request):
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def send_estimate_to_customer(request, pk):
-    """
-    Send repair estimate to the customer via:
-      - In-app notification (always)
-      - Email (optional)
-      - WhatsApp link (handled client-side)
-
-    GET  -> render the send modal
-    POST -> dispatch notification(s), return toast + close modal
-    """
     job = get_object_or_404(
         RepairJob.objects.select_related('customer'),
         pk=pk,
@@ -1428,17 +1508,14 @@ def send_estimate_to_customer(request, pk):
             status=400,
         )
 
-    # ── GET: show modal ────────────────────────────────
     if request.method == 'GET':
         return render(request, 'repairs/partials/send_estimate_modal.html', {
             'job': job,
         })
 
-    # ── POST: dispatch ─────────────────────────────────
     method = (request.POST.get('method') or 'email').strip()
     custom_message = (request.POST.get('message') or '').strip()
 
-    # Build the base message
     if not custom_message:
         custom_message = (
             f"Repair estimate for your {job.device_model} (Job: {job.job_number}) "
@@ -1448,67 +1525,58 @@ def send_estimate_to_customer(request, pk):
 
     sent_channels = []
 
-    # 1. In-app notification (always)
-    try:
-        send_notification_to_contact(
-            job.customer,
-            title=f"Repair Estimate Ready: {job.job_number}",
-            message=custom_message,
-            link=reverse('customer:customer_repair_detail', args=[job.pk]),
-            notif_type='warning',
-            category='repairs',
-            # send_email=(method in ('email', 'both')),
-            send_email=False,
-        )
+    notif = _safe_notify(
+        job.customer,
+        title=f"Repair Estimate Ready: {job.job_number}",
+        message=custom_message,
+        link=reverse('customer:customer_repair_detail', args=[job.pk]),
+        notif_type='warning',
+        category='repairs',
+        send_email=(method in ('email', 'both')),
+    )
+    if notif is not None:
         sent_channels.append('Notification')
-        if method in ('email', 'both'):
-            sent_channels.append('Email')
-    except Exception:
-        logger.exception("Failed to send estimate notification for %s", job.job_number)
-        return toast_only_response(
-            {'level': 'danger', 'message': 'Failed to send estimate. Please try again.'},
-            status=500,
-        )
+    if method in ('email', 'both') and job.customer.email:
+        sent_channels.append('Email')
 
-    # 2. If WhatsApp-only, we still want the client to know
     whatsapp_url = None
     if method in ('whatsapp', 'both') and job.customer.phone:
+        view_link = request.build_absolute_uri(
+            reverse('customer:customer_repair_detail', args=[job.pk])
+        )
+        full_text = f"{custom_message}\n\nView: {view_link}"
         whatsapp_url = (
             f"https://wa.me/91{job.customer.phone}"
-            f"?text={urllib.parse.quote(custom_message + ' — View: ') }"
-            f"{request.build_absolute_uri(reverse('customer:customer_repair_detail', args=[job.pk]))}"
+            f"?text={urllib.parse.quote(full_text)}"
         )
         sent_channels.append('WhatsApp')
 
     logger.info(
         "Estimate sent | job=%s | customer=%s | via=%s",
-        job.job_number, job.customer.name, ', '.join(sent_channels),
+        job.job_number, job.customer.name, ', '.join(sent_channels) or 'none',
     )
 
     response = HttpResponse()
-    response['HX-Trigger'] = json.dumps({
+    trigger = {
         'closeModal': '',
         'showToast': {
             'level': 'success',
-            'message': f'Estimate sent via {", ".join(sent_channels)}.',
+            'message': f'Estimate sent via {", ".join(sent_channels) or "portal"}.',
             'title': 'Estimate Sent',
         },
-        # If WhatsApp, trigger client-side open
-        **({'openWhatsApp': whatsapp_url} if whatsapp_url else {}),
-    })
+    }
+    if whatsapp_url:
+        trigger['openWhatsApp'] = whatsapp_url
+    response['HX-Trigger'] = json.dumps(trigger)
     return response
 
 
 # ════════════════════════════════════════════════════════════
-# 17. PRINT ESTIMATE (hand-over to customer)
+# 17. PRINT ESTIMATE
 # ════════════════════════════════════════════════════════════
 @login_required
 @handle_errors(default_redirect='accounting:repair_list')
 def estimate_print(request, pk):
-    """
-    Printable estimate slip for the customer.
-    Shows: device, issue, estimated cost breakdown, terms.
-    """
     job = get_object_or_404(
         RepairJob.objects.select_related('customer'),
         pk=pk,
@@ -1519,8 +1587,6 @@ def estimate_print(request, pk):
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name)
 
-    # Estimate = parts estimate + labour estimate
-    # If parts exist, calculate; else just show estimated_cost
     estimated_parts = parts_total
     estimated_labour = job.labour_charge or Decimal('0')
     if estimated_parts == 0 and estimated_labour == 0:
@@ -1543,15 +1609,11 @@ def estimate_print(request, pk):
 
 
 # ════════════════════════════════════════════════════════════
-# 18. WARRANTY CARD PRINT (after delivery)
+# 18. WARRANTY CARD PRINT
 # ════════════════════════════════════════════════════════════
 @login_required
 @handle_errors(default_redirect='accounting:repair_list')
 def warranty_card_print(request, pk):
-    """
-    Printable warranty card — handed over after delivery.
-    Only available when repair is delivered.
-    """
     job = get_object_or_404(
         RepairJob.objects.select_related('customer', 'invoice'),
         pk=pk,
@@ -1564,54 +1626,44 @@ def warranty_card_print(request, pk):
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name)
 
-    # Warranty expiry = delivery_date + 30 days (default)
-    from datetime import timedelta
-    warranty_days = 30
     expires_on = None
     days_left = None
     if job.delivery_date:
-        expires_on = job.delivery_date + timedelta(days=warranty_days)
+        expires_on = job.delivery_date + timedelta(days=WARRANTY_DAYS)
         days_left = (expires_on - timezone.now().date()).days
 
     return render(request, 'repairs/warranty_card_print.html', {
         'job': job,
         'company': company,
         'logo_exists': logo_exists,
-        'warranty_days': warranty_days,
+        'warranty_days': WARRANTY_DAYS,
         'expires_on': expires_on,
         'days_left': days_left,
     })
-    
+
+
 # ════════════════════════════════════════════════════════════
-# 19. QUICK UPDATE — inline edit from detail page
+# 19. QUICK UPDATE
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def quick_update_repair(request, pk):
-    """
-    Quick inline update of repair fields directly from detail page.
-    Only updates the fields submitted — does NOT touch anything else.
-
-    GET  → render modal with pre-filled form
-    POST → save partial fields, redirect back to detail
-    """
+    """Inline update of selected fields only."""
     job = get_object_or_404(RepairJob, pk=pk)
 
-    if job.status in ('delivered', 'cancelled'):
+    if job.status in TERMINAL_STATUSES:
         return toast_only_response(
             {'level': 'danger',
              'message': f'Cannot edit a {job.get_status_display()} repair.'},
             status=400,
         )
 
-    # ── GET: show modal ────────────────────────────────
     if request.method == 'GET':
         return render(request, 'repairs/partials/quick_update_modal.html', {
             'job': job,
         })
 
-    # ── POST: update only provided fields ──────────────
     update_fields = []
 
     # Estimated cost
@@ -1620,10 +1672,9 @@ def quick_update_repair(request, pk):
         try:
             job.estimated_cost = Decimal(est)
             update_fields.append('estimated_cost')
-        except (ValueError, TypeError):
+        except (InvalidOperation, ValueError, TypeError):
             pass
-    elif est == '' and 'estimated_cost' in request.POST:
-        # Explicitly cleared
+    elif 'estimated_cost' in request.POST:
         job.estimated_cost = None
         update_fields.append('estimated_cost')
 
@@ -1633,7 +1684,7 @@ def quick_update_repair(request, pk):
         try:
             job.labour_charge = Decimal(labour)
             update_fields.append('labour_charge')
-        except (ValueError, TypeError):
+        except (InvalidOperation, ValueError, TypeError):
             pass
 
     # Text fields
@@ -1642,22 +1693,22 @@ def quick_update_repair(request, pk):
             setattr(job, field, request.POST.get(field, '').strip())
             update_fields.append(field)
 
-    # Ready date (only allow if status is repairing/diagnosis)
+    # Ready date
     ready_date = request.POST.get('ready_at', '').strip()
     if ready_date and job.status in ('diagnosis', 'repairing', 'received'):
         try:
-            from datetime import datetime as dt
-            job.ready_at = dt.strptime(ready_date, '%Y-%m-%d').date()
+            job.ready_at = datetime.strptime(ready_date, '%Y-%m-%d').date()
             update_fields.append('ready_at')
         except (ValueError, TypeError):
             pass
 
     if update_fields:
-        # Recalc final amount if labour changed
+        # Recalculate final_amount if labour changed (parts unchanged)
         if 'labour_charge' in update_fields:
             parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-            job.final_amount = parts_total + job.labour_charge
-            update_fields.append('final_amount')
+            job.final_amount = (parts_total + job.labour_charge).quantize(Decimal('0.01'))
+            if 'final_amount' not in update_fields:
+                update_fields.append('final_amount')
 
         job.save(update_fields=update_fields)
         logger.info(
@@ -1665,7 +1716,6 @@ def quick_update_repair(request, pk):
             job.job_number, ','.join(update_fields),
         )
 
-    # HTMX
     if is_htmx(request):
         response = HttpResponse()
         response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])

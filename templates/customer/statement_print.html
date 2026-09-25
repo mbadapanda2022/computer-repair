@@ -38,6 +38,8 @@
         .ref-badge { color: #555; font-size: 8pt; }
         .dr-badge { color: #198754; font-weight: bold; font-size: 8.5pt; }
         .cr-badge { color: #b8860b; font-weight: bold; font-size: 8.5pt; }
+        .adjust-badge { background: #fff3cd; padding: 1px 6px; border-radius: 8px; font-size: 8px; margin-left: 4px; color: #856404; }
+        .adv-badge { background: #cfe2ff; padding: 1px 6px; border-radius: 8px; font-size: 8px; margin-left: 4px; color: #084298; }
 
         .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 8px; margin-top: 15px; font-size: 8pt; color: #666; }
         .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
@@ -57,7 +59,7 @@
 </head>
 <body>
 
-    <!-- HEADER -->
+    {# HEADER #}
     <div class="header">
         <div>
             {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
@@ -81,7 +83,7 @@
         </div>
     </div>
 
-    <!-- SNAPSHOT -->
+    {# SNAPSHOT #}
     <div class="snapshot">
         <div class="snapshot-card opening">
             <div class="snapshot-label">Opening Balance (B/F)</div>
@@ -121,7 +123,7 @@
         </div>
     </div>
 
-    <!-- FILTERS -->
+    {# FILTERS #}
     {% if search or txn_type or date_from or date_to %}
     <div class="filters-box">
         <strong>Filters applied:</strong>
@@ -129,10 +131,16 @@
         {% if txn_type %}<span> | 📌 Type: {{ txn_type|title }}</span>{% endif %}
         {% if date_from %}<span> | 📅 From: {{ date_from }}</span>{% endif %}
         {% if date_to %}<span> | 📅 To: {{ date_to }}</span>{% endif %}
+        {% if search %}
+            <div style="margin-top:4px; font-size:8pt; color:#856404;">
+                <strong>Note:</strong> Balance column hidden because search is active —
+                running totals include all transactions, not just the filtered view.
+            </div>
+        {% endif %}
     </div>
     {% endif %}
 
-    <!-- TABLE -->
+    {# TABLE #}
     <table>
         <thead>
             <tr>
@@ -145,7 +153,7 @@
             </tr>
         </thead>
         <tbody>
-            <!-- Opening -->
+            {# Opening Balance #}
             <tr class="opening-row">
                 <td class="text-center">
                     {% if opening_as_on_date %}{{ opening_as_on_date|date:"d-m-Y" }}{% else %}—{% endif %}
@@ -164,12 +172,17 @@
                 </td>
             </tr>
 
-            <!-- Transactions -->
+            {# Transactions #}
             {% for row in statement_rows %}
             <tr {% if forloop.counter|divisibleby:2 %}style="background:#f8f9fa;"{% endif %}>
                 <td class="text-center">{{ row.date|date:"d-m-Y" }}</td>
                 <td>
                     {{ row.description }}
+                    {% if 'Discount' in row.description %}
+                        <span class="adjust-badge">ADJUST</span>
+                    {% elif 'Advance Applied' in row.description or 'Advance Adjustment' in row.description %}
+                        <span class="adv-badge">ADV</span>
+                    {% endif %}
                     {% if row.reference %}<br><span class="ref-badge">Ref: {{ row.reference }}</span>{% endif %}
                 </td>
                 <td class="text-center">{{ row.reference|default:"—" }}</td>
@@ -180,9 +193,13 @@
                     {% if row.credit_amount > 0 %}₹{{ row.credit_amount|floatformat:2 }}{% endif %}
                 </td>
                 <td class="text-end">
-                    ₹{{ row.net|abs_filter|floatformat:2 }}
-                    {% if row.net > 0 %}<span class="dr-badge">Dr</span>
-                    {% elif row.net < 0 %}<span class="cr-badge">Cr</span>{% endif %}
+                    {% if search %}
+                        <span style="color:#999;">—</span>
+                    {% else %}
+                        ₹{{ row.net|abs_filter|floatformat:2 }}
+                        {% if row.net > 0 %}<span class="dr-badge">Dr</span>
+                        {% elif row.net < 0 %}<span class="cr-badge">Cr</span>{% endif %}
+                    {% endif %}
                 </td>
             </tr>
             {% empty %}
@@ -206,15 +223,19 @@
                     {% if date_to %}<span style="font-size:8pt; color:#666;">(as on {{ date_to }})</span>{% endif %}
                 </td>
                 <td class="text-end">
-                    ₹{{ net_position|abs_filter|floatformat:2 }}
-                    {% if net_position > 0 %}<span class="dr-badge">Dr</span>
-                    {% elif net_position < 0 %}<span class="cr-badge">Cr</span>{% endif %}
+                    {% if search %}
+                        <span style="color:#999;">—</span>
+                    {% else %}
+                        ₹{{ net_position|abs_filter|floatformat:2 }}
+                        {% if net_position > 0 %}<span class="dr-badge">Dr</span>
+                        {% elif net_position < 0 %}<span class="cr-badge">Cr</span>{% endif %}
+                    {% endif %}
                 </td>
             </tr>
         </tfoot>
     </table>
 
-    <!-- FOOTER -->
+    {# FOOTER #}
     <div class="footer">
         <p>This is a computer-generated statement. No signature required.</p>
         <p>

@@ -31,6 +31,12 @@ POSITIVE_VALIDATOR = [MinValueValidator(MONEY_ZERO)]
 class SoftDeleteQuerySet(models.QuerySet):
     def delete(self):
         from django.utils import timezone
+        # Models listed here MUST be deleted per-instance so that
+        # post_save / post_delete signals fire (which handle ledger
+        # cleanup, stock reversal, and balance recalculation).
+        #
+        # Without this, `qs.update(is_deleted=True)` bypasses signals
+        # and leaves orphan ledger entries behind.
         if self.model.__name__ in (
             'Contact',
             'StockMovement',
@@ -39,6 +45,9 @@ class SoftDeleteQuerySet(models.QuerySet):
             'CreditNoteItem',
             'RepairPart',
             'Payment',
+            'Purchase',
+            'Invoice',
+            'CreditNote',
         ):
             count = 0
             for obj in self.filter(is_deleted=False):
@@ -47,7 +56,7 @@ class SoftDeleteQuerySet(models.QuerySet):
             label = self.model._meta.label
             return (count, {label: count})
 
-        # ── Default: fast bulk soft delete ───────────────────
+        # ── Default: fast bulk soft delete (safe for models without ledger) ──
         qs = self.filter(is_deleted=False)
         count = qs.count()
         if count:
@@ -510,9 +519,9 @@ class LedgerLine(SoftDeleteModel):
             ),
         ]
 
-        # Account codes that belong to each subledger side
-    RECEIVABLE_ACCOUNT_CODES = frozenset({'1011', '1012'})  # Customer Receivable, Advance from Customer
-    PAYABLE_ACCOUNT_CODES = frozenset({'2011', '1014'})     # Vendor Payable, Advance to Vendor
+    # Account codes that belong to each subledger side
+    RECEIVABLE_ACCOUNT_CODES = frozenset({'1011'})   # Customer Receivable
+    PAYABLE_ACCOUNT_CODES = frozenset({'2011'})      # Vendor Payable
 
     def save(self, *args, **kwargs):
         # Auto-detect subledger_type from account code if contact is set
@@ -599,22 +608,20 @@ class Contact(SoftDeleteModel):
     # ════════════════════════════════════════════════════════════
 
     def recalc_balance(self):
-        """
-        Recalculate all three balances from ledger lines.
-        - receivable_balance: net amount party owes us
-        - payable_balance: net amount we owe party
-        - balance: net position (backward compatible)
-        """
-        # Receivable side: Dr - Cr on receivable lines
-        recv = self.ledger_lines.filter(subledger_type='receivable').aggregate(
+        recv = self.ledger_lines.filter(
+            subledger_type='receivable',
+            ledger_entry__is_deleted=False,
+        ).aggregate(
             dr=Sum('debit'), cr=Sum('credit')
         )
         recv_dr = recv['dr'] or Decimal('0')
         recv_cr = recv['cr'] or Decimal('0')
         receivable = (recv_dr - recv_cr).quantize(TAX_PRECISION)
 
-        # Payable side: Cr - Dr on payable lines
-        pay = self.ledger_lines.filter(subledger_type='payable').aggregate(
+        pay = self.ledger_lines.filter(
+            subledger_type='payable',
+            ledger_entry__is_deleted=False,
+        ).aggregate(
             dr=Sum('debit'), cr=Sum('credit')
         )
         pay_dr = pay['dr'] or Decimal('0')
@@ -637,47 +644,44 @@ class Contact(SoftDeleteModel):
         self.balance = new_bal
 
     def recalc_advance_balance(self):
-        """Recalculate advance balance from advance payment entries."""
-        # Determine direction based on contact type to avoid mixing
-        direction = 'received' if self.contact_type in ('customer', 'both') else 'paid'
+        """
+        Recalculate advance balance from advance payments.
 
-        total_advance = self.payments.filter(
-            is_advance=True,
-            direction=direction
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        - Customer-only: net advance received (positive = customer has credit).
+        - Vendor-only:   net advance paid    (positive = we have credit).
+        - Both:          net position (received_balance - paid_balance).
+        """
+        def _net_advance(direction):
+            total = self.payments.filter(
+                is_advance=True,
+                direction=direction,
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
-        total_settled = AdvanceAdjustment.objects.filter(
-            payment__contact=self,
-            payment__is_advance=True,
-            payment__direction=direction
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            settled = AdvanceAdjustment.objects.filter(
+                payment__contact=self,
+                payment__is_advance=True,
+                payment__direction=direction,
+            ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
 
-        self.advance_balance = (total_advance - total_settled).quantize(TAX_PRECISION)
+            return (total - settled).quantize(TAX_PRECISION)
+
+        if self.contact_type == 'customer':
+            new_advance = _net_advance('received')
+        elif self.contact_type == 'vendor':
+            new_advance = _net_advance('paid')
+        else:  # 'both'
+            received = _net_advance('received')
+            paid = _net_advance('paid')
+            new_advance = (received - paid).quantize(TAX_PRECISION)
+
+        self.advance_balance = new_advance
         self.save(update_fields=['advance_balance'])
 
     # ════════════════════════════════════════════════════════════
     # SOFT DELETE OVERRIDE — also anonymize linked User
     # ════════════════════════════════════════════════════════════
-
     def soft_delete(self, user=None):
-        """
-        Soft-delete this Contact AND anonymize its linked User.
-
-        Why anonymize:
-        ──────────────
-        - Frees up email / username for re-registration
-        - Blocks old login (is_active=False)
-        - Keeps audit trail (User row still exists, Contact.user FK safe)
-        - Restore is possible (staff can re-enable manually)
-
-        Staff users are NEVER anonymized — only customers/vendors.
-
-        Also: this method is called per-instance even in bulk deletes
-        because `SoftDeleteQuerySet.delete()` detects Contact model
-        and iterates.
-        """
         from django.db import transaction as _tx
-
         with _tx.atomic():
             linked = self.user
             if linked and not linked.is_staff:
@@ -687,9 +691,12 @@ class Contact(SoftDeleteModel):
                     linked.is_active = False
                     linked.email = f'deleted_{uid}@deleted.local'
                     linked.username = f'deleted_user_{uid}'
+                    linked.first_name = ''
+                    linked.last_name = ''
                     linked.set_unusable_password()
                     linked.save(update_fields=[
-                        'is_active', 'email', 'username', 'password',
+                        'is_active', 'email', 'username',
+                        'first_name', 'last_name', 'password',
                     ])
                     logger.info(
                         "Anonymized User#%s linked to Contact#%s",
@@ -711,13 +718,16 @@ class Contact(SoftDeleteModel):
     # ════════════════════════════════════════════════════════════
     # SAVE
     # ════════════════════════════════════════════════════════════
-
     def save(self, *args, **kwargs):
-        # Normalize empty phone to None to avoid unique constraint conflicts
+        # Normalize phone: keep digits only, store last 10 (Indian mobile).
         if self.phone is not None:
-            self.phone = self.phone.strip()
-            if not self.phone:
+            phone_clean = ''.join(filter(str.isdigit, str(self.phone)))
+            if not phone_clean:
                 self.phone = None
+            elif len(phone_clean) >= 10:
+                self.phone = phone_clean[-10:]
+            else:
+                self.phone = phone_clean
 
         # Auto-fill opening balance date if not provided
         if self.opening_balance and not self.opening_balance_date:
@@ -855,6 +865,15 @@ def sync_invoice_ledger(invoice):
     Enterprise Discount + Advance Adjustment Support
     """
     with transaction.atomic():
+        if invoice.pk and not invoice.items.exists():
+            for entry in LedgerEntry.objects.filter(
+                entry_type='sales', reference_id=invoice.pk,
+            ):
+                for line in list(entry.lines.all()):
+                    line.delete()
+                entry.delete()
+            return
+        
         entry, created = LedgerEntry.objects.get_or_create(
             entry_type='sales',
             reference_id=invoice.id,
@@ -946,6 +965,8 @@ def sync_invoice_ledger(invoice):
         
         # Validate entry
         entry.full_clean()
+        
+    
 
 
 class Invoice(SoftDeleteModel):
@@ -1242,24 +1263,38 @@ class InvoiceItem(SoftDeleteModel):
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk
             ).delete()
+
         invoice = self.invoice
         super().delete(*args, **kwargs)
+
         if invoice:
             invoice.calculate_totals()
-            total_advance = invoice.advance_adjustments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            total_advance = invoice.advance_adjustments.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0')
             total_paid = invoice.paid_amount + total_advance
-            invoice.balance_due = (invoice.grand_total - total_paid).quantize(TAX_PRECISION)
+            invoice.balance_due = (
+                invoice.grand_total - total_paid
+            ).quantize(TAX_PRECISION)
+
             if invoice.balance_due <= 0:
                 invoice.payment_status = 'paid'
             elif total_paid > 0 and invoice.balance_due < invoice.grand_total:
                 invoice.payment_status = 'partial'
             else:
                 invoice.payment_status = 'unpaid'
-            
-            invoice.save(update_fields=['subtotal', 'tax_amount', 'grand_total', 'balance_due', 'payment_status'])
-            
+
+            invoice.save(update_fields=[
+                'subtotal', 'tax_amount', 'grand_total',
+                'balance_due', 'payment_status',
+            ])
+
+            # ── Re-sync the ledger (save() skips it via update_fields) ──
+            sync_invoice_ledger(invoice)
+
             if invoice.customer:
                 invoice.customer.recalc_balance()
+                invoice.customer.recalc_advance_balance()
 
 
 # ============================================================
@@ -1272,6 +1307,14 @@ def sync_purchase_ledger(purchase):
     Now handles unsaved entry gracefully.
     """
     with transaction.atomic():
+        if purchase.pk and not purchase.items.exists():
+            for entry in LedgerEntry.objects.filter(
+                entry_type='purchase', reference_id=purchase.pk,
+            ):
+                for line in list(entry.lines.all()):
+                    line.delete()
+                entry.delete()
+            return
         # ===== STEP 1: Ensure Purchase is Saved =====
         if not purchase.pk:
             purchase.save()
@@ -1453,6 +1496,41 @@ class Purchase(SoftDeleteModel):
             models.Index(fields=['discount_date']),
         ]
         
+    def delete(self, *args, **kwargs):
+        """
+        Override soft-delete to also clean up ledger entries + items.
+
+        Without this, deleting a purchase via Django admin (bulk action)
+        or any other path leaves orphan ledger entries behind, which
+        corrupt statements and contact balances.
+        """
+        if self.is_deleted:
+            return
+
+        # Clean up ledger entries for this purchase
+        for entry in LedgerEntry.objects.filter(
+            entry_type='purchase',
+            reference_id=self.pk,
+        ):
+            # Delete lines first (per-instance so signals fire)
+            for line in list(entry.lines.all()):
+                line.delete()
+            entry.delete()
+
+        # Delete items (reverses stock via StockMovement.delete)
+        for item in list(self.items.all()):
+            item.delete()
+
+        # Finally soft-delete the purchase header
+        super().delete(*args, **kwargs)
+
+        # Refresh vendor balance after cleanup
+        if self.vendor_id:
+            try:
+                self.vendor.recalc_balance()
+            except Exception:
+                pass
+        
     def save(self, *args, **kwargs):
         from django.db import IntegrityError, transaction
 
@@ -1574,11 +1652,19 @@ class PurchaseItem(SoftDeleteModel):
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk
             ).delete()
+
         purchase = self.purchase
         super().delete(*args, **kwargs)
+
         if purchase:
             purchase.calculate_totals()
-            purchase.save(update_fields=['subtotal', 'tax_amount', 'grand_total'])
+            purchase.save(update_fields=[
+                'subtotal', 'tax_amount', 'grand_total',
+            ])
+
+            # ── Re-sync the ledger (save() may skip it) ──
+            sync_purchase_ledger(purchase)
+
             if purchase.vendor:
                 purchase.vendor.recalc_balance()
                 
@@ -1595,6 +1681,15 @@ def sync_credit_note_ledger(credit_note):
       Credit note:       Dr Sales Return + Dr GST  /  Cr Customer
     """
     with transaction.atomic():
+        if credit_note.pk and not credit_note.items.exists():
+            for entry in LedgerEntry.objects.filter(
+                entry_type='credit_note', reference_id=credit_note.pk,
+            ):
+                for line in list(entry.lines.all()):
+                    line.delete()
+                entry.delete()
+            return
+        
         entry, created = LedgerEntry.objects.get_or_create(
             entry_type='credit_note',
             reference_id=credit_note.id,
@@ -1856,15 +1951,17 @@ class CreditNoteItem(SoftDeleteModel):
             )
 
     def delete(self, *args, **kwargs):
-        """Reverse stock effect per-instance (queryset delete skips reversal)."""
+        """Reverse stock effect + re-sync ledger after delete."""
         if not self.product.is_service:
             for sm in StockMovement.objects.filter(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
             ):
-                sm.delete()   # instance delete → reverses stock
+                sm.delete()
+
         cn = self.credit_note
         super().delete(*args, **kwargs)
+
         if cn:
             cn.calculate_totals()
             CreditNote.objects.filter(pk=cn.pk).update(
@@ -1872,6 +1969,12 @@ class CreditNoteItem(SoftDeleteModel):
                 tax_amount=cn.tax_amount,
                 total_amount=cn.total_amount,
             )
+
+            # ── Re-sync the ledger (update() bypassed save()) ──
+            sync_credit_note_ledger(cn)
+
+            if cn.customer:
+                cn.customer.recalc_balance()
 
 
 # ============================================================
@@ -3016,6 +3119,102 @@ def create_or_update_opening_balance_ledger(sender, instance, **kwargs):
 def create_notification_preferences(sender, instance, created, **kwargs):
     if created:
         NotificationPreference.objects.create(user=instance, categories={})
+        
+        
+# ════════════════════════════════════════════════════════════
+# AUTO-CLEANUP — Ledger on document soft-delete
+# ════════════════════════════════════════════════════════════
+# Why: When documents are soft-deleted via admin bulk action or
+# QuerySet.update(), the instance delete() method is bypassed.
+# This leaves orphan ledger entries behind, which corrupt
+# statements and contact balances.
+#
+# These signals detect a soft-delete transition (False → True)
+# and clean up the linked ledger entries + recalculate contact.
+
+_LEDGER_CLEANUP_MAP = {
+    'Payment': (
+        ['payment', 'advance_received', 'advance_paid'],
+        'contact',
+    ),
+    'Purchase': (
+        ['purchase'],
+        'vendor',
+    ),
+    'Invoice': (
+        ['sales'],
+        'customer',
+    ),
+    'CreditNote': (
+        ['credit_note'],
+        'customer',
+    ),
+}
+
+
+@receiver(pre_save)
+def _capture_was_deleted_flag(sender, instance, **kwargs):
+    """Snapshot is_deleted before save so post_save can detect transition."""
+    if sender.__name__ not in _LEDGER_CLEANUP_MAP:
+        return
+    if not instance.pk:
+        instance._was_is_deleted = False
+        return
+    try:
+        old = sender.all_objects.get(pk=instance.pk)
+        instance._was_is_deleted = old.is_deleted
+    except sender.DoesNotExist:
+        instance._was_is_deleted = False
+
+
+@receiver(post_save)
+def _cleanup_ledger_on_soft_delete(sender, instance, created, **kwargs):
+    """On fresh soft-delete, remove linked ledger entries and recalc contact."""
+    if sender.__name__ not in _LEDGER_CLEANUP_MAP:
+        return
+    if created:
+        return
+
+    was_deleted = getattr(instance, '_was_is_deleted', False)
+    is_deleted = getattr(instance, 'is_deleted', False)
+    if not is_deleted or was_deleted:
+        return  # not a fresh False→True transition
+
+    entry_types, contact_field = _LEDGER_CLEANUP_MAP[sender.__name__]
+
+    try:
+        with transaction.atomic():
+            # Purchase → also reverse stock via item delete
+            if sender.__name__ in ('Purchase', 'Invoice', 'CreditNote'):
+                for item in list(instance.items.all()):
+                    item.delete()
+
+            # Delete ledger entries (lines first, then entry)
+            entries = LedgerEntry.all_objects.filter(
+                reference_id=instance.pk,
+                entry_type__in=entry_types,
+            )
+            for entry in list(entries):
+                for line in list(entry.lines.all()):
+                    line.delete()
+                entry.delete()
+
+            # Recalc the related contact
+            contact = getattr(instance, contact_field, None)
+            if contact is not None:
+                try:
+                    contact.recalc_balance()
+                    contact.recalc_advance_balance()
+                except Exception:
+                    logger.exception(
+                        "Contact recalc failed after %s soft-delete | id=%s",
+                        sender.__name__, instance.pk,
+                    )
+    except Exception:
+        logger.exception(
+            "Ledger cleanup failed after %s soft-delete | id=%s",
+            sender.__name__, instance.pk,
+        )
 
 
 @receiver(post_save, sender=LedgerLine)

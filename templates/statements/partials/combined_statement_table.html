@@ -18,7 +18,7 @@
     </thead>
 
     <tbody>
-      <!-- Opening Balance — only on page 1, ASC mode -->
+      {# Opening Balance — page 1, ASC mode #}
       {% if sort == 'asc' and page_obj.number == 1 %}
       <tr class="table-light fw-semibold">
         <td class="text-nowrap">
@@ -49,7 +49,7 @@
       </tr>
       {% endif %}
 
-      <!-- Transaction Rows -->
+      {# Transaction Rows #}
       {% for row in rows %}
       <tr>
         <td class="text-nowrap small">{{ row.date|date:"d-M-Y" }}</td>
@@ -112,10 +112,17 @@
           {% if row.credit_amount > 0 %}₹{{ row.credit_amount|floatformat:2 }}{% endif %}
         </td>
         <td class="text-end fw-semibold">
-          ₹{{ row.net|abs_filter|floatformat:2 }}
-          {% if row.net > 0 %}<span class="badge bg-success-subtle text-success ms-1">Dr</span>
-          {% elif row.net < 0 %}<span class="badge bg-warning-subtle text-warning ms-1">Cr</span>
-          {% else %}<span class="badge bg-secondary-subtle text-secondary ms-1">—</span>{% endif %}
+          {% if search %}
+            {# Search active — running balance includes hidden rows, so hide it #}
+            <span class="text-muted" title="Balance hidden while search is active">
+              <i class="bi bi-eye-slash small"></i>
+            </span>
+          {% else %}
+            ₹{{ row.net|abs_filter|floatformat:2 }}
+            {% if row.net > 0 %}<span class="badge bg-success-subtle text-success ms-1">Dr</span>
+            {% elif row.net < 0 %}<span class="badge bg-warning-subtle text-warning ms-1">Cr</span>
+            {% else %}<span class="badge bg-secondary-subtle text-secondary ms-1">—</span>{% endif %}
+          {% endif %}
         </td>
       </tr>
       {% empty %}
@@ -127,8 +134,8 @@
       </tr>
       {% endfor %}
 
-      <!-- Period Totals + Closing Balance — on last page only -->
-      {% if page_obj.number == page_obj.paginator.num_pages %}
+      {# Period Totals + Closing — last page only #}
+      {% if page_obj.number == page_obj.paginator.num_pages and not search %}
       <tr class="table-secondary fw-bold">
         <td colspan="3" class="text-end">Period Totals →</td>
         <td class="text-end">₹{{ total_debit|floatformat:2 }}</td>
@@ -149,7 +156,7 @@
       </tr>
       {% endif %}
 
-      <!-- Opening row at bottom — if user chose DESC in detailed mode -->
+      {# Opening row at bottom — DESC mode #}
       {% if sort != 'asc' and page_obj.number == page_obj.paginator.num_pages %}
       <tr class="table-light fw-semibold">
         <td class="text-nowrap">

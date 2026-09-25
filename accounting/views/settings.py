@@ -110,6 +110,7 @@ def company_settings(request):
 # =============================================================
 # BACKUP DATABASE (SQLite + PostgreSQL compatible)
 # =============================================================
+@user_passes_test(_superuser_only)
 @require_http_methods(["GET"])
 def backup_database(request):
     try:
@@ -148,6 +149,7 @@ def backup_database(request):
 # RESTORE DATABASE (SQLite + PostgreSQL compatible)
 # =============================================================
 @csrf_protect
+@user_passes_test(_superuser_only)
 @require_http_methods(["GET", "POST"])
 def restore_database(request):
     # GET: show restore form in modal

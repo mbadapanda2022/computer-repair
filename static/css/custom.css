@@ -1,12 +1,17 @@
 /* static/css/custom.css */
 
-/* =============================================
+/* ================================================================
    BASE & CARD STYLES
-   ============================================= */
+   ================================================================ */
 .card {
     border: none;
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
     margin-bottom: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 .card-header {
     background-color: #f8f9fa;
@@ -14,9 +19,9 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.125);
 }
 
-/* =============================================
+/* ================================================================
    DASHBOARD STATS
-   ============================================= */
+   ================================================================ */
 .card.text-bg-primary h2,
 .card.text-bg-success h2,
 .card.text-bg-warning h2,
@@ -25,9 +30,9 @@
     font-weight: 700;
 }
 
-/* =============================================
+/* ================================================================
    TABLES
-   ============================================= */
+   ================================================================ */
 .table th {
     white-space: nowrap;
     background-color: #f8f9fa;
@@ -35,17 +40,29 @@
 .table-hover tbody tr:hover {
     background-color: rgba(0, 123, 255, 0.05);
 }
+.table-hover tbody tr {
+    transition: background-color 0.15s ease;
+}
+.table-responsive {
+    -webkit-overflow-scrolling: touch;
+}
 
-/* =============================================
+/* ================================================================
    ACTION BUTTONS
-   ============================================= */
+   ================================================================ */
 .btn-sm i {
     font-size: 0.875rem;
 }
+.btn {
+    transition: all 0.2s ease;
+}
+.btn-lg:hover {
+    transform: scale(1.02);
+}
 
-/* =============================================
+/* ================================================================
    PRINT STYLES (Invoices & Reports)
-   ============================================= */
+   ================================================================ */
 @media print {
     body {
         background: #fff !important;
@@ -75,7 +92,6 @@
         background: none !important;
         color: #000 !important;
     }
-    /* Auto-hide empty notification badges */
     .badge:empty {
         display: none !important;
     }
@@ -87,26 +103,25 @@
     }
 }
 
-/* =============================================
+/* ================================================================
    INVOICE PRINT AREA
-   ============================================= */
+   ================================================================ */
 .invoice-print-area {
     max-width: 800px;
     margin: 0 auto;
 }
 
-/* =============================================
+/* ================================================================
    STATUS BADGES
-   ============================================= */
+   ================================================================ */
 .badge {
     font-size: 0.85rem;
     padding: 0.35em 0.65em;
 }
 
-
-/* =============================================
+/* ================================================================
    HTMX LOADING INDICATOR
-   ============================================= */
+   ================================================================ */
 .htmx-indicator {
     display: none;
 }
@@ -116,23 +131,22 @@
 .htmx-request.htmx-indicator {
     display: inline-block;
 }
-/* HTMX Swapping Animations */
 .htmx-swapping {
     opacity: 0;
     transition: opacity 0.5s ease-out;
 }
 
-/* =============================================
+/* ================================================================
    LOW STOCK HIGHLIGHT
-   ============================================= */
+   ================================================================ */
 .low-stock {
     color: #dc3545;
     font-weight: bold;
 }
 
-/* =============================================
+/* ================================================================
    STAFF SIDEBAR (Desktop & Mobile)
-   ============================================= */
+   ================================================================ */
 #sidebar {
     min-width: 250px;
     max-width: 250px;
@@ -140,6 +154,7 @@
     transition: all 0.3s ease;
     overflow-x: hidden;
     background-color: #212529;
+    position: relative;
 }
 #sidebar.collapsed {
     min-width: 70px;
@@ -205,7 +220,6 @@
     transition: margin-left 0.3s ease;
 }
 
-/* Mobile Sidebar (Off-Canvas) */
 @media (max-width: 768px) {
     #sidebar {
         position: fixed;
@@ -223,9 +237,9 @@
     }
 }
 
-/* =============================================
-   CUSTOMER SIDEBAR (Complete - merged)
-   ============================================= */
+/* ================================================================
+   CUSTOMER SIDEBAR
+   ================================================================ */
 #customer-sidebar {
     min-width: 250px;
     max-width: 250px;
@@ -234,6 +248,7 @@
     background-color: #212529;
     background: var(--bs-dark);
     overflow-x: hidden;
+    position: relative;
 }
 #customer-sidebar.collapsed {
     min-width: 70px;
@@ -291,7 +306,6 @@
     transform: rotate(180deg);
 }
 
-/* Mobile Customer Sidebar */
 @media (max-width: 768px) {
     #customer-sidebar {
         margin-left: -250px;
@@ -313,14 +327,13 @@
     }
 }
 
-/* Dark Mode Customer Sidebar */
 [data-bs-theme="dark"] #customer-sidebar {
     background: #1a1d20 !important;
 }
 
-/* =============================================
+/* ================================================================
    CUSTOMER AUTH CONTAINER (Login/Register)
-   ============================================= */
+   ================================================================ */
 .customer-auth-container {
     min-height: 100vh;
     display: flex;
@@ -372,7 +385,6 @@
     border-radius: 50px;
 }
 
-/* Dark Mode Auth Card */
 [data-bs-theme="dark"] .customer-auth-card {
     background: #2c3034;
 }
@@ -390,9 +402,9 @@
     color: #e9ecef;
 }
 
-/* =============================================
+/* ================================================================
    DROPDOWN NOTIFICATION ITEMS
-   ============================================= */
+   ================================================================ */
 .dropdown-item {
     padding: 8px 16px;
     font-size: 0.9rem;
@@ -401,9 +413,9 @@
     font-size: 0.8rem;
 }
 
-/* =============================================
+/* ================================================================
    DARK MODE (Global)
-   ============================================= */
+   ================================================================ */
 [data-bs-theme="dark"] #sidebar {
     background-color: #1a1d20 !important;
 }
@@ -417,39 +429,40 @@
 }
 html {
     transition: background-color 0.3s, color 0.3s;
+    scroll-behavior: smooth;
 }
 
-/* =============================================
+/* ================================================================
    CHART CONTAINER
-   ============================================= */
+   ================================================================ */
 canvas {
     max-height: 300px;
 }
 
-/* =============================================
+/* ================================================================
    MODAL BACKDROP
-   ============================================= */
+   ================================================================ */
 .modal-backdrop {
     background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1040 !important;
+}
+.modal {
+    z-index: 1050 !important;
+}
+.modal.fade .modal-dialog {
+    transition: transform 0.25s ease-out;
 }
 
-/* =============================================
+/* ================================================================
    FLEX ROW ADJUSTMENTS FOR INVOICE ITEMS
-   ============================================= */
+   ================================================================ */
 .d-flex .btn-sm {
     margin-left: 0.5rem;
 }
 
-/* =============================================
-   RESPONSIVE TABLES
-   ============================================= */
-.table-responsive {
-    -webkit-overflow-scrolling: touch;
-}
-
-/* =============================================
+/* ================================================================
    MODAL FORM BEAUTIFICATION
-   ============================================= */
+   ================================================================ */
 .modal-body .form-label {
     font-weight: 500;
     margin-bottom: 0.25rem;
@@ -468,17 +481,17 @@ canvas {
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
 }
 
-/* =============================================
+/* ================================================================
    FORM FIELD SPACING
-   ============================================= */
+   ================================================================ */
 .form-label {
     font-weight: 500;
     margin-bottom: 0.25rem;
 }
 
-/* =============================================
+/* ================================================================
    SMOOTH PAGE TRANSITIONS
-   ============================================= */
+   ================================================================ */
 #page-content-wrapper .container-fluid {
     animation: fadeIn 0.3s ease-out;
 }
@@ -503,39 +516,13 @@ canvas {
     transition: opacity 0.2s ease;
 }
 
-.card {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-}
-
-.table-hover tbody tr {
-    transition: background-color 0.15s ease;
-}
-
-.btn {
-    transition: all 0.2s ease;
-}
-.btn-lg:hover {
-    transform: scale(1.02);
-}
-.modal.fade .modal-dialog {
-    transition: transform 0.25s ease-out;
-}
-
 .dropdown-menu {
     transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-/* =============================================
+/* ================================================================
    LANDING PAGE & PUBLIC STYLES
-   ============================================= */
-html {
-    scroll-behavior: smooth;
-}
-
+   ================================================================ */
 .hero-gradient {
     background: linear-gradient(135deg, #0d6efd 0%, #6610f2 100%);
     color: white;
@@ -598,16 +585,16 @@ html {
     color: #6ea8fe;
 }
 
-/* =============================================
+/* ================================================================
    TOAST CONTAINER
-   ============================================= */
+   ================================================================ */
 .toast-container {
     z-index: 1060 !important;
 }
 
-/* =============================================
+/* ================================================================
    GLOBAL HTMX PROGRESS BAR
-   ============================================= */
+   ================================================================ */
 #htmx-progress-bar {
     position: fixed;
     top: 0;
@@ -626,32 +613,21 @@ html {
     transform: scaleX(1);
 }
 
-/* =============================================
+/* ================================================================
    FORM VALIDATION - REAL-TIME ERRORS
-   ============================================= */
+   ================================================================ */
 .field-wrapper .invalid-feedback {
     display: block;
     font-size: 0.875rem;
     margin-top: 0.25rem;
 }
-
 .is-invalid {
     border-color: #dc3545;
 }
 
-/* =============================================
-   MODAL FIXES
-   ============================================= */
-.modal-backdrop {
-    z-index: 1040 !important;
-}
-.modal {
-    z-index: 1050 !important;
-}
-
-/* =============================================
+/* ================================================================
    PUBLIC THEME TOGGLE
-   ============================================= */
+   ================================================================ */
 #themeTogglePublic {
     border: none;
     background: transparent;
@@ -659,9 +635,9 @@ html {
     font-size: 1.2rem;
 }
 
-/* =============================================
+/* ================================================================
    SPINNERS (Login & Registration)
-   ============================================= */
+   ================================================================ */
 #login-spinner.htmx-request {
     display: inline-block !important;
 }
@@ -688,101 +664,31 @@ html {
     display: inline-block !important;
 }
 
-/* Services Carousel */
+/* ================================================================
+   SERVICES CAROUSEL
+   ================================================================ */
 #servicesCarousel .carousel-item {
-    transition: transform 0.6s ease-in-out;
+    transition: transform 0.8s ease-in-out, opacity 0.8s ease-in-out;
 }
-
-#servicesCarousel .card {
-    background: rgba(255,255,255,0.9);
-    backdrop-filter: blur(10px);
-    border: none;
-}
-
-[data-bs-theme="dark"] #servicesCarousel .card {
-    background: rgba(33,37,41,0.9);
-}
-
-#servicesCarousel .carousel-control-prev-icon,
-#servicesCarousel .carousel-control-next-icon {
-    background-size: 60% 60%;
-    box-shadow: 0 0 15px rgba(0,0,0,0.2);
-}
-
-#servicesCarousel .carousel-indicators button {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid #0d6efd;
-    background: transparent;
-}
-
-#servicesCarousel .carousel-indicators .active {
-    background: #0d6efd;
-}
-
-/* Product Suggestions */
-#product-suggestions .list-group-item {
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-#product-suggestions .list-group-item:hover {
-    background-color: #e9ecef;
-}
-#product-suggestions {
-    position: absolute;
-    z-index: 1050;
-    width: 100%;
-    background: white;
-    border: 1px solid #ced4da;
-    border-radius: 0.25rem;
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
-    margin-top: 2px;
-}
-
-
-/* Quick Add Modal  */
-#quickAddModal .modal-content {
-    background-color: #fff !important;
-    border-radius: 0.5rem;
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.3);
-}
-
-#quickAddModal .modal-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    border-radius: 0.5rem 0.5rem 0 0;
-}
-
-#quickAddModal .modal-footer {
-    background-color: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-    border-radius: 0 0 0.5rem 0.5rem;
-}
-
-/* =============================================
-   SERVICES CAROUSEL – PROFESSIONAL STYLES
-   ============================================= */
-
-/* Carousel Inner Cards */
 #servicesCarousel .carousel-item .card {
     transition: transform 0.5s ease, box-shadow 0.5s ease;
     background: rgba(255, 255, 255, 0.9);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
-
 #servicesCarousel .carousel-item.active .card {
     transform: scale(1);
 }
-
-/* Hover Effect */
+#servicesCarousel .card {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(10px);
+    border: none;
+}
 #servicesCarousel .card:hover {
     transform: translateY(-10px) scale(1.02);
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Service Icon / Image */
 #servicesCarousel .service-icon {
     font-size: 4rem;
     color: #0d6efd;
@@ -798,7 +704,6 @@ html {
     transform: scale(1.05);
 }
 
-/* Carousel Control Buttons (Prev / Next) */
 #servicesCarousel .carousel-control-prev,
 #servicesCarousel .carousel-control-next {
     width: 5%;
@@ -820,7 +725,6 @@ html {
     box-shadow: 0 8px 25px rgba(13, 110, 253, 0.5);
 }
 
-/* Carousel Indicators (Dots) */
 #servicesCarousel .carousel-indicators button {
     width: 14px;
     height: 14px;
@@ -838,10 +742,6 @@ html {
     transform: scale(1.1);
 }
 
-/* Fade & Scale Animation on Slide Change */
-#servicesCarousel .carousel-item {
-    transition: transform 0.8s ease-in-out, opacity 0.8s ease-in-out;
-}
 #servicesCarousel .carousel-item-next:not(.carousel-item-start),
 #servicesCarousel .carousel-item-prev:not(.carousel-item-end) {
     opacity: 0;
@@ -853,9 +753,6 @@ html {
     transform: scale(1);
 }
 
-/* =============================================
-   DARK MODE SUPPORT
-   ============================================= */
 [data-bs-theme="dark"] #servicesCarousel .card {
     background: rgba(33, 37, 41, 0.95);
     border-color: rgba(255, 255, 255, 0.05);
@@ -871,9 +768,6 @@ html {
     background: #6ea8fe;
 }
 
-/* =============================================
-   RESPONSIVE FINE-TUNE
-   ============================================= */
 @media (max-width: 768px) {
     #servicesCarousel .carousel-item .card {
         padding: 2rem !important;
@@ -888,9 +782,49 @@ html {
     }
 }
 
-/* =============================================
+/* ================================================================
+   PRODUCT SUGGESTIONS
+   ================================================================ */
+#product-suggestions .list-group-item {
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+#product-suggestions .list-group-item:hover {
+    background-color: #e9ecef;
+}
+#product-suggestions {
+    position: absolute;
+    z-index: 1050;
+    width: 100%;
+    background: white;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    margin-top: 2px;
+}
+
+/* ================================================================
+   QUICK ADD MODAL
+   ================================================================ */
+#quickAddModal .modal-content {
+    background-color: #fff !important;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+}
+#quickAddModal .modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 0.5rem 0.5rem 0 0;
+}
+#quickAddModal .modal-footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    border-radius: 0 0 0.5rem 0.5rem;
+}
+
+/* ================================================================
    GLOBAL SEARCH (navbar + dropdown)
-   ============================================= */
+   ================================================================ */
 .global-search-wrapper {
     position: relative;
     width: 260px;
@@ -939,11 +873,9 @@ html {
     display: none;
     padding: 4px 0;
 }
-/* Show whenever results contain content (JS-independent) */
 .global-search-results:not(:empty) {
     display: block;
 }
-/* Hide when wrapper explicitly closed */
 .global-search-wrapper.search-closed .global-search-results {
     display: none !important;
 }
@@ -984,7 +916,6 @@ html {
     font-size: 0.875rem;
 }
 
-/* Dark mode */
 [data-bs-theme="dark"] .global-search-results {
     background: #2c3034;
     border-color: rgba(255, 255, 255, 0.08);
@@ -1003,7 +934,6 @@ html {
     color: #adb5bd;
 }
 
-/* Hide on small screens (would overflow navbar) */
 @media (max-width: 900px) {
     .global-search-wrapper {
         width: 40px;
@@ -1023,18 +953,18 @@ html {
     }
 }
 
-/* =============================================
+/* ================================================================
    COMPACT APP FOOTER (Staff / Customer)
-   ============================================= */
+   ================================================================ */
 .app-footer {
     font-size: 0.8rem;
     color: var(--bs-secondary-color);
     margin-top: auto;
 }
 
-/* =============================================
-   DEVELOPER CREDIT (Footer – all portals)
-   ============================================= */
+/* ================================================================
+   DEVELOPER CREDIT (Footer - all portals)
+   ================================================================ */
 .dev-credit {
     letter-spacing: 0.2px;
     opacity: 0.9;
@@ -1066,7 +996,6 @@ html {
     width: 100%;
 }
 
-/* Dark theme – footer ke andar light text */
 [data-bs-theme="dark"] .app-footer .dev-credit-link {
     color: #8bb9fe;
 }
@@ -1077,14 +1006,9 @@ html {
     background: #8bb9fe;
 }
 
-/* =============================================
+/* ================================================================
    SIDEBAR DRAG-RESIZE HANDLE
-   ============================================= */
-#sidebar,
-#customer-sidebar {
-    position: relative;
-}
-
+   ================================================================ */
 .sidebar-resize-handle {
     position: absolute;
     top: 0;
@@ -1096,7 +1020,6 @@ html {
     z-index: 30;
     transition: background 0.15s ease;
 }
-/* Visual grip indicator */
 .sidebar-resize-handle::before {
     content: "";
     position: absolute;
@@ -1119,20 +1042,17 @@ html {
     height: 60px;
 }
 
-/* Collapsed state me handle chhupa do */
 #sidebar.collapsed .sidebar-resize-handle,
 #customer-sidebar.collapsed .sidebar-resize-handle {
     display: none;
 }
 
-/* Mobile pe handle ki zarurat nahi */
 @media (max-width: 768px) {
     .sidebar-resize-handle {
         display: none !important;
     }
 }
 
-/* Drag ke dauraan transition off + text select band */
 #sidebar.resizing,
 #customer-sidebar.resizing {
     transition: none !important;
@@ -1143,9 +1063,9 @@ body.sidebar-resizing {
     cursor: col-resize;
 }
 
-/* =============================================
+/* ================================================================
    SIDEBAR NARROW MODE (auto text-hide on <120px)
-   ============================================= */
+   ================================================================ */
 #sidebar.narrow .link-text,
 #customer-sidebar.narrow .link-text {
     display: none;
@@ -1169,4 +1089,36 @@ body.sidebar-resizing {
     top: 4px;
     right: 6px;
     transform: scale(0.7);
+}
+
+/* ================================================================
+   CONTACTS TABLE - DROPDOWN OVERFLOW FIX
+   ================================================================
+   Bootstrap's .table-responsive forces overflow:auto, which clips
+   the Actions dropdown when the table is short (few rows). We
+   allow overflow to escape horizontally while keeping vertical
+   scrolling safe. Popper's data-bs-strategy="fixed" handles the
+   actual positioning escape, but this ensures hover/cursor works.
+   ================================================================ */
+.contacts-table-wrapper {
+    overflow: visible;
+}
+@media (max-width: 768px) {
+    .contacts-table-wrapper {
+        overflow-x: auto;
+        overflow-y: visible;
+    }
+}
+
+/* =============================================
+   REPAIRS TABLE - DROPDOWN OVERFLOW FIX
+   ============================================= */
+.repairs-table-wrapper {
+    overflow: visible;
+}
+@media (max-width: 768px) {
+    .repairs-table-wrapper {
+        overflow-x: auto;
+        overflow-y: visible;
+    }
 }

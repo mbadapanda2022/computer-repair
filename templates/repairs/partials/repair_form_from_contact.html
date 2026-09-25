@@ -1,0 +1,214 @@
+<!-- templates/partials/repair_form_contact.html -->
+{% load static %}
+
+<form method="post"
+      action="{% url 'accounting:repair_create_for_contact' contact.pk %}"
+      hx-post="{% url 'accounting:repair_create_for_contact' contact.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      id="repairForm"
+      novalidate>
+
+    {% csrf_token %}
+
+    <div class="modal-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+        <h5 class="modal-title text-white">
+            <i class="bi bi-tools me-2"></i>
+            New Repair for {{ contact.name }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+
+        {# ══════════ ERROR ALERTS ══════════ #}
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger d-flex align-items-start">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                <div>
+                    <strong>Please fix the following:</strong>
+                    <ul class="mb-0 mt-1">
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if form.errors %}
+            <div class="alert alert-warning d-flex align-items-start">
+                <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                <div>
+                    <strong>Some fields need attention.</strong>
+                    <div class="small mt-1">Please review the highlighted fields below.</div>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        {# ══════════ CUSTOMER (LOCKED) ══════════ #}
+        <div class="alert alert-success mb-3 d-flex align-items-center">
+            <i class="bi bi-person-check me-3 fs-4"></i>
+            <div class="flex-grow-1">
+                <div class="fw-bold">{{ contact.name }}</div>
+                <div class="small">
+                    <span class="badge bg-light text-dark me-2">{{ contact.get_contact_type_display }}</span>
+                    {% if contact.phone %}<i class="bi bi-phone me-1"></i>{{ contact.phone }}{% endif %}
+                </div>
+            </div>
+            <i class="bi bi-lock-fill text-muted" title="Customer is locked to this repair"></i>
+        </div>
+
+        {# Hidden customer — forced by view from URL #}
+        <input type="hidden" name="customer" value="{{ contact.pk }}">
+
+        {# ══════════ DEVICE INFO ══════════ #}
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_device_model" class="form-label fw-semibold">
+                    Device Model <span class="text-danger">*</span>
+                </label>
+                <input type="text" name="device_model" id="id_device_model"
+                       class="form-control {% if form.device_model.errors %}is-invalid{% endif %}"
+                       value="{{ form.device_model.value|default:'' }}" required>
+                <div id="field-device_model" class="invalid-feedback d-block">
+                    {{ form.device_model.errors|join:", " }}
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label for="id_serial_number" class="form-label fw-semibold">Serial Number</label>
+                <input type="text" name="serial_number" id="id_serial_number"
+                       class="form-control {% if form.serial_number.errors %}is-invalid{% endif %}"
+                       value="{{ form.serial_number.value|default:'' }}">
+                <div id="field-serial_number" class="invalid-feedback d-block">
+                    {{ form.serial_number.errors|join:", " }}
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-12">
+                <label for="id_issue_description" class="form-label fw-semibold">
+                    Issue Description <span class="text-danger">*</span>
+                </label>
+                <textarea name="issue_description" id="id_issue_description" rows="3"
+                          class="form-control {% if form.issue_description.errors %}is-invalid{% endif %}"
+                          required>{{ form.issue_description.value|default:'' }}</textarea>
+                <div id="field-issue_description" class="invalid-feedback d-block">
+                    {{ form.issue_description.errors|join:", " }}
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_accessories" class="form-label fw-semibold">Accessories</label>
+                <textarea name="accessories" id="id_accessories" rows="2"
+                          class="form-control">{{ form.accessories.value|default:'' }}</textarea>
+            </div>
+            <div class="col-md-6">
+                <label for="id_device_condition" class="form-label fw-semibold">Device Condition</label>
+                <textarea name="device_condition" id="id_device_condition" rows="2"
+                          class="form-control">{{ form.device_condition.value|default:'' }}</textarea>
+            </div>
+        </div>
+
+        {# ══════════ RECEPTION ══════════ #}
+        <h6 class="text-success border-bottom pb-2 mb-3 mt-4">
+            <i class="bi bi-box-arrow-in-down"></i> Reception Details
+        </h6>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="id_received_at" class="form-label fw-semibold">Received Date</label>
+                <input type="date" name="received_at" id="id_received_at"
+                       class="form-control"
+                       value="{{ form.received_at.value|default:''|date:'Y-m-d' }}{% if not form.received_at.value %}{% now 'Y-m-d' %}{% endif %}">
+            </div>
+            <div class="col-md-4">
+                <label for="id_received_by" class="form-label fw-semibold">Received By</label>
+                <input type="text" name="received_by" id="id_received_by"
+                       class="form-control"
+                       value="{{ form.received_by.value|default:request.user.get_full_name }}">
+            </div>
+            <div class="col-md-4">
+                <label for="id_estimated_cost" class="form-label fw-semibold">Estimated Cost (₹)</label>
+                <input type="number" name="estimated_cost" id="id_estimated_cost" step="0.01"
+                       class="form-control {% if form.estimated_cost.errors %}is-invalid{% endif %}"
+                       value="{{ form.estimated_cost.value|default:'' }}">
+                <div id="field-estimated_cost" class="invalid-feedback d-block">
+                    {{ form.estimated_cost.errors|join:", " }}
+                </div>
+            </div>
+        </div>
+        <div class="row g-3 mt-2">
+            <div class="col-md-6">
+                <label for="id_received_remarks" class="form-label fw-semibold">Reception Remarks</label>
+                <textarea name="received_remarks" id="id_received_remarks" rows="2"
+                          class="form-control"
+                          placeholder="Device condition at reception...">{{ form.received_remarks.value|default:'' }}</textarea>
+            </div>
+            <div class="col-md-6">
+                <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge (₹)</label>
+                <input type="number" name="labour_charge" id="id_labour_charge" step="0.01"
+                       class="form-control {% if form.labour_charge.errors %}is-invalid{% endif %}"
+                       value="{{ form.labour_charge.value|default:'0' }}">
+                <div id="field-labour_charge" class="invalid-feedback d-block">
+                    {{ form.labour_charge.errors|join:", " }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
+        <button type="submit" class="btn btn-success" id="repairSubmitBtn">
+            <span class="submit-text">
+                <i class="bi bi-check-circle me-1"></i>Create Repair
+            </span>
+            <span class="submit-spinner d-none">
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                Creating...
+            </span>
+        </button>
+    </div>
+</form>
+
+<script>
+(function () {
+    'use strict';
+
+    // ── Submit button loading state ──
+    // Attach listener only once per form instance so re-renders don't stack.
+    const form = document.getElementById('repairForm');
+    if (!form || form.dataset.submitBound === '1') return;
+    form.dataset.submitBound = '1';
+
+    form.addEventListener('submit', function () {
+        const btn = document.getElementById('repairSubmitBtn');
+        if (!btn) return;
+        const text = btn.querySelector('.submit-text');
+        const spin = btn.querySelector('.submit-spinner');
+        if (text) text.classList.add('d-none');
+        if (spin) spin.classList.remove('d-none');
+        btn.disabled = true;
+    });
+
+    // Restore on HTMX response (error re-render or success)
+    form.addEventListener('htmx:afterRequest', function () {
+        const btn = document.getElementById('repairSubmitBtn');
+        if (!btn) return;
+        const text = btn.querySelector('.submit-text');
+        const spin = btn.querySelector('.submit-spinner');
+        if (text) text.classList.remove('d-none');
+        if (spin) spin.classList.add('d-none');
+        btn.disabled = false;
+    });
+})();
+</script>

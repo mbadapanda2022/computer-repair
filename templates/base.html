@@ -62,12 +62,12 @@
                     class="nav-link {% if request.resolver_match.url_name == 'notification_list' or 'notifications' in request.path %}active{% endif %}">
                         <i class="bi bi-bell"></i>
                         <span class="link-text">Notifications</span>
-                        <span class="badge bg-danger ms-2 {% if user|message_unread_count == 0 %}d-none{% endif %}"
-                            id="sidebar-msg-badge"
-                            hx-get="{% url 'accounting:message_unread_count' %}"
+                        <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
+                            id="sidebar-notif-badge"
+                            hx-get="{% url 'accounting:notification_unread_count_text' %}"
                             hx-trigger="load, every 30s"
                             hx-swap="innerHTML">
-                            {{ user|message_unread_count }}
+                            {{ user|unread_count }}
                         </span>
                     </a>
                 </li>
@@ -78,16 +78,15 @@
                     class="nav-link {% if request.resolver_match.url_name == 'message_list' or 'messages' in request.path %}active{% endif %}">
                         <i class="bi bi-envelope"></i>
                         <span class="link-text">Messages</span>
-                        <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
+                        <span class="badge bg-danger ms-2 {% if user|message_unread_count == 0 %}d-none{% endif %}"
                             id="sidebar-msg-badge"
                             hx-get="{% url 'accounting:message_unread_count' %}"
                             hx-trigger="load, every 30s"
                             hx-swap="innerHTML">
-                            0
+                            {{ user|message_unread_count }}
                         </span>
                     </a>
                 </li>
-
 
                 <!-- Sales -->
                 <li>

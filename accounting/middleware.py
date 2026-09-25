@@ -24,7 +24,7 @@ from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect
 from django.urls import Resolver404, resolve
-
+from django.http import HttpResponse
 from .audit import clear_current_request, set_current_request
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,11 @@ class AccessControlMiddleware:
 
         # 7. Unauthenticated on protected path
         if not request.user.is_authenticated:
+            # HTMX/AJAX request detection
+            if request.headers.get('HX-Request') == 'true':
+                response = HttpResponse(status=401)
+                response['HX-Redirect'] = settings.LOGIN_URL 
+                return response
             return redirect_to_login(path, login_url=settings.LOGIN_URL)
 
         # 8. Customer namespace

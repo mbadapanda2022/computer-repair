@@ -16,7 +16,7 @@ from .views.auth import (
     resend_otp_view,
     password_reset_otp_request,
     reset_password_set_view,
-    CustomSignupView,  
+    CustomSignupView,
 )
 from .views.repairs import staff_approve_estimate
 from .views.utils import health_check
@@ -28,31 +28,29 @@ urlpatterns = [
     # ===== Dashboard =====
     path('dashboard/', dashboard, name='dashboard'),
     path('dashboard/stats/', dashboard_stats, name='dashboard_stats'),
-    path('dashboard/refresh-stats/', refresh_stats, name='refresh_stats'), 
+    path('dashboard/refresh-stats/', refresh_stats, name='refresh_stats'),
     path('dashboard/recent-transactions/', recent_transactions, name='recent_transactions'),
     path('dashboard/export/', dashboard_export, name='dashboard_export'),
 
     # ===== Contacts =====
     path('contacts/', contacts.contact_list, name='contact_list'),
     path('contacts/add/', contacts.contact_create, name='contact_create'),
-    path('contacts/validate-field/', contacts.validate_contact_field, name='validate_contact_field'),
+    path('contacts/validate-field/', contacts.validate_contact_field, name='validate_accounting_contact_field'),
     path('contacts/<int:pk>/edit/', contacts.contact_update, name='contact_update'),
     path('contacts/<int:pk>/delete/', contacts.contact_delete, name='contact_delete'),
     path('contacts/search/', contacts.contact_search, name='contact_search'),
     path('contacts/export/excel/', contacts.export_contacts_excel, name='export_contacts_excel'),
     path('contacts/<int:pk>/detail-modal/', contacts.contact_detail_modal, name='contact_detail_modal'),
-    
-    
+
     # ===== Products =====
     path('products/', products.product_list, name='product_list'),
     path('products/print/', products.product_list_print, name='product_list_print'),
     path('products/create/', products.product_create, name='product_create'),
-    # ===== Product Categories =====
     path('products/categories/', products.category_list, name='category_list'),
     path('products/categories/create/', products.category_create, name='category_create'),
     path('products/categories/<int:pk>/update/', products.category_update, name='category_update'),
     path('products/categories/<int:pk>/delete/', products.category_delete, name='category_delete'),
-    
+
     path('products/<int:pk>/update/', products.product_update, name='product_update'),
     path('products/<int:pk>/delete/', products.product_delete, name='product_delete'),
     path('products/<int:pk>/detail/', products.product_detail_modal, name='product_detail_modal'),
@@ -76,7 +74,7 @@ urlpatterns = [
     path('sales/<int:pk>/delete/', sales.invoice_delete, name='invoice_delete'),
     path('sales/<int:pk>/duplicate/', sales.invoice_duplicate, name='invoice_duplicate'),
     path('sales/<int:pk>/whatsapp/', sales.invoice_whatsapp, name='invoice_whatsapp'),
-    # ===== Credit Notes (Sales Returns) =====
+
     path('credit-notes/', sales.credit_note_list, name='credit_note_list'),
     path('credit-notes/<int:pk>/', sales.credit_note_detail, name='credit_note_detail'),
     path('credit-notes/<int:pk>/print/', sales.credit_note_print, name='credit_note_print'),
@@ -120,7 +118,6 @@ urlpatterns = [
     path('repairs/export/excel/', repairs.export_repairs_excel, name='export_repairs_excel'),
     path('repairs/<int:pk>/staff-approve/', repairs.staff_approve_estimate, name='staff_approve_estimate'),
     path('repairs/<int:pk>/quick-update/', repairs.quick_update_repair, name='quick_update_repair'),
-    # ===== Repairs — Estimate & Warranty =====
     path('repairs/<int:pk>/send-estimate/', repairs.send_estimate_to_customer, name='send_estimate_to_customer'),
     path('repairs/<int:pk>/estimate/print/', repairs.estimate_print, name='estimate_print'),
     path('repairs/<int:pk>/warranty-card/', repairs.warranty_card_print, name='warranty_card_print'),
@@ -142,14 +139,12 @@ urlpatterns = [
     path('payments/<int:pk>/delete/', payments.payment_delete, name='payment_delete'),
     path('payments/<int:pk>/reconcile/', payments.reconcile_payment, name='reconcile_payment'),
     path('payments/load-unpaid-invoices/', payments.load_unpaid_invoices, name='load_unpaid_invoices'),
-    
-     # ===== Combined Statement (for 'both' type contacts) =====
-    path('statements/combined/<int:contact_id>/', statements.combined_statement, name='combined_statement',),
-    path('statements/combined/<int:contact_id>/print/', statements.combined_statement, {'is_print': '1'}, name='combined_statement_print',),
-    path('statements/combined/<int:contact_id>/excel/', statements.combined_statement_excel, name='combined_statement_excel',),
-    path('statements/combined/<int:contact_id>/whatsapp/', statements.combined_statement_whatsapp, name='combined_statement_whatsapp',),
 
     # ===== Statements =====
+    path('statements/combined/<int:contact_id>/', statements.combined_statement, name='combined_statement'),
+    path('statements/combined/<int:contact_id>/print/', statements.combined_statement, {'is_print': '1'}, name='combined_statement_print'),
+    path('statements/combined/<int:contact_id>/excel/', statements.combined_statement_excel, name='combined_statement_excel'),
+    path('statements/combined/<int:contact_id>/whatsapp/', statements.combined_statement_whatsapp, name='combined_statement_whatsapp'),
     path('statements/customer/<int:contact_id>/excel/', statements.customer_statement_excel, name='customer_statement_excel'),
     path('statements/customer/<int:contact_id>/', statements.customer_statement, name='customer_statement'),
     path('statements/customer/<int:contact_id>/print/', statements.customer_statement_print, name='customer_statement_print'),
@@ -194,7 +189,6 @@ urlpatterns = [
     path('settings/backup/', backup_database, name='backup_database'),
     path('settings/restore/', restore_database, name='restore_database'),
     path('settings/validate-field/', validate_setting_field, name='validate_setting_field'),
-    # ===== Audit Log Management (superuser only) =====
     path('settings/audit-log/stats/', audit_log_stats, name='audit_log_stats'),
     path('settings/audit-log/purge/', audit_log_purge, name='audit_log_purge'),
 
@@ -203,23 +197,18 @@ urlpatterns = [
     path('register/', register_view, name='register'),
     path('logout/', unified_logout_view, name='logout'),
 
-    # ---- Token-based Password Reset (Legacy) ----
     path('password-reset/', CustomPasswordResetView.as_view(), name='password_reset'),
     path('password-reset/done/', auth_views.PasswordResetDoneView.as_view(template_name='auth/password_reset_done.html'), name='password_reset_done'),
     path('password-reset/<uidb64>/<token>/', CustomPasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('password-reset/complete/', auth_views.PasswordResetCompleteView.as_view(template_name='auth/password_reset_complete.html'), name='password_reset_complete'),
 
-    # ---- OTP-based Password Reset ----
     path('password-reset-otp/', password_reset_otp_request, name='password_reset_otp'),
     path('verify-otp/', verify_otp_view, name='verify_otp'),
     path('resend-otp/', resend_otp_view, name='resend_otp'),
     path('reset-password-set/', reset_password_set_view, name='reset_password_set'),
-
-    # ---- Password Change (Logged-in) ----
     path('password-change/', password_change_view, name='password_change'),
     path('password-change/done/', auth_views.PasswordChangeDoneView.as_view(template_name='auth/password_change_done.html'), name='password_change_done'),
 
-    # ---- HTMX Validation Endpoints ----
     path('auth/validate-login-field/', validate_login_field, name='validate_login_field'),
     path('auth/validate-register-field/', validate_register_field, name='validate_register_field'),
 
@@ -239,34 +228,29 @@ urlpatterns = [
     path('messages/<int:pk>/status/', message_views.message_mark_status, name='message_mark_status'),
     path('messages/<int:pk>/delete/', message_views.message_delete, name='message_delete'),
     path('messages/unread-count/', message_views.message_unread_count, name='message_unread_count'),
-    
+
     # ===== Landing Page Management (HTMX CRUD) =====
-    # Services
     path('landing/services/', landing_views.service_list_partial, name='service_list_partial'),
     path('landing/services/create/', landing_views.service_create, name='service_create'),
     path('landing/services/<int:pk>/edit/', landing_views.service_edit, name='service_edit'),
     path('landing/services/<int:pk>/delete/', landing_views.service_delete, name='service_delete'),
 
-    # Testimonials
     path('landing/testimonials/', landing_views.testimonial_list_partial, name='testimonial_list_partial'),
     path('landing/testimonials/create/', landing_views.testimonial_create, name='testimonial_create'),
     path('landing/testimonials/<int:pk>/edit/', landing_views.testimonial_edit, name='testimonial_edit'),
     path('landing/testimonials/<int:pk>/delete/', landing_views.testimonial_delete, name='testimonial_delete'),
 
-    # FAQs
     path('landing/faqs/', landing_views.faq_list_partial, name='faq_list_partial'),
     path('landing/faqs/create/', landing_views.faq_create, name='faq_create'),
     path('landing/faqs/<int:pk>/edit/', landing_views.faq_edit, name='faq_edit'),
     path('landing/faqs/<int:pk>/delete/', landing_views.faq_delete, name='faq_delete'),
-    
-    # ===== Landing Page Management (Staff Pages) =====
+
     path('landing/manage/services/', landing_views.manage_services, name='manage_services'),
     path('landing/manage/testimonials/', landing_views.manage_testimonials, name='manage_testimonials'),
     path('landing/manage/faqs/', landing_views.manage_faqs, name='manage_faqs'),
-    
+
     # ===== Global Search =====
     path('search/', global_search, name='global_search'),
-    
+
     path('health/', health_check, name='health_check'),
 ]
-

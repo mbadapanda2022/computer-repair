@@ -12,6 +12,12 @@
       novalidate>
     {% csrf_token %}
 
+    {# Preserve list filters across create/update so the table is re-rendered as the user left it #}
+    <input type="hidden" name="_filter_search" value="{{ filter_search|default:'' }}">
+    <input type="hidden" name="_filter_contact_type" value="{{ filter_contact_type|default:'' }}">
+    <input type="hidden" name="_filter_sort" value="{{ filter_sort|default:'recent' }}">
+    <input type="hidden" name="_filter_page" value="{{ filter_page|default:1 }}">
+
     <div class="modal-header">
         <h5 class="modal-title">
             <i class="bi bi-person-plus me-2"></i>
@@ -27,7 +33,10 @@
             </div>
         {% endif %}
 
-        <!-- Basic Info -->
+        {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
         <h6 class="text-primary border-bottom pb-2 mb-3">
             <i class="bi bi-person-badge me-2"></i>Basic Information
         </h6>
@@ -47,7 +56,7 @@
                 </div>
                 <small class="text-muted">
                     <i class="bi bi-info-circle me-1"></i>
-                    "Both" for parties who are both customer and vendor (e.g., Mukta Infotech).
+                    "Both" for parties who are both customer and vendor.
                 </small>
             </div>
 
@@ -107,7 +116,6 @@
             </div>
         </div>
 
-        <!-- Address -->
         <div class="mt-3">
             <label for="id_address" class="form-label fw-semibold">Address</label>
             <textarea name="address" id="id_address" class="form-control" rows="2"
@@ -115,7 +123,6 @@
             <div id="field-address" class="invalid-feedback d-block"></div>
         </div>
 
-        <!-- Opening Balance -->
         <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
             <i class="bi bi-wallet2 me-2"></i>Opening Balance
         </h6>
@@ -128,8 +135,8 @@
                        value="{{ form.opening_balance.value|default:'0' }}">
                 <div id="field-opening_balance" class="invalid-feedback d-block"></div>
                 <small class="text-muted">
-                    Customer: +ve = owes you, −ve = advance.<br>
-                    Vendor: +ve = you owe, −ve = advance received.
+                    Customer: +ve = owes you, &minus;ve = advance.<br>
+                    Vendor: +ve = you owe, &minus;ve = advance received.
                 </small>
             </div>
             <div class="col-md-6">
@@ -143,7 +150,6 @@
         </div>
 
         {% if contact %}
-            <!-- Auto-calculated balances (read-only) -->
             <div class="alert alert-light border mt-3">
                 <small class="text-muted d-block mb-1">
                     <i class="bi bi-info-circle me-1"></i>Auto-calculated from ledger (read-only)
@@ -152,11 +158,11 @@
                     <div><strong>Receivable:</strong> ₹{{ contact.receivable_balance|floatformat:2 }}</div>
                     <div><strong>Payable:</strong> ₹{{ contact.payable_balance|floatformat:2 }}</div>
                     <div><strong>Net:</strong> ₹{{ contact.balance|floatformat:2 }}</div>
+                    <div><strong>Advance:</strong> ₹{{ contact.advance_balance|floatformat:2 }}</div>
                 </div>
             </div>
         {% endif %}
 
-        <!-- Notes -->
         <div class="mt-3">
             <label for="id_notes" class="form-label fw-semibold">Notes</label>
             <textarea name="notes" id="id_notes" class="form-control" rows="2">{{ form.notes.value|default:'' }}</textarea>
@@ -175,38 +181,47 @@
 </form>
 
 <script>
-(function() {
+(function () {
     'use strict';
     const form = document.getElementById('contactForm');
     if (!form) return;
 
-    // Remove HTML5 required to use HTMX validation
+    // Remove HTML5 required so HTMX validation takes over
     form.querySelectorAll('[required]').forEach(el => el.removeAttribute('required'));
 
-    // Live validation on blur
-    const fields = form.querySelectorAll('input, select, textarea');
-    fields.forEach(field => {
+    const validateUrl = '{% url "accounting:validate_accounting_contact_field" %}';
+    const contactId = '{{ contact.pk|default:"" }}';
+
+    // Live validation on blur — uses outerHTML so the field wrapper
+    // is replaced cleanly (no nested duplicate divs across keystrokes).
+    form.querySelectorAll('input, select, textarea').forEach(field => {
         if (field.name === 'contact_type') return;
 
-        field.addEventListener('blur', function() {
+        field.addEventListener('blur', function () {
             const fieldName = this.name;
             const value = this.value;
-            const contactId = '{{ contact.pk|default:"" }}';
 
-            htmx.ajax('GET', '{% url "accounting:validate_contact_field" %}', {
+            htmx.ajax('GET', validateUrl, {
                 target: '#field-' + fieldName,
-                swap: 'innerHTML',
-                values: { field: fieldName, [fieldName]: value, contact_id: contactId },
+                swap: 'outerHTML',
+                values: {
+                    field: fieldName,
+                    [fieldName]: value,
+                    contact_id: contactId,
+                },
             });
         });
     });
 
-    // Close modal on custom event
-    document.body.addEventListener('closeModal', function() {
-        const modalEl = document.getElementById('mainModal');
-        if (!modalEl) return;
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
-    });
+    // Single guarded listener — avoids accumulation across modal reopens.
+    if (!window._contactModalListenerAttached) {
+        window._contactModalListenerAttached = true;
+        document.body.addEventListener('closeModal', function () {
+            const modalEl = document.getElementById('mainModal');
+            if (!modalEl) return;
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        });
+    }
 })();
 </script>
