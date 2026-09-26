@@ -18,16 +18,15 @@
                     {% for journal in journals %}
                     <tr>
                         <td class="text-nowrap">{{ journal.date|date:"d M Y" }}</td>
+
                         <td>
-                            {# Show contact from the first line that has one #}
-                            {% for line in journal.lines.all %}
-                                {% if line.contact %}
-                                    {{ line.contact.name }}
-                                {% endif %}
-                            {% empty %}
+                            {% if journal.contact_lines %}
+                                {{ journal.contact_lines.0.contact.name }}
+                            {% else %}
                                 <span class="text-muted">—</span>
-                            {% endfor %}
+                            {% endif %}
                         </td>
+
                         <td>
                             <span class="badge
                                 {% if journal.journal_type == 'discount_allowed' %}bg-warning text-dark
@@ -40,37 +39,17 @@
                                 {% elif journal.journal_type == 'receipt' %}bg-success
                                 {% else %}bg-secondary
                                 {% endif %}">
+                                {% if journal.journal_type %}
+                                    {{ journal.get_journal_type_display }}
+                                {% else %}
+                                    Journal
+                                {% endif %}
+                            </span>
                         </td>
+
                         <td class="text-end fw-bold">₹{{ journal.total_amount|floatformat:2 }}</td>
                         <td>{{ journal.description|truncatechars:40 }}</td>
                         <td class="text-center">
-                            <div class="dropdown">
-                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                        type="button" data-bs-toggle="dropdown">
-                                    <i class="bi bi-three-dots-vertical"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
-                                    <li>
-                                        <button class="dropdown-item"
-                                                hx-get="{% url 'accounting:journal_update' journal.id %}"
-                                                hx-target="#mainModalContent">
-                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button class="dropdown-item text-danger"
-                                                hx-delete="{% url 'accounting:journal_delete' journal.id %}"
-                                                hx-target="#journal-table-container"
-                                                hx-swap="innerHTML"
-                                                hx-confirm="Delete this journal entry?"
-                                                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
-                                            <i class="bi bi-trash me-2"></i>Delete
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
-                        </td>
-                    </tr>
                     {% empty %}
                     <tr>
                         <td colspan="6" class="text-center py-4 text-muted">
@@ -81,6 +60,12 @@
                     {% endfor %}
                 </tbody>
             </table>
+            <div class="card-footer bg-white text-muted small">
+                <strong>Legend:</strong>
+                <span class="badge bg-warning text-dark">Discount</span> Customer/Vendor से discount
+                · <span class="badge bg-info text-dark">Advance</span> Advance payment
+                · <span class="badge bg-secondary">General</span> General journal
+            </div>
         </div>
     </div>
 
@@ -91,38 +76,52 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:journal_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#journal-table-container">
+                    hx-get="{% url 'accounting:journal_list' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#journal-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:journal_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#journal-table-container">
+                    hx-get="{% url 'accounting:journal_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#journal-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-left"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
                 {% endif %}
-                <li class="page-item active"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
+
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:journal_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#journal-table-container">
+                    hx-get="{% url 'accounting:journal_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#journal-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:journal_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#journal-table-container">
+                    hx-get="{% url 'accounting:journal_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if entry_type_filter %}&entry_type={{ entry_type_filter }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#journal-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-right"></i></span></li>
                 {% endif %}
             </ul>
         </nav>
+        <p class="text-center text-muted small mb-0 mt-2">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} —
+            showing {{ page_obj.object_list|length }} of {{ page_obj.paginator.count }} entries.
+        </p>
     </div>
     {% endif %}
 </div>

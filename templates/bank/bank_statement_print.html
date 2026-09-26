@@ -40,7 +40,12 @@
         <div class="meta">{{ account.name }}</div>
     </div>
     <div style="text-align:right;">
-        <div style="font-size:12pt; font-weight:bold; color:#1F4E78;">BANK STATEMENT</div>
+        <div style="font-size:12pt; font-weight:bold; color:#1F4E78; letter-spacing:0.5px;">
+            BANK STATEMENT
+            <span style="font-size:8pt; color:#6c757d; font-weight:normal; letter-spacing:0; display:block;">
+                Generated: {% now "d M Y" %}
+            </span>
+        </div>
         <div class="meta">
             {{ account.bank_name|default:"" }}
             {% if account.account_number %} · A/C: {{ account.account_number }}{% endif %}

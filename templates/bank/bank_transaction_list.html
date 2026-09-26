@@ -19,11 +19,13 @@
                 <div class="input-group input-group-sm">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
                     <input type="text" name="search" class="form-control"
-                           value="{{ search }}"
-                           hx-get="{% url 'accounting:bank_transaction_list' %}"
-                           hx-trigger="keyup changed delay:400ms"
-                           hx-target="#txn-table"
-                           hx-include="#txn-filter">
+                        placeholder="Description, reference..."
+                        value="{{ search }}"
+                        hx-get="{% url 'accounting:bank_transaction_list' %}"
+                        hx-trigger="keyup changed delay:400ms"
+                        hx-target="#txn-table"
+                        hx-include="#txn-filter"
+                        hx-push-url="true">
                 </div>
             </div>
             <div class="col-md-2">
@@ -32,7 +34,8 @@
                         hx-get="{% url 'accounting:bank_transaction_list' %}"
                         hx-trigger="change"
                         hx-target="#txn-table"
-                        hx-include="#txn-filter">
+                        hx-include="#txn-filter"
+                        hx-push-url="true">
                     <option value="">All Accounts</option>
                     {% for acc in accounts %}
                         <option value="{{ acc.id }}" {% if account_id == acc.id|stringformat:"s" %}selected{% endif %}>{{ acc.name }}</option>
@@ -45,7 +48,8 @@
                         hx-get="{% url 'accounting:bank_transaction_list' %}"
                         hx-trigger="change"
                         hx-target="#txn-table"
-                        hx-include="#txn-filter">
+                        hx-include="#txn-filter"
+                        hx-push-url="true">
                     <option value="">All</option>
                     <option value="deposit" {% if txn_type == 'deposit' %}selected{% endif %}>Deposits</option>
                     <option value="withdrawal" {% if txn_type == 'withdrawal' %}selected{% endif %}>Withdrawals</option>
@@ -54,23 +58,26 @@
             <div class="col-md-2">
                 <label class="form-label small fw-semibold">From</label>
                 <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}"
-                       hx-get="{% url 'accounting:bank_transaction_list' %}"
-                       hx-trigger="change"
-                       hx-target="#txn-table"
-                       hx-include="#txn-filter">
+                    hx-get="{% url 'accounting:bank_transaction_list' %}"
+                    hx-trigger="change"
+                    hx-target="#txn-table"
+                    hx-include="#txn-filter"
+                    hx-push-url="true">
             </div>
             <div class="col-md-2">
                 <label class="form-label small fw-semibold">To</label>
                 <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}"
-                       hx-get="{% url 'accounting:bank_transaction_list' %}"
-                       hx-trigger="change"
-                       hx-target="#txn-table"
-                       hx-include="#txn-filter">
+                    hx-get="{% url 'accounting:bank_transaction_list' %}"
+                    hx-trigger="change"
+                    hx-target="#txn-table"
+                    hx-include="#txn-filter"
+                    hx-push-url="true">
             </div>
             <div class="col-md-1">
-                <a href="{% url 'accounting:bank_transaction_list' %}" class="btn btn-outline-secondary btn-sm w-100">
+                <button type="button" class="btn btn-outline-secondary btn-sm w-100"
+                        onclick="resetBankTxnFilters()" title="Reset">
                     <i class="bi bi-arrow-clockwise"></i>
-                </a>
+                </button>
             </div>
         </form>
     </div>
@@ -79,4 +86,17 @@
 <div id="txn-table">
     {% include "bank/partials/bank_transaction_table.html" %}
 </div>
+
+<script>
+    function resetBankTxnFilters() {
+        const form = document.getElementById('txn-filter');
+        if (form) form.reset();
+        htmx.ajax('GET', "{% url 'accounting:bank_transaction_list' %}", {
+            target: '#txn-table',
+            swap: 'innerHTML'
+        });
+        window.history.pushState({}, '', "{% url 'accounting:bank_transaction_list' %}");
+    }
+</script>
+
 {% endblock %}

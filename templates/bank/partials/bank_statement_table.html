@@ -14,7 +14,8 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Opening Balance Row -->
+                    <!-- Opening Balance Row — only on first page -->
+                    {% if not page_obj or page_obj.number == 1 %}
                     <tr class="table-light fw-semibold">
                         <td>—</td>
                         <td>
@@ -27,6 +28,7 @@
                         <td class="text-end">₹{{ opening_balance|floatformat:2 }}</td>
                         <td></td>
                     </tr>
+                    {% endif %}
 
                     {% for line in statement_lines %}
                     <tr>
@@ -103,18 +105,21 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page=1{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#bank-statement-table">
+                    hx-get="{% url 'accounting:bank_statement' account.pk %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#bank-statement-table">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#bank-statement-table">
+                    hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#bank-statement-table">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-left"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
                 {% endif %}
 
                 <li class="page-item active">
@@ -124,23 +129,27 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#bank-statement-table">
+                    hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#bank-statement-table">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
-                       hx-target="#bank-statement-table">
+                    hx-get="{% url 'accounting:bank_statement' account.pk %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if txn_type %}&txn_type={{ txn_type }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                    hx-target="#bank-statement-table">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>
                 </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+                <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-right"></i></span></li>
                 {% endif %}
             </ul>
         </nav>
         <p class="text-center text-muted small mb-0 mt-2">
-            Showing {{ page_obj.object_list|length }} of {{ page_obj.paginator.count }} entries
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} —
+            showing {{ page_obj.object_list|length }} of {{ page_obj.paginator.count }} entries.
         </p>
     </div>
     {% endif %}

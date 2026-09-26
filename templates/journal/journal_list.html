@@ -38,21 +38,25 @@
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <select class="form-select" name="entry_type" 
-                            hx-get="{% url 'accounting:journal_list' %}" 
-                            hx-trigger="change" 
+                    <select class="form-select" name="entry_type"
+                            hx-get="{% url 'accounting:journal_list' %}"
+                            hx-trigger="change"
                             hx-target="#journal-table-container"
                             hx-include="#journal-filter-form"
                             hx-push-url="true">
                         <option value="">All Types</option>
-                        <option value="discount_allowed" {% if entry_type_filter == 'discount_allowed' %}selected{% endif %}>Discount Allowed</option>
-                        <option value="discount_received" {% if entry_type_filter == 'discount_received' %}selected{% endif %}>Discount Received</option>
-                        <option value="advance_received" {% if entry_type_filter == 'advance_received' %}selected{% endif %}>Advance Received</option>
-                        <option value="advance_paid" {% if entry_type_filter == 'advance_paid' %}selected{% endif %}>Advance Paid</option>
-                        <option value="general" {% if entry_type_filter == 'general' %}selected{% endif %}>General</option>
-                        <option value="discount" {% if entry_type_filter == 'discount' %}selected{% endif %}>Discount (Legacy)</option>
-                        <option value="payment" {% if entry_type_filter == 'payment' %}selected{% endif %}>Payment (Legacy)</option>
-                        <option value="receipt" {% if entry_type_filter == 'receipt' %}selected{% endif %}>Receipt (Legacy)</option>
+                        <optgroup label="Current Types">
+                            <option value="discount_allowed" {% if entry_type_filter == 'discount_allowed' %}selected{% endif %}>Discount Allowed</option>
+                            <option value="discount_received" {% if entry_type_filter == 'discount_received' %}selected{% endif %}>Discount Received</option>
+                            <option value="advance_received" {% if entry_type_filter == 'advance_received' %}selected{% endif %}>Advance Received</option>
+                            <option value="advance_paid" {% if entry_type_filter == 'advance_paid' %}selected{% endif %}>Advance Paid</option>
+                            <option value="general" {% if entry_type_filter == 'general' %}selected{% endif %}>General Journal</option>
+                        </optgroup>
+                        <optgroup label="Legacy (Old Entries)">
+                            <option value="discount" {% if entry_type_filter == 'discount' %}selected{% endif %}>Discount</option>
+                            <option value="payment" {% if entry_type_filter == 'payment' %}selected{% endif %}>Payment</option>
+                            <option value="receipt" {% if entry_type_filter == 'receipt' %}selected{% endif %}>Receipt</option>
+                        </optgroup>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -72,12 +76,8 @@
                            hx-push-url="true">
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-secondary w-100" 
-                            hx-get="{% url 'accounting:journal_list' %}" 
-                            hx-target="#journal-table-container"
-                            hx-include="#journal-filter-form"
-                            hx-vals='{"reset": "true"}'
-                            hx-push-url="true">
+                    <button type="button" class="btn btn-secondary w-100"
+                            onclick="resetJournalFilters()">
                         <i class="bi bi-arrow-counterclockwise"></i> Reset
                     </button>
                 </div>
@@ -90,4 +90,17 @@
         {% include "journal/partials/journal_table.html" %}
     </div>
 </div>
+
+<script>
+    function resetJournalFilters() {
+        const form = document.getElementById('journal-filter-form');
+        if (form) form.reset();
+        htmx.ajax('GET', "{% url 'accounting:journal_list' %}", {
+            target: '#journal-table-container',
+            swap: 'innerHTML'
+        });
+        window.history.pushState({}, '', "{% url 'accounting:journal_list' %}");
+    }
+</script>
+
 {% endblock %}

@@ -77,96 +77,138 @@
         </div>
     </div>
 
-    <script>
-    (function() {
-        const allocatedSpan = document.getElementById('total-allocated');
-        const remainingSpan = document.getElementById('remaining-unallocated');
-        const amountInput = document.getElementById('id_amount');
-        const discountInput = document.getElementById('id_discount_amount');
-        const inputs = document.querySelectorAll('.allocation-input');
+<script>
+(function () {
+    'use strict';
 
-        function recalc() {
-            let total = 0;
+    // ════════════════════════════════════════════════════════════
+    // Guard: bind global listeners only ONCE per page load.
+    // The partial reloads on each contact change, but form/body
+    // persist — so we must not stack listeners.
+    // ════════════════════════════════════════════════════════════
+    function getState() {
+        return {
+            inputs:        document.querySelectorAll('.allocation-input'),
+            allocatedSpan: document.getElementById('total-allocated'),
+            remainingSpan: document.getElementById('remaining-unallocated'),
+            amountInput:   document.getElementById('id_amount'),
+            discountInput: document.getElementById('id_discount_amount'),
+        };
+    }
 
-            inputs.forEach(el => {
-                let v = parseFloat(el.value) || 0;
-                const bal = parseFloat(el.dataset.balance) || 0;
+    function recalc() {
+        const s = getState();
+        let total = 0;
 
-                // Cap at balance
-                if (v > bal) {
-                    v = bal;
-                    el.value = bal.toFixed(2);
-                }
-                if (v < 0) {
-                    v = 0;
-                    el.value = '';
-                }
-                total += v;
-            });
+        s.inputs.forEach(function (el) {
+            let v = parseFloat(el.value) || 0;
+            const bal = parseFloat(el.dataset.balance) || 0;
 
-            if (allocatedSpan) allocatedSpan.textContent = total.toFixed(2);
+            if (v > bal) { v = bal; el.value = bal.toFixed(2); }
+            if (v < 0)   { v = 0;   el.value = ''; }
+            total += v;
+        });
 
-            if (remainingSpan && amountInput) {
-                const amount = parseFloat(amountInput.value) || 0;
-                const discount = parseFloat(discountInput?.value) || 0;
-                const net = Math.max(0, amount - discount);
-                const remaining = net - total;
+        if (s.allocatedSpan) s.allocatedSpan.textContent = total.toFixed(2);
 
-                remainingSpan.classList.remove('text-muted', 'text-success', 'text-danger', 'fw-bold');
+        if (s.remainingSpan && s.amountInput) {
+            const amount   = parseFloat(s.amountInput.value) || 0;
+            const discount = parseFloat(s.discountInput ? s.discountInput.value : 0) || 0;
+            const net      = Math.max(0, amount - discount);
+            const remaining = net - total;
 
-                if (remaining < -0.01) {
-                    remainingSpan.classList.add('text-danger', 'fw-bold');
-                    remainingSpan.textContent = '₹' + Math.abs(remaining).toFixed(2) + ' over';
-                } else if (Math.abs(remaining) < 0.01) {
-                    remainingSpan.classList.add('text-success', 'fw-bold');
-                    remainingSpan.textContent = '₹0.00 (exact)';
-                } else {
-                    remainingSpan.classList.add('text-muted');
-                    remainingSpan.textContent = '₹' + remaining.toFixed(2);
-                }
+            s.remainingSpan.classList.remove('text-muted', 'text-success', 'text-danger', 'fw-bold');
+
+            if (remaining < -0.01) {
+                s.remainingSpan.classList.add('text-danger', 'fw-bold');
+                s.remainingSpan.textContent = '₹' + Math.abs(remaining).toFixed(2) + ' over-allocated';
+            } else if (Math.abs(remaining) < 0.01) {
+                s.remainingSpan.classList.add('text-success', 'fw-bold');
+                s.remainingSpan.textContent = '₹0.00 (exact)';
+            } else {
+                s.remainingSpan.classList.add('text-muted');
+                s.remainingSpan.textContent = '₹' + remaining.toFixed(2) + ' unallocated';
             }
         }
+    }
 
-        inputs.forEach(el => el.addEventListener('input', recalc));
+    // ════════════════════════════════════════════════════════════
+    // One-time global bindings (delegated)
+    // ════════════════════════════════════════════════════════════
+    if (!window.__unpaidInvoicesBound) {
+        window.__unpaidInvoicesBound = true;
 
-        // Auto-allocate: distribute net amount oldest-first
-        const autoBtn = document.getElementById('btn-auto-allocate');
-        if (autoBtn) {
-            autoBtn.addEventListener('click', function() {
-                const amount = parseFloat(amountInput?.value) || 0;
-                const discount = parseFloat(discountInput?.value) || 0;
+        document.body.addEventListener('input', function (e) {
+            const t = e.target;
+            if (!t) return;
+            if (t.classList.contains('allocation-input') ||
+                t.id === 'id_amount' ||
+                t.id === 'id_discount_amount') {
+                recalc();
+            }
+        });
+
+        document.body.addEventListener('click', function (e) {
+            const t = e.target;
+            if (!t) return;
+
+            if (t.closest('#btn-auto-allocate')) {
+                const s = getState();
+                const amount   = parseFloat(s.amountInput ? s.amountInput.value : 0) || 0;
+                const discount = parseFloat(s.discountInput ? s.discountInput.value : 0) || 0;
                 let remaining = Math.max(0, amount - discount);
 
-                inputs.forEach(el => {
+                s.inputs.forEach(function (el) {
                     const bal = parseFloat(el.dataset.balance) || 0;
-                    if (remaining <= 0) {
-                        el.value = '';
-                        return;
-                    }
+                    if (remaining <= 0) { el.value = ''; return; }
                     const allocate = Math.min(remaining, bal);
                     el.value = allocate.toFixed(2);
                     remaining -= allocate;
                 });
-
                 recalc();
-            });
-        }
+            }
 
-        // Clear all
-        const clearBtn = document.getElementById('btn-clear-allocations');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', function() {
-                inputs.forEach(el => { el.value = ''; });
+            if (t.closest('#btn-clear-allocations')) {
+                const s = getState();
+                s.inputs.forEach(function (el) { el.value = ''; });
                 recalc();
+            }
+        });
+
+        // Submit guard (capture phase — runs BEFORE HTMX)
+        document.body.addEventListener('submit', function (e) {
+            const form = e.target;
+            if (!form || form.id !== 'paymentForm') return;
+
+            const s = getState();
+            const amount   = parseFloat(s.amountInput ? s.amountInput.value : 0) || 0;
+            const discount = parseFloat(s.discountInput ? s.discountInput.value : 0) || 0;
+            const net      = Math.max(0, amount - discount);
+
+            let total = 0;
+            s.inputs.forEach(function (el) {
+                total += parseFloat(el.value) || 0;
             });
-        }
 
-        amountInput?.addEventListener('input', recalc);
-        discountInput?.addEventListener('input', recalc);
+            if (total > net + 0.01) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                const msg = 'Total allocation (₹' + total.toFixed(2) +
+                            ') exceeds payment amount (₹' + net.toFixed(2) + '). Please adjust.';
+                if (window.showToast) {
+                    window.showToast('danger', msg);
+                } else {
+                    alert(msg);
+                }
+            }
+        }, true);
+    }
 
-        recalc();
-    })();
-    </script>
+    // Initial recalc for this fresh partial
+    recalc();
+})();
+</script>
+
 {% else %}
     <div class="alert alert-light border text-center py-4 mb-0">
         <i class="bi bi-check-circle text-success me-2 fs-5"></i>

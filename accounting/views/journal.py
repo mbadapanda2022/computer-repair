@@ -103,15 +103,21 @@ def journal_list(request):
 
     if reset:
         return redirect('accounting:journal_list')
-
-    # Prefetch lines with contact & account to avoid N+1
+    
+    
     lines_prefetch = Prefetch(
         'lines',
         queryset=LedgerLine.objects.select_related('contact', 'account')
     )
 
+    contact_lines_prefetch = Prefetch(
+        'lines',
+        queryset=LedgerLine.objects.filter(contact__isnull=False).select_related('contact'),
+        to_attr='contact_lines'
+    )
+
     journals = LedgerEntry.objects.filter(entry_type='journal') \
-        .prefetch_related(lines_prefetch) \
+        .prefetch_related(lines_prefetch, contact_lines_prefetch) \
         .order_by('-date', '-id')
 
     if search:

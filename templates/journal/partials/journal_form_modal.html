@@ -94,32 +94,65 @@
 </form>
 
 <script>
-(function() {
-    // Money account toggle
-    const wrapper = document.getElementById('bank-account-wrapper-modal');
-    const radios = document.querySelectorAll('input[name="money_account"]');
-    function toggleBank() {
-        const val = document.querySelector('input[name="money_account"]:checked')?.value;
-        if (wrapper) wrapper.style.display = (val === 'bank') ? 'block' : 'none';
-    }
-    radios.forEach(r => r.addEventListener('change', toggleBank));
-    toggleBank();
+(function () {
+    'use strict';
 
-    // Spinner
-    document.addEventListener('htmx:beforeRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#journal-form')) {
-            const spinner = document.getElementById('journal-spinner');
-            const text = document.getElementById('journal-text');
-            if (spinner) spinner.classList.remove('d-none');
-            if (text) text.style.display = 'none';
+    // ============================================================
+    // Money account toggle (Cash vs Bank)
+    // ============================================================
+    function initJournalForm() {
+        const wrapper = document.getElementById('bank-account-wrapper-modal');
+        if (!wrapper) return;
+
+        const radios = document.querySelectorAll('input[name="money_account"]');
+        function toggleBank() {
+            const checked = document.querySelector('input[name="money_account"]:checked');
+            const val = checked ? checked.value : null;
+            wrapper.style.display = (val === 'bank') ? 'block' : 'none';
         }
+        radios.forEach(function (r) {
+            r.removeEventListener('change', toggleBank);
+            r.addEventListener('change', toggleBank);
+        });
+        toggleBank();
+    }
+
+    // ============================================================
+    // Spinner on submit — use evt.detail.elt (triggering element)
+    // ============================================================
+    document.body.addEventListener('htmx:beforeRequest', function (evt) {
+        const elt = evt.detail.elt;
+        if (!elt || !elt.closest || !elt.closest('#journal-form')) return;
+
+        const spinner = document.getElementById('journal-spinner');
+        const text = document.getElementById('journal-text');
+        const btn = document.getElementById('journal-submit');
+        if (spinner) spinner.classList.remove('d-none');
+        if (text) text.style.display = 'none';
+        if (btn) btn.disabled = true;
     });
-    document.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.target && evt.detail.target.closest('#journal-form')) {
-            const spinner = document.getElementById('journal-spinner');
-            const text = document.getElementById('journal-text');
-            if (spinner) spinner.classList.add('d-none');
-            if (text) text.style.display = 'inline';
+
+    document.body.addEventListener('htmx:afterRequest', function (evt) {
+        const elt = evt.detail.elt;
+        if (!elt || !elt.closest || !elt.closest('#journal-form')) return;
+
+        const spinner = document.getElementById('journal-spinner');
+        const text = document.getElementById('journal-text');
+        const btn = document.getElementById('journal-submit');
+        if (spinner) spinner.classList.add('d-none');
+        if (text) text.style.display = 'inline';
+        if (btn) btn.disabled = false;
+    });
+
+    // Initialize on page load AND on HTMX swap
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initJournalForm);
+    } else {
+        initJournalForm();
+    }
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+        if (evt.detail.target && evt.detail.target.id === 'mainModalContent') {
+            initJournalForm();
         }
     });
 })();

@@ -2,7 +2,7 @@
 {% load static %}
 
 <!-- Tom Select CSS (self-contained) -->
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'vendor/tom-select/tom-select.bootstrap5.min.css' %}">
 
 <form method="post"
       action="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}"
@@ -48,7 +48,7 @@
                     Direction <span class="text-danger">*</span>
                 </label>
                 <select name="direction" id="id_direction" class="form-select">
-                    {% for value, label in form.direction.field.choices %}
+                    {% for value, label in form.fields.direction.choices %}
                         <option value="{{ value }}" {% if form.direction.value == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
@@ -129,7 +129,7 @@
             <div class="col-md-4">
                 <label for="id_method" class="form-label fw-semibold">Method <span class="text-danger">*</span></label>
                 <select name="method" id="id_method" class="form-select">
-                    {% for value, label in form.method.field.choices %}
+                    {% for value, label in form.fields.method.choices %}
                         <option value="{{ value }}" {% if form.method.value == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
@@ -231,7 +231,7 @@
                     <label for="id_discount_type" class="form-label fw-semibold">Discount Type</label>
                     <select name="discount_type" id="id_discount_type" class="form-select">
                         <option value="">— None —</option>
-                        {% for value, label in form.discount_type.field.choices %}
+                        {% for value, label in form.fields.discount_type.choices %}
                             <option value="{{ value }}" {% if form.discount_type.value == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
@@ -276,15 +276,16 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
             <i class="bi bi-x-circle me-1"></i>Cancel
         </button>
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" id="payment-submit">
+            <span id="payment-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
             <i class="bi bi-check-circle me-1"></i>
-            {% if payment %}Update{% else %}Create{% endif %} Payment
+            <span id="payment-submit-text">{% if payment %}Update{% else %}Create{% endif %} Payment</span>
         </button>
     </div>
 </form>
 
 <!-- Tom Select JS -->
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script src="{% static 'vendor/tom-select/tom-select.complete.min.js' %}"></script>
 
 <script>
 (function() {
@@ -413,17 +414,38 @@
     // ============================================================
     form.addEventListener('submit', function() {
         if (resetAllocFlag) resetAllocFlag.value = '1';
+        const btn = document.getElementById('payment-submit');
+        const spinner = document.getElementById('payment-spinner');
+        const text = document.getElementById('payment-submit-text');
+        if (spinner) spinner.classList.remove('d-none');
+        if (text) text.style.display = 'none';
+        if (btn) btn.disabled = true;
     });
 
-    // ============================================================
-    // CLOSE MODAL EVENT
-    // ============================================================
-    document.body.addEventListener('closeModal', function() {
-        const modalEl = document.getElementById('mainModal');
-        if (!modalEl) return;
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
-    });
+    // ════════════════════════════════════════════════════════════
+    // Body listeners — bound ONCE globally (survives re-renders)
+    // ════════════════════════════════════════════════════════════
+    if (!window.__paymentFormBodyBound) {
+        window.__paymentFormBodyBound = true;
+
+        document.body.addEventListener('htmx:afterRequest', function (evt) {
+            const elt = evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#paymentForm')) return;
+            const btn = document.getElementById('payment-submit');
+            const spinner = document.getElementById('payment-spinner');
+            const text = document.getElementById('payment-submit-text');
+            if (spinner) spinner.classList.add('d-none');
+            if (text) text.style.display = 'inline';
+            if (btn) btn.disabled = false;
+        });
+
+        document.body.addEventListener('closeModal', function () {
+            const modalEl = document.getElementById('mainModal');
+            if (!modalEl) return;
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        });
+    }
 
     // ============================================================
     // LOAD UNPAID INVOICES ON PAGE LOAD (Edit mode)
