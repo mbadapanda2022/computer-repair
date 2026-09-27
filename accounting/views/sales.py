@@ -96,6 +96,23 @@ def get_paginated_invoices_context(request, queryset=None):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
+    # ============================================================
+    # FIX: Batch-prefetch linked RepairJobs for the current page.
+    # Without this, `{% if invoice.linked_repair %}` in the template
+    # triggers 1 DB query per invoice row (N+1).
+    # ============================================================
+    page_invoices = list(page_obj.object_list)
+    invoice_ids = [inv.pk for inv in page_invoices if inv.pk]
+    if invoice_ids:
+        repair_map = {
+            rj.invoice_id: rj
+            for rj in RepairJob.objects.filter(
+                invoice_id__in=invoice_ids
+            ).only('id', 'invoice_id', 'job_number', 'device_model', 'status')
+        }
+        for inv in page_invoices:
+            inv.linked_repair = repair_map.get(inv.pk)
+
     customers = Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name')
 
     total_sales = queryset.aggregate(total=Sum('grand_total'))['total'] or Decimal('0')
@@ -103,7 +120,7 @@ def get_paginated_invoices_context(request, queryset=None):
     total_unpaid = total_sales - total_received
 
     context = {
-        'invoices': page_obj.object_list,
+        'invoices': page_invoices,      
         'page_obj': page_obj,
         'customers': customers,
         'search': search,
@@ -536,18 +553,91 @@ def invoice_print(request, pk):
 # ============================================================
 @handle_errors(default_redirect='accounting:invoice_list')
 def invoice_list_print(request):
-    """Print-friendly invoice list with current filters."""
-    context = get_paginated_invoices_context(request)
-    # For print, fetch all matching (no pagination)
-    queryset = context.get('page_obj').paginator.object_list \
-        if context.get('page_obj') else Invoice.objects.none()
+    """
+    Print-friendly invoice list with current filters — no pagination.
+
+    Reads filters directly from request.GET (not from a paginated context)
+    so we can apply batch-prefetch on the FULL result set.
+    """
+    search = request.GET.get('search', '').strip()
+    customer_id = request.GET.get('customer', '')
+    status = request.GET.get('status', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    queryset = Invoice.objects.select_related('customer').all().order_by('-date')
+
+    if search:
+        queryset = queryset.filter(
+            Q(invoice_number__icontains=search) |
+            Q(customer__name__icontains=search)
+        )
+    if customer_id:
+        queryset = queryset.filter(customer_id=customer_id)
+    if status == 'overdue':
+        queryset = queryset.filter(
+            payment_status__in=['unpaid', 'partial'],
+            due_date__lt=timezone.now().date(),
+        )
+    elif status:
+        queryset = queryset.filter(payment_status=status)
+    if date_from:
+        queryset = queryset.filter(date__gte=date_from)
+    if date_to:
+        queryset = queryset.filter(date__lte=date_to)
+
+    # Materialise list once — avoids re-evaluation
+    invoices_list = list(queryset)
+
+    # ============================================================
+    # Batch-prefetch linked RepairJobs for the FULL list.
+    # Mirrors the logic in get_paginated_invoices_context but
+    # operates on all rows (no pagination).
+    # ============================================================
+    invoice_ids = [inv.pk for inv in invoices_list if inv.pk]
+    if invoice_ids:
+        repair_map = {
+            rj.invoice_id: rj
+            for rj in RepairJob.objects
+                .filter(invoice_id__in=invoice_ids)
+                .only('id', 'invoice_id', 'job_number', 'device_model', 'status')
+        }
+        for inv in invoices_list:
+            inv.linked_repair = repair_map.get(inv.pk)
+
+    # Totals over filtered set
+    total_sales = queryset.aggregate(
+        total=Sum('grand_total')
+    )['total'] or Decimal('0')
+    total_received = queryset.filter(payment_status='paid').aggregate(
+        total=Sum('grand_total')
+    )['total'] or Decimal('0')
+    total_unpaid = total_sales - total_received
+
+    # Customer name for filter-display header
+    customer_name = None
+    if customer_id:
+        try:
+            customer_name = Contact.objects.get(pk=customer_id).name
+        except (Contact.DoesNotExist, ValueError, TypeError):
+            pass
 
     company = CompanyProfile.get_instance()
-    context.update({
-        'invoices': queryset,
+
+    context = {
+        'invoices': invoices_list,
         'company': company,
         'logo_exists': bool(company.logo and company.logo.name),
-    })
+        'search': search,
+        'customer_id': customer_id,
+        'customer_name': customer_name,
+        'status': status,
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_sales': total_sales,
+        'total_received': total_received,
+        'total_unpaid': total_unpaid,
+    }
     return render(request, 'sales/invoice_list_print.html', context)
 
 

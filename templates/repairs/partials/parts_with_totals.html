@@ -26,63 +26,145 @@
                 <td class="text-end">₹{{ part.unit_price|floatformat:2 }}</td>
                 <td class="text-end fw-bold">₹{{ part.line_total|floatformat:2 }}</td>
                 <td class="text-center">
-                    <button type="button"
-                            class="btn btn-sm btn-outline-danger remove-part-btn"
-                            data-url="{% url 'accounting:remove_repair_part' part.pk %}"
-                            title="Remove Part">
-                        <i class="bi bi-trash"></i>
-                    </button>
+                    {% if not job.is_invoiced %}
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger remove-part-btn"
+                                data-url="{% url 'accounting:remove_repair_part' part.pk %}"
+                                title="Remove Part">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    {% else %}
+                        <i class="bi bi-lock text-muted"
+                           title="Locked — invoice exists"></i>
+                    {% endif %}
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" class="text-center py-4 text-muted">
-                    <i class="bi bi-box display-6 d-block mb-2 opacity-50"></i>
-                    No parts added yet.
+                <td colspan="6" class="text-center py-4">
+                    {% if job.is_invoiced %}
+                        {% if invoice_has_physical_parts %}
+                            {# Invoice has physical items added directly at invoice time #}
+                            <i class="bi bi-info-circle display-6 d-block mb-2 text-primary opacity-75"></i>
+                            <div class="fw-semibold text-primary mb-1">
+                                No parts added during repair
+                            </div>
+                            <p class="text-muted small mb-2">
+                                Physical parts were added directly during invoicing.
+                                See <strong>Invoiced Items</strong> below for the full list.
+                            </p>
+                            <a href="#invoiced-items"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-arrow-down me-1"></i>
+                                View Invoiced Items
+                            </a>
+
+                        {% else %}
+                            {# Invoice is service/labour-only (no physical items at all) #}
+                            <i class="bi bi-receipt display-6 d-block mb-2 text-success opacity-75"></i>
+                            <div class="fw-semibold text-success mb-1">
+                                Service-only repair
+                            </div>
+                            <p class="text-muted small mb-2">
+                                This repair was invoiced as a service/labour-only job.
+                            </p>
+                            <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}"
+                               class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-receipt me-1"></i>
+                                View Invoice {{ job.invoice.invoice_number }}
+                            </a>
+                        {% endif %}
+
+                    {% elif job.status == 'cancelled' %}
+                        <i class="bi bi-x-circle display-6 d-block mb-2 text-danger opacity-75"></i>
+                        <div class="fw-semibold text-danger mb-1">Repair cancelled</div>
+                        <p class="text-muted small mb-0">
+                            All parts (if any) were reversed to stock.
+                        </p>
+
+                    {% else %}
+                        {# Active repair — encourage adding parts #}
+                        <i class="bi bi-box display-6 d-block mb-2 opacity-50"></i>
+                        <div class="fw-semibold mb-1">No parts used yet</div>
+                        <p class="text-muted small mb-2">
+                            Add inventory items consumed during this repair.
+                            Stock will be deducted automatically.
+                        </p>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
         </tbody>
-        {% if parts %}
+
+        {% if parts or job.labour_charge > 0 %}
         <tfoot class="table-light fw-bold">
             <tr>
-                <td colspan="4" class="text-end">Parts Total</td>
+                <td colspan="4" class="text-end">Parts Total (pre-tax)</td>
                 <td class="text-end">₹{{ parts_total|floatformat:2 }}</td>
                 <td></td>
             </tr>
             <tr>
-                <td colspan="4" class="text-end">Labour Charge</td>
+                <td colspan="4" class="text-end">Labour Charge (pre-tax)</td>
                 <td class="text-end">₹{{ job.labour_charge|floatformat:2 }}</td>
                 <td></td>
             </tr>
-            <tr class="table-primary">
-                <td colspan="4" class="text-end fs-6">Final Amount</td>
-                <td class="text-end fs-5">₹{{ job.final_amount|floatformat:2 }}</td>
+            <tr style="border-top: 2px solid #dee2e6;">
+                <td colspan="4" class="text-end">Base Amount</td>
+                <td class="text-end">₹{{ job.base_amount|floatformat:2 }}</td>
                 <td></td>
             </tr>
+
+            {% if job.is_invoiced %}
+            <tr class="table-success">
+                <td colspan="4" class="text-end">
+                    Invoiced Amount
+                    <br><small class="fw-normal text-muted" style="font-size:0.7rem;">
+                        (incl. tax — as billed)
+                    </small>
+                </td>
+                <td class="text-end fs-5">₹{{ job.display_amount|floatformat:2 }}</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="5" class="text-end small text-muted fw-normal" style="padding: 4px 8px;">
+                    <i class="bi bi-receipt me-1"></i>
+                    Invoice <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}"
+                               class="text-decoration-none">
+                        {{ job.invoice.invoice_number }}
+                    </a>
+                </td>
+                <td></td>
+            </tr>
+            {% else %}
+            <tr class="table-primary">
+                <td colspan="4" class="text-end fs-6">Est. Final (pre-tax)</td>
+                <td class="text-end fs-5">₹{{ job.base_amount|floatformat:2 }}</td>
+                <td></td>
+            </tr>
+            {% endif %}
         </tfoot>
         {% endif %}
     </table>
 </div>
 
 <script>
-    (function() {
-        'use strict';
+(function() {
+    'use strict';
 
-        if (window.__partsRemoveInit) return;
-        window.__partsRemoveInit = true;
+    if (window.__partsRemoveInit) return;
+    window.__partsRemoveInit = true;
 
-        document.body.addEventListener('click', function(e) {
-            const btn = e.target.closest('.remove-part-btn');
-            if (!btn) return;
-            e.preventDefault();
+    document.body.addEventListener('click', function(e) {
+        const btn = e.target.closest('.remove-part-btn');
+        if (!btn) return;
+        e.preventDefault();
 
-            if (!confirm('Remove this part from the repair?')) return;
+        if (!confirm('Remove this part from the repair?')) return;
 
-            htmx.ajax('POST', btn.dataset.url, {
-                target: '#parts-container',
-                swap: 'innerHTML'
-            });
+        htmx.ajax('POST', btn.dataset.url, {
+            target: '#parts-container',
+            swap: 'innerHTML'
         });
-    })();
+    });
+})();
 </script>

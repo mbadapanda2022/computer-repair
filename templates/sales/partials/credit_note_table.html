@@ -40,8 +40,11 @@
                         <td class="text-center">
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                        type="button" data-bs-toggle="dropdown"
-                                        data-bs-auto-close="outside">
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        data-bs-strategy="fixed"
+                                        data-bs-boundary="viewport">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
@@ -71,6 +74,7 @@
                                         <button class="dropdown-item text-danger"
                                                 hx-delete="{% url 'accounting:credit_note_delete' cn.pk %}"
                                                 hx-target="#credit-note-table-container"
+                                                hx-swap="none"
                                                 hx-confirm="Delete this credit note? Stock will be reversed.">
                                             <i class="bi bi-trash me-2"></i>Delete
                                         </button>
@@ -109,7 +113,7 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:credit_note_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if reason %}&reason={{ reason }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:credit_note_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if reason %}&reason={{ reason }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#credit-note-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -121,7 +125,7 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:credit_note_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if reason %}&reason={{ reason }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:credit_note_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if reason %}&reason={{ reason }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#credit-note-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>

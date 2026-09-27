@@ -3,9 +3,7 @@
 {% block content %}
 <div class="container-fluid px-4 py-3">
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- HEADER                                                  -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- HEADER -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>
             <h3 class="fw-semibold mb-0">
@@ -15,7 +13,7 @@
         </div>
         <div class="mt-2 mt-sm-0">
             <button class="btn btn-primary"
-                    hx-get="{% url 'accounting:payment_create' %}"
+                    hx-get="{% url 'accounting:payment_create' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
                     hx-target="#mainModalContent"
                     hx-trigger="click">
                 <i class="bi bi-plus-circle me-1"></i> New Payment
@@ -23,9 +21,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- STATS CARDS                                             -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- STATS CARDS -->
     <div class="row g-3 mb-4">
         <div class="col-md-3 col-sm-6">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
@@ -81,9 +77,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- FILTERS                                                 -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- FILTERS -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form id="payment-filter-form" class="row g-3">
@@ -163,9 +157,7 @@
         </small>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- TABLE                                                   -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- TABLE -->
     <div id="payment-table-container">
         {% include "payments/partials/payment_table.html" %}
     </div>

@@ -176,18 +176,18 @@ function getCurrentFilterParams() {
 function downloadWithFilters(type) {
     const params = getCurrentFilterParams();
     const queryString = params.toString();
-    let url = '';
-    let target = '_blank';
 
     if (type === 'print') {
-        url = "{% url 'customer:customer_invoices' %}?print=1";
+        // Print: open in new tab (browser handles popup)
+        let url = "{% url 'customer:customer_invoices' %}?print=1";
         if (queryString) url += '&' + queryString;
+        window.open(url, '_blank');
     } else if (type === 'excel') {
-        url = "{% url 'customer:customer_invoices' %}?excel=1";
+        // Excel: same-tab navigation (popup-blocker-safe for downloads)
+        let url = "{% url 'customer:customer_invoices' %}?excel=1";
         if (queryString) url += '&' + queryString;
-        target = '_self';
+        window.location.href = url;
     }
-    window.open(url, target);
 }
 
 function resetFilters() {
@@ -228,5 +228,12 @@ function updateActiveFilters() {
 }
 
 document.addEventListener('DOMContentLoaded', updateActiveFilters);
+
+// Re-apply active-filters indicator after each HTMX table swap
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target && evt.detail.target.id === 'invoice-list-container') {
+        updateActiveFilters();
+    }
+});
 </script>
 {% endblock %}

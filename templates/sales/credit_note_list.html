@@ -107,8 +107,25 @@
 </div>
 
 <script>
+// ============================================================
+// Filter-preserving reload — triggered by reloadCreditNotes event
+// (fired from credit_note_delete view's HX-Trigger header)
+// ============================================================
+function getCNFilterParams() {
+    const form = document.getElementById('cn-filter-form');
+    if (!form) return '';
+    const fd = new FormData(form);
+    const params = new URLSearchParams();
+    for (const [k, v] of fd.entries()) {
+        if (v && String(v).trim() !== '') params.append(k, v);
+    }
+    return params.toString();
+}
+
 document.body.addEventListener('reloadCreditNotes', function() {
-    htmx.ajax('GET', "{% url 'accounting:credit_note_list' %}", {
+    const qs = getCNFilterParams();
+    const url = "{% url 'accounting:credit_note_list' %}" + (qs ? '?' + qs : '');
+    htmx.ajax('GET', url, {
         target: '#credit-note-table-container',
         swap: 'innerHTML'
     });

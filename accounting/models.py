@@ -3,18 +3,41 @@
 from decimal import Decimal
 import json
 import logging
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, date
 from django.db import models, transaction, IntegrityError
 from django.conf import settings
 from django.db.models import F, Sum, Q, Max
 from django.core.validators import MinValueValidator, RegexValidator
-from django.utils import timezone
 from django.db.models.signals import post_save, post_delete, pre_save, m2m_changed
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
+
+from django.utils import timezone
+def to_aware_datetime(value):
+    """
+    Convert a date OR naive/aware datetime to timezone-aware datetime.
+
+    StockMovement.date is a DateTimeField. Passing a DateField value
+    raises: RuntimeWarning: received a naive datetime while time zone
+    support is active. This normalises the value.
+    """
+    if value is None:
+        return timezone.now()
+    if isinstance(value, datetime):
+        if timezone.is_naive(value):
+            return timezone.make_aware(
+                value, timezone.get_current_timezone()
+            )
+        return value
+    if isinstance(value, date):
+        return timezone.make_aware(
+            datetime.combine(value, time.min),
+            timezone.get_current_timezone(),
+        )
+    return timezone.now()
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +67,7 @@ class SoftDeleteQuerySet(models.QuerySet):
             'PurchaseItem',
             'CreditNoteItem',
             'RepairPart',
+            'RepairJob',
             'Payment',
             'Purchase',
             'Invoice',
@@ -1086,7 +1110,13 @@ class Invoice(SoftDeleteModel):
         # Prefer value cached by the view (bulk-prefetched)
         if '_linked_repair_cache' in self.__dict__:
             return self.__dict__['_linked_repair_cache']
-        return RepairJob.objects.filter(invoice=self).first()
+        # Auto-cache on first access — prevents repeated DB queries
+        # when the template accesses this property multiple times
+        # (e.g., invoice_detail.html uses it 4-5 times).
+        self.__dict__['_linked_repair_cache'] = (
+            RepairJob.objects.filter(invoice=self).first()
+        )
+        return self.__dict__['_linked_repair_cache']
 
     @linked_repair.setter
     def linked_repair(self, value):
@@ -1201,6 +1231,20 @@ class InvoiceItem(SoftDeleteModel):
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    
+    # ── Repair linkage (prevents stock double-deduction) ──
+    repair_part = models.ForeignKey(
+        'RepairPart',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='invoice_items',
+        help_text="RepairPart this item was sourced from (audit trail).",
+    )
+    stock_already_deducted = models.BooleanField(
+        default=False,
+        help_text="True for items whose stock was already deducted "
+                  "(e.g. from repair parts). Prevents double deduction.",
+    )
 
     class Meta:
         indexes = [models.Index(fields=['invoice', 'product'])]
@@ -1224,7 +1268,11 @@ class InvoiceItem(SoftDeleteModel):
 
         super().save(*args, **kwargs)
 
-        if not self.is_deleted and not self.product.is_service:
+        # ── Stock movement: skip if already deducted by repair part ──
+        if (not self.is_deleted
+                and not self.product.is_service
+                and not self.stock_already_deducted):
+
             StockMovement.all_objects.update_or_create(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk,
@@ -1232,33 +1280,42 @@ class InvoiceItem(SoftDeleteModel):
                     'product': self.product,
                     'movement_type': 'sale_out',
                     'quantity': (-Decimal(self.quantity)).quantize(TAX_PRECISION),
-                    'date': self.invoice.date,
+                    'date': to_aware_datetime(self.invoice.date),
                     'is_deleted': False,
                     'deleted_at': None,
                     'deleted_by': None,
                 }
             )
-            
+
         if self.invoice:
             self.invoice.calculate_totals()
-            # Recalculate balance and payment status
-            total_advance = self.invoice.advance_adjustments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            total_advance = self.invoice.advance_adjustments.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0')
             total_paid = self.invoice.paid_amount + total_advance
-            self.invoice.balance_due = (self.invoice.grand_total - total_paid).quantize(TAX_PRECISION)
+            self.invoice.balance_due = (
+                self.invoice.grand_total - total_paid
+            ).quantize(TAX_PRECISION)
             if self.invoice.balance_due <= 0:
                 self.invoice.payment_status = 'paid'
             elif total_paid > 0 and self.invoice.balance_due < self.invoice.grand_total:
                 self.invoice.payment_status = 'partial'
             else:
                 self.invoice.payment_status = 'unpaid'
-            
-            self.invoice.save(update_fields=['subtotal', 'tax_amount', 'grand_total', 'balance_due', 'payment_status'])
-            
+
+            self.invoice.save(update_fields=[
+                'subtotal', 'tax_amount', 'grand_total',
+                'balance_due', 'payment_status',
+            ])
+
             if self.invoice.customer:
                 self.invoice.customer.recalc_balance()
     
     def delete(self, *args, **kwargs):
-        if not self.product.is_service:
+        # ── Reverse stock ONLY if this item deducted it ──
+        if (not self.product.is_service
+                and not self.stock_already_deducted):
+
             StockMovement.objects.filter(
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk
@@ -1289,7 +1346,7 @@ class InvoiceItem(SoftDeleteModel):
                 'balance_due', 'payment_status',
             ])
 
-            # ── Re-sync the ledger (save() skips it via update_fields) ──
+            # ── Re-sync the ledger ──
             sync_invoice_ledger(invoice)
 
             if invoice.customer:
@@ -1632,7 +1689,7 @@ class PurchaseItem(SoftDeleteModel):
                     'product': self.product,
                     'movement_type': 'purchase_in',
                     'quantity': Decimal(self.quantity).quantize(TAX_PRECISION),
-                    'date': self.purchase.date,
+                    'date': to_aware_datetime(self.purchase.date),
                     'is_deleted': False,
                     'deleted_at': None,
                     'deleted_by': None,
@@ -2077,6 +2134,56 @@ class RepairJob(SoftDeleteModel):
 
     def __str__(self):
         return f"Job {self.job_number} - {self.device_model} ({self.customer.name})"
+    
+    # ════════════════════════════════════════════════════════════
+    # AMOUNT PROPERTIES (computed, not stored)
+    # ════════════════════════════════════════════════════════════
+
+    @property
+    def parts_total(self):
+        """Sum of active parts' line_total (pre-tax)."""
+        result = self.parts.aggregate(total=Sum('line_total'))['total']
+        return (result or Decimal('0')).quantize(TAX_PRECISION)
+
+    @property
+    def base_amount(self):
+        """
+        Pre-tax total = parts + labour.
+        This is what `final_amount` field stores.
+        """
+        return (self.parts_total + (self.labour_charge or Decimal('0'))
+                ).quantize(TAX_PRECISION)
+
+    @property
+    def invoiced_amount(self):
+        """
+        Actual invoiced grand_total (if invoice exists). None otherwise.
+        Uses select_related('invoice') — no extra DB hit in lists.
+        """
+        if not self.invoice_id:
+            return None
+        if not getattr(self, 'invoice', None):
+            return None
+        return self.invoice.grand_total
+
+    @property
+    def display_amount(self):
+        """
+        Amount to display in list/detail views.
+
+        Priority:
+          1. Invoice exists  → actual invoiced amount (what customer pays)
+          2. Otherwise       → base amount (pre-tax estimate)
+        """
+        invoiced = self.invoiced_amount
+        if invoiced is not None:
+            return invoiced
+        return self.final_amount or Decimal('0')
+
+    @property
+    def is_invoiced(self):
+        """Convenience flag for templates."""
+        return self.invoice_id is not None
 
     @property
     def can_be_invoiced(self):
@@ -2194,6 +2301,23 @@ class RepairJob(SoftDeleteModel):
                 )
             except Exception as notif_error:
                 logger.error(f"Notification error for job {self.job_number}: {notif_error}")
+                
+                
+    def delete(self, *args, **kwargs):
+        """
+        Delete repair AND its parts (reversing stock via RepairPart.delete).
+
+        Safety: Cannot delete a repair that has an invoice linked.
+        """
+        if self.invoice_id:
+            raise ValidationError(
+                "Cannot delete a repair job that has a linked invoice. "
+                "Please delete the invoice first."
+            )
+        # Delete parts first (their .delete() reverses stock)
+        for part in list(self.parts.all()):
+            part.delete()
+        super().delete(*args, **kwargs)
 
    
 class RepairPart(SoftDeleteModel):
@@ -2218,7 +2342,7 @@ class RepairPart(SoftDeleteModel):
                     'product': self.product,
                     'movement_type': 'repair_out',
                     'quantity': (-Decimal(self.quantity)).quantize(TAX_PRECISION),
-                    'date': self.repair_job.date_in,
+                    'date': to_aware_datetime(self.credit_note.date),
                     'is_deleted': False,
                     'deleted_at': None,
                     'deleted_by': None,

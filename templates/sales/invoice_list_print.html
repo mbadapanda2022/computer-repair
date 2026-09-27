@@ -43,10 +43,11 @@
 <div class="filters-box">
     <strong>Filters:</strong>
     {% if search %} Search: {{ search }}{% endif %}
+    {% if customer_name %} | Customer: {{ customer_name }}{% endif %}
     {% if status %} | Status: {{ status|title }}{% endif %}
     {% if date_from %} | From: {{ date_from }}{% endif %}
     {% if date_to %} | To: {{ date_to }}{% endif %}
-    {% if not search and not status and not date_from and not date_to %}All Records{% endif %}
+    {% if not search and not customer_name and not status and not date_from and not date_to %}All Records{% endif %}
     | Total: {{ invoices|length }}
 </div>
 

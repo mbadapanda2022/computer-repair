@@ -289,13 +289,13 @@
 {% block content %}
 <div class="container py-4">
 
-        <!-- HERO HEADER -->
+    <!-- HERO HEADER -->
     <div class="invoice-header mb-4">
         <div class="row align-items-center position-relative" style="z-index: 1;">
             <div class="col-md-7">
                 <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                     <span class="status-badge-large">
-                        <i class="bi 
+                        <i class="bi
                             {% if invoice.payment_status == 'paid' %}bi-check-circle-fill
                             {% elif invoice.payment_status == 'partial' %}bi-hourglass-split
                             {% else %}bi-x-circle-fill{% endif %} me-2">
@@ -386,7 +386,7 @@
                     </div>
                     <div>
                         <div class="stat-label">Items</div>
-                        <div class="stat-value" style="color: #17a2b8;">{{ invoice.items.count }}</div>
+                        <div class="stat-value" style="color: #17a2b8;">{{ invoice_items|length }}</div>
                     </div>
                 </div>
             </div>
@@ -439,7 +439,7 @@
                     <div class="info-row">
                         <span class="info-label"><i class="bi bi-credit-card me-2"></i>Payment Status</span>
                         <span class="info-value">
-                            <span class="badge 
+                            <span class="badge
                                 {% if invoice.payment_status == 'paid' %}bg-success
                                 {% elif invoice.payment_status == 'partial' %}bg-warning text-dark
                                 {% else %}bg-danger{% endif %}">
@@ -491,7 +491,7 @@
                         <div class="info-row">
                             <span class="info-label">Repair Status</span>
                             <span class="info-value">
-                                <span class="badge 
+                                <span class="badge
                                     {% if repair_job.status == 'pending' %}bg-warning text-dark
                                     {% elif repair_job.status == 'received' %}bg-secondary
                                     {% elif repair_job.status == 'diagnosis' %}bg-info text-dark
@@ -515,7 +515,7 @@
                     <span>
                         <span class="header-icon"><i class="bi bi-list-ul"></i></span>
                         Items
-                        <span class="badge bg-secondary ms-2">{{ invoice.items.count }}</span>
+                        <span class="badge bg-secondary ms-2">{{ invoice_items|length }}</span>
                     </span>
                 </div>
                 <div class="card-body p-0">
@@ -531,7 +531,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for item in invoice.items.all %}
+                                {% for item in invoice_items %}
                                 <tr>
                                     <td>
                                         <div class="fw-medium">{{ item.product.name }}</div>
@@ -626,25 +626,26 @@
                             <span>Subtotal</span>
                             <span>₹{{ invoice.subtotal|floatformat:2 }}</span>
                         </div>
+                        {% if invoice.discount_amount > 0 %}
                         <div class="gst-row">
                             <span>Discount</span>
                             <span>-₹{{ invoice.discount_amount|floatformat:2 }}</span>
                         </div>
+                        {% endif %}
+
                         {% if invoice.gst_type == 'intrastate' %}
-                            {% with cgst=invoice.tax_amount|divide:2 sgst=invoice.tax_amount|divide:2 %}
                             <div class="gst-row">
-                                <span>CGST ({{ invoice.default_tax_rate|default:9|floatformat:1 }}%)</span>
-                                <span>₹{{ cgst|floatformat:2 }}</span>
+                                <span>CGST</span>
+                                <span>₹{{ gst_breakup.cgst|floatformat:2 }}</span>
                             </div>
                             <div class="gst-row">
-                                <span>SGST ({{ invoice.default_tax_rate|default:9|floatformat:1 }}%)</span>
-                                <span>₹{{ sgst|floatformat:2 }}</span>
+                                <span>SGST</span>
+                                <span>₹{{ gst_breakup.sgst|floatformat:2 }}</span>
                             </div>
-                            {% endwith %}
                         {% elif invoice.gst_type == 'interstate' %}
                             <div class="gst-row">
-                                <span>IGST ({{ invoice.default_tax_rate|default:18|floatformat:1 }}%)</span>
-                                <span>₹{{ invoice.tax_amount|floatformat:2 }}</span>
+                                <span>IGST</span>
+                                <span>₹{{ gst_breakup.igst|floatformat:2 }}</span>
                             </div>
                         {% else %}
                             <div class="gst-row">
@@ -680,11 +681,9 @@
                                 <i class="bi bi-tools"></i> View Repair Details
                             </a>
                         {% endif %}
-                        {% if invoice.payment_status != 'paid' %}
-                            <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-outline-warning action-btn">
-                                <i class="bi bi-plus-circle"></i> New Repair Request
-                            </a>
-                        {% endif %}
+                        <a href="{% url 'customer:customer_repair_create' %}" class="btn btn-outline-warning action-btn">
+                            <i class="bi bi-plus-circle"></i> New Repair Request
+                        </a>
                     </div>
                 </div>
             </div>

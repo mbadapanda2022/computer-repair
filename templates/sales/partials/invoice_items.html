@@ -94,27 +94,53 @@
 (function() {
     'use strict';
 
-    const container = document.getElementById('invoice-items-container');
-    if (!container) return;
+    // ============================================================
+    // BIND ONCE per page load.
+    //
+    // Why: this script runs every time HTMX swaps in a fresh
+    // #invoice-items-container. Without a guard, every reload
+    // stacks another set of document-level listeners → after N
+    // reloads, 1 click fires N times (N POSTs, N duplicate items).
+    //
+    // Fix: use event delegation on `document.body` + guard flag.
+    // Handlers query #invoice-items-container at click-time, so
+    // they always target the current DOM.
+    // ============================================================
+    if (window.__invoiceItemsBound) return;
+    window.__invoiceItemsBound = true;
+
+    // URL template for remove-item — we replace the fake index
+    // with the real one at runtime. This keeps the path in sync
+    // with urls.py without hardcoding.
+    var REMOVE_URL_TEMPLATE = "{% url 'accounting:remove_invoice_item' 99999999 %}";
+    var ADD_URL = "{% url 'accounting:add_invoice_item' %}";
+
+    function getContainer() {
+        return document.getElementById('invoice-items-container');
+    }
 
     // ============================================================
-    // Product selection (suggestion click)
+    // Product suggestion click → fill search, price, tax
     // ============================================================
-    container.addEventListener('click', function(e) {
-        const suggestion = e.target.closest('.product-suggestion');
+    document.body.addEventListener('click', function(e) {
+        var suggestion = e.target.closest('.product-suggestion');
         if (!suggestion) return;
 
-        e.preventDefault();
-        const id = suggestion.dataset.id;
-        const name = suggestion.dataset.name;
-        const sPrice = suggestion.dataset.price;
-        const taxRate = suggestion.dataset.tax;
+        var container = getContainer();
+        if (!container || !container.contains(suggestion)) return;
 
-        const productIdEl = container.querySelector('#selected-product-id');
-        const searchInput = container.querySelector('#product-search');
-        const priceEl = container.querySelector('#item-price');
-        const taxEl = container.querySelector('#item-tax');
-        const suggestions = container.querySelector('#product-suggestions');
+        e.preventDefault();
+
+        var id = suggestion.dataset.id;
+        var name = suggestion.dataset.name;
+        var sPrice = suggestion.dataset.price;
+        var taxRate = suggestion.dataset.tax;
+
+        var productIdEl = container.querySelector('#selected-product-id');
+        var searchInput = container.querySelector('#product-search');
+        var priceEl     = container.querySelector('#item-price');
+        var taxEl       = container.querySelector('#item-tax');
+        var suggestions = container.querySelector('#product-suggestions');
 
         if (id) {
             if (productIdEl) productIdEl.value = id;
@@ -126,69 +152,73 @@
     });
 
     // ============================================================
-    // Add item button
+    // Add Item
     // ============================================================
-    container.addEventListener('click', function(e) {
-        const addBtn = e.target.closest('#add-item-btn');
+    document.body.addEventListener('click', function(e) {
+        var addBtn = e.target.closest('#add-item-btn');
         if (!addBtn) return;
 
-        const productIdEl = container.querySelector('#selected-product-id');
-        const qty = container.querySelector('#item-quantity');
-        const price = container.querySelector('#item-price');
-        const tax = container.querySelector('#item-tax');
-        const searchInput = container.querySelector('#product-search');
+        var container = getContainer();
+        if (!container || !container.contains(addBtn)) return;
 
-        const pid = productIdEl ? productIdEl.value : '';
+        var productIdEl = container.querySelector('#selected-product-id');
+        var qty         = container.querySelector('#item-quantity');
+        var price       = container.querySelector('#item-price');
+        var tax         = container.querySelector('#item-tax');
+        var searchInput = container.querySelector('#product-search');
+
+        var pid = productIdEl ? productIdEl.value : '';
         if (!pid) {
-            alert('Please select a product from the suggestions.');
-            searchInput && searchInput.focus();
+            if (window.showToast) {
+                window.showToast('warning', 'Please select a product from the suggestions.');
+            } else {
+                alert('Please select a product from the suggestions.');
+            }
+            if (searchInput) searchInput.focus();
             return;
         }
 
-        htmx.ajax('POST', "{% url 'accounting:add_invoice_item' %}", {
+        htmx.ajax('POST', ADD_URL, {
             target: '#invoice-items-container',
             swap: 'innerHTML',
             values: {
                 product: pid,
-                quantity: qty.value || 1,
-                unit_price: price.value || 0,
-                tax_rate: tax.value || 0
+                quantity: (qty && qty.value) || 1,
+                unit_price: (price && price.value) || 0,
+                tax_rate: (tax && tax.value) || 0
             }
-        }).then(() => {
-            // Reset form after successful add
-            setTimeout(() => {
-                const newContainer = document.getElementById('invoice-items-container');
-                const newSearch = newContainer && newContainer.querySelector('#product-search');
-                const newProductId = newContainer && newContainer.querySelector('#selected-product-id');
-                const newQty = newContainer && newContainer.querySelector('#item-quantity');
-                if (newSearch) newSearch.value = '';
-                if (newProductId) newProductId.value = '';
-                if (newQty) newQty.value = '1';
-            }, 100);
         });
     });
 
     // ============================================================
-    // Remove item button
+    // Remove Item
     // ============================================================
-    container.addEventListener('click', function(e) {
-        const removeBtn = e.target.closest('.remove-item-btn');
+    document.body.addEventListener('click', function(e) {
+        var removeBtn = e.target.closest('.remove-item-btn');
         if (!removeBtn) return;
 
-        e.preventDefault();
-        const index = removeBtn.dataset.index;
+        var container = getContainer();
+        if (!container || !container.contains(removeBtn)) return;
 
-        htmx.ajax('POST', '/sales/remove-item/' + index + '/', {
+        e.preventDefault();
+
+        var index = removeBtn.dataset.index;
+        if (index === undefined || index === null || index === '') return;
+
+        var url = REMOVE_URL_TEMPLATE.replace('99999999', index);
+
+        htmx.ajax('POST', url, {
             target: '#invoice-items-container',
             swap: 'innerHTML'
         });
     });
 
     // ============================================================
-    // Close suggestions on outside click
+    // Outside click → close suggestions
+    // (bound once on document, uses live DOM lookup)
     // ============================================================
     document.addEventListener('click', function(e) {
-        const suggestions = document.getElementById('product-suggestions');
+        var suggestions = document.getElementById('product-suggestions');
         if (!suggestions) return;
         if (!e.target.closest('#product-search') && !e.target.closest('#product-suggestions')) {
             suggestions.innerHTML = '';

@@ -139,6 +139,7 @@
                        class="btn btn-secondary w-100"
                        hx-get="{% url 'accounting:invoice_list' %}"
                        hx-target="#invoice-table-container"
+                       hx-push-url="true"
                        title="Reset filters">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </a>
@@ -156,17 +157,17 @@
 <script>
 function getCurrentFilterParams() {
     const form = document.getElementById('invoice-filter-form');
+    if (!form) return new URLSearchParams();
     const formData = new FormData(form);
     const params = new URLSearchParams();
     for (const [key, value] of formData.entries()) {
-        if (value && value.trim() !== '') params.append(key, value);
+        if (value && String(value).trim() !== '') params.append(key, value);
     }
     return params;
 }
 
 function downloadWithFilters(type) {
-    const params = getCurrentFilterParams();
-    const qs = params.toString();
+    const qs = getCurrentFilterParams().toString();
     if (type === 'print') {
         let url = "{% url 'accounting:invoice_list_print' %}";
         if (qs) url += '?' + qs;
@@ -178,11 +179,11 @@ function downloadWithFilters(type) {
     }
 }
 
-// Reload list on custom event (after invoice delete)
+// Reload list preserving current filters (after invoice delete)
 document.body.addEventListener('reloadInvoices', function() {
-    const params = getCurrentFilterParams();
-    const qs = params.toString();
-    htmx.ajax('GET', "{% url 'accounting:invoice_list' %}" + (qs ? '?' + qs : ''), {
+    const qs = getCurrentFilterParams().toString();
+    const url = "{% url 'accounting:invoice_list' %}" + (qs ? '?' + qs : '');
+    htmx.ajax('GET', url, {
         target: '#invoice-table-container',
         swap: 'innerHTML'
     });

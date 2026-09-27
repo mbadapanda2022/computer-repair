@@ -53,6 +53,9 @@ WARRANTY_DAYS = 30
 
 # Terminal states — no further status transitions allowed
 TERMINAL_STATUSES = frozenset({'delivered', 'cancelled'})
+# Session keys for repair → invoice item management
+SK_REPAIR_INVOICE_ITEMS = 'temp_repair_invoice_items'
+SK_REPAIR_INVOICE_REPAIR_PK = 'temp_repair_invoice_repair_pk'
 
 STATUS_MODAL_CONFIG = {
     'received': {
@@ -257,6 +260,125 @@ def _compute_warranty(job):
     days_remaining = (expires_on - timezone.now().date()).days
     return max(days_remaining, 0), expires_on
 
+# ════════════════════════════════════════════════════════════
+# HELPERS: Repair → Invoice session management
+# ════════════════════════════════════════════════════════════
+
+def _clear_repair_invoice_session(request):
+    """Remove all repair-invoice session keys."""
+    request.session.pop(SK_REPAIR_INVOICE_ITEMS, None)
+    request.session.pop(SK_REPAIR_INVOICE_REPAIR_PK, None)
+
+
+def _session_item_from_repair_part(part):
+    """Convert a RepairPart into a session dict."""
+    qty = Decimal(part.quantity)
+    price = Decimal(part.unit_price)
+    tax_rate = Decimal(part.product.tax_rate or 0)
+    line_amount = qty * price
+    tax_amount = ((line_amount * tax_rate) / 100).quantize(Decimal('0.01'))
+    line_total = (line_amount + tax_amount).quantize(Decimal('0.01'))
+
+    return {
+        'product_id': part.product_id,
+        'product_name': part.product.name,
+        'quantity': str(qty),
+        'unit_price': str(price),
+        'tax_rate': str(tax_rate),
+        'line_total': str(line_total),
+        'description': f"Repair part: {part.product.name}",
+        'repair_part_id': part.pk,
+        'source': 'repair',
+    }
+
+
+def _session_item_from_labour(job, labour_product):
+    """Build a session dict for the labour charge line."""
+    qty = Decimal('1')
+    price = Decimal(job.labour_charge)
+    company = CompanyProfile.get_instance()
+    tax_rate = Decimal(company.default_tax_rate or 0)
+    line_amount = qty * price
+    tax_amount = ((line_amount * tax_rate) / 100).quantize(Decimal('0.01'))
+    line_total = (line_amount + tax_amount).quantize(Decimal('0.01'))
+
+    return {
+        'product_id': labour_product.pk,
+        'product_name': labour_product.name,
+        'quantity': str(qty),
+        'unit_price': str(price),
+        'tax_rate': str(tax_rate),
+        'line_total': str(line_total),
+        'description': 'Labour Charge',
+        'repair_part_id': None,
+        'source': 'labour',
+    }
+
+
+def _ensure_repair_invoice_session(request, job, force_reset=False):
+    """
+    Populate `temp_repair_invoice_items` from repair parts + labour.
+
+    Resets if:
+      - force_reset is True, OR
+      - the session is tied to a different repair job.
+    """
+    session_repair_pk = request.session.get(SK_REPAIR_INVOICE_REPAIR_PK)
+
+    if force_reset or session_repair_pk != job.pk:
+        _clear_repair_invoice_session(request)
+
+        items = []
+
+        # 1. Parts
+        for part in job.parts.select_related('product').all():
+            items.append(_session_item_from_repair_part(part))
+
+        # 2. Labour charge (as a service item)
+        if job.labour_charge and job.labour_charge > 0:
+            company = CompanyProfile.get_instance()
+            tax_rate = company.default_tax_rate or Decimal('18')
+            labour_product, _ = Product.objects.get_or_create(
+                name="Repair Labour",
+                defaults={
+                    'is_service': True,
+                    'selling_price': job.labour_charge,
+                    'tax_rate': tax_rate,
+                    'hsn_code': '998446',
+                    'is_active': True,
+                },
+            )
+            items.append(_session_item_from_labour(job, labour_product))
+
+        request.session[SK_REPAIR_INVOICE_ITEMS] = items
+        request.session[SK_REPAIR_INVOICE_REPAIR_PK] = job.pk
+
+
+def _session_totals(items):
+    """Compute (subtotal, tax_total, grand_total) from session items."""
+    subtotal = Decimal('0')
+    tax_total = Decimal('0')
+
+    for item in items:
+        try:
+            qty = Decimal(item['quantity'])
+            price = Decimal(item['unit_price'])
+            tax_rate = Decimal(item['tax_rate'])
+        except (KeyError, ValueError, TypeError, ArithmeticError):
+            continue
+
+        line_amount = qty * price
+        tax_amount = ((line_amount * tax_rate) / 100).quantize(Decimal('0.01'))
+
+        subtotal += line_amount
+        tax_total += tax_amount
+
+    return (
+        subtotal.quantize(Decimal('0.01')),
+        tax_total.quantize(Decimal('0.01')),
+        (subtotal + tax_total).quantize(Decimal('0.01')),
+    )
+
 
 # ════════════════════════════════════════════════════════════
 # HELPER: Paginated repairs context
@@ -313,7 +435,14 @@ def get_paginated_repairs_context(request, queryset=None):
     if date_to:
         queryset = queryset.filter(date_in__lte=date_to)
 
-    filtered_total = queryset.aggregate(total=Sum('final_amount'))['total'] or Decimal('0')
+    # ============================================================
+    # Filtered total — excludes cancelled AND uses invoiced amount
+    # when invoice exists (via display_amount property).
+    # ============================================================
+    filtered_total = Decimal('0')
+    for job in queryset.exclude(status='cancelled'):
+        filtered_total += job.display_amount
+    filtered_total = filtered_total.quantize(Decimal('0.01'))
 
     paginator = Paginator(queryset, 20)
     try:
@@ -347,7 +476,6 @@ def get_paginated_repairs_context(request, queryset=None):
         'filtered_total': filtered_total,
         'today': today,
     }
-
 
 # ════════════════════════════════════════════════════════════
 # 1. FIELD VALIDATION (HTMX)
@@ -629,6 +757,15 @@ def repair_detail(request, pk):
     if job.estimated_cost and job.final_amount:
         estimate_diff = job.final_amount - job.estimated_cost
 
+    # ── Check: does linked invoice contain any physical (non-service) items? ──
+    # Used by the empty-state message in parts_with_totals.html
+    invoice_has_physical_parts = False
+    if job.invoice_id:
+        invoice_has_physical_parts = job.invoice.items.filter(
+            product__is_service=False,
+            is_deleted=False,
+        ).exists()
+
     from ..utils.tracking import generate_tracking_token
     track_token = generate_tracking_token(job)
 
@@ -647,6 +784,7 @@ def repair_detail(request, pk):
         'activity_timeline': activity_timeline,
         'estimate_diff': estimate_diff,
 
+        'invoice_has_physical_parts': invoice_has_physical_parts,
         'track_token': track_token,
     }
     return render(request, 'repairs/repair_detail.html', context)
@@ -738,6 +876,18 @@ def update_repair_status(request, pk):
              'message': f'Cannot change from {job.get_status_display()}.'},
             status=400,
         )
+        
+    if new_status == 'cancelled' and job.invoice_id:
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    'Cannot cancel a repair that has an invoice. '
+                    'Delete the invoice first.'
+                ),
+            },
+            status=400,
+        )
 
     # ── Collect optional fields from POST ──
     DATE_FIELDS = {'received_at', 'ready_at', 'delivery_date'}
@@ -811,6 +961,18 @@ def update_repair_status(request, pk):
                htmx_template='repairs/partials/part_form_modal.html')
 def add_repair_part(request, pk):
     job = get_object_or_404(RepairJob, pk=pk)
+    
+    if job.invoice_id:
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    'Cannot add parts — invoice already exists. '
+                    'Please delete the invoice first.'
+                ),
+            },
+            status=400,
+        )
 
     if request.method == 'POST':
         form = RepairPartForm(request.POST)
@@ -887,6 +1049,19 @@ def remove_repair_part(request, part_pk):
     job = part.repair_job
     product = part.product
 
+    # ── NEW: Block after invoice ──
+    if job.invoice_id:
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    'Cannot remove parts — invoice already exists. '
+                    'Please delete the invoice first.'
+                ),
+            },
+            status=400,
+        )
+
     # ── 1. Delete part atomically (reverses stock via model.delete) ──
     with transaction.atomic():
         part.delete()
@@ -926,17 +1101,261 @@ def remove_repair_part(request, part_pk):
 
 
 # ════════════════════════════════════════════════════════════
+# Repair invoice item management (session-based, HTMX)
+# ════════════════════════════════════════════════════════════
+
+@login_required
+@require_http_methods(["GET"])
+def repair_invoice_product_search(request):
+    """
+    Product autocomplete for repair invoice modal.
+    Shows BOTH physical products and services.
+    """
+    q = request.GET.get('q', '').strip()
+
+    if len(q) < 2:
+        return render(
+            request,
+            'sales/partials/product_suggestions.html',
+            {'products': []}
+        )
+
+    products = Product.objects.filter(
+        Q(name__icontains=q) | Q(hsn_code__icontains=q),
+        is_active=True,
+    )[:20]
+
+    def relevance_score(p):
+        name = (p.name or '').lower()
+        hsn = (p.hsn_code or '').lower()
+        q_lower = q.lower()
+        if name == q_lower or hsn == q_lower:
+            return 0
+        if name.startswith(q_lower) or hsn.startswith(q_lower):
+            return 1
+        if q_lower in name or q_lower in hsn:
+            return 2
+        return 3
+
+    products = sorted(products, key=relevance_score)[:10]
+
+    return render(
+        request,
+        'sales/partials/product_suggestions.html',
+        {'products': products}
+    )
+
+
+@login_required
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:repair_list')
+def add_repair_invoice_item(request, pk):
+    """
+    Add a manually-entered item to the repair invoice session.
+
+    NOTE: Repair-sourced items are auto-populated when the modal opens.
+    This endpoint is only for staff-added items (e.g., extra services).
+    """
+    job = get_object_or_404(RepairJob, pk=pk)
+
+    if job.invoice_id:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Invoice already exists.'},
+            status=400,
+        )
+
+    product_id = request.POST.get('product')
+    if not product_id:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Please select a product.'},
+            status=400,
+        )
+
+    try:
+        product = Product.objects.get(pk=product_id)
+    except Product.DoesNotExist:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Product not found.'},
+            status=400,
+        )
+
+    def _safe_decimal(value, default=Decimal('0')):
+        if value is None:
+            return default
+        s = str(value).strip()
+        if s == '':
+            return default
+        try:
+            return Decimal(s)
+        except (ValueError, TypeError, ArithmeticError):
+            return default
+
+    qty = _safe_decimal(request.POST.get('quantity'), Decimal('1'))
+    price = _safe_decimal(request.POST.get('unit_price'), product.selling_price or Decimal('0'))
+    tax = _safe_decimal(request.POST.get('tax_rate'), product.tax_rate or Decimal('0'))
+
+    if qty <= 0:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Quantity must be positive.'},
+            status=400,
+        )
+    if price < 0:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Price cannot be negative.'},
+            status=400,
+        )
+    if tax < 0 or tax > 100:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Tax rate must be between 0 and 100.'},
+            status=400,
+        )
+
+    line_amount = qty * price
+    tax_amount = ((line_amount * tax) / 100).quantize(Decimal('0.01'))
+    line_total = (line_amount + tax_amount).quantize(Decimal('0.01'))
+
+    items = request.session.get(SK_REPAIR_INVOICE_ITEMS, [])
+    items.append({
+        'product_id': product.pk,
+        'product_name': product.name,
+        'quantity': str(qty),
+        'unit_price': str(price),
+        'tax_rate': str(tax),
+        'line_total': str(line_total),
+        'description': request.POST.get('description', ''),
+        'repair_part_id': None,
+        'source': 'manual',
+    })
+    request.session[SK_REPAIR_INVOICE_ITEMS] = items
+
+    subtotal, tax_total, grand_total = _session_totals(items)
+
+    return render(request, 'repairs/partials/repair_invoice_items.html', {
+        'job': job,
+        'items': items,
+        'subtotal': subtotal,
+        'tax_total': tax_total,
+        'grand_total': grand_total,
+    })
+
+
+@login_required
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:repair_list')
+def remove_repair_invoice_item(request, pk, index):
+    """
+    Remove an item from the repair invoice session by index.
+
+    Safety:
+      - Repair-sourced items CAN be removed (billing decision).
+      - Stock is NOT reversed (part was already consumed during repair).
+      - Only removes the billing line.
+    """
+    job = get_object_or_404(RepairJob, pk=pk)
+
+    if job.invoice_id:
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Invoice already exists.'},
+            status=400,
+        )
+
+    items = request.session.get(SK_REPAIR_INVOICE_ITEMS, [])
+
+    try:
+        idx = int(index)
+    except (ValueError, TypeError):
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Invalid index.'},
+            status=400,
+        )
+
+    if idx < 0 or idx >= len(items):
+        return toast_only_response(
+            {'level': 'danger', 'message': 'Item not found.'},
+            status=400,
+        )
+
+    items.pop(idx)
+    request.session[SK_REPAIR_INVOICE_ITEMS] = items
+
+    subtotal, tax_total, grand_total = _session_totals(items)
+
+    return render(request, 'repairs/partials/repair_invoice_items.html', {
+        'job': job,
+        'items': items,
+        'subtotal': subtotal,
+        'tax_total': tax_total,
+        'grand_total': grand_total,
+    })
+
+
+# ════════════════════════════════════════════════════════════
 # 10. CREATE INVOICE FROM REPAIR
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
 def create_invoice_from_repair(request, pk):
-    job = get_object_or_404(RepairJob.objects.select_related('customer'), pk=pk)
+    """
+    Create an invoice from a repair job.
 
+    GET  → populate session from parts + labour, show modal.
+    POST → create invoice with items from session.
+
+    Stock handling:
+      - Repair-sourced items → stock_already_deducted=True (skip stock)
+      - Manual items → normal stock deduction
+      - Labour (service) → no stock anyway
+    """
+    job = get_object_or_404(
+        RepairJob.objects.select_related('customer'), pk=pk
+    )
+
+    # ── Guards ──
+    if job.invoice_id:
+        messages.info(request, "Invoice already exists for this repair.")
+        return redirect_to_staff('invoice_detail', pk=job.invoice.pk)
+
+    if job.status not in ('ready', 'delivered'):
+        messages.error(
+            request,
+            "Repair must be 'Ready' or 'Delivered' to generate invoice."
+        )
+        return redirect_to_staff('repair_detail', pk=pk)
+
+    if (job.estimated_cost
+            and job.estimated_cost > 0
+            and job.estimate_status != 'approved'):
+        messages.error(
+            request,
+            "Estimate must be approved before invoicing."
+        )
+        return redirect_to_staff('repair_detail', pk=pk)
+
+    # ════════════════════════════════════════════════════════
+    # GET — populate session & show modal
+    # ════════════════════════════════════════════════════════
     if request.method == 'GET':
-        return render(request, 'repairs/partials/create_invoice_modal.html', {'job': job})
+        _ensure_repair_invoice_session(request, job)
 
+        items = request.session.get(SK_REPAIR_INVOICE_ITEMS, [])
+        subtotal, tax_total, grand_total = _session_totals(items)
+
+        return render(request, 'repairs/partials/create_invoice_modal.html', {
+            'job': job,
+            'items': items,
+            'subtotal': subtotal,
+            'tax_total': tax_total,
+            'grand_total': grand_total,
+            'gst_type_choices': Invoice.GST_TYPE,
+            'today': timezone.now().date(),
+        })
+
+    # ════════════════════════════════════════════════════════
+    # POST — build invoice
+    # ════════════════════════════════════════════════════════
     invoice_date = timezone.now().date()
     if request.POST.get('invoice_date'):
         try:
@@ -946,81 +1365,124 @@ def create_invoice_from_repair(request, pk):
         except (ValueError, TypeError):
             pass
 
-    if job.invoice:
-        messages.info(request, "Invoice already exists for this repair.")
-        return redirect_to_staff('invoice_detail', pk=job.invoice.pk)
+    due_date = None
+    if request.POST.get('due_date'):
+        try:
+            due_date = datetime.strptime(
+                request.POST.get('due_date'), '%Y-%m-%d'
+            ).date()
+        except (ValueError, TypeError):
+            pass
 
-    if job.status not in ('ready', 'delivered'):
-        messages.error(request, "Repair must be 'Ready' or 'Delivered' to generate invoice.")
-        return redirect_to_staff('repair_detail', pk=pk)
+    gst_type = request.POST.get('gst_type', '').strip()
+    if gst_type not in dict(Invoice.GST_TYPE):
+        gst_type = None
 
-    if job.estimated_cost and job.estimated_cost > 0 and job.estimate_status != 'approved':
-        messages.error(request, "Estimate must be approved before invoicing.")
-        return redirect_to_staff('repair_detail', pk=pk)
+    notes_override = (request.POST.get('notes') or '').strip()
 
-    # ── 1. Build invoice atomically ──
+    # Discount
+    def _safe_dec(value, default=Decimal('0')):
+        if value is None:
+            return default
+        s = str(value).strip()
+        if s == '':
+            return default
+        try:
+            return Decimal(s)
+        except (ValueError, TypeError, ArithmeticError):
+            return default
+
+    discount_amount = _safe_dec(request.POST.get('discount_amount'), Decimal('0'))
+    discount_type = (request.POST.get('discount_type') or '').strip()
+    discount_note = (request.POST.get('discount_note') or '').strip()
+
+    # Items from session
+    items = request.session.get(SK_REPAIR_INVOICE_ITEMS, [])
+
+    if not items:
+        messages.error(
+            request,
+            "No items in the invoice. Please add at least one item."
+        )
+        return redirect_to_staff('create_invoice_from_repair', pk=job.pk)
+
+    # ════════════════════════════════════════════════════════
+    # Build invoice atomically
+    # ════════════════════════════════════════════════════════
     with transaction.atomic():
         company = CompanyProfile.get_instance()
-        if not job.customer.gstin:
-            gst_type = 'non_gst'
-        elif company.state and job.customer.state and company.state != job.customer.state:
-            gst_type = 'interstate'
-        else:
-            gst_type = 'intrastate'
 
-        notes = (
-            f"Repair job: {job.job_number}\n"
-            f"Device: {job.device_model} (SN: {job.serial_number or 'N/A'})\n"
-            f"Issue: {job.issue_description}\n"
-            f"Action: {job.action_taken or 'Not specified'}\n"
-            f"Notes: {job.notes or ''}"
-        )
+        if gst_type:
+            chosen_gst = gst_type
+        elif not job.customer.gstin:
+            chosen_gst = 'non_gst'
+        elif (company.state and job.customer.state
+              and company.state != job.customer.state):
+            chosen_gst = 'interstate'
+        else:
+            chosen_gst = 'intrastate'
+
+        # Compose default notes if user didn't override
+        if notes_override:
+            invoice_notes = notes_override
+        else:
+            invoice_notes = (
+                f"Repair job: {job.job_number}\n"
+                f"Device: {job.device_model} (SN: {job.serial_number or 'N/A'})\n"
+                f"Issue: {job.issue_description}\n"
+                f"Action: {job.action_taken or 'Not specified'}"
+            )
+            if job.notes:
+                invoice_notes += f"\nNotes: {job.notes}"
 
         invoice = Invoice(
             customer=job.customer,
             date=invoice_date,
-            gst_type=gst_type,
-            notes=notes,
+            due_date=due_date,
+            gst_type=chosen_gst,
+            discount_amount=discount_amount,
+            discount_type=discount_type,
+            discount_note=discount_note,
+            discount_date=invoice_date if discount_amount > 0 else None,
+            discount_approved_by=request.user if discount_amount > 0 else None,
+            notes=invoice_notes,
         )
         invoice.save()
 
-        # Copy parts as invoice lines
-        for part in job.parts.select_related('product').all():
-            InvoiceItem.objects.create(
-                invoice=invoice,
-                product=part.product,
-                quantity=part.quantity,
-                unit_price=part.unit_price,
-                tax_rate=part.product.tax_rate,
-                description=f"Repair part: {part.product.name}",
-            )
+        # Create items — repair-sourced items skip stock movement
+        for item_data in items:
+            product_id = item_data.get('product_id')
+            if not product_id:
+                continue
 
-        # Add labour charge as a service line
-        if job.labour_charge > 0:
-            tax_rate = company.default_tax_rate or Decimal('18')
-            labour_product, _ = Product.objects.get_or_create(
-                name="Repair Labour",
-                defaults={
-                    'is_service': True,
-                    'selling_price': job.labour_charge,
-                    'tax_rate': tax_rate,
-                    'hsn_code': '998446',
-                    'is_active': True,
-                },
-            )
-            InvoiceItem.objects.create(
+            try:
+                product = Product.objects.get(pk=product_id)
+            except Product.DoesNotExist:
+                continue
+
+            repair_part_id = item_data.get('repair_part_id')
+            source = item_data.get('source', 'manual')
+
+            # Skip stock for items sourced from repair parts OR labour
+            skip_stock = source in ('repair', 'labour')
+
+            item = InvoiceItem(
                 invoice=invoice,
-                product=labour_product,
-                quantity=Decimal('1'),
-                unit_price=job.labour_charge,
-                tax_rate=tax_rate,
-                description="Labour Charge",
+                product=product,
+                quantity=Decimal(str(item_data.get('quantity', '1'))),
+                unit_price=Decimal(str(item_data.get('unit_price', '0'))),
+                tax_rate=Decimal(str(item_data.get('tax_rate', '0'))),
+                description=item_data.get('description', ''),
+                stock_already_deducted=skip_stock,
+                repair_part_id=repair_part_id if repair_part_id else None,
             )
+            item.save()
 
         invoice.calculate_totals()
         invoice.save()
         sync_invoice_ledger(invoice)
 
+        # Link invoice to repair & mark delivered if ready
         job.invoice = invoice
         if job.status == 'ready':
             job.status = 'delivered'
@@ -1028,7 +1490,10 @@ def create_invoice_from_repair(request, pk):
                 job.delivery_date = invoice_date
         job.save(update_fields=['invoice', 'status', 'delivery_date'])
 
-    # ── 2. Notify after commit ──
+    # Clear session
+    _clear_repair_invoice_session(request)
+
+    # ── Notify customer ──
     _safe_notify(
         job.customer,
         title=f"Invoice Generated: {invoice.invoice_number}",
@@ -1041,7 +1506,7 @@ def create_invoice_from_repair(request, pk):
 
     messages.success(
         request,
-        f"Invoice {invoice.invoice_number} created for {invoice_date}.",
+        f"Invoice {invoice.invoice_number} created for repair {job.job_number}.",
     )
 
     if is_htmx(request):

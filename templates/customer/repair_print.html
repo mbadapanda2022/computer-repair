@@ -58,6 +58,8 @@
         .table .total-row td { font-weight: 700; border-top: 2px solid #0d6efd; }
         .table .grand-total td { font-weight: 700; font-size: 10pt; background: #e9ecef; border-top: 2px solid #0d6efd; }
         .table .grand-total .amount { color: #0d6efd; }
+        .table .invoiced-total td { background: #d1ecf1; border-top: 2px solid #17a2b8; }
+        .table .invoiced-total .amount { color: #17a2b8; font-size: 12pt; }
         .estimate-status-bar { display: flex; justify-content: space-between; align-items: center; padding: 3px 10px; background: #f8f9fa; border-radius: 4px; margin: 4px 0; font-size: 8.5pt; }
         .estimate-status-bar .label { font-weight: 500; color: #6c757d; }
         .footer { text-align: center; border-top: 1px solid #dee2e6; padding-top: 6px; margin-top: 8px; font-size: 7pt; color: #6c757d; }
@@ -83,7 +85,6 @@
 </head>
 <body>
 
-    <!-- HEADER -->
     <div class="header">
         <div class="header-left">
             {% if logo_exists %}
@@ -103,12 +104,10 @@
         </div>
     </div>
 
-    <!-- TITLE -->
     <div class="page-title">
         Repair Job #{{ repair.job_number }}
     </div>
 
-    <!-- TIMELINE BAR -->
     <div class="timeline-bar">
         {% if repair.submitted_at %}
         <span class="item"><strong>Submitted:</strong> {{ repair.submitted_at|date:"d M Y" }}</span>
@@ -126,7 +125,6 @@
         {% endif %}
     </div>
 
-    <!-- INFO GRID -->
     <div class="info-grid">
         <div class="info-item">
             <span class="label">Customer</span>
@@ -181,12 +179,6 @@
             <span class="value">{{ repair.notes }}</span>
         </div>
         {% endif %}
-        {% if repair.invoice %}
-        <div class="info-item info-full">
-            <span class="label">Invoice</span>
-            <span class="value">{{ repair.invoice.invoice_number }}</span>
-        </div>
-        {% endif %}
     </div>
 
     <!-- PARTS TABLE -->
@@ -216,49 +208,59 @@
                 <td class="text-end fw-bold">₹{{ part.line_total|floatformat:2 }}</td>
             </tr>
             {% endfor %}
-            <tr class="total-row">
-                <td colspan="3" class="text-end fw-bold">Labour</td>
-                <td colspan="2" class="text-end">₹{{ repair.labour_charge|floatformat:2 }}</td>
-            </tr>
-            <tr class="total-row">
-                <td colspan="3" class="text-end fw-bold">Parts Total</td>
-                <td colspan="2" class="text-end">₹{{ parts_total|floatformat:2 }}</td>
-            </tr>
-            <tr class="grand-total">
-                <td colspan="3" class="text-end fw-bold" style="font-size:10pt;">Final Amount</td>
-                <td colspan="2" class="text-end amount" style="font-size:12pt; font-weight:700;">
-                    ₹{{ repair.final_amount|floatformat:2 }}
-                </td>
-            </tr>
-        </tbody>
-    </table>
-    {% else %}
-    <div class="no-parts">
-        No parts used in this repair.
-    </div>
-    <table class="table" style="margin-top:4px;">
-        <tbody>
-            <tr class="grand-total">
-                <td colspan="3" class="text-end fw-bold" style="font-size:10pt;">Final Amount (Labour Only)</td>
-                <td colspan="2" class="text-end amount" style="font-size:12pt; font-weight:700;">
-                    ₹{{ repair.final_amount|floatformat:2 }}
-                </td>
-            </tr>
         </tbody>
     </table>
     {% endif %}
 
-    <!-- ESTIMATE STATUS -->
+    <!-- AMOUNTS -->
+    <table class="table" style="margin-top:8px;">
+        <tbody>
+            <tr>
+                <td style="width:70%;" class="fw-bold text-end">Parts Total</td>
+                <td class="text-end">₹{{ parts_total|floatformat:2 }}</td>
+            </tr>
+            <tr>
+                <td class="fw-bold text-end">Labour Charge</td>
+                <td class="text-end">₹{{ repair.labour_charge|floatformat:2 }}</td>
+            </tr>
+            <tr class="total-row">
+                <td class="fw-bold text-end">Base Amount (pre-tax)</td>
+                <td class="text-end fw-bold">₹{{ repair.base_amount|floatformat:2 }}</td>
+            </tr>
+
+            {% if repair.is_invoiced %}
+            <tr class="invoiced-total">
+                <td class="fw-bold text-end">
+                    <i class="bi bi-receipt"></i>
+                    Invoiced Amount (incl. tax)
+                    <div style="font-size:7pt; font-weight:normal; color:#6c757d;">
+                        Against Invoice {{ repair.invoice.invoice_number }}
+                    </div>
+                </td>
+                <td class="text-end amount fw-bold">₹{{ repair.invoice.grand_total|floatformat:2 }}</td>
+            </tr>
+            {% else %}
+            <tr class="grand-total">
+                <td class="fw-bold text-end" style="font-size:10pt;">Final Amount</td>
+                <td class="text-end amount" style="font-size:12pt; font-weight:700;">
+                    ₹{{ repair.final_amount|floatformat:2 }}
+                </td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
     {% if repair.estimated_cost and repair.estimated_cost > 0 %}
     <div class="estimate-status-bar">
-        <span class="label">Estimate Status</span>
+        <span class="label">
+            <strong>Original Estimate:</strong> ₹{{ repair.estimated_cost|floatformat:2 }}
+        </span>
         <span class="badge-print {{ repair.estimate_status }}">
             {{ repair.get_estimate_status_display }}
         </span>
     </div>
     {% endif %}
 
-    <!-- FOOTER -->
     <div class="footer">
         <p style="margin:2px 0;">
             This is a computer-generated document. No signature required.
@@ -282,7 +284,6 @@
         </div>
     </div>
 
-    <!-- ACTION BUTTONS -->
     <div class="no-print">
         <hr>
         <div style="display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">

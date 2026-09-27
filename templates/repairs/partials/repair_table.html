@@ -65,7 +65,14 @@
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
-                        <td class="text-end fw-bold">₹{{ job.final_amount|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">
+                            ₹{{ job.display_amount|floatformat:2 }}
+                            {% if job.is_invoiced %}
+                                <br><small class="text-muted fw-normal" style="font-size:0.7rem;">
+                                    <i class="bi bi-receipt"></i> Invoiced
+                                </small>
+                            {% endif %}
+                        </td>
                         <td class="text-center">
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
@@ -82,7 +89,6 @@
                                         </a>
                                     </li>
                                     <li>
-                                        {# Fixes Bug #4: was a plain href (full page load), now HTMX modal #}
                                         <a class="dropdown-item"
                                            href="{% url 'accounting:repair_update' job.pk %}"
                                            hx-get="{% url 'accounting:repair_update' job.pk %}"
@@ -96,18 +102,26 @@
                                             <i class="bi bi-printer me-2 text-info"></i>Print
                                         </a>
                                     </li>
-                                    {% if not job.invoice and job.status == 'ready' %}
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li>
-                                        {# Fixes Bug #3: was a plain href (broken partial page), now HTMX modal #}
-                                        <a class="dropdown-item text-success"
-                                           href="{% url 'accounting:create_invoice_from_repair' job.pk %}"
-                                           hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}"
-                                           hx-target="#mainModalContent"
-                                           hx-swap="innerHTML">
-                                            <i class="bi bi-receipt me-2"></i>Create Invoice
-                                        </a>
-                                    </li>
+                                    {% if not job.invoice %}
+                                        {% if job.status == 'ready' or job.status == 'delivered' %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <a class="dropdown-item text-success"
+                                               href="{% url 'accounting:create_invoice_from_repair' job.pk %}"
+                                               hx-get="{% url 'accounting:create_invoice_from_repair' job.pk %}"
+                                               hx-target="#mainModalContent"
+                                               hx-swap="innerHTML">
+                                                <i class="bi bi-receipt me-2"></i>Create Invoice
+                                            </a>
+                                        </li>
+                                        {% endif %}
+                                    {% else %}
+                                        <li>
+                                            <a class="dropdown-item text-primary"
+                                               href="{% url 'accounting:invoice_detail' job.invoice.pk %}">
+                                                <i class="bi bi-receipt me-2"></i>View Invoice
+                                            </a>
+                                        </li>
                                     {% endif %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
@@ -137,7 +151,9 @@
                 </tbody>
                 <tfoot class="table-light">
                     <tr>
-                        <th colspan="7" class="text-end">Total</th>
+                        <th colspan="7" class="text-end">
+                            Total (excl. cancelled)
+                        </th>
                         <th class="text-end fw-bold">₹{{ filtered_total|floatformat:2 }}</th>
                         <th></th>
                     </tr>
@@ -153,14 +169,14 @@
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:repair_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:repair_list' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -174,14 +190,14 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:repair_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#repair-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

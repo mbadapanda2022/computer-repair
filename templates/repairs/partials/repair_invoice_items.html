@@ -1,0 +1,92 @@
+{% load math_filters %}
+
+<div data-subtotal="{{ subtotal }}"
+     data-tax="{{ tax_total }}">
+
+    <div class="table-responsive border rounded">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:40px;">#</th>
+                    <th>Product</th>
+                    <th class="text-center" style="width:80px;">Qty</th>
+                    <th class="text-end" style="width:110px;">Unit Price</th>
+                    <th class="text-end" style="width:80px;">Tax %</th>
+                    <th class="text-end" style="width:120px;">Line Total</th>
+                    <th class="text-center" style="width:60px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr class="{% if item.source == 'repair' %}table-info{% elif item.source == 'labour' %}table-warning{% endif %}">
+                    <td class="text-muted">{{ forloop.counter }}</td>
+                    <td>
+                        <span class="fw-semibold">{{ item.product_name }}</span>
+                        {% if item.source == 'repair' %}
+                            <span class="badge bg-info text-dark ms-1" title="From repair parts">
+                                <i class="bi bi-tools"></i> Repair Part
+                            </span>
+                        {% elif item.source == 'labour' %}
+                            <span class="badge bg-warning text-dark ms-1" title="Labour charge">
+                                <i class="bi bi-person-workspace"></i> Labour
+                            </span>
+                        {% else %}
+                            <span class="badge bg-secondary ms-1" title="Manually added">
+                                <i class="bi bi-plus-circle"></i> Manual
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ item.quantity }}</td>
+                    <td class="text-end">₹{{ item.unit_price }}</td>
+                    <td class="text-end">{{ item.tax_rate }}%</td>
+                    <td class="text-end fw-bold">₹{{ item.line_total }}</td>
+                    <td class="text-center">
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger ri-remove-item"
+                                hx-post="{% url 'accounting:remove_repair_invoice_item' job.pk forloop.counter0 %}"
+                                hx-target="#repair-invoice-items-container"
+                                hx-swap="innerHTML"
+                                hx-params="none"
+                                hx-confirm="{% if item.source == 'repair' %}Remove this repair part from the invoice?{% else %}Remove this item from the invoice?{% endif %}"
+                                title="Remove">
+                            <i class="bi bi-x-circle"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-info-circle me-1"></i>
+                        No items yet. Add at least one item to create the invoice.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if items %}
+            <tfoot class="table-light">
+                <tr>
+                    <td colspan="5" class="text-end small">Subtotal:</td>
+                    <td class="text-end fw-bold">₹{{ subtotal|floatformat:2 }}</td>
+                    <td></td>
+                </tr>
+                <tr>
+                    <td colspan="5" class="text-end small">Tax:</td>
+                    <td class="text-end fw-bold">₹{{ tax_total|floatformat:2 }}</td>
+                    <td></td>
+                </tr>
+                <tr class="table-success">
+                    <td colspan="5" class="text-end fw-bold">Total:</td>
+                    <td class="text-end fw-bold fs-6">₹{{ grand_total|floatformat:2 }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+
+    <div class="small text-muted mt-2">
+        <i class="bi bi-info-circle me-1"></i>
+        <strong>Repair parts</strong> aur <strong>Labour</strong> ke stock pehle hi deduct ho chuke hain.
+        Manually add kiye gaye items ka stock invoice banne par deduct hoga.
+    </div>
+</div>

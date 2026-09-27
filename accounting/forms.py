@@ -981,6 +981,40 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                       'received_by', 'received_remarks', 'delivered_by']:
             if field in self.fields:
                 self.fields[field].required = False
+    
+    def clean_labour_charge(self):
+        """Block changing labour charge once invoice is generated."""
+        labour = self.cleaned_data.get('labour_charge') or Decimal('0')
+
+        if self.instance and self.instance.pk and self.instance.invoice_id:
+            try:
+                original = RepairJob.objects.get(pk=self.instance.pk).labour_charge
+            except RepairJob.DoesNotExist:
+                original = Decimal('0')
+
+            if labour != original:
+                raise ValidationError(
+                    "Labour charge cannot be changed after an invoice is generated. "
+                    "Please edit the invoice directly or delete it first."
+                )
+        return labour
+
+    def clean_customer(self):
+        """Block changing customer once invoice is generated."""
+        customer = self.cleaned_data.get('customer')
+
+        if self.instance and self.instance.pk and self.instance.invoice_id:
+            try:
+                original = RepairJob.objects.get(pk=self.instance.pk).customer
+            except RepairJob.DoesNotExist:
+                original = None
+
+            if original and customer != original:
+                raise ValidationError(
+                    "Customer cannot be changed after an invoice is generated. "
+                    "Please delete the invoice first."
+                )
+        return customer
 
     def clean_estimated_cost(self):
         cost = self.cleaned_data.get('estimated_cost')

@@ -121,6 +121,10 @@ urlpatterns = [
     path('repairs/<int:pk>/send-estimate/', repairs.send_estimate_to_customer, name='send_estimate_to_customer'),
     path('repairs/<int:pk>/estimate/print/', repairs.estimate_print, name='estimate_print'),
     path('repairs/<int:pk>/warranty-card/', repairs.warranty_card_print, name='warranty_card_print'),
+    # ===== Repair → Invoice Item Management =====
+    path('repairs/<int:pk>/create-invoice/add-item/', repairs.add_repair_invoice_item, name='add_repair_invoice_item'),
+    path('repairs/<int:pk>/create-invoice/remove-item/<int:index>/', repairs.remove_repair_invoice_item, name='remove_repair_invoice_item'),
+    path('repairs/invoice/product-search/', repairs.repair_invoice_product_search, name='repair_invoice_product_search'),
 
     # ===== Reports =====
     path('reports/sales/', sales_report, name='sales_report'),

@@ -36,7 +36,7 @@
                         </td>
                         <td>{{ repair.device_model }}</td>
                         <td>
-                            <span class="badge 
+                            <span class="badge
                                 {% if repair.status == 'pending' %}bg-warning text-dark
                                 {% elif repair.status == 'received' %}bg-secondary
                                 {% elif repair.status == 'diagnosis' %}bg-info text-dark
@@ -55,11 +55,24 @@
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
-                        <td class="text-end fw-bold">₹{{ repair.final_amount|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">
+                            ₹{{ repair.display_amount|floatformat:2 }}
+                            {% if repair.is_invoiced %}
+                                <br>
+                                <small class="text-muted fw-normal" style="font-size:0.65rem;">
+                                    <i class="bi bi-receipt"></i> Invoiced
+                                </small>
+                            {% else %}
+                                <br>
+                                <small class="text-muted fw-normal" style="font-size:0.65rem;">
+                                    <i class="bi bi-clock"></i> Estimated
+                                </small>
+                            {% endif %}
+                        </td>
                         <td class="text-center">
                             <div class="dropdown">
-                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
-                                        type="button" 
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button"
                                         data-bs-toggle="dropdown"
                                         data-bs-strategy="fixed"
                                         data-bs-boundary="viewport">
@@ -78,9 +91,9 @@
                                             </a>
                                         </li>
                                         <li>
-                                            <button class="dropdown-item text-danger" 
-                                                    hx-get="{% url 'customer:customer_repair_delete' repair.pk %}" 
-                                                    hx-target="#mainModalContent" 
+                                            <button class="dropdown-item text-danger"
+                                                    hx-get="{% url 'customer:customer_repair_delete' repair.pk %}"
+                                                    hx-target="#mainModalContent"
                                                     hx-trigger="click">
                                                 <i class="bi bi-trash me-2"></i>Delete
                                             </button>
@@ -112,7 +125,7 @@
                 </tbody>
                 <tfoot class="table-light">
                     <tr>
-                        <th colspan="6" class="text-end">Total Amount</th>
+                        <th colspan="6" class="text-end">Total (excl. cancelled)</th>
                         <th class="text-end fw-bold">₹{{ filtered_total|floatformat:2 }}</th>
                         <th></th>
                     </tr>
@@ -121,7 +134,6 @@
         </div>
     </div>
 
-    <!-- Pagination -->
     {% if page_obj and page_obj.has_other_pages %}
     <div class="card-footer bg-white border-0">
         <nav aria-label="Repair pagination">

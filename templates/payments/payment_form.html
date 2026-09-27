@@ -1,12 +1,9 @@
 <!-- templates/payments/payment_form.html -->
 {% load static %}
 
-<!-- Tom Select CSS (self-contained) -->
-<link rel="stylesheet" href="{% static 'vendor/tom-select/tom-select.bootstrap5.min.css' %}">
-
 <form method="post"
-      action="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}"
-      hx-post="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}"
+      action="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% elif target_invoice %}{% url 'accounting:add_payment' target_invoice.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
+      hx-post="{% if payment %}{% url 'accounting:payment_update' payment.pk %}{% elif target_invoice %}{% url 'accounting:add_payment' target_invoice.pk %}{% else %}{% url 'accounting:payment_create' %}{% endif %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
       hx-target="#payment-table-container"
       hx-swap="innerHTML"
       id="paymentForm"
@@ -24,7 +21,6 @@
     </div>
 
     <div class="modal-body">
-        <!-- Non-field errors -->
         {% if form.non_field_errors %}
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle me-2"></i>
@@ -34,15 +30,12 @@
             </div>
         {% endif %}
 
-        <!-- ============================================================
-             SECTION 1: Payment Basics
-             ============================================================ -->
+        <!-- SECTION 1: Payment Basics -->
         <h6 class="text-primary border-bottom pb-2 mb-3">
             <i class="bi bi-cash-stack me-2"></i>Payment Details
         </h6>
 
         <div class="row g-3">
-            <!-- Direction -->
             <div class="col-md-4">
                 <label for="id_direction" class="form-label fw-semibold">
                     Direction <span class="text-danger">*</span>
@@ -57,7 +50,6 @@
                 {% endif %}
             </div>
 
-            <!-- Amount -->
             <div class="col-md-4">
                 <label for="id_amount" class="form-label fw-semibold">
                     Amount (₹) <span class="text-danger">*</span>
@@ -71,7 +63,6 @@
                 {% endif %}
             </div>
 
-            <!-- Date -->
             <div class="col-md-4">
                 <label for="id_date" class="form-label fw-semibold">
                     Date <span class="text-danger">*</span>
@@ -85,9 +76,7 @@
             </div>
         </div>
 
-        <!-- ============================================================
-             SECTION 2: Contact (Tom Select Dropdown)
-             ============================================================ -->
+        <!-- SECTION 2: Contact -->
         <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
             <i class="bi bi-person-circle me-2"></i>Contact
         </h6>
@@ -118,9 +107,7 @@
             </div>
         </div>
 
-        <!-- ============================================================
-             SECTION 3: Payment Method
-             ============================================================ -->
+        <!-- SECTION 3: Payment Method -->
         <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
             <i class="bi bi-bank me-2"></i>Payment Method
         </h6>
@@ -187,9 +174,7 @@
             </div>
         </div>
 
-        <!-- ============================================================
-             SECTION 4: Allocate to Unpaid Invoices
-             ============================================================ -->
+        <!-- SECTION 4: Allocate to Unpaid Invoices -->
         <div id="allocation-section" class="mt-4">
             <h6 class="text-primary border-bottom pb-2 mb-3">
                 <i class="bi bi-list-check me-2"></i>Allocate to Unpaid Invoices
@@ -208,9 +193,7 @@
             </div>
         </div>
 
-        <!-- ============================================================
-             SECTION 5: Discount
-             ============================================================ -->
+        <!-- SECTION 5: Discount -->
         <div class="mt-4">
             <h6 class="text-primary border-bottom pb-2 mb-3">
                 <i class="bi bi-percent me-2"></i>Discount (Optional)
@@ -258,9 +241,7 @@
             </div>
         </div>
 
-        <!-- ============================================================
-             SECTION 6: Description
-             ============================================================ -->
+        <!-- SECTION 6: Description -->
         <div class="mt-4">
             <label for="id_description" class="form-label fw-semibold">Description / Notes</label>
             <textarea name="description" id="id_description" rows="2"
@@ -284,32 +265,121 @@
     </div>
 </form>
 
-<!-- Tom Select JS -->
-<script src="{% static 'vendor/tom-select/tom-select.complete.min.js' %}"></script>
-
 <script>
 (function() {
     'use strict';
 
-    const form = document.getElementById('paymentForm');
+    var form = document.getElementById('paymentForm');
     if (!form) return;
 
-    const directionSelect = document.getElementById('id_direction');
-    const amountInput = document.getElementById('id_amount');
-    const discountInput = document.getElementById('id_discount_amount');
-    const netDisplay = document.getElementById('net-amount-display');
-    const unpaidContainer = document.getElementById('unpaid-invoices-container');
-    const resetAllocFlag = document.getElementById('reset_allocations');
+    var contactSelect   = document.getElementById('id_contact');
+    var directionSelect = document.getElementById('id_direction');
+    var amountInput     = document.getElementById('id_amount');
+    var discountInput   = document.getElementById('id_discount_amount');
+    var netDisplay      = document.getElementById('net-amount-display');
+    var unpaidContainer = document.getElementById('unpaid-invoices-container');
+    var resetAllocFlag  = document.getElementById('reset_allocations');
 
     // ============================================================
-    // INIT TOM SELECT on contact dropdown
+    // HELPER: Set placeholder message
+    // ============================================================
+    function setPlaceholder(msg) {
+        if (!unpaidContainer) return;
+        unpaidContainer.innerHTML =
+            '<div class="alert alert-light border text-center py-4 mb-0">' +
+            '<i class="bi bi-info-circle text-muted me-2"></i>' + msg +
+            '</div>';
+    }
+
+    // ============================================================
+    // HELPER: Get contact type from option (robust matching)
+    // ============================================================
+    function getContactType(contactId) {
+        if (!contactSelect || !contactId) return '';
+        var options = contactSelect.querySelectorAll('option');
+        for (var i = 0; i < options.length; i++) {
+            if (String(options[i].value) === String(contactId)) {
+                return options[i].getAttribute('data-type') || '';
+            }
+        }
+        return '';
+    }
+
+    // ============================================================
+    // CORE: Load unpaid invoices via HTMX
+    // ============================================================
+    function loadUnpaidInvoices(contactId) {
+        if (contactId === undefined || contactId === null) {
+            contactId = contactSelect ? contactSelect.value : '';
+        }
+
+        var direction = directionSelect ? directionSelect.value : '';
+
+        if (!contactId) {
+            setPlaceholder('Select a customer above to load their unpaid invoices.');
+            return;
+        }
+        if (direction !== 'received') {
+            setPlaceholder('Invoice allocation is available only for "Received from Customer" payments.');
+            return;
+        }
+
+        if (!unpaidContainer) return;
+        unpaidContainer.innerHTML =
+            '<div class="text-center py-4">' +
+            '<div class="spinner-border text-primary" role="status"></div>' +
+            '<p class="text-muted mt-2 mb-0">Loading unpaid invoices...</p>' +
+            '</div>';
+
+        var url = '{% url "accounting:load_unpaid_invoices" %}?contact=' +
+                  encodeURIComponent(contactId) + '&direction=' + direction;
+
+        htmx.ajax('GET', url, {
+            target: '#unpaid-invoices-container',
+            swap: 'innerHTML'
+        });
+    }
+
+    // ============================================================
+    // CORE: Handle contact change (used by onChange + onItemAdd)
+    // ============================================================
+    var lastProcessedContact = null;
+
+    function handleContactChange(value) {
+        if (value === lastProcessedContact && value) return;
+        lastProcessedContact = value;
+
+        if (!value) {
+            setPlaceholder('Select a customer above to load their unpaid invoices.');
+            return;
+        }
+
+        var type = getContactType(value);
+
+        if (directionSelect) {
+            if (type === 'customer' || type === 'both') {
+                directionSelect.value = 'received';
+            } else if (type === 'vendor') {
+                directionSelect.value = 'paid';
+            }
+        }
+
+        var direction = directionSelect ? directionSelect.value : '';
+        if (direction === 'received') {
+            loadUnpaidInvoices(value);
+        } else {
+            setPlaceholder('Invoice allocation is available only for "Received from Customer" payments.');
+        }
+    }
+
+    // ============================================================
+    // INIT TOM SELECT
     // ============================================================
     function initTomSelect() {
-        const select = document.getElementById('id_contact');
-        if (!select) return null;
-        if (select.tomselect) return select.tomselect;
+        if (!contactSelect) return null;
+        if (contactSelect.tomselect) return contactSelect.tomselect;
 
-        const ts = new TomSelect(select, {
+        return new window.TomSelect(contactSelect, {
             placeholder: 'Search by name or phone...',
             allowEmptyOption: true,
             maxOptions: 500,
@@ -323,136 +393,119 @@
                            '</div>';
                 },
                 option: function(data, escape) {
-                    return '<div class="py-1">' +
-                           '<span>' + escape(data.text) + '</span>' +
-                           '</div>';
+                    return '<div class="py-1"><span>' + escape(data.text) + '</span></div>';
                 },
                 item: function(data, escape) {
                     return '<div>' + escape(data.text) + '</div>';
                 }
             },
             onChange: function(value) {
-                // Auto-set direction based on contact type
-                if (value) {
-                    const opt = select.querySelector('option[value="' + value + '"]');
-                    const type = opt ? opt.dataset.type : '';
-                    if (type === 'customer' || type === 'both') {
-                        directionSelect.value = 'received';
-                    } else if (type === 'vendor') {
-                        directionSelect.value = 'paid';
-                    }
-                    loadUnpaidInvoices(value);
-                } else {
-                    // Clear allocation section
-                    unpaidContainer.innerHTML =
-                        '<div class="alert alert-light border text-center py-4 mb-0">' +
-                        '<i class="bi bi-info-circle text-muted me-2"></i>' +
-                        'Select a customer above to load their unpaid invoices.' +
-                        '</div>';
+                handleContactChange(value);
+            },
+            onItemAdd: function(value) {
+                handleContactChange(value);
+            },
+            onInitialize: function() {
+                var initial = this.getValue();
+                if (initial) {
+                    handleContactChange(initial);
                 }
             }
         });
-
-        return ts;
     }
 
-    // Init immediately (form is already in DOM after HTMX swap)
-    initTomSelect();
-
     // ============================================================
-    // LOAD UNPAID INVOICES
+    // WIRE EVERYTHING
     // ============================================================
-    function loadUnpaidInvoices(contactId) {
-        if (!contactId) contactId = document.getElementById('id_contact').value;
-        const direction = directionSelect.value;
+    function initPaymentForm() {
+        initTomSelect();
 
-        if (!contactId || direction !== 'received') {
-            unpaidContainer.innerHTML =
-                '<div class="alert alert-light border text-center py-4 mb-0">' +
-                '<i class="bi bi-info-circle text-muted me-2"></i>' +
-                (direction !== 'received'
-                    ? 'Invoice allocation is available only for "Received from Customer" payments.'
-                    : 'Select a customer above to load their unpaid invoices.') +
-                '</div>';
-            return;
+        if (contactSelect) {
+            contactSelect.addEventListener('change', function() {
+                var v = contactSelect.value;
+                if (v && v !== lastProcessedContact) {
+                    handleContactChange(v);
+                }
+            });
         }
 
-        unpaidContainer.innerHTML =
-            '<div class="text-center py-4">' +
-            '<div class="spinner-border text-primary" role="status"></div>' +
-            '<p class="text-muted mt-2 mb-0">Loading unpaid invoices...</p>' +
-            '</div>';
+        if (directionSelect) {
+            directionSelect.addEventListener('change', function() {
+                lastProcessedContact = null;
+                var c = contactSelect ? contactSelect.value : '';
+                if (c) {
+                    loadUnpaidInvoices(c);
+                } else {
+                    loadUnpaidInvoices();
+                }
+            });
+        }
 
-        const url = '{% url "accounting:load_unpaid_invoices" %}?contact=' +
-                    encodeURIComponent(contactId) + '&direction=' + direction;
+        function updateNetAmount() {
+            var amount = parseFloat(amountInput ? amountInput.value : 0) || 0;
+            var discount = parseFloat(discountInput ? discountInput.value : 0) || 0;
+            var net = Math.max(0, amount - discount);
+            if (netDisplay) netDisplay.textContent = '₹' + net.toFixed(2);
+        }
+        if (amountInput) amountInput.addEventListener('input', updateNetAmount);
+        if (discountInput) discountInput.addEventListener('input', updateNetAmount);
+        updateNetAmount();
 
-        htmx.ajax('GET', url, {
-            target: '#unpaid-invoices-container',
-            swap: 'innerHTML'
+        form.addEventListener('submit', function() {
+            if (resetAllocFlag) resetAllocFlag.value = '1';
+            var btn = document.getElementById('payment-submit');
+            var spinner = document.getElementById('payment-spinner');
+            var text = document.getElementById('payment-submit-text');
+            if (spinner) spinner.classList.remove('d-none');
+            if (text) text.style.display = 'none';
+            if (btn) btn.disabled = true;
         });
+
+        // Edit mode: prefill contact → auto load invoices
+        var initialContact = contactSelect ? contactSelect.value : '';
+        var initialDirection = directionSelect ? directionSelect.value : '';
+        if (initialContact && initialDirection === 'received') {
+            setTimeout(function() { loadUnpaidInvoices(initialContact); }, 100);
+        }
     }
 
-    directionSelect.addEventListener('change', function() {
-        loadUnpaidInvoices();
-    });
-
     // ============================================================
-    // NET AMOUNT DISPLAY
+    // DEFENSIVE READY-CHECK: wait for TomSelect if not loaded yet
+    // (Safety net if base.html script is slow / cached miss)
     // ============================================================
-    function updateNetAmount() {
-        const amount = parseFloat(amountInput?.value) || 0;
-        const discount = parseFloat(discountInput?.value) || 0;
-        const net = Math.max(0, amount - discount);
-        if (netDisplay) netDisplay.textContent = '₹' + net.toFixed(2);
+    if (typeof window.TomSelect !== 'undefined') {
+        initPaymentForm();
+    } else {
+        var attempts = 0;
+        var maxAttempts = 60; // 60 * 100ms = 6 seconds
+        var iv = setInterval(function() {
+            if (typeof window.TomSelect !== 'undefined') {
+                clearInterval(iv);
+                initPaymentForm();
+            } else if (++attempts >= maxAttempts) {
+                clearInterval(iv);
+                console.error('[payment_form] TomSelect failed to load after 6s. Falling back to native select.');
+                initPaymentForm(); // still init form logic; TomSelect will be skipped
+            }
+        }, 100);
     }
-    amountInput?.addEventListener('input', updateNetAmount);
-    discountInput?.addEventListener('input', updateNetAmount);
-    updateNetAmount();
 
     // ============================================================
-    // MARK RESET FLAG ON SUBMIT
+    // Restore submit button state (bound ONCE globally)
     // ============================================================
-    form.addEventListener('submit', function() {
-        if (resetAllocFlag) resetAllocFlag.value = '1';
-        const btn = document.getElementById('payment-submit');
-        const spinner = document.getElementById('payment-spinner');
-        const text = document.getElementById('payment-submit-text');
-        if (spinner) spinner.classList.remove('d-none');
-        if (text) text.style.display = 'none';
-        if (btn) btn.disabled = true;
-    });
-
-    // ════════════════════════════════════════════════════════════
-    // Body listeners — bound ONCE globally (survives re-renders)
-    // ════════════════════════════════════════════════════════════
     if (!window.__paymentFormBodyBound) {
         window.__paymentFormBodyBound = true;
 
         document.body.addEventListener('htmx:afterRequest', function (evt) {
-            const elt = evt.detail.elt;
+            var elt = evt.detail.elt;
             if (!elt || !elt.closest || !elt.closest('#paymentForm')) return;
-            const btn = document.getElementById('payment-submit');
-            const spinner = document.getElementById('payment-spinner');
-            const text = document.getElementById('payment-submit-text');
+            var btn = document.getElementById('payment-submit');
+            var spinner = document.getElementById('payment-spinner');
+            var text = document.getElementById('payment-submit-text');
             if (spinner) spinner.classList.add('d-none');
             if (text) text.style.display = 'inline';
             if (btn) btn.disabled = false;
         });
-
-        document.body.addEventListener('closeModal', function () {
-            const modalEl = document.getElementById('mainModal');
-            if (!modalEl) return;
-            const modal = bootstrap.Modal.getInstance(modalEl);
-            if (modal) modal.hide();
-        });
-    }
-
-    // ============================================================
-    // LOAD UNPAID INVOICES ON PAGE LOAD (Edit mode)
-    // ============================================================
-    const initialContact = document.getElementById('id_contact')?.value;
-    if (initialContact && directionSelect.value === 'received') {
-        setTimeout(() => loadUnpaidInvoices(initialContact), 100);
     }
 })();
 </script>

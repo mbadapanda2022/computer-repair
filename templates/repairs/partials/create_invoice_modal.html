@@ -1,35 +1,408 @@
-<!-- Create Invoice Modal with Date Picker -->
-<div class="modal-header">
-    <h5 class="modal-title"><i class="bi bi-receipt"></i> Create Invoice for {{ job.job_number }}</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-</div>
+{% load static math_filters %}
 
 <form method="post"
       action="{% url 'accounting:create_invoice_from_repair' job.pk %}"
       hx-post="{% url 'accounting:create_invoice_from_repair' job.pk %}"
       hx-target="#mainModalContent"
       hx-swap="innerHTML"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+      id="repairInvoiceForm"
+      novalidate>
     {% csrf_token %}
 
+    <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-receipt me-2"></i>Create Invoice — {{ job.job_number }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
     <div class="modal-body">
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i>
-            Invoice will include all parts and labour charges.
-            <br><small>Status will be updated to <strong>Delivered</strong>.</small>
+
+        <!-- Repair Summary (readonly) -->
+        <div class="alert alert-light border mb-3">
+            <div class="row g-2 small">
+                <div class="col-md-6">
+                    <i class="bi bi-person-circle me-1 text-primary"></i>
+                    <strong>{{ job.customer.name }}</strong>
+                </div>
+                <div class="col-md-6">
+                    <i class="bi bi-laptop me-1 text-warning"></i>
+                    {{ job.device_model }}
+                    {% if job.serial_number %}(SN: {{ job.serial_number }}){% endif %}
+                </div>
+                <div class="col-md-6">
+                    <i class="bi bi-tools me-1 text-info"></i>
+                    Status: <span class="badge bg-secondary">{{ job.get_status_display }}</span>
+                </div>
+                <div class="col-md-6">
+                    <i class="bi bi-cash-stack me-1 text-success"></i>
+                    Parts + Labour ready to invoice
+                </div>
+            </div>
         </div>
 
-        <div class="mb-3">
-            <label for="invoice_date" class="form-label fw-bold">Invoice Date <span class="text-danger">*</span></label>
-            <input type="date" name="invoice_date" id="invoice_date" class="form-control" value="{% now 'Y-m-d' %}" required>
-            <small class="text-muted">Select the date for this invoice. Today is default.</small>
+        <!-- Invoice Meta -->
+        <h6 class="text-primary border-bottom pb-2 mb-3">
+            <i class="bi bi-info-circle me-1"></i>Invoice Details
+        </h6>
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <label for="invoice_date" class="form-label fw-semibold">
+                    Invoice Date <span class="text-danger">*</span>
+                </label>
+                <input type="date" name="invoice_date" id="invoice_date"
+                       class="form-control"
+                       value="{{ today|date:'Y-m-d' }}" required>
+            </div>
+            <div class="col-md-4">
+                <label for="due_date" class="form-label fw-semibold">Due Date</label>
+                <input type="date" name="due_date" id="due_date" class="form-control">
+                <small class="text-muted">Optional</small>
+            </div>
+            <div class="col-md-4">
+                <label for="gst_type" class="form-label fw-semibold">GST Type</label>
+                <select name="gst_type" id="gst_type" class="form-select">
+                    <option value="">Auto-detect</option>
+                    {% for value, label in gst_type_choices %}
+                        <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <small class="text-muted">Auto if left blank</small>
+            </div>
+            <div class="col-12">
+                <label for="notes" class="form-label fw-semibold">Notes</label>
+                <textarea name="notes" id="notes" rows="2" class="form-control"
+                          placeholder="Leave blank to auto-generate from repair details"></textarea>
+            </div>
         </div>
+
+        <!-- Items Section -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+            <i class="bi bi-list-ul me-1"></i>Invoice Items
+            <small class="text-muted fw-normal">— parts & labour pre-loaded</small>
+        </h6>
+
+        <!-- Items container — reloads on add/remove -->
+        <div id="repair-invoice-items-wrapper"
+             data-subtotal="{{ subtotal }}"
+             data-tax="{{ tax_total }}">
+            <div id="repair-invoice-items-container">
+                {% include 'repairs/partials/repair_invoice_items.html' %}
+            </div>
+        </div>
+
+        <!-- Add Item Row (manual extra items) -->
+        <div class="border rounded p-2 mt-3 bg-light">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold mb-1">
+                        Add Extra Item (Service / Product)
+                    </label>
+                    <div class="position-relative">
+                        <input type="text" id="ri-product-search"
+                            name="q"
+                            class="form-control form-control-sm"
+                            placeholder="Search product by name or HSN..."
+                            hx-get="{% url 'accounting:repair_invoice_product_search' %}"
+                            hx-trigger="keyup changed delay:300ms"
+                            hx-target="#ri-product-suggestions"
+                            hx-swap="innerHTML"
+                            autocomplete="off">
+                        <div id="ri-product-suggestions"
+                            class="position-absolute w-100"
+                            style="z-index: 1080;"></div>
+                        <input type="hidden" id="ri-selected-product-id">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Qty</label>
+                    <input type="number" id="ri-qty"
+                           class="form-control form-control-sm"
+                           value="1" min="0.01" step="any">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Price (₹)</label>
+                    <input type="number" id="ri-price"
+                           class="form-control form-control-sm"
+                           step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Tax (%)</label>
+                    <input type="number" id="ri-tax"
+                           class="form-control form-control-sm"
+                           step="0.01" value="18">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" id="ri-add-btn"
+                            class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-plus-circle me-1"></i>Add
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Discount Section -->
+        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+            <i class="bi bi-percent me-1"></i>Discount (Optional)
+        </h6>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="discount_amount" class="form-label fw-semibold">
+                    Discount Amount (₹)
+                </label>
+                <input type="number" name="discount_amount" id="discount_amount"
+                       class="form-control" step="0.01" min="0"
+                       value="0" placeholder="0.00">
+            </div>
+            <div class="col-md-4">
+                <label for="discount_type" class="form-label fw-semibold">Type</label>
+                <select name="discount_type" id="discount_type" class="form-select">
+                    <option value="">— None —</option>
+                    <option value="early_payment">Early Payment Discount</option>
+                    <option value="volume">Volume/Bulk Discount</option>
+                    <option value="seasonal">Seasonal Sale</option>
+                    <option value="damage">Damaged Goods</option>
+                    <option value="staff">Staff Discount</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="discount_note" class="form-label fw-semibold">Note</label>
+                <input type="text" name="discount_note" id="discount_note"
+                       class="form-control"
+                       placeholder="Reason for discount">
+            </div>
+        </div>
+
+        <!-- Live Totals -->
+        <div class="mt-4 p-3 bg-light rounded-3">
+            <div class="d-flex justify-content-between small mb-1">
+                <span class="text-muted">Subtotal:</span>
+                <span class="fw-bold" id="ri-display-subtotal">₹{{ subtotal|floatformat:2 }}</span>
+            </div>
+            <div class="d-flex justify-content-between small mb-1">
+                <span class="text-muted">Tax:</span>
+                <span class="fw-bold" id="ri-display-tax">₹{{ tax_total|floatformat:2 }}</span>
+            </div>
+            <div class="d-flex justify-content-between small mb-2">
+                <span class="text-muted">Discount:</span>
+                <span class="fw-bold text-danger" id="ri-display-discount">−₹0.00</span>
+            </div>
+            <hr class="my-2">
+            <div class="d-flex justify-content-between">
+                <span class="fw-bold fs-6">Grand Total:</span>
+                <span class="fw-bold fs-5 text-success" id="ri-display-grand">₹{{ grand_total|floatformat:2 }}</span>
+            </div>
+        </div>
+
     </div>
 
     <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-success">
-            <i class="bi bi-check-circle"></i> Generate Invoice
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+            <i class="bi bi-x-circle me-1"></i>Cancel
+        </button>
+        <button type="submit" class="btn btn-success" id="ri-submit-btn">
+            <span id="ri-submit-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+            <i class="bi bi-check-circle me-1"></i>
+            <span id="ri-submit-text">Generate Invoice</span>
         </button>
     </div>
 </form>
+
+<script>
+(function () {
+    'use strict';
+
+    var form = document.getElementById('repairInvoiceForm');
+    if (!form) return;
+
+    // ════════════════════════════════════════════════════════════
+    // Live totals (client-side, display only — actual calc on server)
+    // ════════════════════════════════════════════════════════════
+    var subtotalEl   = document.getElementById('ri-display-subtotal');
+    var taxEl        = document.getElementById('ri-display-tax');
+    var discountEl   = document.getElementById('ri-display-discount');
+    var grandEl      = document.getElementById('ri-display-grand');
+    var discountInput = document.getElementById('discount_amount');
+
+    function getSubtotal() {
+        var wrap = document.getElementById('repair-invoice-items-wrapper');
+        if (!wrap) return 0;
+        return parseFloat(wrap.dataset.subtotal) || 0;
+    }
+    function getTax() {
+        var wrap = document.getElementById('repair-invoice-items-wrapper');
+        if (!wrap) return 0;
+        return parseFloat(wrap.dataset.tax) || 0;
+    }
+
+    function recalcTotals() {
+        var subtotal = getSubtotal();
+        var tax = getTax();
+        var discount = parseFloat(discountInput ? discountInput.value : 0) || 0;
+        var grand = Math.max(0, subtotal + tax - discount);
+
+        if (subtotalEl) subtotalEl.textContent = '₹' + subtotal.toFixed(2);
+        if (taxEl)      taxEl.textContent = '₹' + tax.toFixed(2);
+        if (discountEl) discountEl.textContent = '−₹' + discount.toFixed(2);
+        if (grandEl)    grandEl.textContent = '₹' + grand.toFixed(2);
+    }
+
+    if (discountInput) discountInput.addEventListener('input', recalcTotals);
+    recalcTotals();
+
+    // Recalc after HTMX swaps the items partial
+    document.body.addEventListener('htmx:afterSwap', function (evt) {
+        var target = evt.detail.target;
+        if (!target) return;
+        if (target.id === 'repair-invoice-items-container') {
+            // Update wrapper data attributes from the fresh partial
+            var newItems = target.querySelector('[data-subtotal]');
+            var wrap = document.getElementById('repair-invoice-items-wrapper');
+            if (wrap && newItems) {
+                wrap.dataset.subtotal = newItems.dataset.subtotal || '0';
+                wrap.dataset.tax = newItems.dataset.tax || '0';
+            }
+            recalcTotals();
+        }
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // Product suggestion click → fill form
+    // ════════════════════════════════════════════════════════════
+    document.body.addEventListener('click', function (e) {
+        var suggestion = e.target.closest('.product-suggestion');
+        if (!suggestion) return;
+        if (!suggestion.closest('#ri-product-suggestions')) return;
+
+        e.preventDefault();
+
+        var id = suggestion.dataset.id;
+        var name = suggestion.dataset.name;
+        var price = suggestion.dataset.price;
+        var tax = suggestion.dataset.tax;
+
+        var searchEl = document.getElementById('ri-product-search');
+        var idEl = document.getElementById('ri-selected-product-id');
+        var priceEl = document.getElementById('ri-price');
+        var taxEl = document.getElementById('ri-tax');
+        var suggestionsEl = document.getElementById('ri-product-suggestions');
+
+        if (idEl) idEl.value = id || '';
+        if (searchEl) searchEl.value = name || '';
+        if (priceEl && price) priceEl.value = price;
+        if (taxEl && tax) taxEl.value = tax;
+        if (suggestionsEl) suggestionsEl.innerHTML = '';
+    });
+
+    // Close suggestions on outside click
+    document.addEventListener('click', function (e) {
+        var sugg = document.getElementById('ri-product-suggestions');
+        if (!sugg) return;
+        if (!e.target.closest('#ri-product-search') && !e.target.closest('#ri-product-suggestions')) {
+            sugg.innerHTML = '';
+        }
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // Add Item button
+    // ════════════════════════════════════════════════════════════
+    var addBtn = document.getElementById('ri-add-btn');
+    if (addBtn) {
+        addBtn.addEventListener('click', function () {
+            var pidEl = document.getElementById('ri-selected-product-id');
+            var qtyEl = document.getElementById('ri-qty');
+            var priceEl = document.getElementById('ri-price');
+            var taxEl = document.getElementById('ri-tax');
+
+            var pid = pidEl ? pidEl.value : '';
+            if (!pid) {
+                if (window.showToast) {
+                    window.showToast('warning', 'Please select a product from the suggestions.');
+                } else {
+                    alert('Please select a product.');
+                }
+                return;
+            }
+
+            htmx.ajax('POST',
+                "{% url 'accounting:add_repair_invoice_item' job.pk %}",
+                {
+                    target: '#repair-invoice-items-container',
+                    swap: 'innerHTML',
+                    values: {
+                        product: pid,
+                        quantity: qtyEl ? qtyEl.value : 1,
+                        unit_price: priceEl ? priceEl.value : 0,
+                        tax_rate: taxEl ? taxEl.value : 0,
+                    }
+                }
+            ).then(function () {
+                // Reset form
+                setTimeout(function () {
+                    var searchEl = document.getElementById('ri-product-search');
+                    var newIdEl = document.getElementById('ri-selected-product-id');
+                    var newQtyEl = document.getElementById('ri-qty');
+                    var newPriceEl = document.getElementById('ri-price');
+                    if (searchEl) searchEl.value = '';
+                    if (newIdEl) newIdEl.value = '';
+                    if (newQtyEl) newQtyEl.value = '1';
+                    if (newPriceEl) newPriceEl.value = '';
+                }, 100);
+            });
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // Remove Item button (delegated)
+    // ════════════════════════════════════════════════════════════
+    document.body.addEventListener('click', function (e) {
+        var btn = e.target.closest('.ri-remove-item');
+        if (!btn) return;
+        var container = document.getElementById('repair-invoice-items-container');
+        if (!container || !container.contains(btn)) return;
+
+        e.preventDefault();
+
+        var idx = btn.dataset.index;
+        if (idx === undefined || idx === null || idx === '') return;
+
+        var confirmMsg = btn.dataset.source === 'repair'
+            ? 'Remove this repair part from the invoice?\nStock will NOT be restored (part was already consumed).'
+            : 'Remove this item from the invoice?';
+
+        if (!confirm(confirmMsg)) return;
+
+        htmx.ajax('POST',
+            "{% url 'accounting:remove_repair_invoice_item' job.pk 0 %}".replace('/0/', '/' + idx + '/'),
+            {
+                target: '#repair-invoice-items-container',
+                swap: 'innerHTML'
+            }
+        );
+    });
+
+    // ════════════════════════════════════════════════════════════
+    // Submit button loading state
+    // ════════════════════════════════════════════════════════════
+    form.addEventListener('submit', function () {
+        var btn = document.getElementById('ri-submit-btn');
+        var spinner = document.getElementById('ri-submit-spinner');
+        var text = document.getElementById('ri-submit-text');
+        if (spinner) spinner.classList.remove('d-none');
+        if (text) text.textContent = 'Creating...';
+        if (btn) btn.disabled = true;
+    });
+
+    document.body.addEventListener('htmx:afterRequest', function (evt) {
+        var elt = evt.detail.elt;
+        if (!elt || !elt.closest || !elt.closest('#repairInvoiceForm')) return;
+        var btn = document.getElementById('ri-submit-btn');
+        var spinner = document.getElementById('ri-submit-spinner');
+        var text = document.getElementById('ri-submit-text');
+        if (spinner) spinner.classList.add('d-none');
+        if (text) text.textContent = 'Generate Invoice';
+        if (btn) btn.disabled = false;
+    });
+})();
+</script>

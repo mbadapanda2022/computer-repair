@@ -462,20 +462,41 @@ def invoice_list(request):
 @login_required
 @handle_errors(default_redirect='customer:customer_dashboard')
 def invoice_detail(request, pk):
-    """Invoice detail with optional repair context."""
+    """
+    Invoice detail with optional repair context.
+
+    Prefetches:
+      - items + product (select_related)
+      - linked RepairJob (single query)
+    Passes GST breakup pre-computed so template stays logic-free.
+    """
     customer = _get_customer(request)
     invoice = get_object_or_404(
         Invoice.objects.select_related('customer'),
         pk=pk, customer=customer,
     )
-    # Prefetch items with product for efficiency
-    invoice_items = invoice.items.select_related('product').all()
-    repair_job = RepairJob.objects.filter(invoice=invoice).first()
+
+    # Materialise list once — avoids repeated .count() queries in template
+    invoice_items = list(
+        invoice.items.select_related('product').all()
+    )
+
+    # Prefetch linked repair job (avoids per-property N+1 on detail page)
+    repair_job = (
+        RepairJob.objects
+        .filter(invoice=invoice)
+        .select_related('customer')
+        .first()
+    )
+
+    # GST breakup — computed once in view (CGST/SGST/IGST split)
+    gst_breakup = invoice.get_gst_breakup()
 
     return render(request, 'customer/invoice_detail.html', {
         'invoice': invoice,
         'invoice_items': invoice_items,
         'repair_job': repair_job,
+        'gst_breakup': gst_breakup,
     })
 
 
@@ -519,7 +540,6 @@ def repair_list(request):
     """Customer repair list — filter, paginate, print, excel, HTMX."""
     customer = _get_customer(request)
 
-    # Reset — clear filters
     if request.GET.get('reset'):
         return redirect('customer:customer_repairs')
 
@@ -548,13 +568,18 @@ def repair_list(request):
     if date_to:
         qs = qs.filter(date_in__lte=date_to)
 
-    filtered_total = qs.aggregate(t=Sum('final_amount'))['t'] or Decimal('0')
+    # Filtered total — excludes cancelled AND uses invoiced amount
+    # when invoice exists (via display_amount property).
+    filtered_total = Decimal('0')
+    for repair in qs.exclude(status='cancelled'):
+        filtered_total += repair.display_amount
+    filtered_total = filtered_total.quantize(Decimal('0.01'))
 
     # Print mode
     if request.GET.get('print') == '1':
         company = CompanyProfile.get_instance()
         return render(request, 'customer/repair_list_print.html', {
-            'repairs': qs,
+            'repairs': qs.exclude(status='cancelled'),
             'customer': customer,
             'company': company,
             'logo_exists': bool(company.logo and company.logo.name),
@@ -562,7 +587,7 @@ def repair_list(request):
             'search': search,
             'date_from': date_from,
             'date_to': date_to,
-            'total_count': qs.count(),
+            'total_count': qs.exclude(status='cancelled').count(),
             'total_amount': filtered_total,
             'repair_status_choices': RepairJob.STATUS_CHOICES,
         })
@@ -591,32 +616,54 @@ def repair_list(request):
 @login_required
 @handle_errors(default_redirect='customer:customer_dashboard')
 def repair_detail(request, pk):
-    """Repair detail with parts breakdown."""
+    """
+    Repair detail with parts breakdown + invoiced items (if invoiced).
+
+    For invoiced repairs, includes the actual invoice items list so the
+    customer can see exactly what was billed (may differ from repair-side
+    parts tracking).
+    """
     customer = _get_customer(request)
     repair = get_object_or_404(
-        RepairJob.objects.select_related('invoice'),
+        RepairJob.objects.select_related('invoice', 'customer'),
         pk=pk, customer=customer,
     )
-    parts = repair.parts.select_related('product').all()
-    parts_total = sum(p.line_total for p in parts)
+
+    parts = list(repair.parts.select_related('product').all())
+    parts_total = sum((p.line_total for p in parts), Decimal('0'))
+
+    # ── Invoice context (when invoiced) ──
+    invoice_items = []
+    invoice_has_physical_parts = False
+    if repair.invoice_id:
+        invoice_items = list(
+            repair.invoice.items.select_related('product').all()
+        )
+        invoice_has_physical_parts = any(
+            not item.product.is_service for item in invoice_items
+        )
 
     return render(request, 'customer/repair_detail.html', {
         'repair': repair,
         'parts': parts,
         'parts_total': parts_total,
+        'invoice_items': invoice_items,
+        'invoice_has_physical_parts': invoice_has_physical_parts,
     })
-
 
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs')
 def repair_print(request, pk):
     """Print-friendly repair view."""
     customer = _get_customer(request)
-    repair = get_object_or_404(RepairJob, pk=pk, customer=customer)
+    repair = get_object_or_404(
+        RepairJob.objects.select_related('invoice', 'customer'),
+        pk=pk, customer=customer,
+    )
 
     company = CompanyProfile.get_instance()
-    parts = repair.parts.select_related('product').all()
-    parts_total = sum(p.line_total for p in parts)
+    parts = list(repair.parts.select_related('product').all())
+    parts_total = sum((p.line_total for p in parts), Decimal('0'))
 
     return render(request, 'customer/repair_print.html', {
         'repair': repair,

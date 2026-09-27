@@ -32,6 +32,7 @@
         .btn-secondary { background: #6c757d; color: #fff; }
         .text-muted { color: #6c757d; }
         .total-row th { background: #e9ecef; border-top: 2px solid #333; }
+        .invoiced-label { font-size: 7pt; color: #6c757d; display: block; }
     </style>
 </head>
 <body>
@@ -89,7 +90,14 @@
                         —
                     {% endif %}
                 </td>
-                <td class="text-end">₹{{ repair.final_amount|floatformat:2 }}</td>
+                <td class="text-end">
+                    ₹{{ repair.display_amount|floatformat:2 }}
+                    {% if repair.is_invoiced %}
+                        <span class="invoiced-label">Invoiced</span>
+                    {% else %}
+                        <span class="invoiced-label">Estimated</span>
+                    {% endif %}
+                </td>
             </tr>
             {% empty %}
             <tr>
@@ -99,7 +107,7 @@
         </tbody>
         <tfoot>
             <tr class="total-row">
-                <th colspan="6" class="text-end">Total Amount</th>
+                <th colspan="6" class="text-end">Total Amount (excl. cancelled)</th>
                 <th class="text-end fw-bold">₹{{ total_amount|default:0|floatformat:2 }}</th>
             </tr>
         </tfoot>

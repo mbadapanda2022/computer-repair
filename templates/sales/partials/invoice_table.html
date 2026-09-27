@@ -54,12 +54,15 @@
                         </td>
                         <td class="text-center">
                             <div class="dropdown">
-                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
-                                        type="button" data-bs-toggle="dropdown" 
-                                        data-bs-auto-close="outside">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button"
+                                        data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        data-bs-strategy="fixed"
+                                        data-bs-boundary="viewport">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
+                                <ul class="dropdown-menu dropdown-menu-end">
                                     <li>
                                         <a class="dropdown-item" href="{% url 'accounting:invoice_detail' invoice.pk %}">
                                             <i class="bi bi-eye me-2 text-primary"></i>View
@@ -95,9 +98,10 @@
                                     {% endif %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <button class="dropdown-item text-danger" 
-                                                hx-delete="{% url 'accounting:invoice_delete' invoice.pk %}" 
+                                        <button class="dropdown-item text-danger"
+                                                hx-delete="{% url 'accounting:invoice_delete' invoice.pk %}"
                                                 hx-target="#invoice-table-container"
+                                                hx-swap="none"
                                                 hx-confirm="Delete this invoice? This will reverse stock.">
                                             <i class="bi bi-trash me-2"></i>Delete
                                         </button>
@@ -130,22 +134,21 @@
         </div>
     </div>
 
-    <!-- Pagination -->
     {% if page_obj.has_other_pages %}
     <div class="card-footer bg-white border-0">
         <nav aria-label="Invoice pagination">
             <ul class="pagination justify-content-center mb-0">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:invoice_list' %}?page=1{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:invoice_list' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -156,15 +159,15 @@
 
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="#" 
-                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" 
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:invoice_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if customer_id %}&customer={{ customer_id }}{% endif %}{% if status %}&status={{ status }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
                        hx-target="#invoice-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>

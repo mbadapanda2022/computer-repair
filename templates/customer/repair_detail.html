@@ -130,7 +130,6 @@
     }
     .amount-card.primary .label { color: rgba(255,255,255,0.8); }
 
-    /* ===== ESTIMATE REVIEW SECTION ===== */
     .estimate-review {
         border-radius: 16px;
         overflow: hidden;
@@ -170,9 +169,7 @@
         opacity: 0.85;
         font-size: 0.85rem;
     }
-    .estimate-review .review-body {
-        padding: 1.5rem;
-    }
+    .estimate-review .review-body { padding: 1.5rem; }
 
     .estimate-breakup {
         border: 1px solid #e9ecef;
@@ -185,9 +182,7 @@
         margin: 0;
         font-size: 0.9rem;
     }
-    .estimate-breakup thead {
-        background: #f8f9fa;
-    }
+    .estimate-breakup thead { background: #f8f9fa; }
     .estimate-breakup th {
         padding: 0.75rem 1rem;
         font-size: 0.75rem;
@@ -201,9 +196,7 @@
         padding: 0.75rem 1rem;
         border-bottom: 1px solid #f1f3f5;
     }
-    .estimate-breakup tbody tr:last-child td {
-        border-bottom: none;
-    }
+    .estimate-breakup tbody tr:last-child td { border-bottom: none; }
     .estimate-breakup .total-row {
         background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
         border-top: 2px solid #28a745;
@@ -226,13 +219,8 @@
         margin-bottom: 1rem;
         font-size: 0.9rem;
     }
-    .terms-box ul {
-        margin: 0;
-        padding-left: 1.25rem;
-    }
-    .terms-box li {
-        margin-bottom: 0.35rem;
-    }
+    .terms-box ul { margin: 0; padding-left: 1.25rem; }
+    .terms-box li { margin-bottom: 0.35rem; }
 
     .action-buttons {
         display: grid;
@@ -240,9 +228,7 @@
         gap: 0.75rem;
         margin-top: 1rem;
     }
-    .action-buttons form {
-        margin: 0;
-    }
+    .action-buttons form { margin: 0; }
     .action-buttons button {
         width: 100%;
         padding: 1rem 0.5rem;
@@ -255,41 +241,18 @@
         align-items: center;
         gap: 0.35rem;
     }
-    .action-buttons button i {
-        font-size: 1.5rem;
-    }
+    .action-buttons button i { font-size: 1.5rem; }
     .action-buttons button small {
         font-size: 0.7rem;
         opacity: 0.8;
         font-weight: 500;
     }
-    .action-buttons .btn-approve {
-        background: #28a745;
-        color: white;
-    }
-    .action-buttons .btn-approve:hover {
-        background: #1e7e34;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(40,167,69,0.35);
-    }
-    .action-buttons .btn-hold {
-        background: #ffc107;
-        color: #1a1a2e;
-    }
-    .action-buttons .btn-hold:hover {
-        background: #e0a800;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(255,193,7,0.35);
-    }
-    .action-buttons .btn-reject {
-        background: #dc3545;
-        color: white;
-    }
-    .action-buttons .btn-reject:hover {
-        background: #c82333;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(220,53,69,0.35);
-    }
+    .action-buttons .btn-approve { background: #28a745; color: white; }
+    .action-buttons .btn-approve:hover { background: #1e7e34; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(40,167,69,0.35); }
+    .action-buttons .btn-hold { background: #ffc107; color: #1a1a2e; }
+    .action-buttons .btn-hold:hover { background: #e0a800; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(255,193,7,0.35); }
+    .action-buttons .btn-reject { background: #dc3545; color: white; }
+    .action-buttons .btn-reject:hover { background: #c82333; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(220,53,69,0.35); }
 
     .approved-banner {
         background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
@@ -308,6 +271,12 @@
         border-radius: 12px;
         padding: 1.25rem;
         border-left: 5px solid #ffc107;
+    }
+    .invoiced-banner {
+        background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border-left: 5px solid #17a2b8;
     }
 
     .parts-table thead th {
@@ -341,22 +310,11 @@
         background: #2c3034;
         border-bottom-color: rgba(255,255,255,0.08);
     }
-    [data-bs-theme="dark"] .estimate-breakup {
-        border-color: rgba(255,255,255,0.1);
-    }
-    [data-bs-theme="dark"] .estimate-breakup thead {
-        background: #1a1d20;
-    }
-    [data-bs-theme="dark"] .estimate-breakup td {
-        border-bottom-color: rgba(255,255,255,0.06);
-    }
-    [data-bs-theme="dark"] .info-row {
-        border-bottom-color: rgba(255,255,255,0.06);
-    }
-    [data-bs-theme="dark"] .terms-box {
-        background: rgba(255,193,7,0.15);
-        color: #e9ecef;
-    }
+    [data-bs-theme="dark"] .estimate-breakup { border-color: rgba(255,255,255,0.1); }
+    [data-bs-theme="dark"] .estimate-breakup thead { background: #1a1d20; }
+    [data-bs-theme="dark"] .estimate-breakup td { border-bottom-color: rgba(255,255,255,0.06); }
+    [data-bs-theme="dark"] .info-row { border-bottom-color: rgba(255,255,255,0.06); }
+    [data-bs-theme="dark"] .terms-box { background: rgba(255,193,7,0.15); color: #e9ecef; }
     @media (max-width: 768px) {
         .repair-header { padding: 1.25rem; }
         .repair-header .job-number { font-size: 1.1rem; }
@@ -365,12 +323,8 @@
         .info-row .info-value { width: 100%; }
         .info-row .info-label { margin-bottom: 0.25rem; }
         .amount-card .amount { font-size: 1.1rem; }
-        .action-buttons {
-            grid-template-columns: 1fr;
-        }
-        .estimate-breakup {
-            font-size: 0.8rem;
-        }
+        .action-buttons { grid-template-columns: 1fr; }
+        .estimate-breakup { font-size: 0.8rem; }
     }
 </style>
 {% endblock %}
@@ -378,9 +332,7 @@
 {% block content %}
 <div class="container py-4">
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- HERO HEADER                                             -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ═══════════════ HERO HEADER ═══════════════ -->
     <div class="repair-header mb-4">
         <div class="row align-items-center position-relative" style="z-index: 1;">
             <div class="col-md-7">
@@ -398,6 +350,11 @@
                         </i>
                         {{ repair.get_status_display }}
                     </span>
+                    {% if repair.is_invoiced %}
+                        <span class="status-badge-large" style="background: rgba(23,162,184,0.35); border-color: rgba(23,162,184,0.6);">
+                            <i class="bi bi-receipt me-2"></i>Invoiced
+                        </span>
+                    {% endif %}
                     <span class="job-number">{{ repair.job_number }}</span>
                 </div>
                 <h2 class="fw-bold mb-2">{{ repair.device_model }}</h2>
@@ -441,6 +398,11 @@
                             <i class="bi bi-pencil"></i> Edit
                         </a>
                     {% endif %}
+                    {% if repair.invoice %}
+                        <a href="{% url 'customer:customer_invoice_detail' repair.invoice.pk %}" class="btn btn-light">
+                            <i class="bi bi-receipt"></i> View Invoice
+                        </a>
+                    {% endif %}
                     <a href="{% url 'customer:customer_repair_print' repair.pk %}" class="btn btn-light" target="_blank">
                         <i class="bi bi-printer"></i> Print
                     </a>
@@ -452,10 +414,53 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- ESTIMATE REVIEW — MAIN HIGHLIGHT                       -->
-    <!-- ═══════════════════════════════════════════════════════ -->
-    {% if repair.estimated_cost and repair.estimated_cost > 0 %}
+    <!-- ═══════════════ INVOICE READY BANNER (if invoiced) ═══════════════ -->
+    {% if repair.is_invoiced and repair.invoice %}
+    <div class="invoiced-banner mb-4">
+        <div class="d-flex align-items-start gap-3">
+            <i class="bi bi-receipt text-info fs-1"></i>
+            <div class="flex-grow-1">
+                <h5 class="fw-bold mb-1 text-info-emphasis">
+                    Invoice Ready — {{ repair.invoice.invoice_number }}
+                </h5>
+                <p class="mb-2 small">
+                    Your repair is complete and the final invoice has been generated.
+                </p>
+                <div class="row g-2 small">
+                    <div class="col-md-4">
+                        <span class="text-muted">Invoice Amount:</span>
+                        <div class="fw-bold">₹{{ repair.invoice.grand_total|floatformat:2 }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <span class="text-muted">Balance Due:</span>
+                        <div class="fw-bold {% if repair.invoice.balance_due > 0 %}text-danger{% else %}text-success{% endif %}">
+                            ₹{{ repair.invoice.balance_due|floatformat:2 }}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <span class="text-muted">Status:</span>
+                        <div class="fw-bold">
+                            <span class="badge
+                                {% if repair.invoice.payment_status == 'paid' %}bg-success
+                                {% elif repair.invoice.payment_status == 'partial' %}bg-warning text-dark
+                                {% else %}bg-danger{% endif %}">
+                                {{ repair.invoice.get_payment_status_display }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <a href="{% url 'customer:customer_invoice_detail' repair.invoice.pk %}" class="btn btn-sm btn-info text-white">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>View Invoice Details
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ═══════════════ ESTIMATE REVIEW (only if not invoiced) ═══════════════ -->
+    {% if not repair.is_invoiced and repair.estimated_cost and repair.estimated_cost > 0 %}
 
         {# ========== PENDING APPROVAL ========== #}
         {% if repair.estimate_status == 'pending' %}
@@ -472,8 +477,6 @@
             </div>
 
             <div class="review-body">
-
-                <!-- Info Banner -->
                 <div class="alert alert-light border mb-3">
                     <div class="row g-2 small">
                         <div class="col-md-6">
@@ -492,7 +495,6 @@
                     </div>
                 </div>
 
-                <!-- Cost Breakdown Table -->
                 <h6 class="fw-bold mb-2">
                     <i class="bi bi-list-ul text-primary me-1"></i>Cost Breakdown
                 </h6>
@@ -549,7 +551,6 @@
                     </table>
                 </div>
 
-                <!-- What We Will Do -->
                 {% if repair.diagnosis_report or repair.action_taken %}
                 <h6 class="fw-bold mb-2 mt-3">
                     <i class="bi bi-clipboard-check text-primary me-1"></i>What We Will Do
@@ -570,7 +571,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Terms -->
                 <div class="terms-box">
                     <div class="fw-bold mb-2">
                         <i class="bi bi-info-circle me-1"></i>Important Notes
@@ -583,9 +583,8 @@
                     </ul>
                 </div>
 
-                <!-- Action Buttons -->
                 <div class="action-buttons">
-                    <form method="post" 
+                    <form method="post"
                         action="{% url 'customer:customer_estimate_approve' repair.pk %}"
                         hx-post="{% url 'customer:customer_estimate_approve' repair.pk %}"
                         hx-swap="none">
@@ -617,7 +616,7 @@
         </div>
         {% endif %}
 
-        {# ========== APPROVED ========== #}
+        {# ========== APPROVED (not invoiced) ========== #}
         {% if repair.estimate_status == 'approved' %}
         <div class="approved-banner mb-4">
             <div class="d-flex align-items-start gap-3">
@@ -705,9 +704,7 @@
 
     {% endif %}
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- STATS CARDS                                             -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ═══════════════ STATS CARDS ═══════════════ -->
     <div class="row g-3 mb-4">
         <div class="col-6 col-md-3">
             <div class="stat-card">
@@ -716,8 +713,12 @@
                         <i class="bi bi-currency-rupee"></i>
                     </div>
                     <div>
-                        <div class="stat-label">Final Amount</div>
-                        <div class="stat-value" style="color: #667eea;">₹{{ repair.final_amount|floatformat:2 }}</div>
+                        <div class="stat-label">
+                            {% if repair.is_invoiced %}Invoiced{% else %}Final Amount{% endif %}
+                        </div>
+                        <div class="stat-value" style="color: #667eea;">
+                            ₹{{ repair.display_amount|floatformat:2 }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -763,14 +764,9 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- MAIN CONTENT                                            -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
     <div class="row g-4">
-
-        <!-- LEFT COLUMN -->
         <div class="col-lg-7">
-
             <div class="detail-card">
                 <div class="card-header">
                     <span class="header-icon"><i class="bi bi-info-circle"></i></span>
@@ -869,15 +865,15 @@
             {% endif %}
         </div>
 
-        <!-- RIGHT COLUMN -->
         <div class="col-lg-5">
-
             <div class="detail-card">
                 <div class="card-header">
                     <span class="header-icon" style="color: #28a745;"><i class="bi bi-currency-rupee"></i></span>
                     Financial Summary
                 </div>
                 <div class="card-body">
+
+                    {# Pre-tax breakdown #}
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <div class="amount-card" style="background:#fff3cd;">
@@ -899,37 +895,78 @@
                         </div>
                     </div>
 
-                    <div class="amount-card primary mb-3">
-                        <div class="label">Final Amount</div>
-                        <div class="amount" style="font-size: 1.8rem;">₹{{ repair.final_amount|floatformat:2 }}</div>
-                    </div>
+                    {# Main amount #}
+                    {% if repair.is_invoiced %}
+                        <div class="amount-card" style="background: #17a2b8; color: white; border: none; margin-bottom: 0.75rem;">
+                            <div class="label" style="color: rgba(255,255,255,0.8);">
+                                <i class="bi bi-receipt me-1"></i>Invoiced Amount (incl. tax)
+                            </div>
+                            <div class="amount" style="font-size: 1.8rem;">
+                                ₹{{ repair.display_amount|floatformat:2 }}
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Base Amount (pre-tax)</span>
+                            <span>₹{{ repair.base_amount|floatformat:2 }}</span>
+                        </div>
+                    {% else %}
+                        <div class="amount-card primary mb-3">
+                            <div class="label">Final Amount</div>
+                            <div class="amount" style="font-size: 1.8rem;">
+                                ₹{{ repair.final_amount|floatformat:2 }}
+                            </div>
+                        </div>
+                    {% endif %}
 
-                    {% if repair.estimated_cost and repair.estimated_cost > 0 and repair.final_amount %}
-                    <hr>
-                    <div class="d-flex justify-content-between small mb-1">
-                        <span class="text-muted">Estimated</span>
-                        <span class="fw-bold">₹{{ repair.estimated_cost|floatformat:2 }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between small mb-1">
-                        <span class="text-muted">Final Amount</span>
-                        <span class="fw-bold">₹{{ repair.final_amount|floatformat:2 }}</span>
-                    </div>
-                    <div class="d-flex justify-content-between small">
-                        <span class="text-muted">Difference</span>
-                        <span class="fw-bold">
-                            {% if repair.final_amount > repair.estimated_cost %}
-                                <span class="text-danger">
-                                    +₹{{ repair.final_amount|subtract:repair.estimated_cost|floatformat:2 }}
-                                </span>
-                            {% elif repair.final_amount < repair.estimated_cost %}
-                                <span class="text-success">
-                                    −₹{{ repair.estimated_cost|subtract:repair.final_amount|floatformat:2 }}
-                                </span>
-                            {% else %}
-                                <span class="text-muted">Same</span>
-                            {% endif %}
-                        </span>
-                    </div>
+                    {% if repair.estimated_cost and repair.estimated_cost > 0 %}
+                        <hr>
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-muted">Original Estimate</span>
+                            <span class="fw-bold">₹{{ repair.estimated_cost|floatformat:2 }}</span>
+                        </div>
+                        {% if repair.is_invoiced %}
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-muted">Invoiced Amount</span>
+                            <span class="fw-bold">₹{{ repair.display_amount|floatformat:2 }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between small">
+                            <span class="text-muted">Difference</span>
+                            <span class="fw-bold">
+                                {% if repair.display_amount > repair.estimated_cost %}
+                                    <span class="text-danger">
+                                        +₹{{ repair.display_amount|subtract:repair.estimated_cost|floatformat:2 }}
+                                    </span>
+                                {% elif repair.display_amount < repair.estimated_cost %}
+                                    <span class="text-success">
+                                        −₹{{ repair.estimated_cost|subtract:repair.display_amount|floatformat:2 }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">Same as estimate</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% else %}
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="text-muted">Final Amount</span>
+                            <span class="fw-bold">₹{{ repair.final_amount|floatformat:2 }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between small">
+                            <span class="text-muted">Difference</span>
+                            <span class="fw-bold">
+                                {% if repair.final_amount > repair.estimated_cost %}
+                                    <span class="text-danger">
+                                        +₹{{ repair.final_amount|subtract:repair.estimated_cost|floatformat:2 }}
+                                    </span>
+                                {% elif repair.final_amount < repair.estimated_cost %}
+                                    <span class="text-success">
+                                        −₹{{ repair.estimated_cost|subtract:repair.final_amount|floatformat:2 }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">Same as estimate</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
@@ -958,9 +995,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════ -->
-    <!-- PARTS SECTION                                           -->
-    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- ═══════════════ PARTS USED (during repair) ═══════════════ -->
     <div class="detail-card mt-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>
@@ -996,28 +1031,121 @@
                         {% empty %}
                         <tr>
                             <td colspan="4" class="text-center py-4 text-muted">
-                                <i class="bi bi-box display-6 d-block mb-2" style="opacity:0.3;"></i>
-                                No parts used in this repair.
+                                {% if repair.is_invoiced %}
+                                    <i class="bi bi-info-circle display-6 d-block mb-2 text-info opacity-75"></i>
+                                    <p class="mb-1 fw-semibold text-info-emphasis">No parts added during repair</p>
+                                    <p class="small mb-0">
+                                        Physical parts (if any) were added during invoicing.
+                                        See <strong>Invoiced Items</strong> below.
+                                    </p>
+                                {% elif repair.status == 'cancelled' %}
+                                    <i class="bi bi-x-circle display-6 d-block mb-2 text-danger opacity-75"></i>
+                                    <p class="mb-0">This repair was cancelled.</p>
+                                {% else %}
+                                    <i class="bi bi-box display-6 d-block mb-2" style="opacity:0.3;"></i>
+                                    <p class="mb-0">No parts used in this repair.</p>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
                     </tbody>
+                    {% if parts %}
                     <tfoot>
                         <tr>
                             <td colspan="2" class="fw-bold text-end">Parts Total</td>
                             <td class="text-end"></td>
                             <td class="text-end fw-bold" style="font-size: 1.1rem;">₹{{ parts_total|floatformat:2 }}</td>
                         </tr>
-                        <tr style="border-top: 2px solid #667eea;">
-                            <td colspan="2" class="fw-bold text-end" style="color: #667eea;">Final Amount</td>
-                            <td class="text-end"></td>
-                            <td class="text-end fw-bold" style="font-size: 1.3rem; color: #667eea;">₹{{ repair.final_amount|floatformat:2 }}</td>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ INVOICED ITEMS (if invoiced) ═══════════════ -->
+    {% if repair.is_invoiced %}
+    <div class="detail-card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>
+                <span class="header-icon" style="color: #17a2b8;"><i class="bi bi-receipt"></i></span>
+                Invoiced Items
+                <span class="badge bg-info text-dark ms-2">{{ invoice_items|length }}</span>
+                <small class="text-muted fw-normal ms-2" style="font-size:0.75rem;">
+                    — what was actually billed
+                </small>
+            </span>
+            <a href="{% url 'customer:customer_invoice_detail' repair.invoice.pk %}"
+               class="btn btn-sm btn-outline-info">
+                <i class="bi bi-box-arrow-up-right me-1"></i>
+                Invoice {{ repair.invoice.invoice_number }}
+            </a>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:40px;">#</th>
+                            <th>Product</th>
+                            <th class="text-center" style="width:80px;">Qty</th>
+                            <th class="text-end" style="width:120px;">Unit Price</th>
+                            <th class="text-end" style="width:80px;">Tax %</th>
+                            <th class="text-end" style="width:130px;">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in invoice_items %}
+                        <tr>
+                            <td class="text-muted">{{ forloop.counter }}</td>
+                            <td>
+                                <span class="fw-semibold">{{ item.product.name }}</span>
+                                {% if item.product.is_service %}
+                                    <span class="badge bg-info text-dark ms-1"
+                                           title="Service item (no stock)">Service</span>
+                                {% endif %}
+                                {% if item.description %}
+                                    <br><small class="text-muted">{{ item.description }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-3">
+                                No items in the invoice.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="5" class="text-end">Subtotal</td>
+                            <td class="text-end">₹{{ repair.invoice.subtotal|floatformat:2 }}</td>
+                        </tr>
+                        {% if repair.invoice.discount_amount > 0 %}
+                        <tr>
+                            <td colspan="5" class="text-end text-danger">Discount</td>
+                            <td class="text-end text-danger">−₹{{ repair.invoice.discount_amount|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td colspan="5" class="text-end">Tax</td>
+                            <td class="text-end">₹{{ repair.invoice.tax_amount|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-info">
+                            <td colspan="5" class="text-end">Grand Total</td>
+                            <td class="text-end fs-5">₹{{ repair.invoice.grand_total|floatformat:2 }}</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
         </div>
     </div>
+    {% endif %}
 
 </div>
 {% endblock %}
