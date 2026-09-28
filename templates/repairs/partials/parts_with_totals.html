@@ -34,17 +34,15 @@
                             <i class="bi bi-trash"></i>
                         </button>
                     {% else %}
-                        <i class="bi bi-lock text-muted"
-                           title="Locked — invoice exists"></i>
+                        <i class="bi bi-lock text-muted" title="Locked — invoice exists"></i>
                     {% endif %}
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" class="text-center py-4">
+                <td colspan="6" class="text-center py-4 text-muted">
                     {% if job.is_invoiced %}
                         {% if invoice_has_physical_parts %}
-                            {# Invoice has physical items added directly at invoice time #}
                             <i class="bi bi-info-circle display-6 d-block mb-2 text-primary opacity-75"></i>
                             <div class="fw-semibold text-primary mb-1">
                                 No parts added during repair
@@ -53,17 +51,13 @@
                                 Physical parts were added directly during invoicing.
                                 See <strong>Invoiced Items</strong> below for the full list.
                             </p>
-                            <a href="#invoiced-items"
-                               class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-arrow-down me-1"></i>
-                                View Invoiced Items
+                            <a href="#invoiced-items" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-arrow-down me-1"></i>View Invoiced Items
                             </a>
-
                         {% else %}
-                            {# Invoice is service/labour-only (no physical items at all) #}
                             <i class="bi bi-receipt display-6 d-block mb-2 text-success opacity-75"></i>
                             <div class="fw-semibold text-success mb-1">
-                                Service-only repair
+                                No inventory parts used in this repair
                             </div>
                             <p class="text-muted small mb-2">
                                 This repair was invoiced as a service/labour-only job.
@@ -74,16 +68,13 @@
                                 View Invoice {{ job.invoice.invoice_number }}
                             </a>
                         {% endif %}
-
                     {% elif job.status == 'cancelled' %}
                         <i class="bi bi-x-circle display-6 d-block mb-2 text-danger opacity-75"></i>
                         <div class="fw-semibold text-danger mb-1">Repair cancelled</div>
                         <p class="text-muted small mb-0">
                             All parts (if any) were reversed to stock.
                         </p>
-
                     {% else %}
-                        {# Active repair — encourage adding parts #}
                         <i class="bi bi-box display-6 d-block mb-2 opacity-50"></i>
                         <div class="fw-semibold mb-1">No parts used yet</div>
                         <p class="text-muted small mb-2">
@@ -96,18 +87,27 @@
             {% endfor %}
         </tbody>
 
-        {% if parts or job.labour_charge > 0 %}
+        {% if parts or services or job.labour_charge > 0 or job.is_invoiced %}
         <tfoot class="table-light fw-bold">
             <tr>
                 <td colspan="4" class="text-end">Parts Total (pre-tax)</td>
                 <td class="text-end">₹{{ parts_total|floatformat:2 }}</td>
                 <td></td>
             </tr>
+            {% if services %}
             <tr>
-                <td colspan="4" class="text-end">Labour Charge (pre-tax)</td>
+                <td colspan="4" class="text-end">Services Total (pre-tax)</td>
+                <td class="text-end">₹{{ services_total|floatformat:2 }}</td>
+                <td></td>
+            </tr>
+            {% endif %}
+            {% if job.labour_charge > 0 %}
+            <tr>
+                <td colspan="4" class="text-end">Legacy Labour (pre-tax)</td>
                 <td class="text-end">₹{{ job.labour_charge|floatformat:2 }}</td>
                 <td></td>
             </tr>
+            {% endif %}
             <tr style="border-top: 2px solid #dee2e6;">
                 <td colspan="4" class="text-end">Base Amount</td>
                 <td class="text-end">₹{{ job.base_amount|floatformat:2 }}</td>

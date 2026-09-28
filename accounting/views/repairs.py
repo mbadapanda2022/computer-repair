@@ -9,7 +9,7 @@ Key guarantees
 - Notifications dispatched AFTER database commit (never inside transaction.atomic)
   so an SMTP failure cannot roll back a customer's repair job.
 - Stock movement and ledger sync happen atomically with the model save.
-- final_amount always persisted after parts/labour/status changes.
+- final_amount always persisted after parts/services/status changes.
 - All HTMX responses include proper closeModal / toast / HX-Redirect headers.
 """
 
@@ -32,10 +32,10 @@ from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 
 from ..decorators import handle_errors
-from ..forms import RepairJobForm, RepairPartForm
+from ..forms import RepairJobForm, RepairPartForm, RepairServiceForm
 from ..models import (
     CompanyProfile, Contact, Invoice, InvoiceItem, Product, RepairJob,
-    RepairPart, sync_invoice_ledger,
+    RepairPart, RepairService, sync_invoice_ledger,
 )
 from ..utils.notification_helpers import send_notification_to_contact
 from .utils import htmx_response, is_htmx, redirect_to_staff, toast_only_response
@@ -53,6 +53,10 @@ WARRANTY_DAYS = 30
 
 # Terminal states — no further status transitions allowed
 TERMINAL_STATUSES = frozenset({'delivered', 'cancelled'})
+# Forward-progress terminal: only 'delivered' blocks further forward moves.
+# 'cancelled' is NOT forward-terminal — a cancelled device can still be
+# physically handed back to the customer (cancelled → delivered is allowed).
+FORWARD_TERMINAL = frozenset({'delivered'})
 # Session keys for repair → invoice item management
 SK_REPAIR_INVOICE_ITEMS = 'temp_repair_invoice_items'
 SK_REPAIR_INVOICE_REPAIR_PK = 'temp_repair_invoice_repair_pk'
@@ -260,6 +264,7 @@ def _compute_warranty(job):
     days_remaining = (expires_on - timezone.now().date()).days
     return max(days_remaining, 0), expires_on
 
+
 # ════════════════════════════════════════════════════════════
 # HELPERS: Repair → Invoice session management
 # ════════════════════════════════════════════════════════════
@@ -288,12 +293,41 @@ def _session_item_from_repair_part(part):
         'line_total': str(line_total),
         'description': f"Repair part: {part.product.name}",
         'repair_part_id': part.pk,
+        'repair_service_id': None,
         'source': 'repair',
     }
 
 
+def _session_item_from_repair_service(service):
+    """Convert a RepairService into a session dict."""
+    qty = Decimal('1')
+    price = Decimal(service.amount)
+    tax_rate = Decimal(service.product.tax_rate or 0)
+    line_amount = qty * price
+    tax_amount = ((line_amount * tax_rate) / 100).quantize(Decimal('0.01'))
+    line_total = (line_amount + tax_amount).quantize(Decimal('0.01'))
+
+    return {
+        'product_id': service.product_id,
+        'product_name': service.product.name,
+        'quantity': str(qty),
+        'unit_price': str(price),
+        'tax_rate': str(tax_rate),
+        'line_total': str(line_total),
+        'description': service.description or f"Service: {service.product.name}",
+        'repair_part_id': None,
+        'repair_service_id': service.pk,
+        'source': 'service',
+    }
+
+
 def _session_item_from_labour(job, labour_product):
-    """Build a session dict for the labour charge line."""
+    """
+    Build a session dict for the legacy labour_charge line.
+
+    Fallback only — used when a job still has labour_charge > 0
+    (e.g., pre-migration data). New jobs use RepairService instead.
+    """
     qty = Decimal('1')
     price = Decimal(job.labour_charge)
     company = CompanyProfile.get_instance()
@@ -309,15 +343,16 @@ def _session_item_from_labour(job, labour_product):
         'unit_price': str(price),
         'tax_rate': str(tax_rate),
         'line_total': str(line_total),
-        'description': 'Labour Charge',
+        'description': 'Legacy Labour Charge',
         'repair_part_id': None,
+        'repair_service_id': None,
         'source': 'labour',
     }
 
 
 def _ensure_repair_invoice_session(request, job, force_reset=False):
     """
-    Populate `temp_repair_invoice_items` from repair parts + labour.
+    Populate `temp_repair_invoice_items` from repair parts + services.
 
     Resets if:
       - force_reset is True, OR
@@ -330,11 +365,15 @@ def _ensure_repair_invoice_session(request, job, force_reset=False):
 
         items = []
 
-        # 1. Parts
+        # 1. Physical parts
         for part in job.parts.select_related('product').all():
             items.append(_session_item_from_repair_part(part))
 
-        # 2. Labour charge (as a service item)
+        # 2. Services (labour, data recovery, etc.)
+        for service in job.services.select_related('product').all():
+            items.append(_session_item_from_repair_service(service))
+
+        # 3. Legacy labour_charge (fallback — should be 0 after migration)
         if job.labour_charge and job.labour_charge > 0:
             company = CompanyProfile.get_instance()
             tax_rate = company.default_tax_rate or Decimal('18')
@@ -476,6 +515,7 @@ def get_paginated_repairs_context(request, queryset=None):
         'filtered_total': filtered_total,
         'today': today,
     }
+
 
 # ════════════════════════════════════════════════════════════
 # 1. FIELD VALIDATION (HTMX)
@@ -748,6 +788,9 @@ def repair_detail(request, pk):
     parts = job.parts.select_related('product').all()
     parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
 
+    services = job.services.select_related('product').all()
+    services_total = services.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+
     days_in_shop, aging_level = _compute_aging(job)
     warranty_days, warranty_expires = _compute_warranty(job)
     status_pipeline = _build_status_pipeline(job)
@@ -773,6 +816,8 @@ def repair_detail(request, pk):
         'job': job,
         'parts': parts,
         'parts_total': parts_total,
+        'services': services,
+        'services_total': services_total,
         'part_form': RepairPartForm(),
         'status_choices': RepairJob.STATUS_CHOICES,
 
@@ -870,13 +915,26 @@ def update_repair_status(request, pk):
             {'level': 'danger', 'message': 'Invalid status.'}, status=400,
         )
 
-    if old_status in TERMINAL_STATUSES:
+    # ── Forward terminal check ──
+    # 'delivered' blocks everything.
+    # 'cancelled' only blocks non-delivery transitions
+    # (cancelled device can still be handed back → delivered).
+    if old_status == 'delivered':
         return toast_only_response(
             {'level': 'error',
-             'message': f'Cannot change from {job.get_status_display()}.'},
+             'message': 'Cannot change from Delivered.'},
             status=400,
         )
-        
+    if old_status == 'cancelled' and new_status != 'delivered':
+        return toast_only_response(
+            {'level': 'error',
+             'message': (
+                 'A cancelled repair can only be marked as Delivered '
+                 '(device returned to customer).'
+             )},
+            status=400,
+        )
+
     if new_status == 'cancelled' and job.invoice_id:
         return toast_only_response(
             {
@@ -961,7 +1019,7 @@ def update_repair_status(request, pk):
                htmx_template='repairs/partials/part_form_modal.html')
 def add_repair_part(request, pk):
     job = get_object_or_404(RepairJob, pk=pk)
-    
+
     if job.invoice_id:
         return toast_only_response(
             {
@@ -1049,7 +1107,6 @@ def remove_repair_part(request, part_pk):
     job = part.repair_job
     product = part.product
 
-    # ── NEW: Block after invoice ──
     if job.invoice_id:
         return toast_only_response(
             {
@@ -1078,15 +1135,22 @@ def remove_repair_part(request, part_pk):
     )
 
     if is_htmx(request):
-        # Reload parts table with fresh totals
+        # Reload parts table with fresh totals — MUST include services
+        # because parts_with_totals.html footer renders them too.
         parts = job.parts.select_related('product').all()
         parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+
+        services = job.services.select_related('product').all()
+        services_total = services.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+
         job.refresh_from_db(fields=['final_amount'])
 
         response = render(request, 'repairs/partials/parts_with_totals.html', {
             'parts': parts,
             'job': job,
             'parts_total': parts_total,
+            'services': services,
+            'services_total': services_total,
         })
         response['HX-Trigger'] = json.dumps({
             'showToast': {
@@ -1097,6 +1161,142 @@ def remove_repair_part(request, part_pk):
         return response
 
     messages.success(request, f'Part "{product.name}" removed successfully.')
+    return redirect_to_staff('repair_detail', pk=job.pk)
+
+
+# ════════════════════════════════════════════════════════════
+# ADD REPAIR SERVICE (no stock, flat amount)
+# ════════════════════════════════════════════════════════════
+
+@login_required
+@csrf_protect
+@handle_errors(default_redirect='accounting:repair_list',
+               htmx_template='repairs/partials/service_form_modal.html')
+def add_repair_service(request, pk):
+    """Add a service charge to the repair job (no stock impact)."""
+    job = get_object_or_404(RepairJob, pk=pk)
+
+    if job.invoice_id:
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    'Cannot add services — invoice already exists. '
+                    'Please delete the invoice first.'
+                ),
+            },
+            status=400,
+        )
+
+    if request.method == 'POST':
+        form = RepairServiceForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                service = form.save(commit=False)
+                service.repair_job = job
+                service.save()
+
+            product = service.product
+            _safe_notify(
+                job.customer,
+                title=f"Service Added to Repair: {job.job_number}",
+                message=f"A new service '{product.name}' has been added to your repair.",
+                link=reverse('customer:customer_repair_detail', args=[job.pk]),
+                notif_type='info',
+                category='repairs',
+                send_email=False,
+            )
+
+            if is_htmx(request):
+                response = HttpResponse()
+                response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
+                response['HX-Trigger'] = json.dumps({
+                    'closeModal': '',
+                    'showToast': {
+                        'level': 'success',
+                        'message': f'Service "{product.name}" added.',
+                    },
+                })
+                return response
+
+            messages.success(request, f"Service '{product.name}' added successfully.")
+            return redirect_to_staff('repair_detail', pk=job.pk)
+
+        # Invalid form
+        if is_htmx(request):
+            return render(request, 'repairs/partials/service_form_modal.html',
+                          {'form': form, 'job': job})
+    else:
+        form = RepairServiceForm()
+
+    return render(request, 'repairs/partials/service_form_modal.html',
+                  {'form': form, 'job': job})
+
+
+# ════════════════════════════════════════════════════════════
+# REMOVE REPAIR SERVICE
+# ════════════════════════════════════════════════════════════
+
+@login_required
+@csrf_protect
+@handle_errors(default_redirect='accounting:repair_list')
+def remove_repair_service(request, service_pk):
+    """Remove a service from the repair job."""
+    service = get_object_or_404(
+        RepairService.objects.select_related('repair_job', 'product'),
+        pk=service_pk,
+    )
+    job = service.repair_job
+    product = service.product
+
+    if job.invoice_id:
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    'Cannot remove services — invoice already exists. '
+                    'Please delete the invoice first.'
+                ),
+            },
+            status=400,
+        )
+
+    with transaction.atomic():
+        service.delete()
+
+    _safe_notify(
+        job.customer,
+        title=f"Service Removed from Repair: {job.job_number}",
+        message=f"The service '{product.name}' has been removed from your repair.",
+        link=reverse('customer:customer_repair_detail', args=[job.pk]),
+        notif_type='info',
+        category='repairs',
+        send_email=False,
+    )
+
+    if is_htmx(request):
+        parts = job.parts.select_related('product').all()
+        parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+        services = job.services.select_related('product').all()
+        services_total = services.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+        job.refresh_from_db(fields=['final_amount'])
+
+        response = render(request, 'repairs/partials/services_with_totals.html', {
+            'services': services,
+            'job': job,
+            'services_total': services_total,
+            'parts': parts,
+            'parts_total': parts_total,
+        })
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {
+                'level': 'success',
+                'message': f'Service "{product.name}" removed.',
+            },
+        })
+        return response
+
+    messages.success(request, f'Service "{product.name}" removed successfully.')
     return redirect_to_staff('repair_detail', pk=job.pk)
 
 
@@ -1225,6 +1425,7 @@ def add_repair_invoice_item(request, pk):
         'line_total': str(line_total),
         'description': request.POST.get('description', ''),
         'repair_part_id': None,
+        'repair_service_id': None,
         'source': 'manual',
     })
     request.session[SK_REPAIR_INVOICE_ITEMS] = items
@@ -1301,13 +1502,13 @@ def create_invoice_from_repair(request, pk):
     """
     Create an invoice from a repair job.
 
-    GET  → populate session from parts + labour, show modal.
+    GET  → populate session from parts + services, show modal.
     POST → create invoice with items from session.
 
     Stock handling:
       - Repair-sourced items → stock_already_deducted=True (skip stock)
       - Manual items → normal stock deduction
-      - Labour (service) → no stock anyway
+      - Services (labour, etc.) → no stock anyway
     """
     job = get_object_or_404(
         RepairJob.objects.select_related('customer'), pk=pk
@@ -1463,8 +1664,8 @@ def create_invoice_from_repair(request, pk):
             repair_part_id = item_data.get('repair_part_id')
             source = item_data.get('source', 'manual')
 
-            # Skip stock for items sourced from repair parts OR labour
-            skip_stock = source in ('repair', 'labour')
+            # Skip stock for items sourced from repair parts / services / labour
+            skip_stock = source in ('repair', 'service', 'labour')
 
             item = InvoiceItem(
                 invoice=invoice,
@@ -1482,13 +1683,8 @@ def create_invoice_from_repair(request, pk):
         invoice.save()
         sync_invoice_ledger(invoice)
 
-        # Link invoice to repair & mark delivered if ready
         job.invoice = invoice
-        if job.status == 'ready':
-            job.status = 'delivered'
-            if not job.delivery_date:
-                job.delivery_date = invoice_date
-        job.save(update_fields=['invoice', 'status', 'delivery_date'])
+        job.save(update_fields=['invoice'])
 
     # Clear session
     _clear_repair_invoice_session(request)
@@ -1568,6 +1764,7 @@ def repair_print(request, pk):
         pk=pk,
     )
     parts = job.parts.select_related('product').all()
+    services = job.services.select_related('product').all()
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name)
 
@@ -1577,6 +1774,7 @@ def repair_print(request, pk):
     return render(request, 'repairs/repair_print.html', {
         'job': job,
         'parts': parts,
+        'services': services,
         'company': company,
         'logo_exists': logo_exists,
         'invoice': job.invoice if job.invoice else None,
@@ -1594,12 +1792,6 @@ def repair_create_for_contact(request, contact_id):
     """
     Create repair job for a specific contact — customer is ALWAYS
     pulled from the URL, never trusted from form data.
-
-    Professional safety:
-      - customer field forced from URL (prevents tampering)
-      - errors re-render the form with form + contact in context
-      - status 200 on validation error (so HTMX swaps cleanly)
-      - exception-safe notification dispatch
     """
     contact = get_object_or_404(Contact, pk=contact_id)
 
@@ -1670,6 +1862,7 @@ def repair_create_for_contact(request, contact_id):
     return render(request, template,
                   {'form': form, 'contact': contact})
 
+
 # ════════════════════════════════════════════════════════════
 # 14. STAFF APPROVE ESTIMATE
 # ════════════════════════════════════════════════════════════
@@ -1704,9 +1897,6 @@ def staff_approve_estimate(request, pk):
 
             repair.save()
 
-        # RepairJob.save() already notifies the customer when status changes.
-        # Send the "estimate approved" notification regardless, so the customer
-        # sees a clear message about the approval action specifically.
         _safe_notify(
             repair.customer,
             title=f"Your repair {repair.job_number} has been approved",
@@ -1739,7 +1929,12 @@ def staff_approve_estimate(request, pk):
 @login_required
 @handle_errors(default_redirect='accounting:repair_list')
 def export_repairs_excel(request):
-    """Export filtered repairs to styled Excel."""
+    """
+    Export filtered repairs to styled Excel.
+
+    Includes EVERY RepairJob field (audit-grade backup) plus computed
+    aggregates (parts count, parts total, final amount).
+    """
     try:
         import openpyxl
         from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -1750,11 +1945,12 @@ def export_repairs_excel(request):
 
     queryset = (
         RepairJob.objects
-        .select_related('customer', 'invoice')
+        .select_related('customer', 'invoice', 'estimate_approved_by')
         .order_by('-created_at')
         .prefetch_related('parts')
     )
 
+    # ── Filters ──
     search = request.GET.get('search', '').strip()
     status_filter = request.GET.get('status', '')
     customer_id = request.GET.get('customer', '')
@@ -1782,11 +1978,12 @@ def export_repairs_excel(request):
     ws = wb.active
     ws.title = "Repair Jobs"
 
+    # ── Styles ──
     title_font = Font(bold=True, size=16, color="FFFFFF")
     title_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     subtitle_font = Font(bold=True, size=12, color="FFFFFF")
     subtitle_fill = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
-    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_font = Font(bold=True, size=10, color="FFFFFF")
     header_fill = PatternFill(start_color="305496", end_color="305496", fill_type="solid")
     total_font = Font(bold=True, size=11, color="FFFFFF")
     total_fill = PatternFill(start_color="375623", end_color="375623", fill_type="solid")
@@ -1800,9 +1997,73 @@ def export_repairs_excel(request):
     left = Alignment(horizontal='left', vertical='center', wrap_text=True)
     right = Alignment(horizontal='right', vertical='center')
 
-    TOTAL_COLS = 21
+    # ══════════════════════════════════════════════════════════
+    # COLUMN DEFINITIONS — ALL RepairJob fields
+    # ══════════════════════════════════════════════════════════
+    headers = [
+        # Identity
+        ('Job #', 14),
+        ('Status', 16),
+        ('Created At', 16),
+
+        # Customer
+        ('Customer', 22),
+        ('Customer Phone', 14),
+
+        # Device
+        ('Device Model', 22),
+        ('Serial #', 16),
+        ('Device Condition', 22),
+        ('Accessories', 18),
+
+        # Issue & Work
+        ('Issue Description', 30),
+        ('Diagnosis Report', 30),
+        ('Action Taken', 30),
+
+        # Timeline
+        ('Date In', 12),
+        ('Submitted At', 16),
+        ('Received At', 14),
+        ('Ready At', 14),
+        ('Delivered At', 16),
+        ('Delivery Date', 14),
+
+        # Reception
+        ('Received By', 16),
+        ('Reception Remarks', 22),
+
+        # Delivery / Handover
+        ('Delivered By', 16),
+        ('Delivered To Name', 20),
+        ('Delivered To Phone', 16),
+        ('Delivered To Designation', 20),
+        ('Delivery Remarks', 22),
+
+        # Estimate
+        ('Estimate Status', 14),
+        ('Estimated Cost', 14),
+        ('Estimate Approved At', 18),
+        ('Estimate Approved By', 16),
+        ('Approval Source', 16),
+        ('Approval Remarks', 22),
+
+        # Financials
+        ('Parts Count', 10),
+        ('Labour Charge (Rs.)', 14),
+        ('Parts Total (Rs.)', 14),
+        ('Final Amount (Rs.)', 15),
+        ('Invoice #', 14),
+
+        # Notes & Audit
+        ('Notes', 30),
+        ('Updated At', 16),
+    ]
+
+    TOTAL_COLS = len(headers)
     last_col = get_column_letter(TOTAL_COLS)
 
+    # ── Title block ──
     ws.merge_cells(f'A1:{last_col}1')
     ws['A1'] = company.name or "A1 Computer Solutions"
     ws['A1'].font = title_font
@@ -1811,17 +2072,17 @@ def export_repairs_excel(request):
     ws.row_dimensions[1].height = 30
 
     ws.merge_cells(f'A2:{last_col}2')
-    parts_addr = []
-    if company.address: parts_addr.append(company.address)
-    if company.phone: parts_addr.append(f"Phone: {company.phone}")
-    if company.email: parts_addr.append(f"Email: {company.email}")
-    if company.gstin: parts_addr.append(f"GSTIN: {company.gstin}")
-    ws['A2'] = " | ".join(parts_addr)
+    addr_parts = []
+    if company.address: addr_parts.append(company.address)
+    if company.phone: addr_parts.append(f"Phone: {company.phone}")
+    if company.email: addr_parts.append(f"Email: {company.email}")
+    if company.gstin: addr_parts.append(f"GSTIN: {company.gstin}")
+    ws['A2'] = " | ".join(addr_parts)
     ws['A2'].font = Font(size=10, italic=True)
     ws['A2'].alignment = center
 
     ws.merge_cells(f'A3:{last_col}3')
-    ws['A3'] = "REPAIR JOBS REPORT"
+    ws['A3'] = "REPAIR JOBS — COMPLETE DATA EXPORT"
     ws['A3'].font = subtitle_font
     ws['A3'].fill = subtitle_fill
     ws['A3'].alignment = center
@@ -1840,16 +2101,7 @@ def export_repairs_excel(request):
 
     ws.row_dimensions[5].height = 5
 
-    headers = [
-        ('Job #', 14), ('Date In', 12), ('Customer', 22), ('Phone', 14),
-        ('Device Model', 20), ('Serial #', 16), ('Issue', 28),
-        ('Diagnosis', 28), ('Action Taken', 28), ('Status', 12),
-        ('Estimate Status', 14), ('Estimated Cost', 14),
-        ('Received By', 14), ('Delivered By', 14), ('Delivered To', 16),
-        ('Recipient Phone', 14), ('Delivery Date', 12),
-        ('Labour (Rs.)', 12), ('Parts (Rs.)', 12),
-        ('Final Amount (Rs.)', 15), ('Invoice #', 14),
-    ]
+    # ── Headers row ──
     for col, (h, w) in enumerate(headers, 1):
         c = ws.cell(row=6, column=col, value=h)
         c.font = header_font
@@ -1857,38 +2109,84 @@ def export_repairs_excel(request):
         c.alignment = center
         c.border = border_header
         ws.column_dimensions[get_column_letter(col)].width = w
-    ws.row_dimensions[6].height = 30
+    ws.row_dimensions[6].height = 40
 
+    # ── Data rows ──
     row_num = 7
     total_labour = Decimal('0')
     total_parts = Decimal('0')
     total_final = Decimal('0')
 
     for job in queryset:
-        parts_total = sum(p.line_total for p in job.parts.all())
+        parts_qs = list(job.parts.all())
+        parts_total = sum((p.line_total for p in parts_qs), Decimal('0'))
+
+        # Helper for safe values
+        def dt(v):
+            return v.strftime('%d-%m-%Y %H:%M') if v else ''
+
+        def d(v):
+            return v.strftime('%d-%m-%Y') if v else ''
 
         row_data = [
+            # Identity
             job.job_number,
-            job.date_in.strftime('%d-%m-%Y') if job.date_in else '',
+            job.get_status_display(),
+            dt(job.created_at),
+
+            # Customer
             job.customer.name if job.customer else '',
             job.customer.phone if job.customer and job.customer.phone else '',
+
+            # Device
             job.device_model or '',
             job.serial_number or '',
+            job.device_condition or '',
+            job.accessories or '',
+
+            # Issue & Work
             job.issue_description or '',
             job.diagnosis_report or '',
             job.action_taken or '',
-            job.get_status_display(),
-            job.get_estimate_status_display() if job.estimate_status else 'No Estimate',
-            float(job.estimated_cost) if job.estimated_cost else 0,
+
+            # Timeline
+            d(job.date_in),
+            dt(job.submitted_at),
+            d(job.received_at),
+            d(job.ready_at),
+            dt(job.delivered_at),
+            d(job.delivery_date),
+
+            # Reception
             job.received_by or '',
+            job.received_remarks or '',
+
+            # Delivery / Handover
             job.delivered_by or '',
             job.delivered_to_name or '',
             job.delivered_to_phone or '',
-            job.delivery_date.strftime('%d-%m-%Y') if job.delivery_date else '',
+            job.delivered_to_designation or '',
+            job.delivery_remarks or '',
+
+            # Estimate
+            job.get_estimate_status_display() if job.estimate_status else '',
+            float(job.estimated_cost) if job.estimated_cost else 0,
+            dt(job.estimate_approved_at),
+            (job.estimate_approved_by.get_full_name() or job.estimate_approved_by.username)
+                if job.estimate_approved_by else '',
+            job.get_approval_source_display() if job.approval_source else '',
+            job.approval_remarks or '',
+
+            # Financials
+            len(parts_qs),
             float(job.labour_charge or 0),
             float(parts_total),
             float(job.final_amount or 0),
             job.invoice.invoice_number if job.invoice else '',
+
+            # Notes & Audit
+            job.notes or '',
+            dt(job.updated_at),
         ]
 
         for col, val in enumerate(row_data, 1):
@@ -1896,42 +2194,61 @@ def export_repairs_excel(request):
             c.border = border_all
             c.alignment = left
 
-        for col in [12, 18, 19, 20]:
+        # Money columns (indices in 1-based): Estimated Cost=28, Labour=33, Parts=34, Final=35
+        for col in [28, 33, 34, 35]:
             ws.cell(row=row_num, column=col).alignment = right
             ws.cell(row=row_num, column=col).number_format = money_format
-        for col in [1, 2, 10, 11, 17, 21]:
+
+        # Center columns
+        for col in [1, 2, 3, 5, 7, 13, 14, 15, 16, 17, 18, 27, 29, 30, 32, 36, 38]:
             ws.cell(row=row_num, column=col).alignment = center
 
-        total_labour += Decimal(str(job.labour_charge or 0))
-        total_parts += parts_total
-        total_final += Decimal(str(job.final_amount or 0))
-
+        # Alternating rows
         if row_num % 2 == 0:
             alt = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             for c in range(1, TOTAL_COLS + 1):
                 ws.cell(row=row_num, column=c).fill = alt
+
+        total_labour += Decimal(str(job.labour_charge or 0))
+        total_parts += parts_total
+        total_final += Decimal(str(job.final_amount or 0))
         row_num += 1
 
-    ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=17)
+    # ── Grand total row ──
+    ws.merge_cells(start_row=row_num, start_column=1,
+                   end_row=row_num, end_column=27)
     tl = ws.cell(row=row_num, column=1, value="GRAND TOTAL")
     tl.font = total_font
     tl.fill = total_fill
     tl.alignment = right
-    for col in range(2, 18):
+    for col in range(1, 28):
         ws.cell(row=row_num, column=col).fill = total_fill
         ws.cell(row=row_num, column=col).border = border_header
-    for col, val in [(18, total_labour), (19, total_parts), (20, total_final)]:
+
+    c = ws.cell(row=row_num, column=28, value="")
+    c.fill = total_fill
+    c.border = border_header
+
+    for col in [29, 30, 31, 32]:
+        c = ws.cell(row=row_num, column=col, value="")
+        c.fill = total_fill
+        c.border = border_header
+
+    for col, val in [(33, total_labour), (34, total_parts), (35, total_final)]:
         c = ws.cell(row=row_num, column=col, value=float(val))
         c.font = total_font
         c.fill = total_fill
         c.alignment = right
         c.number_format = money_format
         c.border = border_header
-    et = ws.cell(row=row_num, column=21, value="")
-    et.fill = total_fill
-    et.border = border_header
 
-    ws.freeze_panes = 'A7'
+    for col in [36, 37, 38]:
+        c = ws.cell(row=row_num, column=col, value="")
+        c.fill = total_fill
+        c.border = border_header
+
+    # ── Freeze & filter ──
+    ws.freeze_panes = 'C7'
     ws.auto_filter.ref = f"A6:{last_col}6"
     ws.page_setup.orientation = 'landscape'
     ws.page_setup.fitToWidth = 1
@@ -1942,7 +2259,7 @@ def export_repairs_excel(request):
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = (
-        f'attachment; filename="repairs_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        f'attachment; filename="repairs_complete_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
     )
     wb.save(response)
     return response
@@ -2049,15 +2366,22 @@ def estimate_print(request, pk):
     parts = job.parts.select_related('product').all()
     parts_total = parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
 
+    services = job.services.select_related('product').all()
+    services_total = services.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name)
 
     estimated_parts = parts_total
-    estimated_labour = job.labour_charge or Decimal('0')
-    if estimated_parts == 0 and estimated_labour == 0:
-        estimated_labour = job.estimated_cost or Decimal('0')
+    estimated_services = services_total
+    # Fallback: legacy labour_charge
+    if job.labour_charge and job.labour_charge > 0:
+        estimated_services += job.labour_charge
 
-    total_estimate = (estimated_parts + estimated_labour).quantize(Decimal('0.01'))
+    if estimated_parts == 0 and estimated_services == 0:
+        estimated_services = job.estimated_cost or Decimal('0')
+
+    total_estimate = (estimated_parts + estimated_services).quantize(Decimal('0.01'))
     if total_estimate == 0:
         total_estimate = job.estimated_cost or Decimal('0')
 
@@ -2065,8 +2389,10 @@ def estimate_print(request, pk):
         'job': job,
         'parts': parts,
         'parts_total': parts_total,
+        'services': services,
+        'services_total': services_total,
         'estimated_parts': estimated_parts,
-        'estimated_labour': estimated_labour,
+        'estimated_services': estimated_services,
         'total_estimate': total_estimate,
         'company': company,
         'logo_exists': logo_exists,
@@ -2143,15 +2469,6 @@ def quick_update_repair(request, pk):
         job.estimated_cost = None
         update_fields.append('estimated_cost')
 
-    # Labour charge
-    labour = request.POST.get('labour_charge', '').strip()
-    if labour:
-        try:
-            job.labour_charge = Decimal(labour)
-            update_fields.append('labour_charge')
-        except (InvalidOperation, ValueError, TypeError):
-            pass
-
     # Text fields
     for field in ['diagnosis_report', 'action_taken', 'received_by', 'received_remarks']:
         if field in request.POST:
@@ -2168,13 +2485,6 @@ def quick_update_repair(request, pk):
             pass
 
     if update_fields:
-        # Recalculate final_amount if labour changed (parts unchanged)
-        if 'labour_charge' in update_fields:
-            parts_total = job.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-            job.final_amount = (parts_total + job.labour_charge).quantize(Decimal('0.01'))
-            if 'final_amount' not in update_fields:
-                update_fields.append('final_amount')
-
         job.save(update_fields=update_fields)
         logger.info(
             "Quick update | job=%s | fields=%s",

@@ -104,10 +104,10 @@
     });
 
     // Fires when network request fails entirely (offline, timeout, DNS)
-    document.body.addEventListener('htmx:sendError', function (evt) {
-        showToast('danger', 'Network error. Please check your connection and try again.');
-        console.error('[HTMX sendError]', evt.detail);
-    });
+    // document.body.addEventListener('htmx:sendError', function (evt) {
+    //     showToast('danger', 'Network error. Please check your connection and try again.');
+    //     console.error('[HTMX sendError]', evt.detail);
+    // });
 
     // Fires when hx-request hits a timeout
     document.body.addEventListener('htmx:timeout', function (evt) {

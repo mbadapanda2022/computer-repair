@@ -631,6 +631,8 @@ def repair_detail(request, pk):
 
     parts = list(repair.parts.select_related('product').all())
     parts_total = sum((p.line_total for p in parts), Decimal('0'))
+    services = list(repair.services.select_related('product').all())
+    services_total = sum((s.line_total for s in services), Decimal('0'))
 
     # ── Invoice context (when invoiced) ──
     invoice_items = []
@@ -647,6 +649,8 @@ def repair_detail(request, pk):
         'repair': repair,
         'parts': parts,
         'parts_total': parts_total,
+        'services': services,
+        'services_total': services_total,
         'invoice_items': invoice_items,
         'invoice_has_physical_parts': invoice_has_physical_parts,
     })

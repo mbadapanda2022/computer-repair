@@ -183,6 +183,7 @@
 
     <!-- PARTS TABLE -->
     {% if parts %}
+    <h4 style="margin: 12px 0 6px 0; font-size: 11pt;">Parts Used</h4>
     <table class="table">
         <thead>
             <tr>
@@ -210,19 +211,59 @@
             {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <div class="no-parts">
+        No parts used in this repair.
+    </div>
     {% endif %}
 
-    <!-- AMOUNTS -->
+    <!-- SERVICES TABLE -->
+    {% if services %}
+    <h4 style="margin: 12px 0 6px 0; font-size: 11pt;">Services</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width:5%;">#</th>
+                <th style="width:65%;">Service</th>
+                <th class="text-end" style="width:30%;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for service in services %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>
+                    {{ service.product.name }}
+                    {% if service.description %}
+                        <span style="font-size:7pt; color:#6c757d;">— {{ service.description }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-end fw-bold">₹{{ service.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- AMOUNTS / TOTALS -->
     <table class="table" style="margin-top:8px;">
         <tbody>
             <tr>
                 <td style="width:70%;" class="fw-bold text-end">Parts Total</td>
                 <td class="text-end">₹{{ parts_total|floatformat:2 }}</td>
             </tr>
+            {% if services %}
             <tr>
-                <td class="fw-bold text-end">Labour Charge</td>
+                <td class="fw-bold text-end">Services Total</td>
+                <td class="text-end">₹{{ services_total|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            {% if repair.labour_charge > 0 %}
+            <tr>
+                <td class="fw-bold text-end">Legacy Labour Charge</td>
                 <td class="text-end">₹{{ repair.labour_charge|floatformat:2 }}</td>
             </tr>
+            {% endif %}
             <tr class="total-row">
                 <td class="fw-bold text-end">Base Amount (pre-tax)</td>
                 <td class="text-end fw-bold">₹{{ repair.base_amount|floatformat:2 }}</td>
@@ -231,7 +272,6 @@
             {% if repair.is_invoiced %}
             <tr class="invoiced-total">
                 <td class="fw-bold text-end">
-                    <i class="bi bi-receipt"></i>
                     Invoiced Amount (incl. tax)
                     <div style="font-size:7pt; font-weight:normal; color:#6c757d;">
                         Against Invoice {{ repair.invoice.invoice_number }}

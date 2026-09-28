@@ -202,6 +202,7 @@
     </table>
 
     <!-- ===== PARTS USED ===== -->
+    {% if parts %}
     <h4 style="margin-top:20px;">Parts Used</h4>
     <table class="table">
         <thead>
@@ -220,31 +221,71 @@
                 <td class="text-end">₹{{ part.unit_price|floatformat:2 }}</td>
                 <td class="text-end">₹{{ part.line_total|floatformat:2 }}</td>
             </tr>
-            {% empty %}
-            <tr><td colspan="4" class="text-center text-muted">No parts used.</td></tr>
             {% endfor %}
         </tbody>
-        <tfoot>
+    </table>
+    {% else %}
+    <div class="text-center text-muted" style="padding:6px;">
+        No parts used in this repair.
+    </div>
+    {% endif %}
+
+    <!-- ===== SERVICES USED ===== -->
+    {% if services %}
+    <h4 style="margin-top:20px;">Services</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th class="text-end" style="width:150px;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for service in services %}
+            <tr>
+                <td>
+                    {{ service.product.name }}
+                    {% if service.description %}
+                        <span class="text-muted" style="font-size:8pt;">— {{ service.description }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-end">₹{{ service.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- ===== AMOUNTS / TOTALS ===== -->
+    <table class="table" style="margin-top:4px;">
+        <tbody>
             <tr>
                 <th colspan="3" class="text-end">Parts Total</th>
-                <th class="text-end fw-bold">₹{{ parts|sum_line_totals|floatformat:2 }}</th>
+                <th class="text-end fw-bold">₹{{ parts_total|floatformat:2 }}</th>
             </tr>
+            {% if services %}
             <tr>
-                <th colspan="3" class="text-end">Labour Charge</th>
+                <th colspan="3" class="text-end">Services Total</th>
+                <th class="text-end fw-bold">₹{{ services_total|floatformat:2 }}</th>
+            </tr>
+            {% endif %}
+            {% if job.labour_charge > 0 %}
+            <tr>
+                <th colspan="3" class="text-end">Legacy Labour</th>
                 <th class="text-end fw-bold">₹{{ job.labour_charge|floatformat:2 }}</th>
             </tr>
+            {% endif %}
             <tr class="summary-row">
                 <th colspan="3" class="text-end fw-bold">Final Amount</th>
                 <th class="text-end fw-bold" style="color: #198754; font-size: 14pt;">₹{{ job.final_amount|floatformat:2 }}</th>
             </tr>
-        </tfoot>
+        </tbody>
     </table>
 
     <!-- ===== INVOICE LINK (if exists) ===== -->
     {% if invoice %}
     <p><strong>Invoice:</strong> {{ invoice.invoice_number }}</p>
     {% endif %}
-
 
     <!-- ===== TRACKING SECTION ===== -->
     <div style="margin-top:20px; padding:15px; background:#f0f7ff; border-left:4px solid #0d6efd; border-radius:4px;">

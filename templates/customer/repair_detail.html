@@ -519,19 +519,31 @@
                             </tr>
                             {% endfor %}
 
-                            {% if repair.labour_charge and repair.labour_charge > 0 %}
+                            {% for service in services %}
                             <tr>
                                 <td>
-                                    Labour / Service Charge
-                                    <small class="text-muted d-block">Repair work</small>
+                                    {{ service.product.name }}
+                                    <span class="badge bg-info text-dark ms-1" style="font-size:8pt;">Service</span>
+                                    {% if service.description %}
+                                        <br><small class="text-muted">{{ service.description }}</small>
+                                    {% endif %}
                                 </td>
+                                <td class="text-center">1</td>
+                                <td class="text-end">{{ service.line_total|floatformat:2 }}</td>
+                                <td class="text-end fw-semibold">{{ service.line_total|floatformat:2 }}</td>
+                            </tr>
+                            {% endfor %}
+
+                            {% if repair.labour_charge > 0 %}
+                            <tr>
+                                <td>Legacy Labour Charge</td>
                                 <td class="text-center">1</td>
                                 <td class="text-end">{{ repair.labour_charge|floatformat:2 }}</td>
                                 <td class="text-end fw-semibold">{{ repair.labour_charge|floatformat:2 }}</td>
                             </tr>
                             {% endif %}
 
-                            {% if not parts and not repair.labour_charge %}
+                            {% if not parts and not services and not repair.labour_charge %}
                             <tr>
                                 <td colspan="4" class="text-center text-muted py-3">
                                     <i class="bi bi-info-circle me-1"></i>
@@ -616,7 +628,7 @@
         </div>
         {% endif %}
 
-        {# ========== APPROVED (not invoiced) ========== #}
+        {# ========== APPROVED ========== #}
         {% if repair.estimate_status == 'approved' %}
         <div class="approved-banner mb-4">
             <div class="d-flex align-items-start gap-3">
@@ -730,8 +742,8 @@
                         <i class="bi bi-tools"></i>
                     </div>
                     <div>
-                        <div class="stat-label">Labour</div>
-                        <div class="stat-value" style="color: #28a745;">₹{{ repair.labour_charge|floatformat:2 }}</div>
+                        <div class="stat-label">Services</div>
+                        <div class="stat-value" style="color: #28a745;">₹{{ services_total|floatformat:2 }}</div>
                     </div>
                 </div>
             </div>
@@ -756,8 +768,8 @@
                         <i class="bi bi-calendar-check"></i>
                     </div>
                     <div>
-                        <div class="stat-label">Parts Used</div>
-                        <div class="stat-value" style="color: #17a2b8;">{{ parts|length }}</div>
+                        <div class="stat-label">Items Used</div>
+                        <div class="stat-value" style="color: #17a2b8;">{{ parts|length }} + {{ services|length }}</div>
                     </div>
                 </div>
             </div>
@@ -873,7 +885,6 @@
                 </div>
                 <div class="card-body">
 
-                    {# Pre-tax breakdown #}
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <div class="amount-card" style="background:#fff3cd;">
@@ -889,13 +900,12 @@
                         </div>
                         <div class="col-6">
                             <div class="amount-card" style="background:#d4edda;">
-                                <div class="label">Labour</div>
-                                <div class="amount" style="color:#155724;">₹{{ repair.labour_charge|floatformat:2 }}</div>
+                                <div class="label">Services</div>
+                                <div class="amount" style="color:#155724;">₹{{ services_total|floatformat:2 }}</div>
                             </div>
                         </div>
                     </div>
 
-                    {# Main amount #}
                     {% if repair.is_invoiced %}
                         <div class="amount-card" style="background: #17a2b8; color: white; border: none; margin-bottom: 0.75rem;">
                             <div class="label" style="color: rgba(255,255,255,0.8);">
@@ -995,7 +1005,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════ PARTS USED (during repair) ═══════════════ -->
+    <!-- ═══════════════ PARTS USED ═══════════════ -->
     <div class="detail-card mt-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span>
@@ -1062,6 +1072,50 @@
             </div>
         </div>
     </div>
+
+    <!-- ═══════════════ SERVICES USED ═══════════════ -->
+    {% if services %}
+    <div class="detail-card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>
+                <span class="header-icon" style="color: #17a2b8;"><i class="bi bi-wrench-adjustable"></i></span>
+                Services
+                <span class="badge bg-info text-dark ms-2">{{ services|length }}</span>
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 parts-table">
+                    <thead>
+                        <tr>
+                            <th style="width:70%;">Service</th>
+                            <th class="text-end" style="width:30%;">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for service in services %}
+                        <tr>
+                            <td>
+                                <div class="fw-medium">{{ service.product.name }}</div>
+                                {% if service.description %}
+                                    <small class="text-muted">{{ service.description }}</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-bold" style="color: #17a2b8;">₹{{ service.line_total|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td class="fw-bold text-end">Services Total</td>
+                            <td class="text-end fw-bold" style="font-size: 1.1rem;">₹{{ services_total|floatformat:2 }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- ═══════════════ INVOICED ITEMS (if invoiced) ═══════════════ -->
     {% if repair.is_invoiced %}

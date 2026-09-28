@@ -368,18 +368,54 @@ def invoice_delete(request, pk):
     invoice_number = invoice.invoice_number
     customer = invoice.customer
 
-    # 1. Handle Repair Job (revert status and unlink invoice)
+    # ── Manual-items warning (audit trail) ──
+    # Warn staff that manually-added items on this invoice (not sourced
+    # from repair parts) will be permanently lost. The repair itself
+    # will keep its own parts list — but the invoice-only items vanish.
+    manual_items = list(
+        invoice.items.filter(repair_part__isnull=True)
+    )
+    # Exclude auto-generated "Repair Labour" line (it can be regenerated)
+    manual_items = [
+        item for item in manual_items
+        if not (item.product and item.product.name == "Repair Labour")
+    ]
+
+    # Allow AJAX confirmation flow — if flag not set, return warning
+    if manual_items and request.POST.get('confirmed_manual_loss') != '1':
+        # For HTMX delete: return a JSON hint so the frontend can show
+        # a second confirm dialog
+        if is_htmx(request):
+            return toast_only_response(
+                {
+                    'level': 'warning',
+                    'message': (
+                        f'This invoice has {len(manual_items)} manually added '
+                        f'item(s) that will be permanently lost. '
+                        f'Click Delete again to confirm.'
+                    ),
+                },
+                status=200,
+            )
+        # For non-HTMX: fall through (accept the delete)
+
+
+    # ── Unlink repair job (do NOT touch status or delivery) ──
+    # Invoice deletion is a BILLING correction, not a physical reversal.
+    # The device may already be delivered, or still waiting for pickup —
+    # neither of those facts changes because an invoice was deleted.
     repair_job = None
     try:
         repair_job = RepairJob.objects.filter(invoice=invoice).first()
         if repair_job:
-            if repair_job.status == 'delivered':
-                repair_job.status = 'ready'
             repair_job.invoice = None
-            repair_job.save(update_fields=['status', 'invoice'])
-            logger.info(f"Repair job {repair_job.job_number} reverted to 'ready'.")
+            repair_job.save(update_fields=['invoice'])
+            logger.info(
+                f"Repair {repair_job.job_number} unlinked from "
+                f"deleted invoice {invoice_number}."
+            )
     except Exception as e:
-        logger.error(f"Error reverting repair job status: {e}")
+        logger.error(f"Error unlinking repair job: {e}")
 
     for entry in LedgerEntry.objects.filter(
         reference_id=invoice.id, entry_type='sales'
@@ -412,10 +448,11 @@ def invoice_delete(request, pk):
     except Exception as notif_err:
         logger.error(f"Invoice delete notification failed: {notif_err}")
 
-    # 4. Return HTMX response: trigger client-side reload to preserve filters
+
+    # 4. Return HTMX response
     message = f'Invoice {invoice_number} deleted.'
     if repair_job:
-        message += f' Repair #{repair_job.job_number} reverted to Ready.'
+        message += f' Repair #{repair_job.job_number} unlinked.'
 
     if is_htmx(request):
         response = HttpResponse()

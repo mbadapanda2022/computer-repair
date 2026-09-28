@@ -147,7 +147,7 @@
         {% endif %}
     </table>
 
-    <!-- PARTS & COST BREAKUP -->
+    <!-- PARTS & SERVICES & COST BREAKUP -->
     <h3 style="margin-top: 25px;">Cost Breakdown</h3>
     <table class="table">
         <thead>
@@ -168,19 +168,37 @@
             </tr>
             {% endfor %}
 
-            {% if estimated_labour > 0 %}
+            {% for service in services %}
             <tr>
-                <td>Labour / Service Charge</td>
+                <td>
+                    {{ service.product.name }}
+                    <span class="badge bg-info text-dark ms-1" style="font-size:8pt;">Service</span>
+                    {% if service.description %}
+                        <br><small style="color:#6c757d;">{{ service.description }}</small>
+                    {% endif %}
+                </td>
                 <td class="text-end">1</td>
-                <td class="text-end">{{ estimated_labour|floatformat:2 }}</td>
-                <td class="text-end">{{ estimated_labour|floatformat:2 }}</td>
+                <td class="text-end">{{ service.line_total|floatformat:2 }}</td>
+                <td class="text-end">{{ service.line_total|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+
+            {% if job.labour_charge > 0 %}
+            <tr>
+                <td>
+                    Legacy Labour Charge
+                    <span class="badge bg-secondary ms-1" style="font-size:8pt;">Old</span>
+                </td>
+                <td class="text-end">1</td>
+                <td class="text-end">{{ job.labour_charge|floatformat:2 }}</td>
+                <td class="text-end">{{ job.labour_charge|floatformat:2 }}</td>
             </tr>
             {% endif %}
 
-            {% if not parts and estimated_labour == 0 %}
+            {% if not parts and not services and job.labour_charge == 0 and estimated_services == 0 %}
             <tr>
                 <td colspan="4" class="text-center text-muted">
-                    <i>Estimate only (no parts specified yet)</i>
+                    <i>Estimate only (no items specified yet)</i>
                 </td>
             </tr>
             {% endif %}

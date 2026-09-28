@@ -26,6 +26,11 @@
                             <i class="bi bi-check2-circle me-1"></i>Ready
                         </span>
                     {% endif %}
+                    {% if job.is_invoiced %}
+                        <span class="badge bg-info text-dark">
+                            <i class="bi bi-receipt me-1"></i>Invoiced
+                        </span>
+                    {% endif %}
                     {% if aging_level == 'danger' %}
                         <span class="badge bg-danger">
                             <i class="bi bi-exclamation-triangle me-1"></i>Overdue {{ days_in_shop }}d
@@ -48,15 +53,11 @@
             </div>
         </div>
 
-        <!-- ── Action Buttons ── -->
         <div class="d-flex gap-2 flex-wrap">
-
-            {# ─── Primary Workflow Actions ─── #}
             {% if job.estimate_status == 'pending' and job.estimated_cost %}
                 <button class="btn btn-success"
                         hx-get="{% url 'accounting:staff_approve_estimate' job.pk %}"
-                        hx-target="#mainModalContent" hx-trigger="click"
-                        title="Approve estimate on behalf of customer">
+                        hx-target="#mainModalContent" hx-trigger="click">
                     <i class="bi bi-check-circle"></i> Approve Estimate
                 </button>
             {% endif %}
@@ -78,7 +79,6 @@
                 </a>
             {% endif %}
 
-            {# ─── Communication Actions ─── #}
             {% if job.estimated_cost and job.status != 'cancelled' %}
                 <button class="btn btn-warning"
                         hx-get="{% url 'accounting:send_estimate_to_customer' job.pk %}"
@@ -94,7 +94,6 @@
                 <i class="bi bi-share"></i> Share Tracking
             </button>
 
-            {# ─── Print/Export Actions ─── #}
             <div class="btn-group">
                 <button type="button" class="btn btn-outline-info dropdown-toggle"
                         data-bs-toggle="dropdown" aria-expanded="false">
@@ -129,7 +128,6 @@
                 </ul>
             </div>
 
-            {# ─── Edit Actions ─── #}
             {% if job.status != 'delivered' and job.status != 'cancelled' %}
                 <button class="btn btn-outline-primary"
                         hx-get="{% url 'accounting:quick_update_repair' job.pk %}"
@@ -509,8 +507,8 @@
                         </div>
                         <div class="col-6">
                             <div class="p-3 bg-light rounded-3 text-center">
-                                <small class="text-muted d-block">Labour (pre-tax)</small>
-                                <span class="fw-bold fs-5">₹{{ job.labour_charge|floatformat:2 }}</span>
+                                <small class="text-muted d-block">Services (pre-tax)</small>
+                                <span class="fw-bold fs-5">₹{{ job.services_total|floatformat:2 }}</span>
                             </div>
                         </div>
                     </div>
@@ -715,7 +713,6 @@
             </h5>
 
             {% if job.is_invoiced %}
-                {# Invoice exists → parts cannot be added/removed #}
                 <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}"
                    class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-receipt"></i> View Invoice Items
@@ -730,6 +727,39 @@
         </div>
         <div class="card-body p-0" id="parts-container">
             {% include "repairs/partials/parts_with_totals.html" %}
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- SERVICES SECTION                                        -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0">
+                <i class="bi bi-wrench-adjustable text-info me-2"></i>Services Used
+                <span class="badge bg-info text-dark ms-2">{{ services|length }}</span>
+                {% if job.is_invoiced %}
+                    <span class="badge bg-success ms-1" title="Locked — invoice generated">
+                        <i class="bi bi-lock-fill"></i> Locked
+                    </span>
+                {% endif %}
+            </h5>
+
+            {% if job.is_invoiced %}
+                <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}"
+                   class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-receipt"></i> View Invoice Items
+                </a>
+            {% elif job.status != 'cancelled' %}
+                <button class="btn btn-sm btn-info text-white"
+                        hx-get="{% url 'accounting:add_repair_service' job.pk %}"
+                        hx-target="#mainModalContent" hx-trigger="click">
+                    <i class="bi bi-plus-circle"></i> Add Service
+                </button>
+            {% endif %}
+        </div>
+        <div class="card-body p-0" id="services-container">
+            {% include "repairs/partials/services_with_totals.html" %}
         </div>
     </div>
 

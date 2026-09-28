@@ -983,8 +983,15 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                 self.fields[field].required = False
     
     def clean_labour_charge(self):
-        """Block changing labour charge once invoice is generated."""
+        """
+        Combined validation for labour_charge:
+          1. Non-negative check
+          2. Block change after invoice is generated
+        """
         labour = self.cleaned_data.get('labour_charge') or Decimal('0')
+
+        if labour < 0:
+            raise ValidationError("Labour charge cannot be negative.")
 
         if self.instance and self.instance.pk and self.instance.invoice_id:
             try:
@@ -1022,11 +1029,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             raise ValidationError("Estimated cost cannot be negative.")
         return cost
 
-    def clean_labour_charge(self):
-        labour = self.cleaned_data.get('labour_charge') or Decimal('0')
-        if labour < 0:
-            raise ValidationError("Labour charge cannot be negative.")
-        return labour
 
     def clean(self):
         cleaned_data = super().clean()
@@ -1061,7 +1063,12 @@ class RepairPartForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['product'].queryset = Product.objects.filter(is_active=True)
+        # Repair parts must be PHYSICAL products only.
+        # Service items (is_service=True) go through RepairService.
+        self.fields['product'].queryset = Product.objects.filter(
+            is_active=True,
+            is_service=False,
+        )
 
     def clean_quantity(self):
         qty = self.cleaned_data.get('quantity')
@@ -1075,6 +1082,55 @@ class RepairPartForm(forms.ModelForm):
             raise ValidationError("Unit price must be greater than zero.")
         return price
 
+
+
+class RepairServiceForm(forms.ModelForm):
+    """
+    Form to add a Service charge to a repair job.
+    Uses Product (is_service=True) — flat amount, no quantity.
+    """
+    class Meta:
+        model = RepairService
+        fields = ['product', 'amount', 'description']
+        widgets = {
+            'product': forms.Select(attrs={
+                'class': 'form-select',
+                'required': 'required',
+            }),
+            'amount': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'step': '0.01',
+                'min': '0',
+                'placeholder': '0.00',
+            }),
+            'description': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Optional note (e.g., Printer head cleaning)',
+            }),
+        }
+        labels = {
+            'product': 'Service',
+            'amount': 'Amount (₹)',
+            'description': 'Description',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only show service products
+        self.fields['product'].queryset = Product.objects.filter(
+            is_service=True,
+            is_active=True,
+        ).order_by('name')
+        self.fields['product'].empty_label = "— Select Service —"
+        self.fields['amount'].required = True
+
+    def clean_amount(self):
+        amount = self.cleaned_data.get('amount')
+        if amount is None:
+            raise ValidationError("Amount is required.")
+        if amount < 0:
+            raise ValidationError("Amount cannot be negative.")
+        return amount
 
 # ============================================================
 # 8. PAYMENTS

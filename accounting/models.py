@@ -67,6 +67,7 @@ class SoftDeleteQuerySet(models.QuerySet):
             'PurchaseItem',
             'CreditNoteItem',
             'RepairPart',
+            'RepairService',
             'RepairJob',
             'Payment',
             'Purchase',
@@ -1990,7 +1991,7 @@ class CreditNoteItem(SoftDeleteModel):
                     'product': self.product,
                     'movement_type': 'return_in',
                     'quantity': Decimal(self.quantity_returned).quantize(TAX_PRECISION),
-                    'date': self.credit_note.date,
+                    'date': to_aware_datetime(self.credit_note.date),
                     'reference': f"CN {self.credit_note.credit_note_number}",
                     'is_deleted': False,
                     'deleted_at': None,
@@ -2144,15 +2145,23 @@ class RepairJob(SoftDeleteModel):
         """Sum of active parts' line_total (pre-tax)."""
         result = self.parts.aggregate(total=Sum('line_total'))['total']
         return (result or Decimal('0')).quantize(TAX_PRECISION)
+    
+    @property
+    def services_total(self):
+        """Sum of active repair services' line_total (pre-tax)."""
+        result = self.services.aggregate(total=Sum('line_total'))['total']
+        return (result or Decimal('0')).quantize(TAX_PRECISION)
 
     @property
     def base_amount(self):
         """
-        Pre-tax total = parts + labour.
+        Pre-tax total = parts + services (+ legacy labour_charge).
         This is what `final_amount` field stores.
         """
-        return (self.parts_total + (self.labour_charge or Decimal('0'))
-                ).quantize(TAX_PRECISION)
+        legacy = self.labour_charge or Decimal('0')
+        return (
+            self.parts_total + self.services_total + legacy
+        ).quantize(TAX_PRECISION)
 
     @property
     def invoiced_amount(self):
@@ -2191,7 +2200,11 @@ class RepairJob(SoftDeleteModel):
 
     def calculate_final_amount(self):
         parts_total = self.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-        self.final_amount = (parts_total + self.labour_charge).quantize(TAX_PRECISION)
+        services_total = self.services.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
+        legacy_labour = self.labour_charge or Decimal('0')
+        self.final_amount = (
+            parts_total + services_total + legacy_labour
+        ).quantize(TAX_PRECISION)
         self.save(update_fields=['final_amount'])
         return self.final_amount
     
@@ -2265,10 +2278,18 @@ class RepairJob(SoftDeleteModel):
                 if not self.delivery_date:
                     self.delivery_date = today
 
-        # Recalculate final_amount
+        # Recalculate final_amount — parts + services + legacy labour
         if self.pk:
-            parts_total = self.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-            self.final_amount = (parts_total + self.labour_charge).quantize(TAX_PRECISION)
+            parts_total = self.parts.aggregate(
+                total=Sum('line_total')
+            )['total'] or Decimal('0')
+            services_total = self.services.aggregate(
+                total=Sum('line_total')
+            )['total'] or Decimal('0')
+            legacy_labour = self.labour_charge or Decimal('0')
+            self.final_amount = (
+                parts_total + services_total + legacy_labour
+            ).quantize(TAX_PRECISION)
 
         # Ensure auto-stamped fields are included in update_fields
         update_fields = kwargs.get('update_fields')
@@ -2305,7 +2326,7 @@ class RepairJob(SoftDeleteModel):
                 
     def delete(self, *args, **kwargs):
         """
-        Delete repair AND its parts (reversing stock via RepairPart.delete).
+        Delete repair AND its parts/services (reversing stock via RepairPart.delete).
 
         Safety: Cannot delete a repair that has an invoice linked.
         """
@@ -2314,7 +2335,10 @@ class RepairJob(SoftDeleteModel):
                 "Cannot delete a repair job that has a linked invoice. "
                 "Please delete the invoice first."
             )
-        # Delete parts first (their .delete() reverses stock)
+        # Delete services first (no stock impact, but clean refs)
+        for service in list(self.services.all()):
+            service.delete()
+        # Delete parts (reverses stock)
         for part in list(self.parts.all()):
             part.delete()
         super().delete(*args, **kwargs)
@@ -2342,7 +2366,7 @@ class RepairPart(SoftDeleteModel):
                     'product': self.product,
                     'movement_type': 'repair_out',
                     'quantity': (-Decimal(self.quantity)).quantize(TAX_PRECISION),
-                    'date': to_aware_datetime(self.credit_note.date),
+                    'date': to_aware_datetime(self.repair_job.date_in),
                     'is_deleted': False,
                     'deleted_at': None,
                     'deleted_by': None,
@@ -2357,6 +2381,67 @@ class RepairPart(SoftDeleteModel):
                 source_content_type=ContentType.objects.get_for_model(self),
                 source_object_id=self.pk
             ).delete()
+        repair_job = self.repair_job
+        super().delete(*args, **kwargs)
+        if repair_job:
+            repair_job.calculate_final_amount()
+
+
+# ============================================================
+# REPAIR SERVICE (No quantity, no stock — flat charge)
+# ============================================================
+
+class RepairService(SoftDeleteModel):
+    """
+    Service charge attached to a repair job — NO physical stock.
+
+    Examples: Repair Labour, Data Recovery, Software Loading, Diagnostics.
+    Uses a Product with is_service=True. Charges a flat amount (no quantity).
+
+    Stock impact: NONE — service items never touch inventory.
+    """
+    repair_job = models.ForeignKey(
+        RepairJob,
+        on_delete=models.CASCADE,
+        related_name='services',
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        limit_choices_to={'is_service': True},
+        help_text="Service product (is_service=True).",
+    )
+    amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        validators=POSITIVE_VALIDATOR,
+    )
+    description = models.CharField(
+        max_length=200, blank=True,
+        help_text="Optional note (e.g., 'Printer head cleaning').",
+    )
+    line_total = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        editable=False,
+        validators=POSITIVE_VALIDATOR,
+    )
+
+    class Meta:
+        ordering = ['id']
+        indexes = [
+            models.Index(fields=['repair_job']),
+        ]
+
+    def __str__(self):
+        return f"{self.product.name} — ₹{self.amount}"
+
+    def save(self, *args, **kwargs):
+        if not self.amount and self.product:
+            self.amount = self.product.selling_price or Decimal('0')
+        self.line_total = (Decimal(self.amount)).quantize(TAX_PRECISION)
+        super().save(*args, **kwargs)
+        self.repair_job.calculate_final_amount()
+
+    def delete(self, *args, **kwargs):
         repair_job = self.repair_job
         super().delete(*args, **kwargs)
         if repair_job:

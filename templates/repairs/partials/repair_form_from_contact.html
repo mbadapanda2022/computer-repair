@@ -1,4 +1,4 @@
-<!-- templates/partials/repair_form_contact.html -->
+<!-- templates/repairs/partials/repair_form_from_contact.html -->
 {% load static %}
 
 <form method="post"
@@ -153,13 +153,11 @@
                           placeholder="Device condition at reception...">{{ form.received_remarks.value|default:'' }}</textarea>
             </div>
             <div class="col-md-6">
-                <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge (₹)</label>
-                <input type="number" name="labour_charge" id="id_labour_charge" step="0.01"
-                       class="form-control {% if form.labour_charge.errors %}is-invalid{% endif %}"
-                       value="{{ form.labour_charge.value|default:'0' }}">
-                <div id="field-labour_charge" class="invalid-feedback d-block">
-                    {{ form.labour_charge.errors|join:", " }}
-                </div>
+                <label class="form-label fw-semibold d-block">&nbsp;</label>
+                <small class="text-muted d-block mt-2">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Parts and services are added after creating the repair.
+                </small>
             </div>
         </div>
     </div>

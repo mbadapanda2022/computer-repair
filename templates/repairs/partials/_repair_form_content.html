@@ -213,15 +213,14 @@
                             <i class="bi bi-currency-rupee"></i> Financials
                         </h6>
                         <div class="row g-3">
-                            <div class="col-md-6">
+                            <div class="col-md-12">
                                 <label for="id_estimated_cost" class="form-label fw-semibold">Estimated Cost (₹)</label>
                                 <input type="number" name="estimated_cost" id="id_estimated_cost" step="0.01"
                                        class="form-control" value="{{ form.estimated_cost.value|default:'' }}">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge (₹)</label>
-                                <input type="number" name="labour_charge" id="id_labour_charge" step="0.01"
-                                       class="form-control" value="{{ form.labour_charge.value|default:'0' }}">
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Parts and services are added separately from the repair detail page after saving.
+                                </small>
                             </div>
                         </div>
 
