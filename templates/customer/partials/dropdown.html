@@ -1,11 +1,13 @@
 {% load static %}
+
 <div class="d-flex justify-content-between align-items-center p-2 border-bottom bg-light">
     <span class="fw-bold"><i class="bi bi-bell"></i> Notifications</span>
     {% if unread_count > 0 %}
-    <button class="btn btn-sm btn-link text-decoration-none p-0" 
-            hx-post="{% url 'customer:customer_notification_mark_all_read' %}" 
-            hx-target="#notification-dropdown" hx-swap="innerHTML"
-            hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'>
+    <button class="btn btn-sm btn-link text-decoration-none p-0"
+            hx-post="{% url 'customer:customer_notification_mark_all_read' %}"
+            hx-target="#notification-dropdown"
+            hx-swap="innerHTML"
+            hx-on::after-request="htmx.trigger(document.body, 'notificationCountChanged')">
         Mark all read
     </button>
     {% endif %}
@@ -13,7 +15,8 @@
 
 {% if notifications %}
     {% for notif in notifications %}
-    <div class="dropdown-item {% if not notif.is_read %}bg-light{% endif %}" style="white-space:normal;border-bottom:1px solid #eee;">
+    <div class="dropdown-item {% if not notif.is_read %}bg-light{% endif %}"
+         style="white-space:normal;border-bottom:1px solid #eee;">
         <div class="d-flex justify-content-between align-items-start">
             <div class="flex-grow-1">
                 <div class="fw-{% if not notif.is_read %}bold{% else %}normal{% endif %}">
@@ -28,28 +31,52 @@
             </div>
             <div class="d-flex gap-1 ms-2">
                 {% if not notif.is_read %}
-                <button class="btn btn-sm btn-outline-primary" 
-                        hx-post="{% url 'customer:customer_notification_mark_read' notif.pk %}" 
-                        hx-target="#notification-dropdown" hx-swap="innerHTML"
-                        hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'
-                        title="Mark read"><i class="bi bi-check-lg"></i></button>
+                <button class="btn btn-sm btn-outline-primary"
+                        hx-post="{% url 'customer:customer_notification_mark_read' notif.pk %}"
+                        hx-target="#notification-dropdown"
+                        hx-swap="innerHTML"
+                        hx-on::after-request="htmx.trigger(document.body, 'notificationCountChanged')"
+                        title="Mark read">
+                    <i class="bi bi-check-lg"></i>
+                </button>
                 {% endif %}
-                <button class="btn btn-sm btn-outline-danger" 
-                        hx-delete="{% url 'customer:customer_notification_delete' notif.pk %}" 
-                        hx-target="#notification-dropdown" hx-swap="innerHTML"
-                        hx-headers='{"X-CSRFToken":"{{ csrf_token }}"}'
-                        hx-confirm="Delete?" title="Delete"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-sm btn-outline-danger"
+                        hx-delete="{% url 'customer:customer_notification_delete' notif.pk %}"
+                        hx-target="#notification-dropdown"
+                        hx-swap="innerHTML"
+                        hx-confirm="Delete?"
+                        hx-on::after-request="htmx.trigger(document.body, 'notificationCountChanged')"
+                        title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
             </div>
         </div>
     </div>
     {% endfor %}
 {% else %}
-    <div class="text-center py-3 text-muted"><i class="bi bi-inbox fs-3 d-block mb-1"></i><small>No new notifications</small></div>
+    <div class="text-center py-3 text-muted">
+        <i class="bi bi-inbox fs-3 d-block mb-1"></i>
+        <small>No new notifications</small>
+    </div>
 {% endif %}
 
-<!-- Footer -->
 <div class="text-center border-top p-1">
-    <a href="{% url 'customer:customer_notifications' %}" class="text-decoration-none small">
+    <a href="{% url 'customer:customer_notifications' %}"
+       class="text-decoration-none small"
+       onclick="closeNotificationDropdown(event)">
         <i class="bi bi-arrow-right-circle"></i> View all
     </a>
 </div>
+
+<script>
+function closeNotificationDropdown(e) {
+    // Close the Bootstrap dropdown before navigating
+    var dropdownEl = document.getElementById('notification-dropdown');
+    if (!dropdownEl) return;
+    var toggleBtn = dropdownEl.parentElement.querySelector('button[data-bs-toggle="dropdown"]');
+    if (toggleBtn) {
+        var inst = bootstrap.Dropdown.getInstance(toggleBtn);
+        if (inst) inst.hide();
+    }
+}
+</script>

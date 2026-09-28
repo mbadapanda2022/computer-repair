@@ -496,13 +496,28 @@
         }
     });
 
-    document.addEventListener('refresh-notifications', function () {
-        const badgeContainer = document.querySelector('#notification-badge-container');
-        if (badgeContainer) htmx.trigger(badgeContainer, 'refresh');
-        const dropdownContainer = document.querySelector('#notification-dropdown');
-        if (dropdownContainer) htmx.trigger(dropdownContainer, 'refresh');
-        const listContainer = document.querySelector('#notification-list-container');
-        if (listContainer) htmx.trigger(listContainer, 'refresh');
+    // ================================================================
+    // NOTIFICATION COUNT REFRESH
+    // ================================================================
+    // Fired by mark-read / mark-all-read / delete actions via HTMX
+    // `hx-on::after-request`. Instantly updates all badge counters
+    // (sidebar + navbar) across both staff and customer portals.
+    // ================================================================
+    document.body.addEventListener('notificationCountChanged', function () {
+        // Refresh all badge wrappers (HTMX will re-fetch count)
+        var badgeIds = [
+            'sidebar-notif-badge',
+            'notificationCount',
+            'customer-sidebar-notif-badge',
+        ];
+        badgeIds.forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) htmx.trigger(el, 'load');
+        });
+
+        // Refresh the dropdown (list of latest notifications)
+        var dropdown = document.getElementById('notification-dropdown');
+        if (dropdown) htmx.trigger(dropdown, 'load');
     });
 
     // ---- Open WhatsApp when an estimate is dispatched via WhatsApp ----

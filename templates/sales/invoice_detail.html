@@ -67,7 +67,7 @@
             <button class="btn btn-outline-danger"
                     hx-delete="{% url 'accounting:invoice_delete' invoice.pk %}"
                     hx-swap="none"
-                    hx-confirm="Delete invoice {{ invoice.invoice_number }}? This cannot be undone."
+                    hx-confirm="Delete invoice {{ invoice.invoice_number }}? This will remove all items, unlink the repair, and reverse stock. Cannot be undone."
                     hx-on::after-request="if(event.detail.successful) window.location.href='{% url 'accounting:invoice_list' %}'">
                 <i class="bi bi-trash me-1"></i>Delete
             </button>

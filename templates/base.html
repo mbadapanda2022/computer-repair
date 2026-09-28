@@ -63,12 +63,12 @@
                     class="nav-link {% if request.resolver_match.url_name == 'notification_list' or 'notifications' in request.path %}active{% endif %}">
                         <i class="bi bi-bell"></i>
                         <span class="link-text">Notifications</span>
-                        <span class="badge bg-danger ms-2 {% if user|unread_count == 0 %}d-none{% endif %}"
+                        <span class="badge bg-danger ms-2"
                             id="sidebar-notif-badge"
                             hx-get="{% url 'accounting:notification_unread_count_text' %}"
                             hx-trigger="load, every 30s"
                             hx-swap="innerHTML">
-                            {{ user|unread_count }}
+                            {% if user|unread_count %}{{ user|unread_count }}{% endif %}
                         </span>
                     </a>
                 </li>
@@ -266,12 +266,12 @@
                                     hx-swap="innerHTML"
                                     hx-trigger="click">
                                 <i class="bi bi-bell"></i>
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
                                     id="notificationCount"
-                                    hx-get="{% url 'accounting:notification_unread_count_text' %}" 
-                                    hx-trigger="load, every 30s" 
+                                    hx-get="{% url 'accounting:notification_unread_count_text' %}"
+                                    hx-trigger="load, every 30s"
                                     hx-swap="innerHTML">
-                                    {{ user|unread_count }}
+                                    {% if user|unread_count %}{{ user|unread_count }}{% endif %}
                                 </span>
                             </button>
                             <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 

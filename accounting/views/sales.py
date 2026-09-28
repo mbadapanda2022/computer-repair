@@ -350,9 +350,22 @@ def invoice_update(request, pk):
 @require_http_methods(["DELETE"])
 @handle_errors(default_redirect='accounting:invoice_list')
 def invoice_delete(request, pk):
+    """
+    Delete an invoice cleanly.
+
+    - Blocks if payments are allocated (safety).
+    - Unlinks linked repair (does NOT touch its status/delivery).
+    - Cleans sales ledger entries.
+    - Soft-deletes items and invoice header.
+    - Recalculates customer balance.
+    - Sends customer notification.
+
+    All steps wrapped in transaction.atomic — either everything
+    succeeds or nothing changes.
+    """
     invoice = get_object_or_404(Invoice, pk=pk)
 
-    # ── Safety: block delete if payments are allocated ──
+    # ── Safety: block delete if payments allocated ──
     if invoice.payment_allocations.exists():
         return toast_only_response(
             {
@@ -367,89 +380,72 @@ def invoice_delete(request, pk):
 
     invoice_number = invoice.invoice_number
     customer = invoice.customer
-
-    # ── Manual-items warning (audit trail) ──
-    # Warn staff that manually-added items on this invoice (not sourced
-    # from repair parts) will be permanently lost. The repair itself
-    # will keep its own parts list — but the invoice-only items vanish.
-    manual_items = list(
-        invoice.items.filter(repair_part__isnull=True)
-    )
-    # Exclude auto-generated "Repair Labour" line (it can be regenerated)
-    manual_items = [
-        item for item in manual_items
-        if not (item.product and item.product.name == "Repair Labour")
-    ]
-
-    # Allow AJAX confirmation flow — if flag not set, return warning
-    if manual_items and request.POST.get('confirmed_manual_loss') != '1':
-        # For HTMX delete: return a JSON hint so the frontend can show
-        # a second confirm dialog
-        if is_htmx(request):
-            return toast_only_response(
-                {
-                    'level': 'warning',
-                    'message': (
-                        f'This invoice has {len(manual_items)} manually added '
-                        f'item(s) that will be permanently lost. '
-                        f'Click Delete again to confirm.'
-                    ),
-                },
-                status=200,
-            )
-        # For non-HTMX: fall through (accept the delete)
-
-
-    # ── Unlink repair job (do NOT touch status or delivery) ──
-    # Invoice deletion is a BILLING correction, not a physical reversal.
-    # The device may already be delivered, or still waiting for pickup —
-    # neither of those facts changes because an invoice was deleted.
     repair_job = None
+
     try:
-        repair_job = RepairJob.objects.filter(invoice=invoice).first()
-        if repair_job:
-            repair_job.invoice = None
-            repair_job.save(update_fields=['invoice'])
-            logger.info(
-                f"Repair {repair_job.job_number} unlinked from "
-                f"deleted invoice {invoice_number}."
-            )
+        with transaction.atomic():
+            # ── 1. Unlink repair (fast DB update — bypasses save()) ──
+            repair_job = RepairJob.objects.filter(invoice=invoice).first()
+            if repair_job:
+                RepairJob.objects.filter(pk=repair_job.pk).update(invoice=None)
+                logger.info(
+                    f"Repair {repair_job.job_number} unlinked from "
+                    f"invoice {invoice_number}."
+                )
+
+            # ── 2. Delete sales ledger entries (lines first, then entry) ──
+            for entry in LedgerEntry.objects.filter(
+                reference_id=invoice.id, entry_type='sales'
+            ):
+                for line in list(entry.lines.all()):
+                    line.delete()
+                entry.delete()
+
+            # ── 3. Soft-delete items (reverses stock) ──
+            for item in list(invoice.items.all()):
+                item.delete()
+
+            # ── 4. Soft-delete invoice header ──
+            invoice.soft_delete()
+
     except Exception as e:
-        logger.error(f"Error unlinking repair job: {e}")
+        logger.exception(
+            "Invoice delete failed | invoice=%s | error=%s", pk, e
+        )
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    f'Failed to delete invoice {invoice_number}. '
+                    f'No changes were made. Please try again.'
+                ),
+            },
+            status=500,
+        )
 
-    for entry in LedgerEntry.objects.filter(
-        reference_id=invoice.id, entry_type='sales'
-    ):
-        for line in list(entry.lines.all()):
-            line.delete()
-        entry.delete()
+    logger.info(
+        f"Invoice {invoice_number} deleted by {request.user.username}"
+    )
 
-    for item in invoice.items.all():
-        item.delete()
-
-    # 4. Soft-delete the invoice header itself.
-    invoice.delete()
-    logger.info(f"Invoice {invoice_number} deleted by {request.user.username}")
-
-    # 3. Notify customer (if they have a user account)
+    # ── 5. Notify customer (non-blocking) ──
     try:
         if customer and customer.user:
             send_notification_to_customer(
                 customer,
                 title=f"Invoice Deleted: {invoice_number}",
-                message=f"Invoice {invoice_number} has been removed from your account.",
+                message=(
+                    f"Invoice {invoice_number} has been removed "
+                    f"from your account."
+                ),
                 link=reverse('customer:customer_invoices'),
                 notif_type='warning',
                 category='sales',
                 send_email=False,
             )
-        for staff in User.objects.filter(is_staff=True):
-            send_notification_sse(staff)
-    except Exception as notif_err:
-        logger.error(f"Invoice delete notification failed: {notif_err}")
+    except Exception:
+        logger.exception("Invoice delete notification failed")
 
-
-    # 4. Return HTMX response
+    # ── 6. Response ──
     message = f'Invoice {invoice_number} deleted.'
     if repair_job:
         message += f' Repair #{repair_job.job_number} unlinked.'
@@ -458,7 +454,7 @@ def invoice_delete(request, pk):
         response = HttpResponse()
         response['HX-Trigger'] = json.dumps({
             'showToast': {'level': 'success', 'message': message},
-            'reloadInvoices': ''
+            'reloadInvoices': '',
         })
         return response
 
