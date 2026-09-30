@@ -1,35 +1,93 @@
 # accounting/forms.py
 import re
 from decimal import Decimal
-from django import forms
-from django.contrib.auth.forms import AuthenticationForm, PasswordResetForm, PasswordChangeForm
-from django.contrib.auth import get_user_model
-from django.contrib.auth.models import User
-from django.urls import reverse, reverse_lazy
-from django.utils.translation import gettext_lazy as _
-from django.core.exceptions import ValidationError
-from django.core.validators import validate_email
-from django.core.cache import cache
-from django.db.models import Q
-from django.utils import timezone
-from django.db import transaction
 
-from .models import *
+from django import forms
+from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import (
+    PasswordChangeForm,
+    PasswordResetForm,
+)
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.urls import reverse, reverse_lazy
+from django.utils import timezone
+
+from .models import (
+    BankAccount,
+    BankTransaction,
+    CompanyProfile,
+    Contact,
+    ContactMessage,
+    FAQ,
+    Invoice,
+    InvoiceItem,
+    Payment,
+    Product,
+    ProductCategory,
+    Purchase,
+    PurchaseItem,
+    RepairJob,
+    RepairPart,
+    RepairService,
+    Service,
+    StockMovement,
+    Testimonial,
+)
+
 User = get_user_model()
 
+
 # ============================================================
-# BOOTSTRAP WIDGETS
+# BOOTSTRAP WIDGET FACTORIES
+# ------------------------------------------------------------
+# IMPORTANT: These are FUNCTIONS, not shared instances.
+# Django widgets are mutable — sharing one instance across many
+# forms causes attribute leakage (e.g. HTMX attrs from one form
+# bleeding into another). Always call these: BS_TEXT(), BS_SELECT()
 # ============================================================
-BS_TEXT = forms.TextInput(attrs={'class': 'form-control'})
-BS_EMAIL = forms.EmailInput(attrs={'class': 'form-control'})
-BS_PASSWORD = forms.PasswordInput(attrs={'class': 'form-control'})
-BS_TEXTAREA = forms.Textarea(attrs={'class': 'form-control', 'rows': 3})
-BS_SELECT = forms.Select(attrs={'class': 'form-select'})
-BS_DATE = forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
-BS_DATETIME = forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'})
-BS_NUMBER = forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'})
-BS_CLEARABLE_FILE = forms.ClearableFileInput(attrs={'class': 'form-control'})
-BS_CHECKBOX = forms.CheckboxInput(attrs={'class': 'form-check-input'})
+def BS_TEXT(**kwargs):
+    return forms.TextInput(attrs={'class': 'form-control', **kwargs})
+
+
+def BS_EMAIL(**kwargs):
+    return forms.EmailInput(attrs={'class': 'form-control', **kwargs})
+
+
+def BS_PASSWORD(**kwargs):
+    return forms.PasswordInput(attrs={'class': 'form-control', **kwargs})
+
+
+def BS_TEXTAREA(**kwargs):
+    return forms.Textarea(attrs={'class': 'form-control', 'rows': 3, **kwargs})
+
+
+def BS_SELECT(**kwargs):
+    return forms.Select(attrs={'class': 'form-select', **kwargs})
+
+
+def BS_DATE(**kwargs):
+    return forms.DateInput(attrs={'class': 'form-control', 'type': 'date', **kwargs})
+
+
+def BS_DATETIME(**kwargs):
+    return forms.DateTimeInput(
+        attrs={'class': 'form-control', 'type': 'datetime-local', **kwargs}
+    )
+
+
+def BS_NUMBER(**kwargs):
+    return forms.NumberInput(
+        attrs={'class': 'form-control', 'step': '0.01', **kwargs}
+    )
+
+
+def BS_CLEARABLE_FILE(**kwargs):
+    return forms.ClearableFileInput(attrs={'class': 'form-control', **kwargs})
+
+
+def BS_CHECKBOX(**kwargs):
+    return forms.CheckboxInput(attrs={'class': 'form-check-input', **kwargs})
 
 
 # ============================================================
@@ -60,20 +118,20 @@ class HTMXValidationMixin:
                 else:
                     attrs['hx-include'] = f'[name="{name}"]'
                 widget.attrs.update(attrs)
+
         if instance_id and include_id_field and include_id_field not in self.fields:
             self.fields[include_id_field] = forms.IntegerField(
                 widget=forms.HiddenInput(),
                 initial=instance_id,
-                required=False
+                required=False,
             )
 
 
 # ============================================================
 # CUSTOMER REGISTRATION FORM
 # ============================================================
-
 class CustomerRegistrationForm(forms.ModelForm):
-    # Honeypot field - bots fill this, real users leave empty
+    # Honeypot field — bots fill this, real users leave empty
     website = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
@@ -82,7 +140,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             'autocomplete': 'off',
             'aria-hidden': 'true',
         }),
-        label="Website (Leave empty)"
+        label="Website (Leave empty)",
     )
 
     username = forms.CharField(
@@ -97,7 +155,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             'hx-include': '[name="username"]',
         }),
         label="Username",
-        required=True
+        required=True,
     )
 
     full_name = forms.CharField(
@@ -112,7 +170,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             'hx-include': '[name="full_name"]',
         }),
         label="Full Name",
-        required=True
+        required=True,
     )
 
     email = forms.EmailField(
@@ -126,7 +184,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             'hx-include': '[name="email"]',
         }),
         label="Email",
-        required=True
+        required=True,
     )
 
     phone = forms.CharField(
@@ -141,7 +199,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             'hx-swap': 'innerHTML',
             'hx-include': '[name="phone"]',
         }),
-        label="Phone (Optional)"
+        label="Phone (Optional)",
     )
 
     password1 = forms.CharField(
@@ -150,7 +208,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             'placeholder': 'Password (min 8 chars)',
         }),
         label="Password",
-        required=True
+        required=True,
     )
 
     password2 = forms.CharField(
@@ -159,7 +217,7 @@ class CustomerRegistrationForm(forms.ModelForm):
             'placeholder': 'Confirm Password',
         }),
         label="Confirm Password",
-        required=True
+        required=True,
     )
 
     class Meta:
@@ -270,9 +328,9 @@ class CustomPasswordResetForm(PasswordResetForm):
     email = forms.EmailField(
         widget=forms.EmailInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Enter your registered email'
+            'placeholder': 'Enter your registered email',
         }),
-        label="Email"
+        label="Email",
     )
 
 
@@ -290,7 +348,7 @@ class CustomPasswordChangeForm(PasswordChangeForm):
 # CONTACT MESSAGE FORM
 # ============================================================
 class ContactMessageForm(forms.ModelForm):
-    # Honeypot field - bots fill this, real users leave empty
+    # Honeypot field
     website = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
@@ -299,7 +357,7 @@ class ContactMessageForm(forms.ModelForm):
             'autocomplete': 'off',
             'aria-hidden': 'true',
         }),
-        label="Website (Leave empty)"
+        label="Website (Leave empty)",
     )
 
     class Meta:
@@ -308,7 +366,7 @@ class ContactMessageForm(forms.ModelForm):
         widgets = {
             'phone': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Optional 10-digit mobile number'
+                'placeholder': 'Optional 10-digit mobile number',
             }),
         }
 
@@ -343,7 +401,6 @@ class ContactMessageForm(forms.ModelForm):
         return message
 
     def clean_website(self):
-        """Honeypot: if this field is filled, treat as spam."""
         website = self.cleaned_data.get('website')
         if website:
             raise ValidationError("Spam detected. This field should be empty.")
@@ -362,40 +419,85 @@ class CompanyProfileForm(forms.ModelForm):
             'default_tax_rate', 'financial_year_start', 'state',
             'tagline', 'hero_image', 'about_text',
             'google_map_embed', 'working_hours',
-            'facebook_url', 'instagram_url', 'youtube_url', 'whatsapp_number', 'google_review_link',
-            'meta_title', 'meta_description', 'meta_keywords', 'og_image'
+            'facebook_url', 'instagram_url', 'youtube_url',
+            'whatsapp_number', 'google_review_link',
+            'meta_title', 'meta_description', 'meta_keywords', 'og_image',
         ]
         widgets = {
-            'name': BS_TEXT,
+            'name': BS_TEXT(),
             'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'phone': BS_TEXT,
-            'email': BS_EMAIL,
-            'gstin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '22AAAAA0000A1Z5'}),
+            'phone': BS_TEXT(),
+            'email': BS_EMAIL(),
+            'gstin': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': '22AAAAA0000A1Z5',
+            }),
             'logo': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
-                'accept': 'image/jpeg,image/png,image/webp'
+                'accept': 'image/jpeg,image/png,image/webp',
             }),
-            'invoice_prefix': BS_TEXT,
-            'default_tax_rate': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'financial_year_start': BS_DATE,
-            'state': BS_TEXT,
-            'tagline': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Short tagline for hero section'}),
+            'invoice_prefix': BS_TEXT(),
+            'default_tax_rate': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': '0.01',
+            }),
+            'financial_year_start': BS_DATE(),
+            'state': BS_TEXT(),
+            'tagline': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Short tagline for hero section',
+            }),
             'hero_image': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
-                'accept': 'image/jpeg,image/png,image/webp'
+                'accept': 'image/jpeg,image/png,image/webp',
             }),
-            'about_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'About the company'}),
-            'google_map_embed': forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Paste iframe code'}),
-            'working_hours': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Mon-Sat: 10:00 AM - 8:00 PM'}),
-            'facebook_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://facebook.com/yourpage'}),
-            'instagram_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://instagram.com/yourprofile'}),
-            'youtube_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://youtube.com/yourchannel'}),
-            'whatsapp_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '+919876543210'}),
-            'google_review_link': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://g.page/r/CSroVuEHgpaJEAE/review'}),
-            'meta_title': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Max 70 characters'}),
-            'meta_description': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Max 160 characters'}),
-            'meta_keywords': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Comma separated keywords'}),
-            'og_image': forms.ClearableFileInput(attrs={'class': 'form-control', 'accept': 'image/jpeg,image/png,image/webp'}),
+            'about_text': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 4,
+                'placeholder': 'About the company',
+            }),
+            'google_map_embed': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 4,
+                'placeholder': 'Paste iframe code',
+            }),
+            'working_hours': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., Mon-Sat: 10:00 AM - 8:00 PM',
+            }),
+            'facebook_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://facebook.com/yourpage',
+            }),
+            'instagram_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://instagram.com/yourprofile',
+            }),
+            'youtube_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://youtube.com/yourchannel',
+            }),
+            'whatsapp_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': '+919876543210',
+            }),
+            'google_review_link': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://g.page/r/CSroVuEHgpaJEAE/review',
+            }),
+            'meta_title': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Max 70 characters',
+            }),
+            'meta_description': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Max 160 characters',
+            }),
+            'meta_keywords': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Comma separated keywords',
+            }),
+            'og_image': forms.ClearableFileInput(attrs={
+                'class': 'form-control',
+                'accept': 'image/jpeg,image/png,image/webp',
+            }),
         }
         help_texts = {
             'gstin': 'Leave blank to disable GST features',
@@ -420,7 +522,9 @@ class CompanyProfileForm(forms.ModelForm):
         phone = self.cleaned_data.get('phone')
         if phone:
             if not re.match(r'^\+?\d{10,15}$', phone):
-                raise ValidationError("Enter a valid phone number (10-15 digits, optional +).")
+                raise ValidationError(
+                    "Enter a valid phone number (10-15 digits, optional +)."
+                )
         return phone
 
     def clean_whatsapp_number(self):
@@ -430,18 +534,22 @@ class CompanyProfileForm(forms.ModelForm):
             if not clean.isdigit():
                 raise ValidationError("WhatsApp number must contain only digits.")
             if len(clean) < 10 or len(clean) > 15:
-                raise ValidationError("WhatsApp number must be between 10 and 15 digits.")
+                raise ValidationError(
+                    "WhatsApp number must be between 10 and 15 digits."
+                )
         return number
 
     def clean_logo(self):
         logo = self.cleaned_data.get('logo')
         if logo and hasattr(logo, 'name') and logo.name:
             if 'logo' in self.files:
-                from .validators import validate_image_file_extension, validate_image_binary
+                from .validators import (
+                    validate_image_binary,
+                    validate_image_file_extension,
+                )
                 from .image_processor import process_uploaded_image
                 validate_image_file_extension(logo)
                 validate_image_binary(logo)
-                # Process the image — resize + compress
                 logo = process_uploaded_image(logo, max_size=(400, 400))
         return logo
 
@@ -449,7 +557,10 @@ class CompanyProfileForm(forms.ModelForm):
         hero = self.cleaned_data.get('hero_image')
         if hero and hasattr(hero, 'file') and hero.name:
             if 'hero_image' in self.files:
-                from .validators import validate_image_file_extension, validate_image_binary
+                from .validators import (
+                    validate_image_binary,
+                    validate_image_file_extension,
+                )
                 validate_image_file_extension(hero)
                 validate_image_binary(hero)
         return hero
@@ -463,15 +574,15 @@ class ServiceForm(forms.ModelForm):
         model = Service
         fields = ['title', 'description', 'icon', 'image', 'order', 'is_active']
         widgets = {
-            'title': BS_TEXT,
+            'title': BS_TEXT(),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'icon': BS_TEXT,
+            'icon': BS_TEXT(),
             'image': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
-                'accept': 'image/jpeg,image/png,image/webp'
+                'accept': 'image/jpeg,image/png,image/webp',
             }),
             'order': forms.NumberInput(attrs={'class': 'form-control'}),
-            'is_active': BS_CHECKBOX,
+            'is_active': BS_CHECKBOX(),
         }
         help_texts = {
             'icon': 'Bootstrap icon class (e.g., bi-tools, bi-display).',
@@ -485,20 +596,22 @@ class ServiceForm(forms.ModelForm):
 class TestimonialForm(forms.ModelForm):
     class Meta:
         model = Testimonial
-        fields = ['customer_name', 'customer_photo', 'designation', 'company_name',
-                  'review_text', 'rating', 'order', 'is_active']
+        fields = [
+            'customer_name', 'customer_photo', 'designation', 'company_name',
+            'review_text', 'rating', 'order', 'is_active',
+        ]
         widgets = {
-            'customer_name': BS_TEXT,
+            'customer_name': BS_TEXT(),
             'customer_photo': forms.ClearableFileInput(attrs={
                 'class': 'form-control',
-                'accept': 'image/jpeg,image/png,image/webp'
+                'accept': 'image/jpeg,image/png,image/webp',
             }),
-            'designation': BS_TEXT,
-            'company_name': BS_TEXT,
+            'designation': BS_TEXT(),
+            'company_name': BS_TEXT(),
             'review_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'rating': forms.Select(attrs={'class': 'form-select'}),
             'order': forms.NumberInput(attrs={'class': 'form-control'}),
-            'is_active': BS_CHECKBOX,
+            'is_active': BS_CHECKBOX(),
         }
         help_texts = {
             'customer_photo': 'Optional photo of the customer.',
@@ -515,10 +628,10 @@ class FAQForm(forms.ModelForm):
         model = FAQ
         fields = ['question', 'answer', 'order', 'is_active']
         widgets = {
-            'question': BS_TEXT,
+            'question': BS_TEXT(),
             'answer': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'order': forms.NumberInput(attrs={'class': 'form-control'}),
-            'is_active': BS_CHECKBOX,
+            'is_active': BS_CHECKBOX(),
         }
         help_texts = {
             'order': 'Lower numbers appear first.',
@@ -534,19 +647,21 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
         fields = [
             'contact_type', 'name', 'company_name', 'phone',
             'email', 'address', 'gstin', 'state',
-            'opening_balance', 'opening_balance_date', 'notes'
+            'opening_balance', 'opening_balance_date', 'notes',
         ]
         widgets = {
-            'contact_type': BS_SELECT,
-            'name': BS_TEXT,
-            'company_name': BS_TEXT,
-            'phone': BS_TEXT,
-            'email': BS_EMAIL,
+            'contact_type': BS_SELECT(),
+            'name': BS_TEXT(),
+            'company_name': BS_TEXT(),
+            'phone': BS_TEXT(),
+            'email': BS_EMAIL(),
             'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'gstin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'GSTIN'}),
-            'state': BS_TEXT,
-            'opening_balance': BS_NUMBER,
-            'opening_balance_date': BS_DATE,
+            'gstin': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'GSTIN',
+            }),
+            'state': BS_TEXT(),
+            'opening_balance': BS_NUMBER(),
+            'opening_balance_date': BS_DATE(),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
@@ -567,16 +682,10 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
 
         self.add_htmx_validation(
             validate_url=reverse('accounting:validate_accounting_contact_field'),
-            include_id_field='contact_id'
+            include_id_field='contact_id',
         )
 
     def clean_phone(self):
-        """
-        Phone is optional. If provided:
-          - normalize to digits
-          - keep last 10 digits (Indian mobile)
-          - must be unique across active Contacts (exclude self on update)
-        """
         phone = (self.cleaned_data.get('phone') or '').strip()
         if not phone:
             return ''
@@ -595,12 +704,6 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
         return phone_clean
 
     def clean_opening_balance(self):
-        """
-        Opening balance validation:
-        - New contact: free to set.
-        - Existing contact with any real transaction (invoice, purchase,
-          payment, repair, or non-opening ledger line): cannot change.
-        """
         balance = self.cleaned_data.get('opening_balance') or Decimal('0')
 
         if self.instance and self.instance.pk:
@@ -637,7 +740,7 @@ class ProductCategoryForm(forms.ModelForm):
         model = ProductCategory
         fields = ['name', 'description']
         widgets = {
-            'name': BS_TEXT,
+            'name': BS_TEXT(),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
@@ -659,18 +762,26 @@ class ProductForm(forms.ModelForm):
         fields = [
             'name', 'hsn_code', 'category', 'unit',
             'purchase_price', 'selling_price', 'current_stock',
-            'low_stock_threshold', 'tax_rate', 'is_service', 'is_active'
+            'low_stock_threshold', 'tax_rate', 'is_service', 'is_active',
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'hsn_code': forms.TextInput(attrs={'class': 'form-control'}),
             'category': forms.Select(attrs={'class': 'form-select'}),
             'unit': forms.Select(attrs={'class': 'form-select'}),
-            'purchase_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'selling_price': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
-            'current_stock': forms.NumberInput(attrs={'class': 'form-control', 'step': 'any'}),
+            'purchase_price': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': '0.01',
+            }),
+            'selling_price': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': '0.01',
+            }),
+            'current_stock': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': 'any',
+            }),
             'low_stock_threshold': forms.NumberInput(attrs={'class': 'form-control'}),
-            'tax_rate': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'tax_rate': forms.NumberInput(attrs={
+                'class': 'form-control', 'step': '0.01',
+            }),
             'is_service': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
@@ -731,7 +842,10 @@ class ProductForm(forms.ModelForm):
             if selling_price < 0:
                 self.add_error('selling_price', "Selling price cannot be negative.")
             if selling_price < purchase_price:
-                self.add_error('selling_price', "Selling price should not be less than purchase price.")
+                self.add_error(
+                    'selling_price',
+                    "Selling price should not be less than purchase price.",
+                )
 
         return cleaned_data
 
@@ -745,18 +859,17 @@ class InvoiceForm(forms.ModelForm):
         fields = [
             'customer', 'date', 'due_date', 'gst_type',
             'discount_amount', 'discount_type', 'discount_note',
-            'discount_date',
-            'notes'
+            'discount_date', 'notes',
         ]
         widgets = {
-            'customer': BS_SELECT,
-            'date': BS_DATE,
-            'due_date': BS_DATE,
-            'gst_type': BS_SELECT,
-            'discount_amount': BS_NUMBER,
-            'discount_type': BS_SELECT,
+            'customer': BS_SELECT(),
+            'date': BS_DATE(),
+            'due_date': BS_DATE(),
+            'gst_type': BS_SELECT(),
+            'discount_amount': BS_NUMBER(),
+            'discount_type': BS_SELECT(),
             'discount_note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'discount_date': BS_DATE,
+            'discount_date': BS_DATE(),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
@@ -782,17 +895,17 @@ class InvoiceItemForm(forms.ModelForm):
             'quantity': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'min': '0.01', 'step': 'any',
-                'placeholder': 'Quantity'
+                'placeholder': 'Quantity',
             }),
             'unit_price': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
-                'id': 'id_unit_price'
+                'id': 'id_unit_price',
             }),
             'tax_rate': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
-                'id': 'id_tax_rate'
+                'id': 'id_tax_rate',
             }),
         }
 
@@ -823,17 +936,17 @@ class PurchaseForm(forms.ModelForm, HTMXValidationMixin):
             'vendor', 'date', 'gst_type',
             'discount_amount', 'freight_charge',
             'discount_type', 'discount_note', 'discount_date',
-            'notes'
+            'notes',
         ]
         widgets = {
-            'vendor': BS_SELECT,
-            'date': BS_DATE,
-            'gst_type': BS_SELECT,
-            'discount_amount': BS_NUMBER,
-            'freight_charge': BS_NUMBER,
-            'discount_type': BS_SELECT,
+            'vendor': BS_SELECT(),
+            'date': BS_DATE(),
+            'gst_type': BS_SELECT(),
+            'discount_amount': BS_NUMBER(),
+            'freight_charge': BS_NUMBER(),
+            'discount_type': BS_SELECT(),
             'discount_note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'discount_date': BS_DATE,
+            'discount_date': BS_DATE(),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
@@ -871,17 +984,17 @@ class PurchaseItemForm(forms.ModelForm):
             }),
             'quantity': forms.NumberInput(attrs={
                 'class': 'form-control',
-                'min': '0.01', 'step': 'any'
+                'min': '0.01', 'step': 'any',
             }),
             'unit_price': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
-                'id': 'id_unit_price'
+                'id': 'id_unit_price',
             }),
             'tax_rate': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
-                'id': 'id_tax_rate'
+                'id': 'id_tax_rate',
             }),
             'is_office_use': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
@@ -929,27 +1042,60 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'notes',
         ]
         widgets = {
-            'customer': BS_SELECT,
-            'device_model': BS_TEXT,
-            'serial_number': BS_TEXT,
+            'customer': BS_SELECT(),
+            'device_model': BS_TEXT(),
+            'serial_number': BS_TEXT(),
             'issue_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
-            'diagnosis_report': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'E.g., Hard drive bad sectors, RAM loose, etc.'}),
-            'action_taken': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Describe what was done...'}),
-            'accessories': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'E.g., Adaptor, Bag, CD'}),
-            'device_condition': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'E.g., Battery missing, Hard disk removed'}),
+            'diagnosis_report': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 3,
+                'placeholder': 'E.g., Hard drive bad sectors, RAM loose, etc.',
+            }),
+            'action_taken': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 3,
+                'placeholder': 'Describe what was done...',
+            }),
+            'accessories': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'E.g., Adaptor, Bag, CD',
+            }),
+            'device_condition': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'E.g., Battery missing, Hard disk removed',
+            }),
             'status': forms.Select(attrs={'class': 'form-select'}),
-            'received_at': BS_DATE,
-            'ready_at': BS_DATE,
-            'delivery_date': BS_DATE,
-            'received_by': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Staff name who received device'}),
-            'received_remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Device condition at reception (e.g., scratched screen, missing charger)'}),
-            'delivered_by': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Staff name who delivered'}),
-            'delivered_to_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Recipient name (if different from customer)'}),
-            'delivered_to_phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Recipient phone number'}),
-            'delivered_to_designation': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., Driver, Accountant, Office Boy'}),
-            'delivery_remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2, 'placeholder': 'Any special delivery remarks...'}),
-            'estimated_cost': BS_NUMBER,
-            'labour_charge': BS_NUMBER,
+            'received_at': BS_DATE(),
+            'ready_at': BS_DATE(),
+            'delivery_date': BS_DATE(),
+            'received_by': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Staff name who received device',
+            }),
+            'received_remarks': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'Device condition at reception (e.g., scratched screen, missing charger)',
+            }),
+            'delivered_by': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Staff name who delivered',
+            }),
+            'delivered_to_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Recipient name (if different from customer)',
+            }),
+            'delivered_to_phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Recipient phone number',
+            }),
+            'delivered_to_designation': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., Driver, Accountant, Office Boy',
+            }),
+            'delivery_remarks': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'Any special delivery remarks...',
+            }),
+            'estimated_cost': BS_NUMBER(),
+            'labour_charge': BS_NUMBER(),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
@@ -975,19 +1121,16 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             include_id_field='repair_id',
         )
 
-        for field in ['delivered_to_name', 'delivered_to_phone',
-                      'delivered_to_designation', 'delivery_remarks',
-                      'received_at', 'ready_at', 'delivery_date',
-                      'received_by', 'received_remarks', 'delivered_by']:
+        for field in [
+            'delivered_to_name', 'delivered_to_phone',
+            'delivered_to_designation', 'delivery_remarks',
+            'received_at', 'ready_at', 'delivery_date',
+            'received_by', 'received_remarks', 'delivered_by',
+        ]:
             if field in self.fields:
                 self.fields[field].required = False
-    
+
     def clean_labour_charge(self):
-        """
-        Combined validation for labour_charge:
-          1. Non-negative check
-          2. Block change after invoice is generated
-        """
         labour = self.cleaned_data.get('labour_charge') or Decimal('0')
 
         if labour < 0:
@@ -1007,7 +1150,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
         return labour
 
     def clean_customer(self):
-        """Block changing customer once invoice is generated."""
         customer = self.cleaned_data.get('customer')
 
         if self.instance and self.instance.pk and self.instance.invoice_id:
@@ -1029,14 +1171,16 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             raise ValidationError("Estimated cost cannot be negative.")
         return cost
 
-
     def clean(self):
         cleaned_data = super().clean()
         status = cleaned_data.get('status')
         delivery_date = cleaned_data.get('delivery_date')
 
         if status == 'delivered' and not delivery_date:
-            self.add_error('delivery_date', "Delivery date is required when status is 'Delivered'.")
+            self.add_error(
+                'delivery_date',
+                "Delivery date is required when status is 'Delivered'.",
+            )
 
         return cleaned_data
 
@@ -1053,18 +1197,19 @@ class RepairPartForm(forms.ModelForm):
                 'hx-target': '#id_unit_price',
                 'hx-swap': 'outerHTML',
             }),
-            'quantity': forms.NumberInput(attrs={'class': 'form-control', 'min': '1', 'step': '1'}),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'form-control', 'min': '1', 'step': '1',
+            }),
             'unit_price': forms.NumberInput(attrs={
                 'class': 'form-control',
                 'step': '0.01',
-                'id': 'id_unit_price'
+                'id': 'id_unit_price',
             }),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Repair parts must be PHYSICAL products only.
-        # Service items (is_service=True) go through RepairService.
         self.fields['product'].queryset = Product.objects.filter(
             is_active=True,
             is_service=False,
@@ -1081,7 +1226,6 @@ class RepairPartForm(forms.ModelForm):
         if price is not None and price <= 0:
             raise ValidationError("Unit price must be greater than zero.")
         return price
-
 
 
 class RepairServiceForm(forms.ModelForm):
@@ -1116,7 +1260,6 @@ class RepairServiceForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Only show service products
         self.fields['product'].queryset = Product.objects.filter(
             is_service=True,
             is_active=True,
@@ -1132,6 +1275,7 @@ class RepairServiceForm(forms.ModelForm):
             raise ValidationError("Amount cannot be negative.")
         return amount
 
+
 # ============================================================
 # 8. PAYMENTS
 # ============================================================
@@ -1145,24 +1289,24 @@ class PaymentForm(forms.ModelForm):
             'discount_amount', 'discount_type', 'discount_note',
         ]
         widgets = {
-            'direction': BS_SELECT,
+            'direction': BS_SELECT(),
             'contact': forms.Select(attrs={
                 'class': 'form-select',
                 'id': 'id_contact',
             }),
-            'amount': BS_NUMBER,
-            'date': BS_DATE,
-            'method': BS_SELECT,
+            'amount': BS_NUMBER(),
+            'date': BS_DATE(),
+            'method': BS_SELECT(),
             'bank_account': forms.Select(attrs={'class': 'form-select'}),
             'upi_ref': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'UPI TXN ID (PhonePe / GPay)',
             }),
-            'reference': BS_TEXT,
+            'reference': BS_TEXT(),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'is_advance': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'discount_amount': BS_NUMBER,
-            'discount_type': BS_SELECT,
+            'discount_amount': BS_NUMBER(),
+            'discount_type': BS_SELECT(),
             'discount_note': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 2,
@@ -1214,19 +1358,19 @@ class PaymentForm(forms.ModelForm):
         if method in ('bank', 'upi') and not bank_account:
             self.add_error(
                 'bank_account',
-                "Please select a bank account for bank/UPI payments."
+                "Please select a bank account for bank/UPI payments.",
             )
 
         if contact and direction:
             if direction == 'received' and contact.contact_type not in ('customer', 'both'):
                 self.add_error(
                     'direction',
-                    f"'{contact.name}' is not a customer. Please choose 'Paid to Supplier'."
+                    f"'{contact.name}' is not a customer. Please choose 'Paid to Supplier'.",
                 )
             elif direction == 'paid' and contact.contact_type not in ('vendor', 'both'):
                 self.add_error(
                     'direction',
-                    f"'{contact.name}' is not a vendor. Please choose 'Received from Customer'."
+                    f"'{contact.name}' is not a vendor. Please choose 'Received from Customer'.",
                 )
 
         return cleaned_data
@@ -1240,11 +1384,11 @@ class StockMovementForm(forms.ModelForm):
         model = StockMovement
         fields = ['product', 'movement_type', 'quantity', 'reference', 'date', 'notes']
         widgets = {
-            'product': BS_SELECT,
-            'movement_type': BS_SELECT,
+            'product': BS_SELECT(),
+            'movement_type': BS_SELECT(),
             'quantity': forms.NumberInput(attrs={'class': 'form-control', 'step': 'any'}),
-            'reference': BS_TEXT,
-            'date': BS_DATETIME,
+            'reference': BS_TEXT(),
+            'date': BS_DATETIME(),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
 
@@ -1261,15 +1405,18 @@ class StockMovementForm(forms.ModelForm):
 class BankAccountForm(forms.ModelForm):
     class Meta:
         model = BankAccount
-        fields = ['name', 'account_number', 'bank_name', 'ifsc_code', 'account_type', 'opening_balance', 'is_active']
+        fields = [
+            'name', 'account_number', 'bank_name', 'ifsc_code',
+            'account_type', 'opening_balance', 'is_active',
+        ]
         widgets = {
-            'name': BS_TEXT,
-            'account_number': BS_TEXT,
-            'bank_name': BS_TEXT,
-            'ifsc_code': BS_TEXT,
-            'account_type': BS_SELECT,
-            'opening_balance': BS_NUMBER,
-            'is_active': BS_CHECKBOX,
+            'name': BS_TEXT(),
+            'account_number': BS_TEXT(),
+            'bank_name': BS_TEXT(),
+            'ifsc_code': BS_TEXT(),
+            'account_type': BS_SELECT(),
+            'opening_balance': BS_NUMBER(),
+            'is_active': BS_CHECKBOX(),
         }
 
     def clean_opening_balance(self):
@@ -1282,15 +1429,18 @@ class BankAccountForm(forms.ModelForm):
 class BankTransactionForm(forms.ModelForm):
     class Meta:
         model = BankTransaction
-        fields = ['bank_account', 'transaction_type', 'source_type', 'amount', 'date', 'description', 'reference']
+        fields = [
+            'bank_account', 'transaction_type', 'source_type',
+            'amount', 'date', 'description', 'reference',
+        ]
         widgets = {
             'bank_account': forms.Select(attrs={'class': 'form-select'}),
-            'transaction_type': BS_SELECT,
-            'source_type': BS_SELECT,
-            'amount': BS_NUMBER,
-            'date': BS_DATE,
+            'transaction_type': BS_SELECT(),
+            'source_type': BS_SELECT(),
+            'amount': BS_NUMBER(),
+            'date': BS_DATE(),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-            'reference': BS_TEXT,
+            'reference': BS_TEXT(),
         }
 
     def clean_amount(self):
@@ -1338,13 +1488,13 @@ class JournalForm(forms.Form):
 
     contact = forms.ModelChoiceField(
         queryset=Contact.objects.all(),
-        widget=BS_SELECT,
-        label="Contact"
+        widget=BS_SELECT(),
+        label="Contact",
     )
     entry_type = forms.ChoiceField(
         choices=ENTRY_TYPE_CHOICES,
-        widget=BS_SELECT,
-        label="Transaction Type"
+        widget=BS_SELECT(),
+        label="Transaction Type",
     )
     money_account = forms.ChoiceField(
         choices=MONEY_ACCOUNT_CHOICES,
@@ -1356,21 +1506,21 @@ class JournalForm(forms.Form):
     bank_account = forms.ModelChoiceField(
         queryset=BankAccount.objects.filter(is_active=True),
         required=False,
-        widget=BS_SELECT,
+        widget=BS_SELECT(),
         label="Bank Account",
         help_text="Required when Money Account = Bank/UPI",
     )
     amount = forms.DecimalField(
         max_digits=12, decimal_places=2,
-        widget=BS_NUMBER, label="Amount"
+        widget=BS_NUMBER(), label="Amount",
     )
     date = forms.DateField(
-        widget=BS_DATE, required=False, label="Date",
-        initial=timezone.now().date
+        widget=BS_DATE(), required=False, label="Date",
+        initial=timezone.now().date,
     )
     narration = forms.CharField(
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
-        required=False, label="Narration"
+        required=False, label="Narration",
     )
 
     def clean_amount(self):
@@ -1415,12 +1565,14 @@ class CustomerProfileForm(forms.ModelForm):
         model = Contact
         fields = ['name', 'company_name', 'phone', 'address', 'state', 'gstin']
         widgets = {
-            'name': BS_TEXT,
-            'company_name': BS_TEXT,
-            'phone': BS_TEXT,
+            'name': BS_TEXT(),
+            'company_name': BS_TEXT(),
+            'phone': BS_TEXT(),
             'address': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-            'state': BS_TEXT,
-            'gstin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'GSTIN'}),
+            'state': BS_TEXT(),
+            'gstin': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'GSTIN',
+            }),
         }
         help_texts = {
             'name': 'Your full name',
@@ -1453,10 +1605,13 @@ class CustomerProfileForm(forms.ModelForm):
 class CustomerRepairForm(forms.ModelForm):
     class Meta:
         model = RepairJob
-        fields = ['device_model', 'serial_number', 'issue_description', 'accessories', 'device_condition']
+        fields = [
+            'device_model', 'serial_number', 'issue_description',
+            'accessories', 'device_condition',
+        ]
         widgets = {
-            'device_model': BS_TEXT,
-            'serial_number': BS_TEXT,
+            'device_model': BS_TEXT(),
+            'serial_number': BS_TEXT(),
             'issue_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'accessories': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'device_condition': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
@@ -1475,8 +1630,8 @@ class ContactFilterForm(forms.Form):
             'hx-get': reverse_lazy('accounting:contact_list'),
             'hx-trigger': 'keyup changed delay:500ms',
             'hx-target': '#contacts-table',
-            'hx-include': 'this'
-        })
+            'hx-include': 'this',
+        }),
     )
 
 
@@ -1489,7 +1644,7 @@ class ProductFilterForm(forms.Form):
             'hx-get': reverse_lazy('accounting:product_list'),
             'hx-trigger': 'keyup changed delay:500ms',
             'hx-target': '#product-table',
-        })
+        }),
     )
     category = forms.ModelChoiceField(
         queryset=ProductCategory.objects.all(),
@@ -1499,9 +1654,9 @@ class ProductFilterForm(forms.Form):
             'hx-get': reverse_lazy('accounting:product_list'),
             'hx-trigger': 'change',
             'hx-target': '#product-table',
-            'hx-include': '[name=search]'
+            'hx-include': '[name=search]',
         }),
-        empty_label="All Categories"
+        empty_label="All Categories",
     )
 
 
@@ -1514,8 +1669,8 @@ class InvoiceFilterForm(forms.Form):
             'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'keyup changed delay:500ms',
             'hx-target': '#invoice-table-container',
-            'hx-include': '#filter-form'
-        })
+            'hx-include': '#filter-form',
+        }),
     )
     customer = forms.ModelChoiceField(
         queryset=Contact.objects.filter(contact_type__in=['customer', 'both']),
@@ -1525,20 +1680,25 @@ class InvoiceFilterForm(forms.Form):
             'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
-            'hx-include': '#filter-form'
+            'hx-include': '#filter-form',
         }),
-        empty_label="All Customers"
+        empty_label="All Customers",
     )
     status = forms.ChoiceField(
-        choices=[('', 'All Status'), ('paid', 'Paid'), ('partial', 'Partial'), ('unpaid', 'Unpaid')],
+        choices=[
+            ('', 'All Status'),
+            ('paid', 'Paid'),
+            ('partial', 'Partial'),
+            ('unpaid', 'Unpaid'),
+        ],
         required=False,
         widget=forms.Select(attrs={
             'class': 'form-select',
             'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
-            'hx-include': '#filter-form'
-        })
+            'hx-include': '#filter-form',
+        }),
     )
     date_from = forms.DateField(
         required=False,
@@ -1547,8 +1707,8 @@ class InvoiceFilterForm(forms.Form):
             'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
-            'hx-include': '#filter-form'
-        })
+            'hx-include': '#filter-form',
+        }),
     )
     date_to = forms.DateField(
         required=False,
@@ -1557,8 +1717,8 @@ class InvoiceFilterForm(forms.Form):
             'hx-get': reverse_lazy('accounting:invoice_list'),
             'hx-trigger': 'change',
             'hx-target': '#invoice-table-container',
-            'hx-include': '#filter-form'
-        })
+            'hx-include': '#filter-form',
+        }),
     )
 
 
@@ -1568,8 +1728,11 @@ class InvoiceFilterForm(forms.Form):
 class EmailChangeRequestForm(forms.Form):
     """Form to request email change."""
     new_email = forms.EmailField(
-        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'Enter new email address'}),
-        label="New Email"
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter new email address',
+        }),
+        label="New Email",
     )
 
     def __init__(self, user, *args, **kwargs):
@@ -1581,5 +1744,7 @@ class EmailChangeRequestForm(forms.Form):
         if User.objects.filter(email=email).exclude(pk=self.user.pk).exists():
             raise ValidationError("This email is already registered by another user.")
         if email == self.user.email:
-            raise ValidationError("This is your current email. Please enter a different email.")
+            raise ValidationError(
+                "This is your current email. Please enter a different email."
+            )
         return email

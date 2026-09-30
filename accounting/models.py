@@ -496,6 +496,11 @@ class LedgerEntry(SoftDeleteModel):
             raise ValidationError(f"Debit ({total_debit}) and Credit ({total_credit}) must be equal.")
 
     def save(self, *args, **kwargs):
+        # Partial updates (e.g. save(update_fields=['bank_account']))
+        # don't change debit/credit balance — skip expensive validation.
+        if kwargs.get('update_fields'):
+            super().save(*args, **kwargs)
+            return
         self.full_clean()
         super().save(*args, **kwargs)
 
