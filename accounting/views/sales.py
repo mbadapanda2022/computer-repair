@@ -14,10 +14,9 @@ from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from ..models import *
 from ..forms import InvoiceForm, InvoiceItemForm
-from accounting.utils.notification_helpers import send_notification_to_customer, send_notification_sse
+from accounting.utils.notification_helpers import send_notification_to_customer
 from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
@@ -232,8 +231,6 @@ def invoice_create(request):
                         category='sales',
                         send_email=False,
                     )
-                for staff in User.objects.filter(is_staff=True):
-                    send_notification_sse(staff)
             except Exception as notif_err:
                 logger.error(f"Invoice notification failed: {notif_err}", exc_info=True)
 
@@ -1027,8 +1024,6 @@ def credit_note_create(request, invoice_pk):
                     category='sales',
                     send_email=False,
                 )
-            for staff in User.objects.filter(is_staff=True):
-                send_notification_sse(staff)
         except Exception as notif_err:
             logger.error(f"CN notification failed: {notif_err}")
 

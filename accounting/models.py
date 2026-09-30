@@ -158,6 +158,12 @@ class SoftDeleteModel(models.Model):
         if not self.is_deleted:
             self.soft_delete()
 
+    def hard_delete(self, *args, **kwargs):
+        """Permanently delete this instance, bypassing soft-delete behavior."""
+        if not self.pk:
+            return (0, {})
+        return type(self).all_objects.filter(pk=self.pk).delete()
+
 
 
 class AuditLog(models.Model):
@@ -3146,9 +3152,45 @@ def _sync_bank_txn_ledger_on_save(sender, instance, **kwargs):
         )
 
 
+def _recalculate_invoice_payment(invoice):
+    """Recalculate one invoice's payment totals from active allocations/advances."""
+    if not invoice:
+        return
+
+    total_paid = invoice.payment_allocations.aggregate(
+        total=Sum('amount')
+    )['total'] or Decimal('0')
+    total_advance = invoice.advance_adjustments.aggregate(
+        total=Sum('amount')
+    )['total'] or Decimal('0')
+
+    invoice.paid_amount = total_paid + total_advance
+    invoice.balance_due = (
+        invoice.grand_total - invoice.paid_amount
+    ).quantize(TAX_PRECISION)
+
+    if invoice.balance_due <= 0:
+        invoice.payment_status = 'paid'
+    elif invoice.paid_amount > 0 and invoice.balance_due < invoice.grand_total:
+        invoice.payment_status = 'partial'
+    else:
+        invoice.payment_status = 'unpaid'
+
+    invoice.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
+
+
 @receiver(post_save, sender=PaymentAllocation)
 @receiver(post_delete, sender=PaymentAllocation)
 def sync_payment_allocation(sender, instance, **kwargs):
+    """Keep the directly affected invoice and payment in sync."""
+    if instance.invoice_id:
+        try:
+            invoice = Invoice.all_objects.get(pk=instance.invoice_id)
+            if not invoice.is_deleted:
+                _recalculate_invoice_payment(invoice)
+        except Invoice.DoesNotExist:
+            pass
+
     if instance.payment:
         instance.payment.update_invoices()
 
@@ -3156,6 +3198,15 @@ def sync_payment_allocation(sender, instance, **kwargs):
 @receiver(post_save, sender=AdvanceAdjustment)
 @receiver(post_delete, sender=AdvanceAdjustment)
 def sync_advance_adjustment(sender, instance, **kwargs):
+    """Keep invoice totals, payment totals and advance balance in sync."""
+    if instance.invoice_id:
+        try:
+            invoice = Invoice.all_objects.get(pk=instance.invoice_id)
+            if not invoice.is_deleted:
+                _recalculate_invoice_payment(invoice)
+        except Invoice.DoesNotExist:
+            pass
+
     if instance.payment:
         instance.payment.update_invoices()
         if instance.payment.contact:

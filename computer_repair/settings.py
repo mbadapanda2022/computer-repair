@@ -119,14 +119,22 @@ import dj_database_url
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    DATABASES = {
-        "default": dj_database_url.parse(
-            DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-            ssl_require=True,
-        )
-    }
+    _db_config = dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=600,
+        conn_health_checks=True,
+        ssl_require=True,
+    )
+
+    # Supabase shared transaction pooler (port 6543) does not support
+    # prepared statements and cannot safely use PostgreSQL server-side
+    # cursors across pooled transactions.
+    if str(_db_config.get("PORT")) == "6543":
+        _db_config.setdefault("OPTIONS", {})
+        _db_config["OPTIONS"]["prepare_threshold"] = None
+        _db_config["DISABLE_SERVER_SIDE_CURSORS"] = True
+
+    DATABASES = {"default": _db_config}
 else:
     # Local development
     DATABASES = {

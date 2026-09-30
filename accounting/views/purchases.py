@@ -7,7 +7,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.contrib import messages
-from django.contrib.auth.models import User
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -21,10 +20,7 @@ from ..models import (
     LedgerEntry,
 )
 from ..forms import PurchaseForm, PurchaseItemForm, ProductForm
-from accounting.utils.notification_helpers import (
-    send_notification_to_staff,
-    send_notification_sse,
-)
+from accounting.utils.notification_helpers import send_notification_to_staff
 from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
@@ -478,8 +474,6 @@ def purchase_create(request):
                     category='purchases',
                     send_email=False,
                 )
-                for staff in User.objects.filter(is_staff=True):
-                    send_notification_sse(staff)
             except Exception as notif_err:
                 logger.error(f"Purchase create notification failed: {notif_err}")
 
@@ -580,13 +574,6 @@ def purchase_update(request, pk):
                 f"by {request.user.username}"
             )
 
-            # Notify staff
-            try:
-                for staff in User.objects.filter(is_staff=True):
-                    send_notification_sse(staff)
-            except Exception as notif_err:
-                logger.error(f"Purchase update notification failed: {notif_err}")
-
             if is_htmx(request):
                 messages.success(
                     request,
@@ -679,8 +666,6 @@ def purchase_delete(request, pk):
             category='purchases',
             send_email=False,
         )
-        for staff in User.objects.filter(is_staff=True):
-            send_notification_sse(staff)
     except Exception as notif_err:
         logger.error(f"Purchase delete notification failed: {notif_err}")
 
