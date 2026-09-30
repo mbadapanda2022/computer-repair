@@ -21,7 +21,6 @@ urlpatterns = [
     path('validate-contact-field/', landing_views.validate_contact_field, name='validate_contact_field'),
     path('privacy-policy/', landing_views.privacy_policy, name='privacy_policy'),
     path('cookie-policy/', landing_views.cookie_policy, name='cookie_policy'),
-    path('debug/', landing_views.debug_cloudinary, name='debug_cloudinary'),
 
     # Customer URLs (Dashboard, Profile, etc.)
     path('customer/', include(('accounting.customer_urls', 'customer'))),
@@ -35,4 +34,8 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    # Debug-only routes — never available in production
+    urlpatterns += [
+        path('debug/', landing_views.debug_cloudinary, name='debug_cloudinary'),
+    ]
     

@@ -358,6 +358,9 @@ class CompanyProfile(SoftDeleteModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+        # Invalidate cached copy so context processor picks up changes
+        from django.core.cache import cache
+        cache.delete('company_profile_singleton')
 
     @classmethod
     def get_instance(cls):

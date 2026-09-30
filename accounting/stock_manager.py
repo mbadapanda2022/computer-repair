@@ -1,9 +1,11 @@
 # accounting/stock_manager.py
 
 from decimal import Decimal
-from django.db import transaction, models
+
+from django.db import models, transaction
 from django.utils import timezone
-from .models import StockMovement, Product
+
+from .models import Product, StockMovement
 
 
 class StockManager:
@@ -20,32 +22,26 @@ class StockManager:
         - quantity: positive for IN, negative for OUT
         - movement_type: one of StockMovement.MOVEMENT_TYPE choices
         - reference: invoice number, purchase number, job number, etc.
+
+        NOTE: StockMovement.save() already updates product.current_stock.
+        We don't recompute it here — that would be a duplicate write.
         """
         if date is None:
             date = timezone.now()
 
-        # Create movement record
         movement = StockMovement.objects.create(
             product=product,
             movement_type=movement_type,
             quantity=quantity,
             reference=reference,
             date=date,
-            notes=notes
+            notes=notes,
         )
-
-        # Update product's current_stock
-        total = StockMovement.objects.filter(product=product).aggregate(
-            total=models.Sum('quantity')
-        )['total'] or Decimal('0')
-        product.current_stock = total
-        product.save(update_fields=['current_stock'])
-
         return movement
 
     @staticmethod
     def get_current_stock(product):
-        """Get current stock for a product."""
+        """Get current stock for a product (sum of all movements)."""
         total = StockMovement.objects.filter(product=product).aggregate(
             total=models.Sum('quantity')
         )['total'] or Decimal('0')
@@ -65,5 +61,5 @@ class StockManager:
             movement_type='adjustment',
             reference=f"REV-{movement.reference}",
             notes=f"Reversed movement {movement.id}",
-            date=timezone.now()
+            date=timezone.now(),
         )

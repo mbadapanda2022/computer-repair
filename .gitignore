@@ -1,14 +1,32 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtualenv
 venv/
+.venv/
+env/
+
+# Environment
 .env
-*.sqlite3
+.env.*
+
+# Django
 db.sqlite3
+db.sqlite3-journal
 media/
 staticfiles/
+logs/
+
+# Backups
+backup.json
+
+# IDE / OS
 .DS_Store
+.idea/
+.vscode/
+
+# Logs
 *.log
-logs/logs/
-*.log
-db.sqlite3-journal
-db.sqlite3
