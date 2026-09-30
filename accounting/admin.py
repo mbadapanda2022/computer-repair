@@ -211,14 +211,18 @@ class LedgerEntryAdmin(admin.ModelAdmin):
         }),
     )
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
+    def save_related(self, request, form, formsets, change):
+        """
+        Called AFTER inline LedgerLines are saved.
+        Recompute total_amount from the final set of lines so the
+        displayed total is never stale.
+        """
+        super().save_related(request, form, formsets, change)
+        obj = form.instance
         total = obj.lines.aggregate(total=Sum('debit'))['total'] or Decimal('0')
         if obj.total_amount != total:
             obj.total_amount = total
             obj.save(update_fields=['total_amount'])
-
-
 
 
 # ============================================================
@@ -392,6 +396,13 @@ class InvoiceAdmin(admin.ModelAdmin):
         url = reverse('admin:accounting_invoice_change', args=[obj.pk])
         return format_html('<a href="{}">Edit</a>', url)
     view_invoice_link.short_description = "Link"
+    
+    def save_model(self, request, obj, form, change):
+        # Auto-fill discount approver when a discount is applied
+        if obj.discount_amount and obj.discount_amount > 0:
+            if not obj.discount_approved_by:
+                obj.discount_approved_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(InvoiceItem)
@@ -442,6 +453,13 @@ class PurchaseAdmin(admin.ModelAdmin):
             'fields': ('created_at',)
         }),
     )
+    
+    def save_model(self, request, obj, form, change):
+        # Auto-fill discount approver when a discount is applied
+        if obj.discount_amount and obj.discount_amount > 0:
+            if not obj.discount_approved_by:
+                obj.discount_approved_by = request.user
+        super().save_model(request, obj, form, change)
 
 @admin.register(PurchaseItem)
 class PurchaseItemAdmin(admin.ModelAdmin):
@@ -557,6 +575,13 @@ class PaymentAdmin(admin.ModelAdmin):
     def linked_invoices(self, obj):
         return ", ".join([alloc.invoice.invoice_number for alloc in obj.allocations.all()])
     linked_invoices.short_description = "Invoices"
+    
+    def save_model(self, request, obj, form, change):
+        # Auto-fill discount approver when a discount is applied
+        if obj.discount_amount and obj.discount_amount > 0:
+            if not obj.discount_approved_by:
+                obj.discount_approved_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 # ============================================================
