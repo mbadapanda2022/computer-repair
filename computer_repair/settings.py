@@ -67,11 +67,10 @@ CSRF_COOKIE_SECURE = not DEBUG
 # ============================================================
 # CACHES — Database-backed (Render free tier + multi-worker safe)
 # ============================================================
-# LocMemCache per-process होता है। Render free tier पर Gunicorn 2 workers
-# चलाता है, इसलिए login rate limiting को cross-worker share करने के लिए
-# DatabaseCache use कर रहे हैं (Supabase Postgres पर)।
-#
-# ⚠️ Build.sh में `createcachetable` चलाना अनिवार्य है।
+# LocMemCache is per-process. Gunicorn 2 workers on the Render free tier.
+# ...runs it, so to share login rate limiting across workers...
+# We are using DatabaseCache (on Supabase Postgres).
+# Running `createcachetable` in Build.sh is mandatory.
 # ============================================================
 CACHES = {
     'default': {
