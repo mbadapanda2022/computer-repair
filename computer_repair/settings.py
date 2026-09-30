@@ -13,7 +13,12 @@ if not SECRET_KEY:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY environment variable is missing!")
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').strip().lower() == 'true'
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+# ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+    if h.strip()
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -208,7 +213,7 @@ if not DEBUG:
     EMAIL_HOST = 'smtp-relay.brevo.com'
     EMAIL_PORT = 2525
     EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = 'b49739001@smtp-brevo.com'
+    EMAIL_HOST_USER = os.getenv('BREVO_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_KEY', '')
     DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'solutionsmanojtech@gmail.com')
 else:
@@ -232,35 +237,26 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
-        },
         'simple': {
-            'format': '{levelname} {message}',
+            'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG' if DEBUG else 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
-        'file': {
-            'level': 'ERROR',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'logs/django_errors.log',
-            'formatter': 'verbose',
-        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
     },
     'loggers': {
-        'django': {'handlers': ['console', 'file'], 'level': 'INFO', 'propagate': True},
-        'django.request': {'handlers': ['file'], 'level': 'ERROR', 'propagate': False},
-        'accounting': {'handlers': ['console', 'file'], 'level': 'DEBUG' if DEBUG else 'INFO', 'propagate': True},
+        'django.request': {'handlers': ['console'], 'level': 'ERROR', 'propagate': False},
+        'accounting': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
         'django_eventstream': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
         'django.server': {'handlers': ['console'], 'level': 'WARNING', 'propagate': False},
-        'cloudinary': {'handlers': ['console', 'file'], 'level': 'ERROR', 'propagate': True},
     },
 }
 
@@ -277,15 +273,13 @@ if not DEBUG:
 else:
     X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-LOGS_DIR = BASE_DIR / 'logs'
-if not LOGS_DIR.exists():
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 HONEYPOT_FIELD_NAME = 'website'
 HONEYPOT_VALUE = ''
 HONEYPOT_VERIFY = True
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024   # 10 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 CSRF_FAILURE_VIEW = 'accounting.views.error_handlers.csrf_failure'
