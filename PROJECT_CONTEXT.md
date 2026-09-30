@@ -444,4 +444,4 @@ AI should:
 - **Preserve existing features** — no breaking changes
 
 ---
-
+<!-- CodeRabbit test review -->
