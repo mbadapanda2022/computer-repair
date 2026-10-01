@@ -1126,12 +1126,19 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'delivered_to_designation', 'delivery_remarks',
             'received_at', 'ready_at', 'delivery_date',
             'received_by', 'received_remarks', 'delivered_by',
+            'labour_charge',
         ]:
             if field in self.fields:
                 self.fields[field].required = False
 
     def clean_labour_charge(self):
-        labour = self.cleaned_data.get('labour_charge') or Decimal('0')
+        submitted = self.cleaned_data.get('labour_charge')
+        if submitted is None:
+            if self.instance and self.instance.pk:
+                return self.instance.labour_charge or Decimal('0')
+            return Decimal('0')
+
+        labour = submitted
 
         if labour < 0:
             raise ValidationError("Labour charge cannot be negative.")
