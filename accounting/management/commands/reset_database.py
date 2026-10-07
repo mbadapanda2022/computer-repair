@@ -9,16 +9,24 @@ from django.db import connection
 class Command(BaseCommand):
     help = "Reset database: clear all data, drop migrations, recreate fresh"
 
-    def handle(self, *args, **options):
-        self.stdout.write(
-            self.style.WARNING(
-                "WARNING: This will DELETE ALL DATA and reset migrations!"
-            )
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Skip confirmation prompt (for automated builds)',
         )
-        confirm = input("Type 'yes' to continue: ")
-        if confirm.lower() != "yes":
-            self.stdout.write(self.style.ERROR("Aborted."))
-            return
+
+    def handle(self, *args, **options):
+        if not options.get('force'):
+            self.stdout.write(
+                self.style.WARNING(
+                    "WARNING: This will DELETE ALL DATA and reset migrations!"
+                )
+            )
+            confirm = input("Type 'yes' to continue: ")
+            if confirm.lower() != "yes":
+                self.stdout.write(self.style.ERROR("Aborted."))
+                return
 
         with connection.cursor() as cursor:
             self.stdout.write("→ Disabling foreign key checks...")

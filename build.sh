@@ -15,7 +15,7 @@ echo "→ Creating cache table..."
 python manage.py createcachetable
 
 echo "→ Resetting database..."
-python manage.py reset_database
+python manage.py reset_database --force
 
 echo "→ Running migrations..."
 python manage.py migrate --no-input --verbosity 2
