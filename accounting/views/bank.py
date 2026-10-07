@@ -123,7 +123,7 @@ def bank_account_add(request):
     context = {'form': form}
     if is_htmx(request):
         return render(request, 'bank/partials/bank_account_form.html', context)
-    return render(request, 'bank/bank_account_form.html', context)
+    return render(request, 'bank/partials/bank_account_form.html', context)
 
 
 # =============================================================
@@ -169,7 +169,7 @@ def bank_account_edit(request, pk):
     context = {'form': form, 'account': account}
     if is_htmx(request):
         return render(request, 'bank/partials/bank_account_form.html', context)
-    return render(request, 'bank/bank_account_form.html', context)
+    return render(request, 'bank/partials/bank_account_form.html', context)
 
 
 # =============================================================
@@ -576,7 +576,7 @@ def bank_transaction_add(request, account_pk):
     context = {'form': form, 'account': account}
     if is_htmx(request):
         return render(request, 'bank/partials/bank_transaction_form.html', context)
-    return render(request, 'bank/bank_transaction_form.html', context)
+    return render(request, 'bank/partials/bank_transaction_form.html', context)
 
 
 # =============================================================
@@ -623,7 +623,7 @@ def bank_transaction_edit(request, pk):
     context = {'form': form, 'account': account, 'txn': txn}
     if is_htmx(request):
         return render(request, 'bank/partials/bank_transaction_form.html', context)
-    return render(request, 'bank/bank_transaction_form.html', context)
+    return render(request, 'bank/partials/bank_transaction_form.html', context)
 
 
 # =============================================================

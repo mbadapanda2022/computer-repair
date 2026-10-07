@@ -1,7 +1,8 @@
 {% load math_filters %}
 
 <div data-subtotal="{{ subtotal }}"
-     data-tax="{{ tax_total }}">
+     data-tax="{{ tax_total }}"
+     data-tax-gross="{{ tax_gross }}">
 
     <div class="table-responsive border rounded">
         <table class="table table-sm table-hover align-middle mb-0">
@@ -38,8 +39,8 @@
                     </td>
                     <td class="text-center">{{ item.quantity }}</td>
                     <td class="text-end">₹{{ item.unit_price }}</td>
-                    <td class="text-end">{{ item.tax_rate }}%</td>
-                    <td class="text-end fw-bold">₹{{ item.line_total }}</td>
+                    <td class="text-end">{% if effective_gst == 'non_gst' %}0%{% else %}{{ item.tax_rate }}%{% endif %}</td>
+                    <td class="text-end fw-bold">₹{% if effective_gst == 'non_gst' %}{{ item.unit_price|multiply:item.quantity|floatformat:2 }}{% else %}{{ item.line_total }}{% endif %}</td>
                     <td class="text-center">
                         <button type="button"
                                 class="btn btn-sm btn-outline-danger ri-remove-item"
@@ -86,7 +87,11 @@
 
     <div class="small text-muted mt-2">
         <i class="bi bi-info-circle me-1"></i>
-        <strong>Repair parts</strong> aur <strong>Labour</strong> ke stock pehle hi deduct ho chuke hain.
-        Manually add kiye gaye items ka stock invoice banne par deduct hoga.
+        {% if effective_gst == 'non_gst' %}
+            <strong>Non-GST invoice</strong> — no tax will be applied (customer has no GSTIN).
+        {% else %}
+            <strong>Repair parts</strong> and <strong>Labour</strong> stock was already deducted during the repair.
+            Stock for manually added items will be deducted when the invoice is created.
+        {% endif %}
     </div>
 </div>

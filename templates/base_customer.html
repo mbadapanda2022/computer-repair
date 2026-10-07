@@ -150,8 +150,8 @@
                                             {% if user|unread_count %}{{ user|unread_count }}{% endif %}
                                         </span>
                                     </button>
-                                    <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0" 
-                                        style="width:350px; max-height:400px; overflow-y:auto;"
+                                    <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0"
+                                        style="width:350px; max-width:calc(100vw - 1.25rem); max-height:400px; overflow-y:auto;"
                                         hx-get="{% url 'customer:customer_notification_dropdown' %}" 
                                         hx-trigger="load, every 30s" 
                                         hx-target="#notification-dropdown"
@@ -196,10 +196,7 @@
                                 <small class="text-muted dev-credit">
                                     <i class="bi bi-code-slash text-primary me-1"></i>
                                     Designed &amp; Developed by
-                                    <a href="mailto:manojbadapanda@example.com"
-                                       class="dev-credit-link fw-semibold text-decoration-none">
-                                        Manoj Badapanda
-                                    </a>
+                                    <span class="dev-credit-link fw-semibold">Manoj Badapanda</span>
                                     <span class="text-secondary mx-1">•</span>
                                     <span class="text-primary-emphasis">Full Stack Software Developer</span>
                                 </small>

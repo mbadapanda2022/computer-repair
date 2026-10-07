@@ -86,7 +86,9 @@
                 <address class="text-white-50">
                     <i class="bi bi-geo-alt"></i> {{ company.address|default:"Pattanayak Complex, Sirajuddin Squire, Keonjhar-758001, Odisha" }}<br>
                     <i class="bi bi-telephone"></i> <a href="tel:{{ company.phone }}" class="text-white-50">{{ company.phone|default:"+91-7008601963" }}</a><br>
-                    <a href="https://wa.me/{{ company.whatsapp_number|cut:'+'|default:'889574541' }}" target="_blank" class="text-white-50"><i class="bi bi-whatsapp"></i> {{ company.whatsapp_number|default:"+91-889574541" }}</a><br>
+                    {% if company.whatsapp_number %}
+                    <a href="https://wa.me/{{ company.whatsapp_number|cut:'+'|cut:'-'|cut:' ' }}" target="_blank" class="text-white-50"><i class="bi bi-whatsapp"></i> {{ company.whatsapp_number }}</a><br>
+                    {% endif %}
                     <i class="bi bi-envelope"></i> <a href="mailto:{{ company.email }}" class="text-white-50">{{ company.email|default:"info@a1computersolutions.com" }}</a><br>
                     <i class="bi bi-clock"></i> {{ company.working_hours|default:"Mon–Sat: 10:00 AM – 8:00 PM" }}<br>
                     {% if company.gstin %}
@@ -106,10 +108,7 @@
                 <small class="text-white-50 dev-credit">
                     <i class="bi bi-code-slash text-info me-1"></i>
                     Designed &amp; Developed by
-                    <a href="mailto:manojbadapanda@example.com"
-                    class="dev-credit-link fw-semibold text-decoration-none">
-                        Manoj Badapanda
-                    </a>
+                    <span class="dev-credit-link fw-semibold text-white-50">Manoj Badapanda</span>
                     <span class="text-secondary mx-1">•</span>
                     <span class="text-info-emphasis">Full Stack Software Developer</span>
                 </small>

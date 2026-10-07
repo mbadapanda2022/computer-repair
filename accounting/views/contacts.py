@@ -18,7 +18,7 @@ from openpyxl.utils import get_column_letter
 from ..decorators import handle_errors
 from ..forms import ContactForm
 from ..models import Contact, Invoice, LedgerLine, Payment, RepairJob
-from .utils import is_htmx, redirect_to_staff
+from .utils import htmx_field_error_response, is_htmx, redirect_to_staff
 
 logger = logging.getLogger(__name__)
 
@@ -228,17 +228,7 @@ def validate_contact_field(request):
         # Never let a validator crash the page — return generic error
         errors = ['Unable to validate this field. Please check the value.']
 
-    if errors:
-        html = (
-            f'<div id="field-{field_name}" '
-            f'class="invalid-feedback d-block">'
-        )
-        for err in errors:
-            html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
-        html += '</div>'
-    else:
-        html = f'<div id="field-{field_name}" class="invalid-feedback"></div>'
-    return HttpResponse(html)
+    return htmx_field_error_response(field_name, errors)
 
 
 # ============================================================

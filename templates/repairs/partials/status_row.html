@@ -7,23 +7,44 @@
 
     <div class="row g-2 align-items-center">
         <div class="col-md-9">
-            <select name="status" class="form-select form-select-sm" required>
-                {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if job.status == value %}selected{% endif %}>
-                        {{ label }}
+            <select name="status" class="form-select form-select-sm" required
+                    {% if not available_transitions %}disabled{% endif %}>
+                {# Sirf VALID next transitions — model ka state machine decide
+                   karta hai. Current status marker ke roop me sabse upar. #}
+                <option value="{{ job.status }}" selected>
+                    {{ job.get_status_display }} (current)
+                </option>
+                {% for transition in available_transitions %}
+                    <option value="{{ transition.status }}">
+                        → {{ transition.label }}
                     </option>
                 {% endfor %}
             </select>
         </div>
         <div class="col-md-3">
-            <button type="submit" class="btn btn-primary btn-sm w-100">
+            <button type="submit" class="btn btn-primary btn-sm w-100"
+                    {% if not available_transitions %}disabled{% endif %}>
                 <i class="bi bi-arrow-right-circle me-1"></i>Update
             </button>
         </div>
     </div>
 
-    <small class="text-muted d-block mt-2">
-        <i class="bi bi-info-circle me-1"></i>
-        You will be asked to fill related details for the new status.
-    </small>
+    {% if available_transitions %}
+        <small class="text-muted d-block mt-2">
+            <i class="bi bi-info-circle me-1"></i>
+            Sirf valid next steps dikhaye gaye hain. Aage badhne par related
+            details maange jayenge.
+        </small>
+    {% else %}
+        <small class="text-muted d-block mt-2">
+            <i class="bi bi-lock me-1"></i>
+            {% if job.is_invoiced %}
+                Is job ka invoice ban chuka hai — status lock hai. Pehle
+                invoice handle karein.
+            {% else %}
+                {{ job.get_status_display }} final state hai — aage koi
+                transition nahi.
+            {% endif %}
+        </small>
+    {% endif %}
 </form>

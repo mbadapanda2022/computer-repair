@@ -17,6 +17,8 @@
         .text-end { text-align: right; }
         .text-center { text-align: center; }
         .fw-bold { font-weight: bold; }
+        .text-danger { color: #721c24; }
+        .text-success { color: #155724; }
         .footer { text-align: center; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 20px; font-size: 9pt; color: #6c757d; }
         .company-logo { max-height: 60px; margin-bottom: 5px; }
         .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9pt; }
@@ -27,7 +29,7 @@
 </head>
 <body>
     <div class="header">
-        {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
+        {% if company.logo %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
         <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
         <p>{{ title }}</p>
         <small>Generated: {% now "d M Y, h:i A" %}</small>
@@ -35,9 +37,33 @@
 
     <!-- Content -->
     {% block report_content %}
+    {% if report_headers and report_rows %}
     <table class="table">
-        {{ report_content|safe }}
+        <thead>
+            <tr>
+                {% for h in report_headers %}<th>{{ h }}</th>{% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in report_rows %}
+            <tr>
+                {% for cell in row %}<td{% if cell.class %} class="{{ cell.class }}"{% endif %}>{{ cell.value }}</td>{% endfor %}
+            </tr>
+            {% empty %}
+            <tr><td colspan="{{ report_headers|length }}" class="text-center">No records found.</td></tr>
+            {% endfor %}
+        </tbody>
+        {% if report_totals %}
+        <tfoot>
+            <tr>
+                {% for cell in report_totals %}<th{% if cell.class %} class="{{ cell.class }}"{% endif %}>{{ cell.value }}</th>{% endfor %}
+            </tr>
+        </tfoot>
+        {% endif %}
     </table>
+    {% else %}
+    <p class="text-center">No data available.</p>
+    {% endif %}
     {% endblock %}
 
     <div class="footer">

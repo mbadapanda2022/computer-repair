@@ -25,6 +25,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.mail import send_mail
 from django.db import transaction
 from django.template.loader import render_to_string
@@ -44,6 +45,8 @@ OTP_MIN = 10 ** (OTP_LENGTH - 1)          # 100000
 OTP_MAX = 10 ** OTP_LENGTH                 # 1000000 (exclusive)
 OTP_EXPIRY_MINUTES = 10
 OTP_RESEND_COOLDOWN_SECONDS = 60
+OTP_SEND_COOLDOWN_SECONDS = 60
+OTP_MAX_ATTEMPTS = 5                       # wrong attempts per OTP lifetime
 
 _PURPOSE_DISPLAY = {
     'signup': 'Signup Verification',
@@ -153,6 +156,17 @@ def create_and_send_otp(user, email: str, purpose: str) -> bool:
     """
     email = _normalize_email(email)
 
+    # Per-email send cooldown — warna attacker victim ko OTP emails se
+    # spam kar sakta hai aur ek saath bahut saare valid OTPs mint kar
+    # sakta hai (brute-force window badh jati hai).
+    cooldown_key = f'otp_send_cooldown:{purpose}:{email}'
+    if cache.get(cooldown_key):
+        logger.info(
+            "OTP send blocked (cooldown) | purpose=%s | email=%s",
+            purpose, _mask_email(email),
+        )
+        return False
+
     # 1. Cleanup expired unused rows
     EmailOTP.objects.filter(
         email=email,
@@ -178,6 +192,7 @@ def create_and_send_otp(user, email: str, purpose: str) -> bool:
         otp_record.delete()
         return False
 
+    cache.set(cooldown_key, 1, OTP_SEND_COOLDOWN_SECONDS)
     return True
 
 

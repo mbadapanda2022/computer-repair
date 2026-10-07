@@ -418,6 +418,15 @@
     // WIRE EVERYTHING
     // ============================================================
     function initPaymentForm() {
+        // HTMX targeting only works on the payments list (#payment-table-container).
+        // Elsewhere (e.g. invoice detail) fall back to a native POST; the view
+        // redirects back via ?next=.
+        if (!document.getElementById('payment-table-container')) {
+            ['hx-post', 'hx-target', 'hx-swap'].forEach(function(attr) {
+                form.removeAttribute(attr);
+            });
+        }
+
         initTomSelect();
 
         if (contactSelect) {

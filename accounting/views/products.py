@@ -16,7 +16,7 @@ from django.utils import timezone
 
 from ..models import Product, ProductCategory, StockMovement, CompanyProfile
 from ..forms import ProductForm, ProductCategoryForm
-from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
+from .utils import htmx_field_error_response, is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
 try:
@@ -307,13 +307,7 @@ def validate_category_field(request):
         elif ProductCategory.objects.filter(name__iexact=value).exists():
             errors.append("A category with this name already exists.")
 
-    if errors:
-        html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-        for err in errors:
-            html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
-        html += '</div>'
-        return HttpResponse(html)
-    return HttpResponse(f'<div id="field-{field_name}" class="invalid-feedback"></div>')
+    return htmx_field_error_response(field_name, errors)
 
 
 # ============================================================
@@ -443,13 +437,7 @@ def validate_product_field(request):
             except (ValueError, TypeError):
                 errors.append("Enter a valid integer.")
 
-    if errors:
-        html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-        for err in errors:
-            html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
-        html += '</div>'
-        return HttpResponse(html)
-    return HttpResponse(f'<div id="field-{field_name}" class="invalid-feedback"></div>')
+    return htmx_field_error_response(field_name, errors)
 
 
 # ============================================================

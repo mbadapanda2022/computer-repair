@@ -59,6 +59,14 @@ def _safe_decimal(value, default=Decimal('0')):
         return default
 
 
+def _safe_next_url(request):
+    """Internal-path redirect target from ?next= (blocks off-site redirects)."""
+    candidate = request.POST.get('next') or request.GET.get('next')
+    if candidate and candidate.startswith('/') and not candidate.startswith('//'):
+        return candidate
+    return None
+
+
 def _get_paginated_payments_context(request, queryset=None):
     """Shared filter + paginate + annotate for payments list."""
     if queryset is None:
@@ -349,6 +357,9 @@ def payment_create(request, pk=None):
                 return response
 
             messages.success(request, f"Payment Rs.{payment.amount} recorded successfully.")
+            next_url = _safe_next_url(request)
+            if next_url:
+                return redirect(next_url)
             return redirect_to_staff('payment_list')
 
         # ── Invalid form — re-render with full context ──
@@ -371,6 +382,15 @@ def payment_create(request, pk=None):
             })
             response['HX-Retarget'] = '#mainModalContent'
             return response
+
+        # Non-HTMX (native submit from pages without #payment-table-container):
+        # bounce back to the caller instead of rendering a bare partial page.
+        first_error = next(iter(e[0] for e in form.errors.values() if e), None)
+        messages.error(request, first_error or "Please correct the payment details.")
+        next_url = _safe_next_url(request)
+        if next_url:
+            return redirect(next_url)
+        return redirect_to_staff('payment_list')
 
     else:
         form = PaymentForm(initial=initial)

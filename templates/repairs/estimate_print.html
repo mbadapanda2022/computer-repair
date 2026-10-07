@@ -183,19 +183,7 @@
             </tr>
             {% endfor %}
 
-            {% if job.labour_charge > 0 %}
-            <tr>
-                <td>
-                    Legacy Labour Charge
-                    <span class="badge bg-secondary ms-1" style="font-size:8pt;">Old</span>
-                </td>
-                <td class="text-end">1</td>
-                <td class="text-end">{{ job.labour_charge|floatformat:2 }}</td>
-                <td class="text-end">{{ job.labour_charge|floatformat:2 }}</td>
-            </tr>
-            {% endif %}
-
-            {% if not parts and not services and job.labour_charge == 0 and estimated_services == 0 %}
+            {% if not parts and not services and estimated_services == 0 %}
             <tr>
                 <td colspan="4" class="text-center text-muted">
                     <i>Estimate only (no items specified yet)</i>

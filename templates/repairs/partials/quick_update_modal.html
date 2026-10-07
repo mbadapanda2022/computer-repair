@@ -39,16 +39,6 @@
                        placeholder="e.g., 1500">
                 <small class="text-muted">This amount will be sent to the customer.</small>
             </div>
-            <div class="col-md-6">
-                <label for="id_labour_charge" class="form-label fw-semibold">
-                    Labour Charge (₹)
-                </label>
-                <input type="number" step="0.01" name="labour_charge"
-                       id="id_labour_charge" class="form-control"
-                       value="{{ job.labour_charge|default:'0' }}"
-                       placeholder="0">
-                <small class="text-muted">Final amount = Parts + Labour</small>
-            </div>
         </div>
 
         <!-- Diagnosis Section -->

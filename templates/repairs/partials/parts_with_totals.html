@@ -87,7 +87,7 @@
             {% endfor %}
         </tbody>
 
-        {% if parts or services or job.labour_charge > 0 or job.is_invoiced %}
+        {% if parts or services or job.is_invoiced %}
         <tfoot class="table-light fw-bold">
             <tr>
                 <td colspan="4" class="text-end">Parts Total (pre-tax)</td>
@@ -98,13 +98,6 @@
             <tr>
                 <td colspan="4" class="text-end">Services Total (pre-tax)</td>
                 <td class="text-end">₹{{ services_total|floatformat:2 }}</td>
-                <td></td>
-            </tr>
-            {% endif %}
-            {% if job.labour_charge > 0 %}
-            <tr>
-                <td colspan="4" class="text-end">Legacy Labour (pre-tax)</td>
-                <td class="text-end">₹{{ job.labour_charge|floatformat:2 }}</td>
                 <td></td>
             </tr>
             {% endif %}

@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from ..models import LedgerEntry, LedgerLine, Contact
 from ..forms import JournalForm
-from .utils import is_htmx, htmx_response, redirect_to_staff
+from .utils import htmx_field_error_response, is_htmx, htmx_response, redirect_to_staff
 from ..decorators import handle_errors
 from ..utils import create_journal_lines
 
@@ -476,9 +476,8 @@ def validate_journal_field(request):
         try:
             Contact.objects.get(pk=value)
         except (Contact.DoesNotExist, ValueError):
-            return HttpResponse(
-                f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-                f'<div><i class="bi bi-exclamation-circle me-1"></i>Please select a valid contact.</div></div>'
+            return htmx_field_error_response(
+                field_name, ['Please select a valid contact.'],
             )
         return HttpResponse("")
 
@@ -486,8 +485,4 @@ def validate_journal_field(request):
     form.is_valid()
     errors = form.errors.get(field_name, [])
 
-    error_html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-    for err in errors:
-        error_html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
-    error_html += '</div>'
-    return HttpResponse(error_html)
+    return htmx_field_error_response(field_name, errors)

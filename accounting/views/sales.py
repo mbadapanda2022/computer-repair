@@ -1,7 +1,7 @@
 # accounting/views/sales.py
 import json
 import logging
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
@@ -952,9 +952,11 @@ def credit_note_create(request, invoice_pk):
             if not checked:
                 continue
             qty_str = request.POST.get(f'qty_{item.pk}', '').strip()
+            if not qty_str:
+                continue
             try:
                 qty = Decimal(qty_str)
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, InvalidOperation):
                 continue
             if qty <= 0:
                 continue

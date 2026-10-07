@@ -97,7 +97,31 @@ class SoftDeleteQuerySet(models.QuerySet):
         return super().delete()
 
     def restore(self):
-        """Restore all soft-deleted records in this queryset."""
+        """
+        Restore soft-deleted records — per-instance jahan zaroori ho.
+
+        ⚠️ KYUN (AUDIT C-2): simple `update(is_deleted=False)` signals/hooks
+        bypass kar deta hai. Repair job/parts/services ke liye ye toota hua
+        tha — restore karne par parts wapas nahi aate the aur STOCK dobara
+        deduct nahi hota tha (inventory galat).
+
+        Isliye un models ke liye per-instance `restore()` call karte hain
+        (wahi list jo `delete()` me hai), baaki ke liye fast bulk update.
+        """
+        from django.utils import timezone as _tz
+
+        if self.model.__name__ in (
+            'RepairJob', 'RepairPart', 'RepairService',
+            'Invoice', 'InvoiceItem', 'Purchase', 'PurchaseItem',
+            'CreditNote', 'CreditNoteItem', 'Payment',
+        ):
+            count = 0
+            for obj in list(self.filter(is_deleted=True)):
+                obj.restore()
+                count += 1
+            return count
+
+        # ── Default: fast bulk restore (ledger/stock se juda nahi) ──
         return self.filter(is_deleted=True).update(
             is_deleted=False,
             deleted_at=None,
@@ -234,7 +258,7 @@ class Account(models.Model):
     parent = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='children')
     
     # Default Tax Rate for this account (if applicable, e.g., GST on Sales Revenue)
-    default_tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    default_tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), validators=POSITIVE_VALIDATOR)
     
     is_active = models.BooleanField(default=True)
     is_system = models.BooleanField(default=False, help_text="System accounts cannot be deleted")
@@ -335,7 +359,24 @@ class CompanyProfile(SoftDeleteModel):
     logo = models.ImageField(upload_to='company_logo/', blank=True, null=True)
     invoice_prefix = models.CharField(max_length=10, default="INV")
     invoice_start_number = models.PositiveIntegerField(default=1, help_text="Starting number for the next invoice (auto-incremented)")
-    default_tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, validators=POSITIVE_VALIDATOR)
+    default_tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'), validators=POSITIVE_VALIDATOR)
+    # ── Repair defaults (hardcoding hatane ke liye) ──
+    # Labour ka product naam se dhoondhne ke bajaye yahan configure hota hai.
+    default_labour_product = models.ForeignKey(
+        'Product',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='+',
+        help_text="Repair labour ke liye default service product. "
+                  "Khali chhodein to pehla active service product use hoga.",
+    )
+    # Service lines (labour etc.) ka fallback GST rate.
+    # Blank = product ka apna tax_rate use hoga.
+    default_service_tax_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        validators=POSITIVE_VALIDATOR,
+        help_text="Service/labour ka fallback GST %. Khali = product ka rate.",
+    )
     financial_year_start = models.DateField(default=timezone.now)
     state = models.CharField(max_length=100, blank=True)
     tagline = models.CharField(max_length=255, blank=True, default="Expert chip-level repair, sales, and service for all brands.")
@@ -800,7 +841,7 @@ class Product(SoftDeleteModel):
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     current_stock = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     low_stock_threshold = models.PositiveIntegerField(default=5)
-    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=18.00, validators=POSITIVE_VALIDATOR)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'), validators=POSITIVE_VALIDATOR)
     is_service = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -1199,18 +1240,22 @@ class Invoice(SoftDeleteModel):
 
         if self.pk and self.items.exists():
             self.calculate_totals()
-            total_advance = self.advance_adjustments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-            total_paid = self.paid_amount + total_advance
-            self.balance_due = (self.grand_total - total_paid).quantize(TAX_PRECISION)
-            if self.balance_due <= 0:
-                self.payment_status = 'paid'
-            elif total_paid > 0 and self.balance_due < self.grand_total:
-                self.payment_status = 'partial'
-            else:
-                self.payment_status = 'unpaid'
+            self.recompute_payment_state()
             super().save(update_fields=['subtotal', 'tax_amount', 'grand_total', 'balance_due', 'payment_status'])
 
-            sync_invoice_ledger(self)
+            # Ledger sync — repair resync ke dauraan defer hota hai, kyunki
+            # us waqt resync khud ledger alag transaction me sync karta hai.
+            # (Isse ledger ka failure invoice ke lines/totals ko rollback
+            #  nahi karta.)
+            try:
+                from .repair_workflow import ledger_sync_deferred
+                _defer_ledger = ledger_sync_deferred()
+            except Exception:
+                _defer_ledger = False
+
+            if not _defer_ledger:
+                sync_invoice_ledger(self)
+
             if self.customer:
                 self.customer.recalc_balance()
                 self.customer.recalc_advance_balance()
@@ -1236,6 +1281,30 @@ class Invoice(SoftDeleteModel):
         self.subtotal = self.subtotal.quantize(TAX_PRECISION)
         self.tax_amount = self.tax_amount.quantize(TAX_PRECISION)
 
+    def recompute_payment_state(self):
+        """
+        balance_due / payment_status ko allocations + advances ke aggregates
+        (source of truth) se set karo. paid_amount ko yahan use NAHI karte —
+        Payment-side sync (update_invoices / _recalculate_invoice_payment)
+        paid_amount me advance pehle se jod chuka hota hai, aur usse
+        `paid_amount + advance` karna advance ko double-count karta tha.
+        """
+        total_allocations = self.payment_allocations.aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+        total_advance = self.advance_adjustments.aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+        total_paid = total_allocations + total_advance
+
+        self.balance_due = (self.grand_total - total_paid).quantize(TAX_PRECISION)
+        if self.balance_due <= 0:
+            self.payment_status = 'paid'
+        elif total_paid > 0 and self.balance_due < self.grand_total:
+            self.payment_status = 'partial'
+        else:
+            self.payment_status = 'unpaid'
+
 
 class InvoiceItem(SoftDeleteModel):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='items')
@@ -1243,7 +1312,7 @@ class InvoiceItem(SoftDeleteModel):
     description = models.CharField(max_length=200, blank=True)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1, validators=[MinValueValidator(Decimal('0.01'))])
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
-    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), validators=POSITIVE_VALIDATOR)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     
@@ -1254,6 +1323,16 @@ class InvoiceItem(SoftDeleteModel):
         null=True, blank=True,
         related_name='invoice_items',
         help_text="RepairPart this item was sourced from (audit trail).",
+    )
+    # Repair service se aaya hua line — isse invoice ↔ job ka link
+    # deterministic hota hai (pehle sirf description se match hota tha,
+    # jo service add/edit karne par toot jata tha).
+    repair_service = models.ForeignKey(
+        'RepairService',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='invoice_items',
+        help_text="RepairService this item was sourced from (audit trail).",
     )
     stock_already_deducted = models.BooleanField(
         default=False,
@@ -1274,9 +1353,9 @@ class InvoiceItem(SoftDeleteModel):
             self.tax_amount = Decimal('0')
         else:
             if not self.tax_rate:
-                self.tax_rate = self.product.tax_rate
+                self.tax_rate = Decimal(str(self.product.tax_rate or 0))
             line_amount = self.quantity * self.unit_price
-            self.tax_amount = ((line_amount * self.tax_rate) / 100).quantize(TAX_PRECISION)
+            self.tax_amount = ((line_amount * Decimal(str(self.tax_rate or 0))) / 100).quantize(TAX_PRECISION)
 
         line_amount = self.quantity * self.unit_price
         self.line_total = (line_amount + self.tax_amount).quantize(TAX_PRECISION)
@@ -1304,20 +1383,7 @@ class InvoiceItem(SoftDeleteModel):
 
         if self.invoice:
             self.invoice.calculate_totals()
-            total_advance = self.invoice.advance_adjustments.aggregate(
-                total=Sum('amount')
-            )['total'] or Decimal('0')
-            total_paid = self.invoice.paid_amount + total_advance
-            self.invoice.balance_due = (
-                self.invoice.grand_total - total_paid
-            ).quantize(TAX_PRECISION)
-            if self.invoice.balance_due <= 0:
-                self.invoice.payment_status = 'paid'
-            elif total_paid > 0 and self.invoice.balance_due < self.invoice.grand_total:
-                self.invoice.payment_status = 'partial'
-            else:
-                self.invoice.payment_status = 'unpaid'
-
+            self.invoice.recompute_payment_state()
             self.invoice.save(update_fields=[
                 'subtotal', 'tax_amount', 'grand_total',
                 'balance_due', 'payment_status',
@@ -1341,21 +1407,7 @@ class InvoiceItem(SoftDeleteModel):
 
         if invoice:
             invoice.calculate_totals()
-            total_advance = invoice.advance_adjustments.aggregate(
-                total=Sum('amount')
-            )['total'] or Decimal('0')
-            total_paid = invoice.paid_amount + total_advance
-            invoice.balance_due = (
-                invoice.grand_total - total_paid
-            ).quantize(TAX_PRECISION)
-
-            if invoice.balance_due <= 0:
-                invoice.payment_status = 'paid'
-            elif total_paid > 0 and invoice.balance_due < invoice.grand_total:
-                invoice.payment_status = 'partial'
-            else:
-                invoice.payment_status = 'unpaid'
-
+            invoice.recompute_payment_state()
             invoice.save(update_fields=[
                 'subtotal', 'tax_amount', 'grand_total',
                 'balance_due', 'payment_status',
@@ -1402,7 +1454,11 @@ def sync_purchase_ledger(purchase):
             }
         )
 
-        # Force Save (just in case get_or_create didn't save properly)
+        # Sync header fields on edit/backdate so date-filtered reports
+        # reflect the purchase's current date & total (mirror invoice sync).
+        entry.date = purchase.date
+        entry.description = f"Purchase {purchase.purchase_number}"
+        entry.total_amount = purchase.grand_total
         entry.save()
 
         # ===== STEP 3: Delete Old Lines =====
@@ -1678,7 +1734,7 @@ class PurchaseItem(SoftDeleteModel):
     description = models.CharField(max_length=200, blank=True)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1, validators=[MinValueValidator(Decimal('0.01'))])
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
-    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), validators=POSITIVE_VALIDATOR)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     is_office_use = models.BooleanField(default=False, help_text="Check if this item is for office consumption (not for resale)")
@@ -1688,10 +1744,10 @@ class PurchaseItem(SoftDeleteModel):
         if not self.unit_price:
             self.unit_price = self.product.purchase_price
         if not self.tax_rate:
-            self.tax_rate = self.product.tax_rate
+            self.tax_rate = Decimal(str(self.product.tax_rate or 0))
 
         line_amount = self.quantity * self.unit_price
-        self.tax_amount = ((line_amount * self.tax_rate) / 100).quantize(TAX_PRECISION)
+        self.tax_amount = ((line_amount * Decimal(str(self.tax_rate or 0))) / 100).quantize(TAX_PRECISION)
         self.line_total = (line_amount + self.tax_amount).quantize(TAX_PRECISION)
 
         super().save(*args, **kwargs)
@@ -1978,7 +2034,7 @@ class CreditNoteItem(SoftDeleteModel):
         validators=[MinValueValidator(Decimal('0.01'))],
     )
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
-    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), validators=POSITIVE_VALIDATOR)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
 
@@ -1986,10 +2042,10 @@ class CreditNoteItem(SoftDeleteModel):
     def save(self, *args, **kwargs):
         # Auto-fill tax from product if empty
         if not self.tax_rate and self.product:
-            self.tax_rate = self.product.tax_rate
+            self.tax_rate = Decimal(str(self.product.tax_rate or 0))
 
         line_amount = self.quantity_returned * self.unit_price
-        self.tax_amount = ((line_amount * self.tax_rate) / 100).quantize(TAX_PRECISION)
+        self.tax_amount = ((line_amount * Decimal(str(self.tax_rate or 0))) / 100).quantize(TAX_PRECISION)
         self.line_total = (line_amount + self.tax_amount).quantize(TAX_PRECISION)
 
         super().save(*args, **kwargs)
@@ -2053,12 +2109,75 @@ class CreditNoteItem(SoftDeleteModel):
 # 11. REPAIR JOBS
 # ============================================================
 
+# ============================================================
+# REPAIR STATUS LOG — immutable status history
+# ============================================================
+
+class RepairStatusLog(models.Model):
+    """
+    Append-only status history: kaun, kab, kya, kyun, kahan se.
+
+    Ye row kabhi update/delete nahi hoti (admin me bhi read-only).
+    `RepairJob.timeline()` ise UI-friendly shape me deta hai.
+    """
+    repair_job = models.ForeignKey(
+        'RepairJob', on_delete=models.CASCADE, related_name='status_history',
+    )
+    from_status = models.CharField(max_length=15)
+    to_status = models.CharField(max_length=15, db_index=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='repair_status_changes',
+    )
+    remarks = models.CharField(max_length=300, blank=True)
+    forced = models.BooleanField(
+        default=False,
+        help_text="Guard bypass karke kiya gaya transition (manager override).",
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    notified_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Customer notification bhejne ka waqt (duplicate rokne ke liye).",
+    )
+
+    class Meta:
+        ordering = ['-changed_at', '-id']
+        verbose_name = 'Repair Status Log'
+        verbose_name_plural = 'Repair Status Logs'
+        indexes = [
+            models.Index(fields=['repair_job', 'changed_at']),
+            models.Index(fields=['to_status', 'changed_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.repair_job_id}: {self.from_status} -> {self.to_status}"
+
+    @property
+    def duration_from_previous(self):
+        """Pichle transition se is transition tak ka waqt."""
+        previous = (
+            RepairStatusLog.objects
+            .filter(repair_job_id=self.repair_job_id,
+                    changed_at__lt=self.changed_at)
+            .order_by('-changed_at')
+            .first()
+        )
+        base = previous.changed_at if previous else getattr(
+            self.repair_job, 'created_at', None
+        )
+        if not base:
+            return None
+        return self.changed_at - base
+
+
 class RepairJob(SoftDeleteModel):
     STATUS_CHOICES = (
         ('pending',    'Pending (Awaiting Receipt)'),
         ('received',   'Received at Shop'),
-        ('diagnosis',  'Diagnosis'),
-        ('repairing',  'Repairing'),
+        ('diagnosis',  'Under Diagnosis'),
+        ('repairing',  'Under Repair'),
         ('ready',      'Ready for Delivery'),
         ('delivered',  'Delivered'),
         ('cancelled',  'Cancelled'),
@@ -2112,14 +2231,18 @@ class RepairJob(SoftDeleteModel):
     # ---------- Amounts ----------
     estimated_cost = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, validators=POSITIVE_VALIDATOR)
     final_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
-    labour_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
 
     # ---------- Personnel ----------
     received_by = models.CharField(max_length=100, blank=True, null=True)
     delivered_by = models.CharField(max_length=100, blank=True, null=True)
 
     # ---------- Timeline tracking ----------
-    date_in = models.DateField(default=timezone.now, help_text="Legacy: date of first entry into system")
+    # `null=True, blank=True` zaroori hai — warna admin/form me ye field
+    # REQUIRED ho jati hai (DateField + default hone par bhi Django form
+    # ise required maangta hai), aur admin se naya job ban hi nahi paata.
+    # Value `save()` me auto-fill hoti hai (received_at → submitted_at →
+    # aaj ki date).
+    date_in = models.DateField(null=True, blank=True, help_text="Auto: pehla entry date (received_at ya aaj).",)
     submitted_at = models.DateTimeField(null=True, blank=True, help_text="Auto: when customer submitted via online portal")
     received_at = models.DateField(null=True, blank=True, help_text="Staff: when device physically arrived at shop")
     received_remarks = models.TextField(blank=True, null=True, help_text="Staff: device condition at reception")
@@ -2169,12 +2292,11 @@ class RepairJob(SoftDeleteModel):
     @property
     def base_amount(self):
         """
-        Pre-tax total = parts + services (+ legacy labour_charge).
+        Pre-tax total = parts + services.
         This is what `final_amount` field stores.
         """
-        legacy = self.labour_charge or Decimal('0')
         return (
-            self.parts_total + self.services_total + legacy
+            self.parts_total + self.services_total
         ).quantize(TAX_PRECISION)
 
     @property
@@ -2215,9 +2337,8 @@ class RepairJob(SoftDeleteModel):
     def calculate_final_amount(self):
         parts_total = self.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
         services_total = self.services.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-        legacy_labour = self.labour_charge or Decimal('0')
         self.final_amount = (
-            parts_total + services_total + legacy_labour
+            parts_total + services_total
         ).quantize(TAX_PRECISION)
         self.save(update_fields=['final_amount'])
         return self.final_amount
@@ -2236,6 +2357,9 @@ class RepairJob(SoftDeleteModel):
             self.date_in = self.received_at
         elif self.submitted_at:
             self.date_in = self.submitted_at.date()
+        elif not self.date_in:
+            # Admin/form se banaya gaya job — aaj ki date (warna NULL reh jata)
+            self.date_in = timezone.localdate()
 
         # ============================================================
         # NEW RECORD PATH (race-safe job_number)
@@ -2300,9 +2424,9 @@ class RepairJob(SoftDeleteModel):
             services_total = self.services.aggregate(
                 total=Sum('line_total')
             )['total'] or Decimal('0')
-            legacy_labour = self.labour_charge or Decimal('0')
+            # Legacy labour shamil nahi — labour ab RepairService lines me.
             self.final_amount = (
-                parts_total + services_total + legacy_labour
+                parts_total + services_total
             ).quantize(TAX_PRECISION)
 
         # Ensure auto-stamped fields are included in update_fields
@@ -2321,7 +2445,12 @@ class RepairJob(SoftDeleteModel):
         super().save(*args, **kwargs)
 
         # Notifications on status change
-        if old_status and old_status != self.status:
+        # NOTE: `_suppress_status_notification` true hone par skip — kyunki
+        # `repair_workflow.RepairJob.change_status()` notification ko status
+        # history row ke baad (exactly once) bhejta hai. Isse customer ko
+        # duplicate notification nahi jata.
+        if (old_status and old_status != self.status
+                and not getattr(self, '_suppress_status_notification', False)):
             try:
                 from django.urls import reverse
                 from accounting.utils.notification_helpers import send_notification_to_contact
@@ -2357,6 +2486,92 @@ class RepairJob(SoftDeleteModel):
             part.delete()
         super().delete(*args, **kwargs)
 
+    def restore(self, *args, **kwargs):
+        """
+        Soft-deleted repair job wapas laao — parts/services aur STOCK ke saath.
+
+        ⚠️ KYUN ZAROORI HAI (AUDIT C-2):
+        `SoftDeleteModel.restore()` sirf `is_deleted=False` karta hai. Repair
+        job ke liye ye adhoora hai, kyunki:
+          • `delete()` ne parts/services bhi soft-delete kiye the aur stock
+            wapas add kiya tha
+          • simple restore par parts/services deleted hi rehte the (job khali
+            dikhta tha)
+          • aur stock wapas KATTA nahi tha → inventory galat
+
+        Ye method teeno theek karta hai:
+
+          1. job ko restore karo
+          2. soft-deleted parts restore karo → stock dobara deduct
+          3. soft-deleted services restore karo
+          4. amount recalculate (invoice ho to invoice hi source of truth hai)
+          5. status history me ek RESTORE entry
+
+        Returns
+        -------
+        self
+        """
+        if not self.is_deleted:
+            return self
+
+        from django.db import transaction as _tx
+
+        with _tx.atomic():
+            # 1. Job khud restore
+            type(self).all_objects.filter(pk=self.pk).update(
+                is_deleted=False, deleted_at=None, deleted_by=None,
+            )
+            self.is_deleted = False
+            self.deleted_at = None
+            self.deleted_by = None
+
+            # 2 + 3. Parts/services restore (stock wapas deduct hota hai)
+            restored_parts = 0
+            for part in list(RepairPart.all_objects.filter(
+                repair_job_id=self.pk, is_deleted=True,
+            )):
+                part.restore()
+                restored_parts += 1
+
+            restored_services = 0
+            for service in list(RepairService.all_objects.filter(
+                repair_job_id=self.pk, is_deleted=True,
+            )):
+                service.restore()
+                restored_services += 1
+
+            # 4. Amount — invoiced ho to invoice ka grand_total hi sach hai
+            self.refresh_from_db()
+            if self.invoice_id:
+                # Invoice hi source of truth hai (resync alag se chalta hai)
+                pass
+            else:
+                self.calculate_final_amount()
+
+            # 5. History me RESTORE entry (audit trail)
+            try:
+                RepairStatusLog.objects.create(
+                    repair_job=self,
+                    from_status='(deleted)',
+                    to_status=self.status,
+                    actor=None,
+                    remarks=(
+                        f"Restored — {restored_parts} part(s), "
+                        f"{restored_services} service(s) wapas laaye"
+                    )[:300],
+                    forced=False,
+                )
+            except Exception:                       # pragma: no cover
+                logger.exception(
+                    "Restore log write failed | job=%s", self.job_number,
+                )
+
+            logger.info(
+                "RepairJob restored | job=%s | parts=%s services=%s",
+                self.job_number, restored_parts, restored_services,
+            )
+            return self
+
    
 class RepairPart(SoftDeleteModel):
     repair_job = models.ForeignKey(RepairJob, on_delete=models.CASCADE, related_name='parts')
@@ -2388,8 +2603,15 @@ class RepairPart(SoftDeleteModel):
             )
 
         self.repair_job.calculate_final_amount()
-    
+
     def delete(self, *args, **kwargs):
+        """
+        Soft delete + stock reversal.
+
+        Stock movement ko SOFT delete karte hain (hard delete nahi), taaki
+        restore par wapas apply ho sake. `StockMovement.delete()` khud stock
+        reverse karta hai (quantity negative hai isliye minus-minus = plus).
+        """
         if not self.product.is_service:
             StockMovement.objects.filter(
                 source_content_type=ContentType.objects.get_for_model(self),
@@ -2399,6 +2621,30 @@ class RepairPart(SoftDeleteModel):
         super().delete(*args, **kwargs)
         if repair_job:
             repair_job.calculate_final_amount()
+
+    def restore(self, *args, **kwargs):
+        """
+        Soft-deleted part wapas laao — aur stock dobara deduct karo.
+
+        Kyun zaroori hai: `delete()` ne stock wapas add kiya tha. Simple
+        `is_deleted=False` karne se stock wapas KATTA nahi, jisse inventory
+        galat ho jati. Isliye restore par movement dobara apply karte hain.
+        """
+        if not self.is_deleted:
+            return self
+        job = self.repair_job
+        type(self).all_objects.filter(pk=self.pk).update(
+            is_deleted=False, deleted_at=None, deleted_by=None,
+        )
+        self.is_deleted = False
+        self.deleted_at = None
+        self.deleted_by = None
+        # Stock movement dobara banao — `save()` ise recreate karega aur
+        # StockMovement.save() stock dobara deduct karega.
+        self.save()
+        if job is not None:
+            job.calculate_final_amount()
+        return self
 
 
 # ============================================================
@@ -2460,6 +2706,22 @@ class RepairService(SoftDeleteModel):
         super().delete(*args, **kwargs)
         if repair_job:
             repair_job.calculate_final_amount()
+
+    def restore(self, *args, **kwargs):
+        """Soft-deleted service wapas laao (stock par koi asar nahi)."""
+        if not self.is_deleted:
+            return self
+        job = self.repair_job
+        type(self).all_objects.filter(pk=self.pk).update(
+            is_deleted=False, deleted_at=None, deleted_by=None,
+        )
+        self.is_deleted = False
+        self.deleted_at = None
+        self.deleted_by = None
+        self.save()
+        if job is not None:
+            job.calculate_final_amount()
+        return self
             
             
 # ============================================================
@@ -3054,17 +3316,12 @@ def _audit_pre_save(sender, instance, **kwargs):
 
 @receiver(post_save)
 def _audit_post_save(sender, instance, created, **kwargs):
-    """Write an AuditLog row for CREATE / UPDATE / SOFT_DELETE / RESTORE."""
+    """Queue an AuditLog row (written after the surrounding transaction commits)."""
     if sender not in _AUDITED_MODELS:
         return
 
     # Local imports — avoid circular import at module load
-    from .audit import (
-        build_change_diff,
-        get_current_ip,
-        get_current_user,
-        get_current_user_agent,
-    )
+    from .audit import build_change_diff
 
     old = getattr(instance, '_audit_old', None)
 
@@ -3089,50 +3346,78 @@ def _audit_post_save(sender, instance, created, **kwargs):
                 # No meaningful business field changed — skip noise row
                 return
 
-    try:
-        AuditLog.objects.create(
-            content_type=ContentType.objects.get_for_model(instance),
-            object_id=instance.pk,
-            action=action,
-            user=get_current_user(),
-            changes=changes,
-            ip_address=get_current_ip(),
-            user_agent=get_current_user_agent(),
+    payload = {
+        'content_type_id': ContentType.objects.get_for_model(instance).id,
+        'object_id': instance.pk,
+        'action': action,
+        'changes': changes,
+        'model_label': sender._meta.label,
+    }
+
+    def _write_audit():
+        from .audit import (
+            get_current_ip,
+            get_current_user,
+            get_current_user_agent,
         )
-    except Exception:
-        logger.exception(
-            "Audit log write failed | model=%s | pk=%s",
-            sender._meta.label, instance.pk,
-        )
+
+        try:
+            AuditLog.objects.create(
+                content_type_id=payload['content_type_id'],
+                object_id=payload['object_id'],
+                action=payload['action'],
+                user=get_current_user(),
+                changes=payload['changes'],
+                ip_address=get_current_ip(),
+                user_agent=get_current_user_agent(),
+            )
+        except Exception:
+            logger.exception(
+                "Audit log write failed | model=%s | pk=%s",
+                payload['model_label'], payload['object_id'],
+            )
+
+    # on_commit: audit rows kabhi business transaction ko poison na karein,
+    # aur rolled-back changes ke liye audit row na bane.
+    transaction.on_commit(_write_audit)
 
 
 @receiver(post_delete)
 def _audit_post_delete(sender, instance, **kwargs):
-    """Write AuditLog for HARD deletes only (soft deletes don't fire post_delete)."""
+    """Queue AuditLog for HARD deletes (written after commit)."""
     if sender not in _AUDITED_MODELS:
         return
 
-    from .audit import (
-        get_current_ip,
-        get_current_user,
-        get_current_user_agent,
-    )
+    payload = {
+        'content_type_id': ContentType.objects.get_for_model(instance).id,
+        'object_id': instance.pk,
+        'model_label': sender._meta.label,
+    }
 
-    try:
-        AuditLog.objects.create(
-            content_type=ContentType.objects.get_for_model(instance),
-            object_id=instance.pk,
-            action='DELETE',
-            user=get_current_user(),
-            changes={},
-            ip_address=get_current_ip(),
-            user_agent=get_current_user_agent(),
+    def _write_audit_delete():
+        from .audit import (
+            get_current_ip,
+            get_current_user,
+            get_current_user_agent,
         )
-    except Exception:
-        logger.exception(
-            "Audit log delete write failed | model=%s | pk=%s",
-            sender._meta.label, instance.pk,
-        )
+
+        try:
+            AuditLog.objects.create(
+                content_type_id=payload['content_type_id'],
+                object_id=payload['object_id'],
+                action='DELETE',
+                user=get_current_user(),
+                changes={},
+                ip_address=get_current_ip(),
+                user_agent=get_current_user_agent(),
+            )
+        except Exception:
+            logger.exception(
+                "Audit log delete write failed | model=%s | pk=%s",
+                payload['model_label'], payload['object_id'],
+            )
+
+    transaction.on_commit(_write_audit_delete)
 
 
 # ────────────────────────────────────────────────────────────
@@ -3329,57 +3614,60 @@ def create_or_update_opening_balance_ledger(sender, instance, **kwargs):
             existing_entry.save(update_fields=['description'])
         return
     
-    # Amount change hua hai YA entry nahi hai -> delete + recreate
-    if existing_entry:
-        existing_entry.delete()
-    
-    # Agar opening_balance 0 hai -> kuch nahi banana
-    if not instance.opening_balance or instance.opening_balance == 0:
-        instance.recalc_balance()
-        return
-    
-    # Naya entry banao
-    abs_bal = abs(instance.opening_balance)
-    entry_date = instance.opening_balance_date or timezone.now().date()
-    entry = LedgerEntry.objects.create(
-        date=entry_date,
-        entry_type='opening',
-        reference_id=instance.id,
-        description=f"Opening balance for {instance.name}",
-        total_amount=abs_bal,
-    )
-    
-    if instance.contact_type in ('customer', 'both'):
-        customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
-        opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
-        if instance.opening_balance > 0:
-            # Customer owes us
-            LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance,
-                                       debit=instance.opening_balance, credit=0)
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
-                                       debit=0, credit=instance.opening_balance)
-        else:
-            # Customer paid us in advance
-            LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance,
-                                       debit=0, credit=abs_bal)
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
-                                       debit=abs_bal, credit=0)
-    else:  # vendor
-        vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
-        opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
-        if instance.opening_balance > 0:
-            # We owe vendor
-            LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance,
-                                       debit=0, credit=instance.opening_balance)
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
-                                       debit=instance.opening_balance, credit=0)
-        else:
-            # Vendor owes us
-            LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance,
-                                       debit=abs_bal, credit=0)
-            LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
-                                       debit=0, credit=abs_bal)
-    
+    # Amount change hua hai YA entry nahi hai -> delete + recreate.
+    # Atomic: beech me fail hua to purani entry bachi rehti hai, warna
+    # opening balance kitaab se gayab ho jata.
+    with transaction.atomic():
+        if existing_entry:
+            existing_entry.delete()
+
+        # Agar opening_balance 0 hai -> kuch nahi banana
+        if not instance.opening_balance or instance.opening_balance == 0:
+            instance.recalc_balance()
+            return
+
+        # Naya entry banao
+        abs_bal = abs(instance.opening_balance)
+        entry_date = instance.opening_balance_date or timezone.now().date()
+        entry = LedgerEntry.objects.create(
+            date=entry_date,
+            entry_type='opening',
+            reference_id=instance.id,
+            description=f"Opening balance for {instance.name}",
+            total_amount=abs_bal,
+        )
+
+        if instance.contact_type in ('customer', 'both'):
+            customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
+            opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
+            if instance.opening_balance > 0:
+                # Customer owes us
+                LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance,
+                                           debit=instance.opening_balance, credit=0)
+                LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                           debit=0, credit=instance.opening_balance)
+            else:
+                # Customer paid us in advance
+                LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=instance,
+                                           debit=0, credit=abs_bal)
+                LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                           debit=abs_bal, credit=0)
+        else:  # vendor
+            vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
+            opening_acc = get_account('3010', 'Opening Balance Equity', 'equity', '3')
+            if instance.opening_balance > 0:
+                # We owe vendor
+                LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance,
+                                           debit=0, credit=instance.opening_balance)
+                LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                           debit=instance.opening_balance, credit=0)
+            else:
+                # Vendor owes us
+                LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=instance,
+                                           debit=abs_bal, credit=0)
+                LedgerLine.objects.create(ledger_entry=entry, account=opening_acc,
+                                           debit=0, credit=abs_bal)
+
     instance.recalc_balance()
 
 
@@ -3490,3 +3778,37 @@ def _cleanup_ledger_on_soft_delete(sender, instance, created, **kwargs):
 def sync_contact_balance_on_ledger_line_change(sender, instance, **kwargs):
     if instance.contact:
         instance.contact.recalc_balance()
+
+
+# ============================================================
+# REPAIR WORKFLOW STATE MACHINE
+# ------------------------------------------------------------
+# `repair_workflow.py` se professional state machine RepairJob par apply
+# hota hai. YE KOI NAYA MODEL NAHI BANATA — sirf methods/config attach
+# karta hai, isliye Django app registry me koi conflict nahi hota.
+#
+# Milta hai:
+#   • Model-layer transition table + business guards (form/view/admin/
+#     shell/script/API — sab ek hi darwaze se)
+#   • Immutable status history: kaun, kab, kya, kyun, kis IP se
+#   • Row-lock (select_for_update) → do staff ek saath click karein to race nahi
+#   • Named transitions: mark_received / start_diagnosis / start_repair /
+#     mark_ready / deliver / cancel / reopen_job
+#   • Invoiced job HARD locked, cancel par stock reversal
+#   • Seedha `job.status = 'x'` → guard raise (bypass nahi)
+# ============================================================
+from .repair_workflow import (            # noqa: E402
+    InvalidStatusTransition,
+    RepairWorkflowMixin,
+    StatusMachineMixin,
+    Transition,
+    apply_invoice_consistency,
+    apply_repair_workflow,
+)
+
+apply_repair_workflow(RepairJob)
+
+# ── Invoice consistency: invoiced job par line edits block + auto resync ──
+# (AUDIT C-3: invoice banne ke baad parts/services badalne se job ka amount
+#  aur invoice ka amount diverge ho jata tha)
+apply_invoice_consistency(RepairPart, RepairService)

@@ -32,7 +32,10 @@ def handle_errors(default_redirect=None, htmx_template=None):
             except Exception as e:
                 logger.exception("Error in %s: %s", view_func.__name__, e)
 
-                if settings.DEBUG:
+                # Raw exception details: staff-only in DEBUG, never customers
+                # (schema/DB messages like "NOT NULL constraint failed" leak
+                # internals and look unprofessional in the customer portal).
+                if settings.DEBUG and request.user.is_staff:
                     user_error_msg = str(e)
                 else:
                     user_error_msg = (

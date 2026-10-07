@@ -322,3 +322,27 @@ def safe_decimal(value, default=Decimal('0')):
         return Decimal(s)
     except (ValueError, TypeError, ArithmeticError, InvalidOperation):
         return default
+
+
+# ============================================================
+# HTMX FIELD-VALIDATION RESPONSE (escaped)
+# ============================================================
+from django.utils.html import escape
+
+
+def htmx_field_error_response(field_name, errors=()):
+    """
+    HTMX field-validation partial. `field_name` request GET se aata hai —
+    bina escape ka HTML me jodna reflected XSS deta hai, isliye hamesha
+    yahi helper use karein.
+    """
+    field_name = escape(field_name)
+    if errors:
+        err_html = ''.join(
+            f'<div><i class="bi bi-exclamation-circle me-1"></i>{escape(err)}</div>'
+            for err in errors
+        )
+        html = f'<div id="field-{field_name}" class="invalid-feedback d-block">{err_html}</div>'
+    else:
+        html = f'<div id="field-{field_name}" class="invalid-feedback"></div>'
+    return HttpResponse(html)

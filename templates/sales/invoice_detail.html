@@ -41,8 +41,8 @@
             </button>
             {% if invoice.payment_status != 'paid' %}
             <button class="btn btn-success"
-                    hx-get="{% url 'accounting:add_payment' invoice.pk %}" 
-                    hx-target="#mainModalContent" 
+                    hx-get="{% url 'accounting:add_payment' invoice.pk %}?next={% url 'accounting:invoice_detail' invoice.pk %}"
+                    hx-target="#mainModalContent"
                     hx-trigger="click">
                 <i class="bi bi-credit-card me-1"></i>Record Payment
             </button>
@@ -301,7 +301,7 @@
             <span><i class="bi bi-credit-card me-1"></i>Payment History</span>
             {% if invoice.balance_due > 0 %}
             <button class="btn btn-sm btn-success"
-                    hx-get="{% url 'accounting:add_payment' invoice.pk %}"
+                    hx-get="{% url 'accounting:add_payment' invoice.pk %}?next={% url 'accounting:invoice_detail' invoice.pk %}"
                     hx-target="#mainModalContent"
                     hx-trigger="click">
                 <i class="bi bi-plus-circle me-1"></i>Add Payment

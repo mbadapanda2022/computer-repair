@@ -10,6 +10,7 @@ from django.contrib.auth.forms import (
 )
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Sum
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
@@ -793,6 +794,25 @@ class ProductForm(forms.ModelForm):
         self.fields['current_stock'].widget.attrs['placeholder'] = '0 (for service)'
         self.fields['low_stock_threshold'].widget.attrs['placeholder'] = '0 (for service)'
 
+        # ── GST rate: model default (18%) hardcoded thi, CompanyProfile ka
+        # configurable `default_tax_rate` use karte hain. Naye product par
+        # company ka rate pre-fill hota hai; har product apna rate rakh sakta
+        # hai (edited value override karti hai).
+        if not self.instance.pk:
+            try:
+                company = CompanyProfile.get_instance()
+                self.fields['tax_rate'].initial = (
+                    company.default_tax_rate
+                    if company.default_tax_rate is not None
+                    else Decimal('0')
+                )
+            except Exception:                       # pragma: no cover
+                self.fields['tax_rate'].initial = Decimal('0')
+        self.fields['tax_rate'].help_text = (
+            "GST % for this product/service. Company default se pre-filled "
+            "hai — zaroorat ho to badal dein."
+        )
+
     def clean_current_stock(self):
         is_service = self.cleaned_data.get('is_service')
         value = self.cleaned_data.get('current_stock')
@@ -1038,7 +1058,7 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'delivered_to_phone',
             'delivered_to_designation',
             'delivery_remarks',
-            'estimated_cost', 'labour_charge',
+            'estimated_cost',
             'notes',
         ]
         widgets = {
@@ -1095,7 +1115,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                 'placeholder': 'Any special delivery remarks...',
             }),
             'estimated_cost': BS_NUMBER(),
-            'labour_charge': BS_NUMBER(),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
@@ -1110,51 +1129,6 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'delivered_to_designation': 'Recipient Designation',
             'delivery_remarks': 'Delivery Remarks',
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        field_names = [f for f in self.fields.keys() if f != 'status']
-        self.add_htmx_validation(
-            validate_url=reverse('accounting:validate_repair_field'),
-            field_names=field_names,
-            include_id_field='repair_id',
-        )
-
-        for field in [
-            'delivered_to_name', 'delivered_to_phone',
-            'delivered_to_designation', 'delivery_remarks',
-            'received_at', 'ready_at', 'delivery_date',
-            'received_by', 'received_remarks', 'delivered_by',
-            'labour_charge',
-        ]:
-            if field in self.fields:
-                self.fields[field].required = False
-
-    def clean_labour_charge(self):
-        submitted = self.cleaned_data.get('labour_charge')
-        if submitted is None:
-            if self.instance and self.instance.pk:
-                return self.instance.labour_charge or Decimal('0')
-            return Decimal('0')
-
-        labour = submitted
-
-        if labour < 0:
-            raise ValidationError("Labour charge cannot be negative.")
-
-        if self.instance and self.instance.pk and self.instance.invoice_id:
-            try:
-                original = RepairJob.objects.get(pk=self.instance.pk).labour_charge
-            except RepairJob.DoesNotExist:
-                original = Decimal('0')
-
-            if labour != original:
-                raise ValidationError(
-                    "Labour charge cannot be changed after an invoice is generated. "
-                    "Please edit the invoice directly or delete it first."
-                )
-        return labour
 
     def clean_customer(self):
         customer = self.cleaned_data.get('customer')
@@ -1189,7 +1163,179 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                 "Delivery date is required when status is 'Delivered'.",
             )
 
+        # ── STATE MACHINE: transition validation (professional flow) ──
+        # Status ab sirf valid transitions se hi badal sakta hai. Purane
+        # behaviour me koi bhi status kisi bhi status se set ho sakta tha
+        # (pending → delivered bhi) — ab model ka transition table check
+        # hota hai aur saaf error milta hai.
+        if status and self.instance and self.instance.pk:
+            old_status = (
+                RepairJob.all_objects.filter(pk=self.instance.pk)
+                .values_list('status', flat=True).first()
+            )
+            if old_status and old_status != status and not \
+                    RepairJob.can_transition_to(old_status, status):
+                allowed = sorted(RepairJob.allowed_next_statuses(old_status))
+                self.add_error(
+                    'status',
+                    f"'{RepairJob.status_label(old_status)}' se "
+                    f"'{RepairJob.status_label(status)}' allowed nahi. "
+                    f"Allowed next: "
+                    f"{', '.join(RepairJob.status_label(a) for a in allowed) or 'none (terminal state)'}.",
+                )
+
         return cleaned_data
+
+    def save(self, commit=True):
+        """
+        Aapka purana form-save — PLUS: status change ab state machine se
+        hota hai (transition guards + timeline dates + immutable history +
+        customer notification + cancel par stock reversal).
+
+        Kyun zaroori hai: staff ke liye status dropdown sababse natural UX
+        hai, lekin seedha save hone se saare guards bypass ho jate the. Ab
+        dropdown bhi `change_status()` se guzarta hai.
+
+        Steps:
+          1. Baaki fields (status ke bina) save karo
+          2. Status ko purani value par wapas lao (taaki guard na toote)
+          3. `change_status()` se transition lagao (guards + history + notify)
+        """
+        instance = super().save(commit=False)
+
+        new_status = self.cleaned_data.get('status')
+        status_changed = bool(
+            self.instance.pk and new_status
+            and new_status != self._status_before_save
+        )
+
+        if commit:
+            if status_changed:
+                # 1+2. Non-status fields save karo (status purani value par)
+                instance.status = self._status_before_save
+                instance.save()
+                # 3. Ab transition state machine se lagao
+                instance.change_status(
+                    new_status,
+                    by=self._actor,
+                    remarks=(self.cleaned_data.get('status_remarks')
+                             or 'Status changed via repair form'),
+                )
+            else:
+                instance.save()
+
+        return instance
+
+    def __init__(self, *args, **kwargs):
+        """
+        Batch 1 (purana): HTMX live-validation + optional fields.
+        Batch 2 (naya)  : `actor=` (request.user) — audit history ke liye.
+        """
+        self._actor = kwargs.pop('actor', None)
+        super().__init__(*args, **kwargs)
+
+        field_names = [f for f in self.fields.keys() if f != 'status']
+        self.add_htmx_validation(
+            validate_url=reverse('accounting:validate_repair_field'),
+            field_names=field_names,
+            include_id_field='repair_id',
+        )
+
+        for field in [
+            'delivered_to_name', 'delivered_to_phone',
+            'delivered_to_designation', 'delivery_remarks',
+            'received_at', 'ready_at', 'delivery_date',
+            'received_by', 'received_remarks', 'delivered_by',
+        ]:
+            if field in self.fields:
+                self.fields[field].required = False
+
+        self._status_before_save = getattr(self.instance, 'status', None)
+
+
+class RepairStatusTransitionForm(forms.Form):
+    """
+    Status transition ka dedicated form (HTMX buttons ke liye).
+
+    Model ka state machine hi asli guard hai — ye form sirf:
+      • valid options offer karta hai,
+      • remarks (audit ke liye) collect karta hai,
+      • aur `change_status()` call karta hai.
+    """
+    status = forms.ChoiceField(
+        choices=(), required=True, widget=BS_SELECT(),
+        label='Naya Status',
+    )
+    remarks = forms.CharField(
+        required=False, max_length=300, widget=BS_TEXTAREA(rows=2),
+        label='Remarks / Reason',
+        help_text='Audit trail me save hoga (customer ko nahi dikhta).',
+    )
+    force = forms.BooleanField(
+        required=False, widget=BS_CHECKBOX(), label='Force (manager override)',
+        help_text='Sirf tab jab workflow ke bahar jaana zaroori ho — audit me '
+                  'FORCED mark ho jata hai.',
+    )
+
+    def __init__(self, *args, job=None, allow_force=False, **kwargs):
+        self.job = job
+        super().__init__(*args, **kwargs)
+        self._allow_force = allow_force
+
+        if job is not None:
+            display = dict(job.STATUS_CHOICES)
+            # Sirf wo transitions jo normal flow me allowed hain (force-only
+            # wale — jaise delivered→repairing reopen — yahan nahi aate).
+            allowed = sorted(job.allowed_next_statuses(job.status))
+            self.allowed = allowed
+            self.fields['status'].choices = (
+                [('', '— Select —')] + [(c, display.get(c, c)) for c in allowed]
+            )
+        else:
+            self.allowed = []
+            self.fields['status'].choices = [('', '— Select —')]
+
+        if not allow_force:
+            self.fields.pop('force', None)
+
+    @property
+    def has_transitions(self):
+        return bool(self.allowed) and self.job is not None \
+            and not self.job.is_locked
+
+    def clean_status(self):
+        value = self.cleaned_data.get('status')
+        if not value or self.job is None:
+            return value
+        if not RepairJob.can_transition_to(self.job.status, value):
+            allowed = sorted(RepairJob.allowed_next_statuses(self.job.status))
+            raise ValidationError(
+                f"'{RepairJob.status_label(self.job.status)}' se "
+                f"'{RepairJob.status_label(value)}' allowed nahi. "
+                f"Allowed next: {', '.join(allowed) or 'none (terminal state)'}."
+            )
+        return value
+
+    def clean(self):
+        cleaned = super().clean()
+        target = cleaned.get('status')
+        forced = bool(cleaned.get('force'))
+        if self.job is not None and target and not forced:
+            try:
+                self.job._status_guards(self.job.status, target, force=False)
+            except ValidationError as exc:
+                self.add_error('status', exc.messages[0])
+        return cleaned
+
+    def save(self, by=None):
+        if not self.is_valid():
+            raise ValidationError('Form invalid hai — pehle errors theek karein.')
+        return self.job.change_status(
+            self.cleaned_data['status'],
+            by=by,
+            remarks=self.cleaned_data.get('remarks', ''),
+            force=bool(self.cleaned_data.get('force')),
+        )
 
 
 class RepairPartForm(forms.ModelForm):
@@ -1214,8 +1360,19 @@ class RepairPartForm(forms.ModelForm):
             }),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, repair_job=None, **kwargs):
+        """
+        `repair_job=` optional hai — diya jaye to stock availability is job
+        ke hisaab se check hoti hai (job par pehle se lage parts count hote
+        hain, warna jhoota "insufficient stock" error aata tha).
+
+        NOTE: `self.instance` sirf `super().__init__()` ke BAAD milta hai,
+        isliye instance fallback wahan se lete hain.
+        """
+        self.repair_job = repair_job
         super().__init__(*args, **kwargs)
+        if self.repair_job is None:
+            self.repair_job = getattr(self.instance, 'repair_job', None)
         # Repair parts must be PHYSICAL products only.
         self.fields['product'].queryset = Product.objects.filter(
             is_active=True,
@@ -1233,6 +1390,57 @@ class RepairPartForm(forms.ModelForm):
         if price is not None and price <= 0:
             raise ValidationError("Unit price must be greater than zero.")
         return price
+
+    def clean(self):
+        """
+        Business guards (model layer ke saath consistent):
+
+        1. Invoiced job → saaf error (view tak jaane se pehle)
+        2. Stock availability — `current_stock + is job par pehle se lage`
+           ke hisaab se, aur message me exact available qty
+        """
+        cleaned = super().clean()
+        product = cleaned.get('product')
+        qty = cleaned.get('quantity')
+
+        if not (product and qty):
+            return cleaned
+
+        # 1. Invoiced job lock (model bhi rokta hai, par form me saaf message)
+        if self.repair_job is not None and getattr(self.repair_job, 'invoice_id', None):
+            raise ValidationError(
+                f"Is job ka invoice ban chuka hai — part add/change nahi ho "
+                f"sakta. Pehle invoice handle karein."
+            )
+
+        if product.is_service:
+            self.add_error(
+                'product',
+                f"'{product.name}' ek SERVICE product hai — ise "
+                f"'Add Service' se add karein, part ke roop me nahi.",
+            )
+            return cleaned
+
+        # 2. Stock availability — is job par pehle se lage parts ko count karo
+        already = Decimal('0')
+        if self.repair_job is not None and self.repair_job.pk:
+            already = (
+                RepairPart.objects
+                .filter(repair_job=self.repair_job, product=product,
+                        is_deleted=False)
+                .exclude(pk=self.instance.pk)
+                .aggregate(total=Sum('quantity'))['total']
+                or Decimal('0')
+            )
+        available = (product.current_stock or Decimal('0')) + Decimal(str(already))
+        if Decimal(qty) > available:
+            self.add_error(
+                'quantity',
+                f"Stock kam hai: '{product.name}' me {available} available "
+                f"hai (aap {qty} maang rahe hain). Purchase karein ya "
+                f"quantity kam karein.",
+            )
+        return cleaned
 
 
 class RepairServiceForm(forms.ModelForm):
@@ -1265,8 +1473,11 @@ class RepairServiceForm(forms.ModelForm):
             'description': 'Description',
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, repair_job=None, **kwargs):
+        self.repair_job = repair_job
         super().__init__(*args, **kwargs)
+        if self.repair_job is None:
+            self.repair_job = getattr(self.instance, 'repair_job', None)
         self.fields['product'].queryset = Product.objects.filter(
             is_service=True,
             is_active=True,
@@ -1281,6 +1492,25 @@ class RepairServiceForm(forms.ModelForm):
         if amount < 0:
             raise ValidationError("Amount cannot be negative.")
         return amount
+
+    def clean_product(self):
+        """Service line me sirf SERVICE product (is_service=True)."""
+        product = self.cleaned_data.get('product')
+        if product is not None and not product.is_service:
+            raise ValidationError(
+                f"'{product.name}' ek physical product hai — ise "
+                f"'Add Part' se add karein, service ke roop me nahi."
+            )
+        return product
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.repair_job is not None and getattr(self.repair_job, 'invoice_id', None):
+            raise ValidationError(
+                "Is job ka invoice ban chuka hai — service add/change nahi ho "
+                "sakta. Pehle invoice handle karein."
+            )
+        return cleaned
 
 
 # ============================================================

@@ -17,7 +17,8 @@ from .models import (
     Notification, NotificationPreference, ContactMessage, 
     FAQ, Testimonial, Service, EmailOTP,
     BankAccount, BankTransaction, PaymentAllocation, AdvanceAdjustment,
-    Account, AccountGroup, AuditLog
+    Account, AccountGroup, AuditLog,
+    RepairStatusLog,
 )
 
 from .models import sync_invoice_ledger
@@ -48,6 +49,17 @@ class CompanyProfileAdmin(admin.ModelAdmin):
         ('Business Settings', {
             'fields': ('gstin', 'invoice_prefix', 'invoice_start_number', 
                        'default_tax_rate', 'financial_year_start')
+        }),
+
+        # 3b. REPAIR DEFAULTS
+        ('Repair Defaults', {
+            'fields': ('default_labour_product', 'default_service_tax_rate'),
+            'description': (
+                'Labour/service lines ke liye defaults. '
+                '`default_labour_product` = Repair Labour ke liye service '
+                'product (naam-string lookup ki jagah). '
+                '`default_service_tax_rate` khali = product ka apna rate.'
+            ),
         }),
         
         # 4. LANDING PAGE CONTENT
@@ -478,6 +490,52 @@ class RepairPartInline(admin.TabularInline):
     fields = ['product', 'quantity', 'unit_price', 'line_total']
 
 
+# ============================================================
+# REPAIR STATUS HISTORY (immutable audit trail)
+# ============================================================
+class RepairStatusLogInline(admin.TabularInline):
+    """
+    Job ke andar status history — APPEND-ONLY.
+
+    Add/change/delete sab band: history sirf `change_status()` likhta hai.
+    """
+    model = RepairStatusLog
+    extra = 0
+    can_delete = False
+    fields = ('changed_at', 'from_status', 'to_status', 'actor',
+              'remarks', 'forced', 'ip_address')
+    readonly_fields = fields
+    ordering = ('-changed_at',)
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RepairStatusLog)
+class RepairStatusLogAdmin(admin.ModelAdmin):
+    """Read-only audit log — yahan se kuch edit nahi hota."""
+    list_display = ('changed_at', 'repair_job', 'from_status', 'to_status',
+                    'actor', 'forced', 'ip_address')
+    list_filter = ('to_status', 'forced', 'changed_at')
+    search_fields = ('repair_job__job_number', 'remarks',
+                     'actor__username', 'actor__first_name')
+    date_hierarchy = 'changed_at'
+    list_select_related = ('repair_job', 'actor')
+    ordering = ('-changed_at',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(RepairJob)
 class RepairJobAdmin(admin.ModelAdmin):
     list_display = [
@@ -489,9 +547,10 @@ class RepairJobAdmin(admin.ModelAdmin):
     search_fields = ['job_number', 'customer__name', 'device_model', 'serial_number']
     readonly_fields = [
         'job_number', 'final_amount', 'created_at', 'updated_at',
-        'estimate_approved_at', 'estimate_approved_by'
+        'estimate_approved_at', 'estimate_approved_by',
     ]
-    inlines = [RepairPartInline]
+    inlines = [RepairPartInline, RepairStatusLogInline]
+    actions = ['advance_status', 'mark_ready_action', 'mark_delivered_action']
     fieldsets = (
         ('Job Information', {
             'fields': ('job_number', 'customer', 'device_model', 'serial_number', 'status')
@@ -503,8 +562,8 @@ class RepairJobAdmin(admin.ModelAdmin):
             'fields': ('accessories', 'device_condition')
         }),
         ('Estimate & Approval', {
-            'fields': ('estimated_cost', 'estimate_status', 'estimate_approved_at', 'estimate_approved_by', 
-                    'labour_charge', 'final_amount', 'approval_source', 'approval_remarks')  
+            'fields': ('estimated_cost', 'estimate_status', 'estimate_approved_at', 'estimate_approved_by',
+                    'final_amount', 'approval_source', 'approval_remarks')
         }),
         ('Timeline', {
             'fields': ('submitted_at', 'received_at', 'received_remarks', 
@@ -532,10 +591,116 @@ class RepairJobAdmin(admin.ModelAdmin):
     invoice_link.short_description = "Invoice"
 
     def save_model(self, request, obj, form, change):
-        if 'estimate_status' in form.changed_data and obj.estimate_status == 'approved' and not obj.estimate_approved_at:
+        """
+        Admin se status badalna bhi STATE MACHINE se guzarta hai.
+
+        Kyun: status sirf `change_status()` se badalna chahiye — warna
+        guards, timeline dates, immutable history aur notification bypass
+        ho jate hain (aur guard seedha error deta hai).
+
+        Yahan: purana status nikaal kar, naya status `change_status()` se
+        lagate hain (audit trail ke saath).
+        """
+        from django.core.exceptions import ValidationError as _VE
+
+        old_status = None
+        if change and obj.pk:
+            old_status = (
+                RepairJob.all_objects.filter(pk=obj.pk)
+                .values_list('status', flat=True).first()
+            )
+        new_status = obj.status
+
+        if 'estimate_status' in form.changed_data and \
+                obj.estimate_status == 'approved' and not obj.estimate_approved_at:
             obj.estimate_approved_at = timezone.now()
-        super().save_model(request, obj, form, change)
+
+        if old_status and new_status and old_status != new_status \
+                and not obj.invoice_id:
+            # Status ko purani value par lao — warna model guard raise karega
+            obj.status = old_status
+            super().save_model(request, obj, form, change)
+            try:
+                obj.change_status(
+                    new_status, by=request.user,
+                    remarks='Admin panel se status change',
+                )
+            except _VE as exc:
+                self.message_user(
+                    request,
+                    exc.messages[0] if getattr(exc, 'messages', None) else str(exc),
+                    level=messages.ERROR,
+                )
+        else:
+            super().save_model(request, obj, form, change)
+
         obj.calculate_final_amount()
+
+    # ── Bulk actions (state machine ke through) ──────────────────
+    @admin.action(description="▶ Advance to next status (valid transitions only)")
+    def advance_status(self, request, queryset):
+        updated, failed = 0, []
+        for job in queryset:
+            try:
+                job.advance(by=request.user,
+                            remarks='Admin: advance to next status')
+                updated += 1
+            except Exception as exc:                          # noqa: BLE001
+                failed.append(
+                    f'{job.job_number}: '
+                    f'{exc.messages[0] if getattr(exc, "messages", None) else exc}'
+                )
+        if updated:
+            self.message_user(request, f'{updated} job(s) advance hue.',
+                              level=messages.SUCCESS)
+        for line in failed[:10]:
+            self.message_user(request, line, level=messages.ERROR)
+
+    @admin.action(description="✔ Mark Ready for Delivery")
+    def mark_ready_action(self, request, queryset):
+        self._bulk_transition(request, queryset, 'ready')
+
+    @admin.action(description="🚚 Mark Delivered")
+    def mark_delivered_action(self, request, queryset):
+        self._bulk_transition(request, queryset, 'delivered')
+
+    def _bulk_transition(self, request, queryset, target):
+        updated, failed = 0, []
+        for job in queryset:
+            try:
+                job.change_status(target, by=request.user,
+                                  remarks=f'Admin: {target}')
+                updated += 1
+            except Exception as exc:                          # noqa: BLE001
+                failed.append(
+                    f'{job.job_number}: '
+                    f'{exc.messages[0] if getattr(exc, "messages", None) else exc}'
+                )
+        if updated:
+            self.message_user(request, f'{updated} job(s) → {target}.',
+                              level=messages.SUCCESS)
+        for line in failed[:10]:
+            self.message_user(request, line, level=messages.ERROR)
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = list(super().get_readonly_fields(request, obj))
+        # Invoiced job → status bhi lock (model guard ke saath consistent)
+        if obj is not None and obj.pk and obj.invoice_id:
+            fields.append('status')
+        return fields
+
+    def formfield_for_choice_field(self, db_field, request, **kwargs):
+        """Status dropdown me sirf VALID next transitions (+ current)."""
+        if db_field.name == 'status':
+            obj_id = getattr(request.resolver_match, 'kwargs', {}).get('object_id')
+            if obj_id:
+                job = RepairJob.all_objects.filter(pk=obj_id).first()
+                if job:
+                    valid = job.allowed_next_statuses(job.status) | {job.status}
+                    kwargs['choices'] = [
+                        (k, v) for k, v in job.STATUS_CHOICES if k in valid
+                    ]
+        return super().formfield_for_choice_field(db_field, request, **kwargs)
 
 
 # ============================================================

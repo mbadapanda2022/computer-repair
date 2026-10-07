@@ -269,12 +269,6 @@
                 <th class="text-end fw-bold">₹{{ services_total|floatformat:2 }}</th>
             </tr>
             {% endif %}
-            {% if job.labour_charge > 0 %}
-            <tr>
-                <th colspan="3" class="text-end">Legacy Labour</th>
-                <th class="text-end fw-bold">₹{{ job.labour_charge|floatformat:2 }}</th>
-            </tr>
-            {% endif %}
             <tr class="summary-row">
                 <th colspan="3" class="text-end fw-bold">Final Amount</th>
                 <th class="text-end fw-bold" style="color: #198754; font-size: 14pt;">₹{{ job.final_amount|floatformat:2 }}</th>

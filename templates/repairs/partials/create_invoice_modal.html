@@ -67,7 +67,10 @@
                         <option value="{{ value }}">{{ label }}</option>
                     {% endfor %}
                 </select>
-                <small class="text-muted">Auto if left blank</small>
+                <small class="text-muted">
+                    Auto: <span class="text-primary fw-semibold">{% for value, label in gst_type_choices %}{% if value == effective_gst %}{{ label }}{% endif %}{% endfor %}</span>
+                    {% if effective_gst == 'non_gst' %}— customer has no GSTIN, tax will be ₹0{% endif %}
+                </small>
             </div>
             <div class="col-12">
                 <label for="notes" class="form-label fw-semibold">Notes</label>
@@ -85,7 +88,9 @@
         <!-- Items container — reloads on add/remove -->
         <div id="repair-invoice-items-wrapper"
              data-subtotal="{{ subtotal }}"
-             data-tax="{{ tax_total }}">
+             data-tax="{{ tax_total }}"
+             data-tax-gross="{{ tax_gross }}"
+             data-gst-auto="{{ effective_gst }}">
             <div id="repair-invoice-items-container">
                 {% include 'repairs/partials/repair_invoice_items.html' %}
             </div>
@@ -225,15 +230,34 @@
     var grandEl      = document.getElementById('ri-display-grand');
     var discountInput = document.getElementById('discount_amount');
 
+    function getWrap() {
+        return document.getElementById('repair-invoice-items-wrapper');
+    }
+
+    // Effective GST type: explicit dropdown selection wins, else server auto-detect
+    function effectiveGst() {
+        var sel = document.getElementById('gst_type');
+        if (sel && sel.value) return sel.value;
+        var wrap = getWrap();
+        return (wrap && wrap.dataset.gstAuto) || '';
+    }
+
     function getSubtotal() {
-        var wrap = document.getElementById('repair-invoice-items-wrapper');
+        var wrap = getWrap();
         if (!wrap) return 0;
         return parseFloat(wrap.dataset.subtotal) || 0;
     }
     function getTax() {
-        var wrap = document.getElementById('repair-invoice-items-wrapper');
+        var wrap = getWrap();
         if (!wrap) return 0;
-        return parseFloat(wrap.dataset.tax) || 0;
+        if (effectiveGst() === 'non_gst') return 0;
+        var tax = parseFloat(wrap.dataset.tax) || 0;
+        if (!tax) {
+            // Server zeroed data-tax because auto-detect was non_gst;
+            // fall back to gross tax when user overrides to a taxable type.
+            tax = parseFloat(wrap.dataset.taxGross) || 0;
+        }
+        return tax;
     }
 
     function recalcTotals() {
@@ -249,6 +273,8 @@
     }
 
     if (discountInput) discountInput.addEventListener('input', recalcTotals);
+    var gstSelect = document.getElementById('gst_type');
+    if (gstSelect) gstSelect.addEventListener('change', recalcTotals);
     recalcTotals();
 
     // Recalc after HTMX swaps the items partial
@@ -258,10 +284,11 @@
         if (target.id === 'repair-invoice-items-container') {
             // Update wrapper data attributes from the fresh partial
             var newItems = target.querySelector('[data-subtotal]');
-            var wrap = document.getElementById('repair-invoice-items-wrapper');
+            var wrap = getWrap();
             if (wrap && newItems) {
                 wrap.dataset.subtotal = newItems.dataset.subtotal || '0';
                 wrap.dataset.tax = newItems.dataset.tax || '0';
+                wrap.dataset.taxGross = newItems.dataset.taxGross || '0';
             }
             recalcTotals();
         }

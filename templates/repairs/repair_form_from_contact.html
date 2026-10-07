@@ -82,15 +82,10 @@
                 </div>
             </div>
             <div class="row g-3 mt-2">
-                <div class="col-md-6">
+                <div class="col-md-12">
                     <label for="id_received_remarks" class="form-label fw-semibold">Reception Remarks</label>
                     <textarea name="received_remarks" id="id_received_remarks" rows="2"
                             class="form-control" placeholder="Device condition at reception...">{{ form.received_remarks.value|default:'' }}</textarea>
-                </div>
-                <div class="col-md-6">
-                    <label for="id_labour_charge" class="form-label fw-semibold">Labour Charge (₹)</label>
-                    <input type="number" name="labour_charge" id="id_labour_charge" step="0.01" 
-                        class="form-control" value="{{ form.labour_charge.value|default:'0' }}">
                 </div>
             </div>
 

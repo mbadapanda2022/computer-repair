@@ -44,7 +44,7 @@ class AccessControlMiddleware:
         'health_check',
     })
 
-    PUBLIC_NAMESPACES = frozenset({'account'})
+    PUBLIC_NAMESPACES = frozenset({'account', 'tracking'})
 
     PUBLIC_PATH_PREFIXES = (
         '/admin/login/',
@@ -61,10 +61,20 @@ class AccessControlMiddleware:
         # Expose request to signal handlers (audit trail).
         set_current_request(request)
         try:
-            return self._handle(request)
+            response = self._handle(request)
         finally:
             # Thread reuse on Gunicorn → must clear.
             clear_current_request()
+        self._prevent_sensitive_caching(request, response)
+        return response
+
+    def _prevent_sensitive_caching(self, request, response):
+        # Authenticated pages must never come from browser cache: a stale
+        # render right after POST->redirect misleads staff, and without
+        # no-store a logged-out user's Back button can redisplay them.
+        if request.user.is_authenticated and not self._is_static_or_media(request.path):
+            response['Cache-Control'] = 'no-store, must-revalidate'
+            response['Pragma'] = 'no-cache'
 
     # ────────────────────────────────────────────────
     def _handle(self, request):

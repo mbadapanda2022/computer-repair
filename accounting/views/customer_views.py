@@ -77,6 +77,7 @@ from ..utils.otp_helpers import (
 )
 from .statements import _build_combined_rows
 from .utils import (
+    htmx_field_error_response,
     htmx_response,
     is_htmx,
     redirect_to_customer,
@@ -147,10 +148,7 @@ def validate_repair_field(request):
         return HttpResponse('')
 
     errors = form.errors.get(field_name, [])
-    html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-    html += ''.join(f'<div>{err}</div>' for err in errors)
-    html += '</div>'
-    return HttpResponse(html)
+    return htmx_field_error_response(field_name, errors)
 
 
 @login_required
@@ -171,10 +169,7 @@ def validate_customer_profile_field(request):
     form.is_valid()   # triggers field clean() methods
 
     errors = form.errors.get(field_name, [])
-    html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-    html += ''.join(f'<div>{err}</div>' for err in errors)
-    html += '</div>'
-    return HttpResponse(html)
+    return htmx_field_error_response(field_name, errors)
 
 
 # ════════════════════════════════════════════════════════════
@@ -894,12 +889,19 @@ def repair_estimate_approve(request, pk):
         repair.estimate_approved_at = timezone.now()
         repair.estimate_approved_by = request.user
         repair.approval_source = 'portal'
-        if repair.estimated_cost and repair.estimated_cost > 0:
-            repair.status = 'repairing'
         repair.save(update_fields=[
             'estimate_status', 'estimate_approved_at', 'estimate_approved_by',
-            'approval_source', 'status',
+            'approval_source',
         ])
+
+        # Status state machine se — guards + history + notification.
+        # (Purana behaviour: amount > 0 ho to repair shuru)
+        if repair.estimated_cost and repair.estimated_cost > 0 \
+                and repair.status in ('pending', 'received', 'diagnosis'):
+            repair.start_repair(
+                by=request.user,
+                remarks='Customer ne portal se estimate approve kiya',
+            )
 
     send_notification_to_staff(
         title=f"Estimate Approved: {repair.job_number}",
@@ -2033,7 +2035,7 @@ def _customer_repairs_excel(request, customer, qs):
             repair.get_status_display(),
             repair.get_estimate_status_display() if repair.estimate_status else 'No Estimate',
             float(repair.estimated_cost or 0),
-            float(repair.labour_charge or 0),
+            float(repair.services_total or 0),
             float(parts_total),
             float(repair.final_amount or 0),
             repair.received_by or '',
@@ -2060,7 +2062,7 @@ def _customer_repairs_excel(request, customer, qs):
                 ws.cell(row=row_num, column=c).fill = fill
 
         totals['est'] += Decimal(str(repair.estimated_cost or 0))
-        totals['lab'] += Decimal(str(repair.labour_charge or 0))
+        totals['lab'] += Decimal(str(repair.services_total or 0))
         totals['parts'] += parts_total
         totals['fin'] += Decimal(str(repair.final_amount or 0))
         row_num += 1

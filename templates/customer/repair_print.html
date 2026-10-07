@@ -258,12 +258,6 @@
                 <td class="text-end">₹{{ services_total|floatformat:2 }}</td>
             </tr>
             {% endif %}
-            {% if repair.labour_charge > 0 %}
-            <tr>
-                <td class="fw-bold text-end">Legacy Labour Charge</td>
-                <td class="text-end">₹{{ repair.labour_charge|floatformat:2 }}</td>
-            </tr>
-            {% endif %}
             <tr class="total-row">
                 <td class="fw-bold text-end">Base Amount (pre-tax)</td>
                 <td class="text-end fw-bold">₹{{ repair.base_amount|floatformat:2 }}</td>

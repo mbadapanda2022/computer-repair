@@ -258,7 +258,7 @@
         <div class="timeline-step {% if repair.status == 'diagnosis' or repair.status == 'repairing' or repair.status == 'ready' or repair.status == 'delivered' %}done{% elif repair.status == 'received' %}active{% endif %}">
             <div class="step-icon"><i class="bi bi-search"></i></div>
             <div class="step-info">
-                <p class="step-title">Diagnosis</p>
+                <p class="step-title">Under Diagnosis</p>
                 <p class="step-date">
                     {% if repair.status == 'diagnosis' %}In Progress
                     {% elif repair.status == 'repairing' or repair.status == 'ready' or repair.status == 'delivered' %}Completed
@@ -271,7 +271,7 @@
         <div class="timeline-step {% if repair.status == 'repairing' or repair.status == 'ready' or repair.status == 'delivered' %}done{% elif repair.status == 'diagnosis' %}active{% endif %}">
             <div class="step-icon"><i class="bi bi-tools"></i></div>
             <div class="step-info">
-                <p class="step-title">Repairing</p>
+                <p class="step-title">Under Repair</p>
                 <p class="step-date">
                     {% if repair.status == 'repairing' %}In Progress
                     {% elif repair.status == 'ready' or repair.status == 'delivered' %}Completed

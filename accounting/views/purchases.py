@@ -21,7 +21,7 @@ from ..models import (
 )
 from ..forms import PurchaseForm, PurchaseItemForm, ProductForm
 from accounting.utils.notification_helpers import send_notification_to_staff
-from .utils import is_htmx, htmx_response, redirect_to_staff, toast_only_response
+from .utils import htmx_field_error_response, is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
 try:
@@ -157,16 +157,10 @@ def validate_purchase_field(request):
             form = PurchaseForm(data={field_name: value})
         form.full_clean()
         errors = form.errors.get(field_name, [])
-        error_html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-        for err in errors:
-            error_html += f'<div><i class="bi bi-exclamation-circle me-1"></i>{err}</div>'
-        error_html += '</div>'
-        return HttpResponse(error_html)
+        return htmx_field_error_response(field_name, errors)
     except Exception as e:
         logger.error(f"Validation error on {field_name}: {e}")
-        return HttpResponse(
-            f'<div id="field-{field_name}" class="invalid-feedback d-block">Server error</div>'
-        )
+        return htmx_field_error_response(field_name, ['Server error'])
 
 
 # ============================================================

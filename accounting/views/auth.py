@@ -49,6 +49,8 @@ from ..forms import (
 )
 from ..models import Contact, EmailOTP
 from ..utils.otp_helpers import (
+    OTP_EXPIRY_MINUTES,
+    OTP_MAX_ATTEMPTS,
     OTP_RESEND_COOLDOWN_SECONDS,
     create_and_send_otp,
     verify_otp,
@@ -508,9 +510,25 @@ def verify_otp_view(request):
                 'Please enter a valid 6-digit OTP.',
             )
 
+        # Brute-force guard: OTP ke lifetime me limited wrong attempts.
+        # Bina iske 6-digit OTP (10^9 combinations... 10^6) ko 10 minute
+        # ki window me parallel requests se todha ja sakta hai.
+        attempts_key = f'otp_verify_attempts:{purpose}:{email.lower()}'
+        if cache.get(attempts_key, 0) >= OTP_MAX_ATTEMPTS:
+            logger.warning(
+                "OTP verify blocked (too many attempts) | purpose=%s",
+                purpose,
+            )
+            return _otp_error_response(
+                request, htmx, ctx,
+                'Too many wrong attempts. Please request a new OTP.',
+                status=429,
+            )
+
         verified_user = verify_otp(email, otp, purpose)
 
         if verified_user and verified_user.id == user.id:
+            cache.delete(attempts_key)
 
             # ── SIGNUP VERIFICATION ──────────────────────
             if purpose == 'signup':
@@ -560,6 +578,10 @@ def verify_otp_view(request):
                 return redirect('home')
 
         # ---- Wrong/expired OTP ----
+        try:
+            cache.incr(attempts_key)
+        except ValueError:
+            cache.set(attempts_key, 1, OTP_EXPIRY_MINUTES * 60)
         return _otp_error_response(
             request, htmx, ctx,
             'Invalid or expired OTP. Please try again.',

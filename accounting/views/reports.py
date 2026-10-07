@@ -18,6 +18,12 @@ from ..decorators import handle_errors
 
 logger = logging.getLogger(__name__)
 
+
+def _money(v):
+    """Print reports ke liye consistent ₹ amount formatting."""
+    return f"{v:,.2f}" if v is not None else "-"
+
+
 # Excel export
 try:
     import openpyxl
@@ -185,6 +191,30 @@ def sales_report(request):
         # Print Mode
         if is_print:
             company = CompanyProfile.get_instance()
+            report_headers = ['Date', 'Invoice #', 'Customer', 'Subtotal (₹)',
+                              'Discount (₹)', 'Tax (₹)', 'Grand Total (₹)', 'Status']
+            report_rows = [
+                [
+                    {'value': inv.date.strftime('%d-%m-%Y')},
+                    {'value': inv.invoice_number},
+                    {'value': inv.customer.name if inv.customer else '-'},
+                    {'value': _money(inv.subtotal), 'class': 'text-end'},
+                    {'value': _money(inv.discount_amount), 'class': 'text-end'},
+                    {'value': _money(inv.tax_amount), 'class': 'text-end'},
+                    {'value': _money(inv.grand_total), 'class': 'text-end'},
+                    {'value': inv.get_payment_status_display()},
+                ]
+                for inv in invoices
+            ]
+            report_totals = [
+                {'value': 'Total'},
+                {'value': ''}, {'value': ''},
+                {'value': _money(total_subtotal), 'class': 'text-end'},
+                {'value': _money(total_discount), 'class': 'text-end'},
+                {'value': _money(total_tax), 'class': 'text-end'},
+                {'value': _money(total_grand), 'class': 'text-end'},
+                {'value': ''},
+            ]
             context = {
                 'invoices': invoices,
                 'total': total_grand,
@@ -192,6 +222,9 @@ def sales_report(request):
                 'date_to': date_to,
                 'company': company,
                 'title': 'Sales Report',
+                'report_headers': report_headers,
+                'report_rows': report_rows,
+                'report_totals': report_totals,
             }
             return render(request, 'reports/print_report.html', context)
         
@@ -285,9 +318,34 @@ def purchase_report(request):
         
         if is_print:
             company = CompanyProfile.get_instance()
+            report_rows = [
+                [
+                    {'value': pur.date.strftime('%d-%m-%Y')},
+                    {'value': pur.purchase_number},
+                    {'value': pur.vendor.name if pur.vendor else '-'},
+                    {'value': _money(pur.subtotal), 'class': 'text-end'},
+                    {'value': _money(pur.tax_amount), 'class': 'text-end'},
+                    {'value': _money(pur.grand_total), 'class': 'text-end'},
+                    {'value': 'Yes' if pur.paid else 'No'},
+                ]
+                for pur in purchases
+            ]
+            report_totals = [
+                {'value': 'Total'},
+                {'value': ''},
+                {'value': ''},
+                {'value': _money(total_subtotal), 'class': 'text-end'},
+                {'value': _money(total_tax), 'class': 'text-end'},
+                {'value': _money(total), 'class': 'text-end'},
+                {'value': ''},
+            ]
             context = {
                 'purchases': purchases,
                 'total': total,
+                'report_headers': ['Date', 'Purchase #', 'Vendor', 'Subtotal (₹)',
+                                   'Tax (₹)', 'Grand Total (₹)', 'Status'],
+                'report_rows': report_rows,
+                'report_totals': report_totals,
                 'date_from': date_from,
                 'date_to': date_to,
                 'company': company,
@@ -387,6 +445,14 @@ def gst_report(request):
         
         if is_print:
             company = CompanyProfile.get_instance()
+            gst_rows = [
+                ('CGST Collected', cgst),
+                ('SGST Collected', sgst),
+                ('IGST Collected', igst),
+                ('Total Sales Tax', total_sales_tax),
+                ('Input Credit (Purchase Tax)', total_purchase_tax),
+                ('Net GST Payable', net_gst),
+            ]
             context = {
                 'invoices': invoices,
                 'purchases': purchases,
@@ -396,6 +462,13 @@ def gst_report(request):
                 'cgst': cgst,
                 'sgst': sgst,
                 'igst': igst,
+                'report_headers': ['Particulars', 'Amount (₹)'],
+                'report_rows': [
+                    [{'value': label},
+                     {'value': _money(amount), 'class': 'text-end fw-bold' if label == 'Net GST Payable' else 'text-end'}]
+                    for label, amount in gst_rows
+                ],
+                'report_totals': None,
                 'date_from': date_from,
                 'date_to': date_to,
                 'company': company,
@@ -466,7 +539,12 @@ def profit_loss(request):
             repairs = repairs.filter(date_in__gte=date_from)
         if date_to:
             repairs = repairs.filter(date_in__lte=date_to)
-        repair_income = repairs.aggregate(Sum('labour_charge'))['labour_charge__sum'] or Decimal('0')
+        # Labour income RepairService lines se aata hai.
+        repair_income = (
+            RepairService.objects
+            .filter(repair_job__in=repairs)
+            .aggregate(total=Sum('line_total'))['total']
+        ) or Decimal('0')
         
         # Total Income
         total_income = sales_total + repair_income
@@ -587,6 +665,33 @@ def stock_report(request):
             context = {
                 'products': products,
                 'total_stock_value': total_stock_value,
+                'report_headers': ['Product', 'Category', 'HSN Code', 'Stock (Qty)',
+                                   'Purchase Price (₹)', 'Selling Price (₹)',
+                                   'Stock Value (₹)', 'Status'],
+                'report_rows': [
+                    [
+                        {'value': p.name},
+                        {'value': p.category.name if p.category else '-'},
+                        {'value': p.hsn_code or '-'},
+                        {'value': p.current_stock, 'class': 'text-end'},
+                        {'value': _money(p.purchase_price), 'class': 'text-end'},
+                        {'value': _money(p.selling_price), 'class': 'text-end'},
+                        {'value': _money(p.stock_value), 'class': 'text-end'},
+                        {'value': 'Low Stock' if p.is_low_stock else 'OK',
+                         'class': 'text-danger' if p.is_low_stock else 'text-success'},
+                    ]
+                    for p in products
+                ],
+                'report_totals': [
+                    {'value': 'Total'},
+                    {'value': ''},
+                    {'value': ''},
+                    {'value': ''},
+                    {'value': ''},
+                    {'value': ''},
+                    {'value': _money(total_stock_value), 'class': 'text-end'},
+                    {'value': ''},
+                ],
                 'company': company,
                 'title': 'Stock Report',
             }
@@ -640,7 +745,7 @@ def trial_balance(request):
             total_dr += dr
             total_cr += cr
             account_data.append({
-                'account': acc['account'],
+                'account': acc['account__name'],
                 'debit': dr,
                 'credit': cr,
             })
@@ -657,6 +762,20 @@ def trial_balance(request):
                 'total_dr': total_dr,
                 'total_cr': total_cr,
                 'as_on': as_on_date,
+                'report_headers': ['Account', 'Debit (₹)', 'Credit (₹)'],
+                'report_rows': [
+                    [
+                        {'value': acc['account']},
+                        {'value': _money(acc['debit']), 'class': 'text-end'},
+                        {'value': _money(acc['credit']), 'class': 'text-end'},
+                    ]
+                    for acc in account_data
+                ],
+                'report_totals': [
+                    {'value': 'Total'},
+                    {'value': _money(total_dr), 'class': 'text-end'},
+                    {'value': _money(total_cr), 'class': 'text-end'},
+                ],
                 'company': company,
                 'title': 'Trial Balance',
             }
@@ -739,7 +858,10 @@ def balance_sheet(request):
         sales_total = Invoice.objects.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
         purchase_total = Purchase.objects.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
         profit = sales_total - purchase_total
-        repair_income = RepairJob.objects.aggregate(Sum('labour_charge'))['labour_charge__sum'] or Decimal('0')
+        # Labour income → RepairService (legacy field dead hai)
+        repair_income = (
+            RepairService.objects.aggregate(total=Sum('line_total'))['total']
+        ) or Decimal('0')
         net_profit = profit + repair_income
         
         # Total Equity
@@ -946,11 +1068,33 @@ def aging_report(request):
         
         if is_print:
             company = CompanyProfile.get_instance()
+
+            def _aging_cells(row):
+                return [
+                    {'value': row['name']},
+                    {'value': _money(row['range_0_30']), 'class': 'text-end'},
+                    {'value': _money(row['range_31_60']), 'class': 'text-end'},
+                    {'value': _money(row['range_61_90']), 'class': 'text-end'},
+                    {'value': _money(row['range_90_plus']), 'class': 'text-end'},
+                    {'value': _money(row['total']), 'class': 'text-end fw-bold'},
+                ]
+
             context = {
                 'aging_data': aging_data,
                 'totals': totals,
                 'as_on': as_on,
                 'type': report_type,
+                'report_headers': ['Customer/Vendor', '0-30 Days (₹)', '31-60 Days (₹)',
+                                   '61-90 Days (₹)', '90+ Days (₹)', 'Total (₹)'],
+                'report_rows': [_aging_cells(row) for row in aging_data],
+                'report_totals': [
+                    {'value': 'Total'},
+                    {'value': _money(totals['0_30']), 'class': 'text-end'},
+                    {'value': _money(totals['31_60']), 'class': 'text-end'},
+                    {'value': _money(totals['61_90']), 'class': 'text-end'},
+                    {'value': _money(totals['90_plus']), 'class': 'text-end'},
+                    {'value': _money(totals['total']), 'class': 'text-end'},
+                ],
                 'company': company,
                 'title': 'Aging Report',
             }

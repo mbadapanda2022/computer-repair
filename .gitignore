@@ -30,3 +30,8 @@ backup.json
 
 # Logs
 *.log
+
+# Local safety backups (dev only)
+_backups/
+db.sqlite3-wal
+db.sqlite3-shm

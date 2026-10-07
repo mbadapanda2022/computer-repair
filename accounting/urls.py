@@ -225,7 +225,7 @@ urlpatterns = [
     path('notifications/mark-all-read/', notifications.mark_all_read, name='notification_mark_all_read'),
     path('notifications/delete/<int:pk>/', notifications.delete_notification, name='notification_delete'),
     path('notifications/delete-all/', notifications.delete_all_notifications, name='notification_delete_all'),
-    path('notifications/unread-count/', notifications.get_unread_count, name='notification_unread_count'),
+    path('notifications/unread-count/', notifications.get_unread_count_json, name='notification_unread_count'),
     path('notifications/unread-count-text/', notifications.unread_count_text, name='notification_unread_count_text'),
 
     # ===== Quick Messages =====

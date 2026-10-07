@@ -22,6 +22,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import HttpResponse
@@ -38,7 +39,7 @@ from ..models import (
     RepairPart, RepairService, sync_invoice_ledger,
 )
 from ..utils.notification_helpers import send_notification_to_contact
-from .utils import htmx_response, is_htmx, redirect_to_staff, toast_only_response
+from .utils import htmx_field_error_response, htmx_response, is_htmx, redirect_to_staff, toast_only_response
 
 logger = logging.getLogger(__name__)
 
@@ -321,35 +322,6 @@ def _session_item_from_repair_service(service):
     }
 
 
-def _session_item_from_labour(job, labour_product):
-    """
-    Build a session dict for the legacy labour_charge line.
-
-    Fallback only — used when a job still has labour_charge > 0
-    (e.g., pre-migration data). New jobs use RepairService instead.
-    """
-    qty = Decimal('1')
-    price = Decimal(job.labour_charge)
-    company = CompanyProfile.get_instance()
-    tax_rate = Decimal(company.default_tax_rate or 0)
-    line_amount = qty * price
-    tax_amount = ((line_amount * tax_rate) / 100).quantize(Decimal('0.01'))
-    line_total = (line_amount + tax_amount).quantize(Decimal('0.01'))
-
-    return {
-        'product_id': labour_product.pk,
-        'product_name': labour_product.name,
-        'quantity': str(qty),
-        'unit_price': str(price),
-        'tax_rate': str(tax_rate),
-        'line_total': str(line_total),
-        'description': 'Legacy Labour Charge',
-        'repair_part_id': None,
-        'repair_service_id': None,
-        'source': 'labour',
-    }
-
-
 def _ensure_repair_invoice_session(request, job, force_reset=False):
     """
     Populate `temp_repair_invoice_items` from repair parts + services.
@@ -372,22 +344,6 @@ def _ensure_repair_invoice_session(request, job, force_reset=False):
         # 2. Services (labour, data recovery, etc.)
         for service in job.services.select_related('product').all():
             items.append(_session_item_from_repair_service(service))
-
-        # 3. Legacy labour_charge (fallback — should be 0 after migration)
-        if job.labour_charge and job.labour_charge > 0:
-            company = CompanyProfile.get_instance()
-            tax_rate = company.default_tax_rate or Decimal('18')
-            labour_product, _ = Product.objects.get_or_create(
-                name="Repair Labour",
-                defaults={
-                    'is_service': True,
-                    'selling_price': job.labour_charge,
-                    'tax_rate': tax_rate,
-                    'hsn_code': '998446',
-                    'is_active': True,
-                },
-            )
-            items.append(_session_item_from_labour(job, labour_product))
 
         request.session[SK_REPAIR_INVOICE_ITEMS] = items
         request.session[SK_REPAIR_INVOICE_REPAIR_PK] = job.pk
@@ -417,6 +373,31 @@ def _session_totals(items):
         tax_total.quantize(Decimal('0.01')),
         (subtotal + tax_total).quantize(Decimal('0.01')),
     )
+
+
+def _auto_detect_gst_type(job, company):
+    """GST auto-detect shared by modal preview + POST, so preview totals
+    always match the invoice that actually gets created."""
+    if not job.customer.gstin:
+        return 'non_gst'
+    if (company.state and job.customer.state
+            and company.state != job.customer.state):
+        return 'interstate'
+    return 'intrastate'
+
+
+def _preview_totals(items, gst_type):
+    """_session_totals() adjusted for the effective GST type.
+
+    InvoiceItem.save() zeroes item tax for non_gst invoices — the
+    preview must show the same or the modal promises e.g. ₹828 tax
+    while the created invoice ends up with ₹0.
+    """
+    subtotal, tax_total, grand_total = _session_totals(items)
+    if gst_type == 'non_gst':
+        tax_total = Decimal('0')
+        grand_total = subtotal
+    return subtotal, tax_total, grand_total
 
 
 # ════════════════════════════════════════════════════════════
@@ -511,6 +492,9 @@ def get_paginated_repairs_context(request, queryset=None):
         'date_from': date_from,
         'date_to': date_to,
         'status_choices': RepairJob.STATUS_CHOICES,
+        # List view: har job ke liye valid next steps (state machine).
+        # Jo job invoiced/terminal hai uska map khaali — UI lock dikhata hai.
+        'transition_map': {job.pk: job.available_transitions() for job in jobs},
         'stats': stats,
         'filtered_total': filtered_total,
         'today': today,
@@ -539,20 +523,10 @@ def validate_repair_field(request):
         form.full_clean()
         errors = form.errors.get(field_name, [])
 
-        if errors:
-            html = f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-            html += ''.join(f'<div>{err}</div>' for err in errors)
-            html += '</div>'
-        else:
-            html = f'<div id="field-{field_name}" class="invalid-feedback"></div>'
-
-        return HttpResponse(html)
+        return htmx_field_error_response(field_name, errors)
     except Exception as e:
         logger.error("Validation error on %s: %s", field_name, e)
-        return HttpResponse(
-            f'<div id="field-{field_name}" class="invalid-feedback d-block">'
-            f'Server validation error</div>'
-        )
+        return htmx_field_error_response(field_name, ['Server validation error'])
 
 
 # ════════════════════════════════════════════════════════════
@@ -693,6 +667,11 @@ def repair_create(request):
                               {'form': form, 'is_htmx': True})
     else:
         form = RepairJobForm()
+        # Staff-created jobs are coerced to 'received' on save (device is
+        # already in hand) — don't offer a choice that silently changes.
+        form.fields['status'].choices = [
+            c for c in form.fields['status'].choices if c[0] != 'pending'
+        ]
 
     return render(request, template_name, {
         'form': form,
@@ -820,6 +799,14 @@ def repair_detail(request, pk):
         'services_total': services_total,
         'part_form': RepairPartForm(),
         'status_choices': RepairJob.STATUS_CHOICES,
+        # ── State machine context (UI) ──
+        # Dropdown me sirf valid next transitions + immutable status history
+        'available_transitions': job.available_transitions(),
+        'status_timeline': job.timeline(),
+        'status_durations': {
+            st: job.status_duration(st)
+            for st in ('received', 'diagnosis', 'repairing', 'ready')
+        },
 
         'days_in_shop': days_in_shop,
         'aging_level': aging_level,
@@ -884,10 +871,25 @@ def update_repair_status(request, pk):
                 f'Status is already "{job.get_status_display()}".',
             )
 
-        if job.status in TERMINAL_STATUSES:
+        # Sirf 'delivered' se aage kuch nahi (cancelled se device wapas diya
+        # ja sakta hai → cancelled → delivered allowed hai)
+        if job.status in FORWARD_TERMINAL:
             return _modal_error_response(
                 'error',
                 f'Cannot change from {job.get_status_display()}.',
+                status=400,
+            )
+
+        # ── State machine check (model ka transition table hi sach hai) ──
+        if not RepairJob.can_transition_to(job.status, new_status):
+            allowed = sorted(RepairJob.allowed_next_statuses(job.status))
+            allowed_txt = ', '.join(
+                RepairJob.status_label(a) for a in allowed
+            ) or 'none (terminal state)'
+            return _modal_error_response(
+                'error',
+                f"'{job.get_status_display()}' se ye change allowed nahi. "
+                f"Allowed next: {allowed_txt}.",
                 status=400,
             )
 
@@ -971,20 +973,42 @@ def update_repair_status(request, pk):
             extra[field] = raw
 
     # ── Apply atomically ──
-    with transaction.atomic():
-        # On cancellation: delete parts (their .delete() reverses stock)
-        if new_status == 'cancelled' and old_status != 'cancelled':
-            for part in job.parts.all():
-                part.delete()
+    # NOTE: Cancel par parts delete karne ki zaroorat NAHI hai — ab wo kaam
+    # model ke `RepairJob._on_status_change()` karta hai (stock reversal ke
+    # saath), taaki admin/shell/script se cancel karne par bhi stock sahi
+    # reverse ho. Yahan se duplicate logic hata di gayi hai.
+    try:
+        with transaction.atomic():
+            # Pehle extra fields (dates/remarks) save karo
+            if extra:
+                for field, value in extra.items():
+                    setattr(job, field, value)
+                job.save(update_fields=list(extra.keys()))
 
-        job.status = new_status
-        for field, value in extra.items():
-            setattr(job, field, value)
-
-        # Include final_amount so cancelled-repair amounts are persisted
-        # immediately (model.save() recalcs it from scratch).
-        update_fields = ['status', 'final_amount'] + list(extra.keys())
-        job.save(update_fields=update_fields)
+            # Ab status change — model ka state machine:
+            #   • transition table + guards (invoiced lock, receiver, parts)
+            #   • timeline date stamping (received_at/ready_at/delivery_date)
+            #   • immutable history (kaun, kab, kyun)
+            #   • customer notification (exactly once)
+            #   • cancel par stock reversal
+            job.change_status(
+                new_status,
+                by=request.user,
+                remarks=(request.POST.get('remarks') or '').strip()[:300],
+            )
+    except ValidationError as exc:
+        # Guard ka error — user ko saaf message (500 nahi)
+        message = exc.messages[0] if getattr(exc, 'messages', None) else str(exc)
+        logger.warning(
+            "Status change blocked | job=%s | %s → %s | %s",
+            job.job_number, old_status, new_status, message,
+        )
+        if is_htmx(request):
+            return toast_only_response(
+                {'level': 'danger', 'message': message}, status=400,
+            )
+        messages.error(request, message)
+        return redirect_to_staff('repair_detail', pk=job.pk)
 
     logger.info(
         "Status changed | job=%s | %s → %s | by=%s",
@@ -1033,23 +1057,14 @@ def add_repair_part(request, pk):
         )
 
     if request.method == 'POST':
-        form = RepairPartForm(request.POST)
+        # `repair_job` diya jata hai taaki form stock availability is job ke
+        # hisaab se check kare (job par pehle se lage parts bhi count hote
+        # hain) — pehle ye check view me tha aur job ke existing parts ko
+        # nahi ginta tha, jisse jhoota "insufficient stock" error aata tha.
+        form = RepairPartForm(request.POST, repair_job=job)
         if form.is_valid():
             product = form.cleaned_data['product']
             quantity = form.cleaned_data['quantity']
-
-            # Stock check BEFORE saving
-            if not product.is_service and product.current_stock < quantity:
-                error_msg = (
-                    f"Insufficient stock for {product.name}. "
-                    f"Available: {product.current_stock}"
-                )
-                if is_htmx(request):
-                    form.add_error('quantity', error_msg)
-                    return render(request, 'repairs/partials/part_form_modal.html',
-                                  {'form': form, 'job': job})
-                messages.error(request, error_msg)
-                return redirect_to_staff('repair_detail', pk=job.pk)
 
             # ── 1. Save atomically ──
             with transaction.atomic():
@@ -1087,7 +1102,7 @@ def add_repair_part(request, pk):
                 return render(request, 'repairs/partials/part_form_modal.html',
                               {'form': form, 'job': job})
     else:
-        form = RepairPartForm()
+        form = RepairPartForm(repair_job=job)
 
     return render(request, 'repairs/partials/part_form_modal.html',
                   {'form': form, 'job': job})
@@ -1189,7 +1204,7 @@ def add_repair_service(request, pk):
         )
 
     if request.method == 'POST':
-        form = RepairServiceForm(request.POST)
+        form = RepairServiceForm(request.POST, repair_job=job)
         if form.is_valid():
             with transaction.atomic():
                 service = form.save(commit=False)
@@ -1227,7 +1242,7 @@ def add_repair_service(request, pk):
             return render(request, 'repairs/partials/service_form_modal.html',
                           {'form': form, 'job': job})
     else:
-        form = RepairServiceForm()
+        form = RepairServiceForm(repair_job=job)
 
     return render(request, 'repairs/partials/service_form_modal.html',
                   {'form': form, 'job': job})
@@ -1430,7 +1445,9 @@ def add_repair_invoice_item(request, pk):
     })
     request.session[SK_REPAIR_INVOICE_ITEMS] = items
 
-    subtotal, tax_total, grand_total = _session_totals(items)
+    effective_gst = _auto_detect_gst_type(job, CompanyProfile.get_instance())
+    _, tax_gross, _ = _session_totals(items)
+    subtotal, tax_total, grand_total = _preview_totals(items, effective_gst)
 
     return render(request, 'repairs/partials/repair_invoice_items.html', {
         'job': job,
@@ -1438,6 +1455,8 @@ def add_repair_invoice_item(request, pk):
         'subtotal': subtotal,
         'tax_total': tax_total,
         'grand_total': grand_total,
+        'tax_gross': tax_gross,
+        'effective_gst': effective_gst,
     })
 
 
@@ -1481,7 +1500,9 @@ def remove_repair_invoice_item(request, pk, index):
     items.pop(idx)
     request.session[SK_REPAIR_INVOICE_ITEMS] = items
 
-    subtotal, tax_total, grand_total = _session_totals(items)
+    effective_gst = _auto_detect_gst_type(job, CompanyProfile.get_instance())
+    _, tax_gross, _ = _session_totals(items)
+    subtotal, tax_total, grand_total = _preview_totals(items, effective_gst)
 
     return render(request, 'repairs/partials/repair_invoice_items.html', {
         'job': job,
@@ -1489,6 +1510,8 @@ def remove_repair_invoice_item(request, pk, index):
         'subtotal': subtotal,
         'tax_total': tax_total,
         'grand_total': grand_total,
+        'tax_gross': tax_gross,
+        'effective_gst': effective_gst,
     })
 
 
@@ -1542,7 +1565,9 @@ def create_invoice_from_repair(request, pk):
         _ensure_repair_invoice_session(request, job)
 
         items = request.session.get(SK_REPAIR_INVOICE_ITEMS, [])
-        subtotal, tax_total, grand_total = _session_totals(items)
+        effective_gst = _auto_detect_gst_type(job, CompanyProfile.get_instance())
+        _, tax_gross, _ = _session_totals(items)
+        subtotal, tax_total, grand_total = _preview_totals(items, effective_gst)
 
         return render(request, 'repairs/partials/create_invoice_modal.html', {
             'job': job,
@@ -1550,6 +1575,8 @@ def create_invoice_from_repair(request, pk):
             'subtotal': subtotal,
             'tax_total': tax_total,
             'grand_total': grand_total,
+            'tax_gross': tax_gross,
+            'effective_gst': effective_gst,
             'gst_type_choices': Invoice.GST_TYPE,
             'today': timezone.now().date(),
         })
@@ -1615,13 +1642,8 @@ def create_invoice_from_repair(request, pk):
 
         if gst_type:
             chosen_gst = gst_type
-        elif not job.customer.gstin:
-            chosen_gst = 'non_gst'
-        elif (company.state and job.customer.state
-              and company.state != job.customer.state):
-            chosen_gst = 'interstate'
         else:
-            chosen_gst = 'intrastate'
+            chosen_gst = _auto_detect_gst_type(job, company)
 
         # Compose default notes if user didn't override
         if notes_override:
@@ -1662,6 +1684,7 @@ def create_invoice_from_repair(request, pk):
                 continue
 
             repair_part_id = item_data.get('repair_part_id')
+            repair_service_id = item_data.get('repair_service_id')
             source = item_data.get('source', 'manual')
 
             # Skip stock for items sourced from repair parts / services / labour
@@ -1676,6 +1699,9 @@ def create_invoice_from_repair(request, pk):
                 description=item_data.get('description', ''),
                 stock_already_deducted=skip_stock,
                 repair_part_id=repair_part_id if repair_part_id else None,
+                # Service ka link — isse invoice ↔ job ka resync deterministic
+                # rehta hai (description badalne par bhi tootega nahi)
+                repair_service_id=repair_service_id if repair_service_id else None,
             )
             item.save()
 
@@ -1883,6 +1909,7 @@ def staff_approve_estimate(request, pk):
         remarks = request.POST.get('remarks', '').strip()
 
         with transaction.atomic():
+            # Estimate fields pehle save karo (status ko chhue bina)
             repair.estimate_status = 'approved'
             repair.estimate_approved_at = timezone.now()
             repair.estimate_approved_by = request.user
@@ -1891,11 +1918,17 @@ def staff_approve_estimate(request, pk):
                 remarks if remarks else
                 f"Approved by {request.user.get_full_name() or request.user.username}"
             )
+            repair.save(update_fields=[
+                'estimate_status', 'estimate_approved_at',
+                'estimate_approved_by', 'approval_source', 'approval_remarks',
+            ])
 
-            if repair.status in ['pending', 'diagnosis']:
-                repair.status = 'repairing'
-
-            repair.save()
+            # Status ab state machine se — guards + history + notification
+            if repair.status in ('pending', 'diagnosis'):
+                repair.start_repair(
+                    by=request.user,
+                    remarks=f'Estimate approved via {source}',
+                )
 
         _safe_notify(
             repair.customer,
@@ -2120,6 +2153,9 @@ def export_repairs_excel(request):
     for job in queryset:
         parts_qs = list(job.parts.all())
         parts_total = sum((p.line_total for p in parts_qs), Decimal('0'))
+        # Labour/services total
+        services_qs = list(job.services.all())
+        services_total = sum((s.line_total for s in services_qs), Decimal('0'))
 
         # Helper for safe values
         def dt(v):
@@ -2179,7 +2215,8 @@ def export_repairs_excel(request):
 
             # Financials
             len(parts_qs),
-            float(job.labour_charge or 0),
+            # Labour = services total
+            float(services_total),
             float(parts_total),
             float(job.final_amount or 0),
             job.invoice.invoice_number if job.invoice else '',
@@ -2209,7 +2246,7 @@ def export_repairs_excel(request):
             for c in range(1, TOTAL_COLS + 1):
                 ws.cell(row=row_num, column=c).fill = alt
 
-        total_labour += Decimal(str(job.labour_charge or 0))
+        total_labour += services_total
         total_parts += parts_total
         total_final += Decimal(str(job.final_amount or 0))
         row_num += 1
@@ -2374,9 +2411,6 @@ def estimate_print(request, pk):
 
     estimated_parts = parts_total
     estimated_services = services_total
-    # Fallback: legacy labour_charge
-    if job.labour_charge and job.labour_charge > 0:
-        estimated_services += job.labour_charge
 
     if estimated_parts == 0 and estimated_services == 0:
         estimated_services = job.estimated_cost or Decimal('0')

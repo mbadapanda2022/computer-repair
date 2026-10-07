@@ -13,7 +13,7 @@ if not SECRET_KEY:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY environment variable is missing!")
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').strip().lower() == 'true'
-# ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
@@ -141,6 +141,23 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            # DatabaseCache (CACHES) + concurrent requests ke saath
+            # journal_mode=delete transient "unable to open database file"
+            # deta hai (Windows journal-file race). WAL + IMMEDIATE isse
+            # eliminate karta hai — Django 5.1 documented config.
+            "OPTIONS": {
+                "transaction_mode": "IMMEDIATE",
+                # temp_store=MEMORY: jab TEMP dir unusable ho (git-bash ka
+                # POSIX-style TEMP Windows SQLite me CANTOPEN deta hai),
+                # statement-journal/temp-file wale statements deterministically
+                # "unable to open database file" fail hote hain. In-memory temp
+                # isse eliminate karta hai (app ka data volume chhota hai).
+                "init_command": (
+                    "PRAGMA journal_mode=WAL;"
+                    "PRAGMA synchronous=NORMAL;"
+                    "PRAGMA temp_store=MEMORY;"
+                ),
+            },
         }
     }
 

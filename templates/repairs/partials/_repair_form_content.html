@@ -51,7 +51,7 @@
                                         hx-include="#id_customer, #id_repair_id">
                                     <option value="">---------</option>
                                     {% for customer in form.fields.customer.queryset %}
-                                        <option value="{{ customer.id }}" {% if form.customer.value == customer.id %}selected{% endif %}>
+                                        <option value="{{ customer.id }}" {% if form.customer.value|stringformat:"s" == customer.id|stringformat:"s" %}selected{% endif %}>
                                             {{ customer.name }} ({{ customer.phone|default:"No phone" }})
                                         </option>
                                     {% endfor %}
