@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#!/usr/bin/env bash
 set -o errexit
 
 echo "=========================================="
@@ -16,7 +15,7 @@ echo "→ Creating cache table..."
 python manage.py createcachetable
 
 echo "→ Resetting database..."
-python manage.py reset_database.py
+python manage.py reset_database
 
 echo "→ Running migrations..."
 python manage.py migrate --no-input --verbosity 2
