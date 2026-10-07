@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#!/usr/bin/env bash
 set -o errexit
 
 echo "=========================================="
@@ -11,10 +12,13 @@ pip install --upgrade pip
 echo "→ Installing dependencies..."
 pip install -r requirements.txt
 
-echo "→ Creating cache table (for rate limiting)..."
+echo "→ Creating cache table..."
 python manage.py createcachetable
 
-echo "→ Running migrations on production DB..."
+echo "→ Resetting database..."
+python manage.py reset_database.py
+
+echo "→ Running migrations..."
 python manage.py migrate --no-input --verbosity 2
 
 echo "→ Collecting static files..."
