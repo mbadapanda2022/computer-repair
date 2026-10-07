@@ -11,14 +11,14 @@ pip install --upgrade pip
 echo "→ Installing dependencies..."
 pip install -r requirements.txt
 
-echo "→ Creating cache table..."
-python manage.py createcachetable
-
 echo "→ Resetting database..."
 python manage.py reset_database --force
 
 echo "→ Running migrations..."
 python manage.py migrate --no-input --verbosity 2
+
+echo "→ Creating cache table..."
+python manage.py createcachetable
 
 echo "→ Collecting static files..."
 python manage.py collectstatic --no-input --clear
