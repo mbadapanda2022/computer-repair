@@ -20,6 +20,9 @@ python manage.py migrate --no-input --verbosity 2
 echo "→ Creating cache table..."
 python manage.py createcachetable
 
+echo "→ Creating superuser..."
+python manage.py createsuperuser_prod
+
 echo "→ Collecting static files..."
 python manage.py collectstatic --no-input --clear
 
