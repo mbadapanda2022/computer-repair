@@ -249,11 +249,22 @@
         const toggleBtn = document.getElementById('sidebarToggle');
         const toggleBtnMain = document.getElementById('sidebarToggleMain');
 
+        // Create mobile backdrop
+        let mobileBackdrop = document.getElementById('sidebar-backdrop');
+        if (!mobileBackdrop) {
+            mobileBackdrop = document.createElement('div');
+            mobileBackdrop.id = 'sidebar-backdrop';
+            mobileBackdrop.className = 'sidebar-backdrop';
+            mobileBackdrop.style.display = 'none';
+            document.body.appendChild(mobileBackdrop);
+        }
+
         function toggleSidebarStaff() {
             if (!sidebar) return;
             const icon = document.getElementById('toggle-icon');
             if (isMobile()) {
                 sidebar.classList.toggle('show-mobile');
+                mobileBackdrop.style.display = sidebar.classList.contains('show-mobile') ? 'block' : 'none';
                 localStorage.setItem('mobileSidebarOpen', sidebar.classList.contains('show-mobile'));
                 if (icon) {
                     icon.classList.remove('bi-chevron-double-right');
@@ -279,8 +290,13 @@
             const icon = document.getElementById('toggle-icon');
             if (isMobile()) {
                 const mobileOpen = localStorage.getItem('mobileSidebarOpen') === 'true';
-                if (mobileOpen) sidebar.classList.add('show-mobile');
-                else sidebar.classList.remove('show-mobile');
+                if (mobileOpen) {
+                    sidebar.classList.add('show-mobile');
+                    mobileBackdrop.style.display = 'block';
+                } else {
+                    sidebar.classList.remove('show-mobile');
+                    mobileBackdrop.style.display = 'none';
+                }
                 sidebar.classList.remove('collapsed');
                 if (icon) {
                     icon.classList.remove('bi-chevron-double-right');
@@ -291,6 +307,7 @@
                 if (isCollapsed) sidebar.classList.add('collapsed');
                 else sidebar.classList.remove('collapsed');
                 sidebar.classList.remove('show-mobile');
+                mobileBackdrop.style.display = 'none';
                 if (icon) {
                     if (sidebar.classList.contains('collapsed')) {
                         icon.classList.remove('bi-chevron-double-left');
@@ -305,6 +322,13 @@
 
         if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebarStaff);
         if (toggleBtnMain) toggleBtnMain.addEventListener('click', toggleSidebarStaff);
+        if (mobileBackdrop) {
+            mobileBackdrop.addEventListener('click', function() {
+                sidebar.classList.remove('show-mobile');
+                mobileBackdrop.style.display = 'none';
+                localStorage.setItem('mobileSidebarOpen', 'false');
+            });
+        }
         window.addEventListener('resize', restoreSidebarStaff);
         restoreSidebarStaff();
     }
@@ -317,11 +341,22 @@
         const toggleBtn = document.getElementById('sidebarToggleCustomer');
         const mobileToggleBtn = document.getElementById('sidebarToggleMainCustomer');
 
+        // Create mobile backdrop
+        let customerBackdrop = document.getElementById('customer-sidebar-backdrop');
+        if (!customerBackdrop) {
+            customerBackdrop = document.createElement('div');
+            customerBackdrop.id = 'customer-sidebar-backdrop';
+            customerBackdrop.className = 'sidebar-backdrop';
+            customerBackdrop.style.display = 'none';
+            document.body.appendChild(customerBackdrop);
+        }
+
         function toggleSidebarCustomer() {
             if (!sidebar) return;
             const icon = document.getElementById('toggle-icon-customer');
             if (isMobile()) {
                 sidebar.classList.toggle('show-mobile');
+                customerBackdrop.style.display = sidebar.classList.contains('show-mobile') ? 'block' : 'none';
                 localStorage.setItem('customerMobileSidebarOpen', sidebar.classList.contains('show-mobile'));
                 if (icon) {
                     icon.classList.remove('bi-chevron-double-right');
@@ -347,8 +382,13 @@
             const icon = document.getElementById('toggle-icon-customer');
             if (isMobile()) {
                 const mobileOpen = localStorage.getItem('customerMobileSidebarOpen') === 'true';
-                if (mobileOpen) sidebar.classList.add('show-mobile');
-                else sidebar.classList.remove('show-mobile');
+                if (mobileOpen) {
+                    sidebar.classList.add('show-mobile');
+                    customerBackdrop.style.display = 'block';
+                } else {
+                    sidebar.classList.remove('show-mobile');
+                    customerBackdrop.style.display = 'none';
+                }
                 sidebar.classList.remove('collapsed');
                 if (icon) {
                     icon.classList.remove('bi-chevron-double-right');
@@ -359,6 +399,7 @@
                 if (isCollapsed) sidebar.classList.add('collapsed');
                 else sidebar.classList.remove('collapsed');
                 sidebar.classList.remove('show-mobile');
+                customerBackdrop.style.display = 'none';
                 if (icon) {
                     if (sidebar.classList.contains('collapsed')) {
                         icon.classList.remove('bi-chevron-double-left');
@@ -374,6 +415,7 @@
         function closeCustomerMobile() {
             if (sidebar && isMobile()) {
                 sidebar.classList.remove('show-mobile');
+                customerBackdrop.style.display = 'none';
                 localStorage.setItem('customerMobileSidebarOpen', 'false');
                 const icon = document.getElementById('toggle-icon-customer');
                 if (icon) {
@@ -387,6 +429,9 @@
         if (mobileToggleBtn) mobileToggleBtn.addEventListener('click', toggleSidebarCustomer);
         if (sidebar) {
             sidebar.querySelectorAll('.nav-link').forEach(link => link.addEventListener('click', closeCustomerMobile));
+        }
+        if (customerBackdrop) {
+            customerBackdrop.addEventListener('click', closeCustomerMobile);
         }
         const pageWrapper = document.getElementById('page-content-wrapper');
         if (pageWrapper) pageWrapper.addEventListener('click', closeCustomerMobile);
