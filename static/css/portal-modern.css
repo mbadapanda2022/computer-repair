@@ -164,6 +164,17 @@ body {
     padding: 1.1rem 1.1rem 1rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* Collapsed (70px): hide logo, center the toggle so it never clips out of view */
+#sidebar.collapsed .app-brand,
+#customer-sidebar.collapsed .app-brand {
+    padding: 1.1rem 0.35rem 1rem;
+    gap: 0;
+    justify-content: center;
+}
+#sidebar.collapsed .app-brand .brand-logo,
+#customer-sidebar.collapsed .app-brand .brand-logo {
+    display: none;
+}
 .app-brand .brand-logo {
     width: 38px;
     height: 38px;

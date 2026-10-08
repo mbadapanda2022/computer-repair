@@ -418,10 +418,15 @@ main .text-muted {
 /* Hero image + floating stat card */
 .hero-visual {
     position: relative;
+    max-width: 560px;
 }
 .hero-visual .hero-img {
+    display: block;
     width: 100%;
-    max-height: 430px;
+    height: auto;
+    /* Frame matches the uploaded hero (1376x768 = 16:9) so nothing crops;
+       cover keeps the frame stable for any other aspect too. */
+    aspect-ratio: 16 / 9;
     object-fit: cover;
     border-radius: var(--lp-radius-lg);
     border: 1px solid rgba(255, 255, 255, 0.25);

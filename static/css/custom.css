@@ -219,9 +219,6 @@
 #toggle-icon {
     transition: transform 0.3s ease;
 }
-#sidebar.collapsed #toggle-icon {
-    transform: rotate(180deg);
-}
 #page-content-wrapper {
     width: 100%;
     transition: margin-left 0.3s ease;
@@ -308,9 +305,6 @@
 }
 #toggle-icon-customer {
     transition: transform 0.3s ease;
-}
-#customer-sidebar.collapsed #toggle-icon-customer {
-    transform: rotate(180deg);
 }
 
 @media (max-width: 768px) {
