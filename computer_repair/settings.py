@@ -210,16 +210,35 @@ if not DEBUG:
     }
     MEDIA_URL = ''
 else:
-    STORAGES = {
-        "default": {
-            "BACKEND": "django.core.files.storage.FileSystemStorage",
-        },
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-        },
-    }
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = BASE_DIR / 'media'
+    # Development: use Cloudinary when credentials are available so that
+    # images restored from production work immediately (production images
+    # are stored on Cloudinary, not in the local media/ folder).
+    _has_cloudinary = bool(
+        os.getenv('CLOUDINARY_CLOUD_NAME')
+        and os.getenv('CLOUDINARY_API_KEY')
+        and os.getenv('CLOUDINARY_API_SECRET')
+    )
+    if _has_cloudinary:
+        STORAGES = {
+            "default": {
+                "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+        MEDIA_URL = ''
+    else:
+        STORAGES = {
+            "default": {
+                "BACKEND": "django.core.files.storage.FileSystemStorage",
+            },
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            },
+        }
+        MEDIA_URL = '/media/'
+        MEDIA_ROOT = BASE_DIR / 'media'
 
 WHITENOISE_MANIFEST_STRICT = False
 
