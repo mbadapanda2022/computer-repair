@@ -65,24 +65,28 @@
 
     <!-- ===== FAVICON & FONTS ===== -->
     <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.png' %}">
+    <meta name="theme-color" content="#0a1f3c">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <!-- ===== STYLESHEETS ===== -->
     <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'bootstrap-icons/bootstrap-icons.css' %}">
     <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+    <link rel="stylesheet" href="{% static 'css/landing-modern.css' %}">
 
     <meta name="csrf-token" content="{{ csrf_token }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+
     <!-- Header -->
     <header>{% include 'landing/_header.html' %}</header>
 
     <!-- Main Content -->
-    <main>{% block content %}{% endblock %}</main>
+    <main id="main-content">{% block content %}{% endblock %}</main>
 
     <!-- Footer -->
     <footer>{% include 'landing/_footer.html' %}</footer>
@@ -101,6 +105,7 @@
     <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
     <script src="{% static 'js/app.js' %}"></script>
+    <script src="{% static 'js/landing-public.js' %}" defer></script>
 
     <!-- Global HTMX CSRF Configuration & Messages to Toast Handler -->
     <script>

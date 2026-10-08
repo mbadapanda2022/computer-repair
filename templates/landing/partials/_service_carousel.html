@@ -18,12 +18,11 @@
                  data-bs-interval="5000">
                 <div class="row justify-content-center">
                     <div class="col-md-8 col-lg-6">
-                        <div class="card text-center p-5 shadow-lg border-0 rounded-4 
-                                   {% if forloop.counter|divisibleby:2 %}bg-light{% else %}bg-white{% endif %}">
-                            <div class="service-icon display-1 text-primary mb-3">
+                        <div class="card text-center p-4 p-md-5 border-0 rounded-4">
+                            <div class="service-icon">
                                 {% if service.image %}
-                                    <img src="{{ service.image.url }}" alt="{{ service.title }}" 
-                                         style="height:120px; width:auto; object-fit:contain;">
+                                    <img src="{{ service.image.url }}" alt="{{ service.title }}"
+                                         style="height:80px; width:auto; object-fit:contain;">
                                 {% elif service.icon %}
                                     <i class="bi {{ service.icon }}"></i>
                                 {% else %}
@@ -31,7 +30,7 @@
                                 {% endif %}
                             </div>
                             <h5 class="card-title fw-bold">{{ service.title }}</h5>
-                            <p class="card-text text-muted">{{ service.description }}</p>
+                            <p class="card-text text-muted mb-0">{{ service.description }}</p>
                         </div>
                     </div>
                 </div>
@@ -40,12 +39,12 @@
             <div class="carousel-item active">
                 <div class="row justify-content-center">
                     <div class="col-md-8 col-lg-6">
-                        <div class="card text-center p-5 shadow-lg border-0 rounded-4 bg-light">
-                            <div class="service-icon display-1 text-muted mb-3">
+                        <div class="card text-center p-4 p-md-5 border-0 rounded-4">
+                            <div class="service-icon text-muted">
                                 <i class="bi bi-plus-circle"></i>
                             </div>
                             <h5 class="card-title">No Services Yet</h5>
-                            <p class="card-text text-muted">Please add some services from the management panel.</p>
+                            <p class="card-text text-muted mb-0">Please add some services from the management panel.</p>
                         </div>
                     </div>
                 </div>
@@ -55,11 +54,11 @@
 
     <!-- Controls -->
     <button class="carousel-control-prev" type="button" data-bs-target="#servicesCarousel" data-bs-slide="prev">
-        <span class="carousel-control-prev-icon bg-primary rounded-circle p-3" aria-hidden="true"></span>
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
         <span class="visually-hidden">Previous</span>
     </button>
     <button class="carousel-control-next" type="button" data-bs-target="#servicesCarousel" data-bs-slide="next">
-        <span class="carousel-control-next-icon bg-primary rounded-circle p-3" aria-hidden="true"></span>
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
         <span class="visually-hidden">Next</span>
     </button>
 </div>

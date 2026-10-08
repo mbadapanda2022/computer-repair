@@ -360,15 +360,15 @@ class CompanyProfile(SoftDeleteModel):
     invoice_prefix = models.CharField(max_length=10, default="INV")
     invoice_start_number = models.PositiveIntegerField(default=1, help_text="Starting number for the next invoice (auto-incremented)")
     default_tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'), validators=POSITIVE_VALIDATOR)
-    # ── Repair defaults (hardcoding hatane ke liye) ──
-    # Labour ka product naam se dhoondhne ke bajaye yahan configure hota hai.
+    # ── Repair defaults (To remove hardcoding) ──
+    # Instead of searching for the labor by product name, it is configured here.
     default_labour_product = models.ForeignKey(
         'Product',
         on_delete=models.SET_NULL,
         null=True, blank=True,
         related_name='+',
-        help_text="Repair labour ke liye default service product. "
-                  "Khali chhodein to pehla active service product use hoga.",
+        help_text="Default service product for repair labor."
+                  "If left blank, the first active service product will be used.",
     )
     # Service lines (labour etc.) ka fallback GST rate.
     # Blank = product ka apna tax_rate use hoga.

@@ -1,124 +1,115 @@
 <!-- templates/landing/_footer.html -->
 {% load static %}
-<footer class="bg-dark text-white pt-5 pb-3">
+<footer class="public-footer pt-5 pb-4">
     <div class="container">
-        <div class="row g-4">
+        <div class="row g-4 g-lg-5">
             <!-- Column 1: Company Info & Social Links -->
             <div class="col-lg-4">
-                <h5>
+                <h5 class="d-flex align-items-center gap-2">
                     {% if logo_url %}
-                        <img src="{{ logo_url }}" alt="{{ company.name }}" height="30" class="me-2">
+                        <img src="{{ logo_url }}" alt="{{ company.name }} logo" height="34">
                     {% else %}
-                        <i class="bi bi-laptop text-primary"></i>
+                        <span class="brand-mark"><i class="bi bi-laptop" aria-hidden="true"></i></span>
                     {% endif %}
                     {{ company.name|default:"A1 Computer Solutions" }}
                 </h5>
-                <p class="text-warning">{{ company.about_text|default:"Your trusted repair partner since 2015. We combine technical expertise with genuine care for your devices." }}</p>
-                
+                <div class="footer-heading-rule" aria-hidden="true"></div>
+                <p class="footer-about">{{ company.about_text|default:"Your trusted repair partner since 2015. We combine technical expertise with genuine care for your devices." }}</p>
+
                 <!-- Social Links + Google Review -->
-                <div class="d-flex gap-3 mt-3 flex-wrap align-items-center">
-                    <!-- Facebook -->
+                <div class="d-flex gap-2 mt-4 flex-wrap align-items-center">
                     {% if company.facebook_url %}
-                        <a href="{{ company.facebook_url }}" target="_blank" class="text-white-50" title="Facebook"><i class="bi bi-facebook fs-4"></i></a>
+                        <a href="{{ company.facebook_url }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="Facebook" aria-label="Facebook"><i class="bi bi-facebook" aria-hidden="true"></i></a>
                     {% endif %}
-                    <!-- Instagram -->
                     {% if company.instagram_url %}
-                        <a href="{{ company.instagram_url }}" target="_blank" class="text-white-50" title="Instagram"><i class="bi bi-instagram fs-4"></i></a>
+                        <a href="{{ company.instagram_url }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="Instagram" aria-label="Instagram"><i class="bi bi-instagram" aria-hidden="true"></i></a>
                     {% endif %}
-                    <!-- YouTube -->
                     {% if company.youtube_url %}
-                        <a href="{{ company.youtube_url }}" target="_blank" class="text-white-50" title="YouTube"><i class="bi bi-youtube fs-4"></i></a>
+                        <a href="{{ company.youtube_url }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="YouTube" aria-label="YouTube"><i class="bi bi-youtube" aria-hidden="true"></i></a>
                     {% endif %}
-                    <!-- WhatsApp -->
                     {% if company.whatsapp_number %}
-                        <a href="https://wa.me/{{ company.whatsapp_number|cut:'+' }}" target="_blank" class="text-white-50" title="WhatsApp"><i class="bi bi-whatsapp fs-4"></i></a>
+                        <a href="https://wa.me/{{ company.whatsapp_number|cut:'+' }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="WhatsApp" aria-label="WhatsApp"><i class="bi bi-whatsapp" aria-hidden="true"></i></a>
                     {% endif %}
-                    
-                    <!-- Google Review Link (Icon) -->
                     {% if company.google_review_link %}
-                        <a href="{{ company.google_review_link }}" 
-                           target="_blank" 
-                           rel="noopener noreferrer" 
-                           class="text-white-50" 
-                           title="Google पर Review दें">
-                            <i class="bi bi-google fs-4"></i>
-                        </a>
+                        <a href="{{ company.google_review_link }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="Google Review" aria-label="Google Review"><i class="bi bi-google" aria-hidden="true"></i></a>
                     {% endif %}
                 </div>
-
-                <!-- Google Review Button (Text) - optional extra CTA -->
-                {% if company.google_review_link %}
-                    <div class="mt-2">
-                        <a href="{{ company.google_review_link }}" 
-                           target="_blank" 
-                           rel="noopener noreferrer" 
-                           class="btn btn-outline-light btn-sm">
-                            <i class="bi bi-google me-1"></i> Rate us on Google
-                        </a>
-                    </div>
-                {% endif %}
             </div>
 
             <!-- Column 2: Quick Links -->
-            <div class="col-lg-2">
+            <div class="col-6 col-lg-2">
                 <h6>Quick Links</h6>
-                <ul class="list-unstyled">
-                    <li><a href="#services" class="text-white-50 text-decoration-none">Services</a></li>
-                    <li><a href="#why-us" class="text-white-50 text-decoration-none">Why Us</a></li>
-                    <li><a href="#faq" class="text-white-50 text-decoration-none">FAQ</a></li>
-                    <li><a href="#contact" class="text-white-50 text-decoration-none">Contact</a></li>
+                <div class="footer-heading-rule" aria-hidden="true"></div>
+                <ul class="list-unstyled footer-links mb-0">
+                    <li><a href="#services">Services</a></li>
+                    <li><a href="#why-us">Why Us</a></li>
+                    <li><a href="#testimonials">Reviews</a></li>
+                    <li><a href="#faq">FAQ</a></li>
+                    <li><a href="#contact">Contact</a></li>
                 </ul>
             </div>
 
             <!-- Column 3: Support -->
-            <div class="col-lg-3">
+            <div class="col-6 col-lg-2">
                 <h6>Support</h6>
-                <ul class="list-unstyled">
-                    <li><a href="{% url 'privacy_policy' %}" class="text-white-50 text-decoration-none">Privacy Policy</a></li>
+                <div class="footer-heading-rule" aria-hidden="true"></div>
+                <ul class="list-unstyled footer-links mb-0">
+                    <li><a href="{% url 'privacy_policy' %}">Privacy Policy</a></li>
+                    <li><a href="{% url 'cookie_policy' %}">Cookie Policy</a></li>
                     <li><a href="#" class="text-white-50 text-decoration-none">Terms of Service</a></li>
                     <li><a href="#" class="text-white-50 text-decoration-none">Return Policy</a></li>
                 </ul>
             </div>
 
             <!-- Column 4: Contact Details -->
-            <div class="col-lg-3">
+            <div class="col-lg-4">
                 <h6>Contact</h6>
-                <address class="text-white-50">
-                    <i class="bi bi-geo-alt"></i> {{ company.address|default:"Pattanayak Complex, Sirajuddin Squire, Keonjhar-758001, Odisha" }}<br>
-                    <i class="bi bi-telephone"></i> <a href="tel:{{ company.phone }}" class="text-white-50">{{ company.phone|default:"+91-7008601963" }}</a><br>
+                <div class="footer-heading-rule" aria-hidden="true"></div>
+                <ul class="list-unstyled footer-contact mb-0">
+                    <li>
+                        <i class="bi bi-geo-alt-fill" aria-hidden="true"></i>
+                        <span>{{ company.address|default:"Pattanayak Complex, Sirajuddin Squire, Keonjhar-758001, Odisha" }}</span>
+                    </li>
+                    <li>
+                        <i class="bi bi-telephone-fill" aria-hidden="true"></i>
+                        <a href="tel:{{ company.phone }}">{{ company.phone|default:"+91-7008601963" }}</a>
+                    </li>
                     {% if company.whatsapp_number %}
-                    <a href="https://wa.me/{{ company.whatsapp_number|cut:'+'|cut:'-'|cut:' ' }}" target="_blank" class="text-white-50"><i class="bi bi-whatsapp"></i> {{ company.whatsapp_number }}</a><br>
+                    <li>
+                        <i class="bi bi-whatsapp" aria-hidden="true"></i>
+                        <a href="https://wa.me/{{ company.whatsapp_number|cut:'+'|cut:'-'|cut:' ' }}" target="_blank" rel="noopener noreferrer">{{ company.whatsapp_number }}</a>
+                    </li>
                     {% endif %}
-                    <i class="bi bi-envelope"></i> <a href="mailto:{{ company.email }}" class="text-white-50">{{ company.email|default:"info@a1computersolutions.com" }}</a><br>
-                    <i class="bi bi-clock"></i> {{ company.working_hours|default:"Mon–Sat: 10:00 AM – 8:00 PM" }}<br>
+                    <li>
+                        <i class="bi bi-envelope-fill" aria-hidden="true"></i>
+                        <a href="mailto:{{ company.email }}">{{ company.email|default:"info@a1computersolutions.com" }}</a>
+                    </li>
+                    <li>
+                        <i class="bi bi-clock-fill" aria-hidden="true"></i>
+                        <span>{{ company.working_hours|default:"Mon–Sat: 10:00 AM – 8:00 PM" }}</span>
+                    </li>
                     {% if company.gstin %}
-                        <i class="bi bi-credit-card"></i> GST: {{ company.gstin }}
+                    <li>
+                        <i class="bi bi-credit-card-2-front-fill" aria-hidden="true"></i>
+                        <span>GST: {{ company.gstin }}</span>
+                    </li>
                     {% endif %}
-                </address>
+                </ul>
             </div>
         </div>
 
         <!-- Copyright + Developer Credit -->
-        <div class="border-top border-secondary pt-3 mt-3">
-            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 text-center text-md-start">
-                <small class="text-white-50">
-                    &copy; {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.
-                </small>
-
-                <small class="text-white-50 dev-credit">
-                    <i class="bi bi-code-slash text-info me-1"></i>
-                    Designed &amp; Developed by
-                    <span class="dev-credit-link fw-semibold text-white-50">Manoj Badapanda</span>
-                    <span class="text-secondary mx-1">•</span>
-                    <span class="text-info-emphasis">Full Stack Software Developer</span>
-                </small>
-            </div>
+        <div class="footer-bottom d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 text-center text-md-start">
+            <small>
+                &copy; {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.
+            </small>
+            <small class="dev-credit">
+                <i class="bi bi-code-slash text-info me-1" aria-hidden="true"></i>
+                Designed &amp; Developed by
+                <span class="dev-credit-link fw-semibold text-white-50">Manoj Badapanda</span>
+                <span class="text-secondary mx-1">•</span>
+                <span class="text-info-emphasis">Full Stack Software Developer</span>
+            </small>
         </div>
     </div>
 </footer>
-
-
-
-
-
-

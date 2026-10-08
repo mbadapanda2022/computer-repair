@@ -2,25 +2,25 @@
 <div id="testimonial-list" class="row g-4">
     {% for testimonial in testimonials %}
     <div class="col-md-4">
-        <div class="card h-100 p-4 testimonial-card shadow-sm border-0 landing-card">
+        <div class="card h-100 testimonial-card landing-card">
             <div class="d-flex align-items-center mb-3">
                 {% if testimonial.customer_photo %}
-                    <img src="{{ testimonial.customer_photo.url }}" class="rounded-circle me-3" width="50" height="50" style="object-fit:cover;">
+                    <img src="{{ testimonial.customer_photo.url }}" alt="{{ testimonial.customer_name }}" class="avatar me-3" width="52" height="52" loading="lazy">
                 {% else %}
-                    <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center me-3" style="width:50px; height:50px; font-size:1.2rem;">
+                    <div class="avatar me-3" aria-hidden="true">
                         {{ testimonial.customer_name|first|upper }}
                     </div>
                 {% endif %}
                 <div>
-                    <h6 class="mb-0">{{ testimonial.customer_name }}</h6>
+                    <h6 class="mb-0 customer-name">{{ testimonial.customer_name }}</h6>
                     <small class="text-muted">
                         {% if testimonial.designation %}{{ testimonial.designation }}{% endif %}
                         {% if testimonial.company_name %} – {{ testimonial.company_name }}{% endif %}
                     </small>
                 </div>
             </div>
-            <p class="card-text">"{{ testimonial.review_text }}"</p>
-            <div class="text-warning">
+            <p class="card-text review-text">"{{ testimonial.review_text }}"</p>
+            <div class="stars" role="img" aria-label="{{ testimonial.rating }} out of 5 stars">
                 {% for i in "12345"|slice:":testimonial.rating" %}★{% endfor %}
             </div>
             

@@ -23,6 +23,11 @@ logs/
 # Backups
 backup.json
 
+# Backups
+backup.json
+backup_*.json
+*.json.bak
+
 # IDE / OS
 .DS_Store
 .idea/

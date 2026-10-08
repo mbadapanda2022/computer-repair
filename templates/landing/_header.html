@@ -1,67 +1,70 @@
 <!-- templates/landing/_header.html -->
 {% load static %}
-<nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom shadow-sm">
+<nav class="navbar navbar-expand-lg public-navbar sticky-top" aria-label="Main navigation">
     <div class="container">
-        <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}">  
+        <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}">
             {% if logo_url %}
-                <img src="{{ logo_url }}?v={{ company.updated_at|date:'U' }}" alt="{{ company.name }}" height="40" class="d-inline-block align-text-top me-2">
+                <img src="{{ logo_url }}?v={{ company.updated_at|date:'U' }}" alt="{{ company.name }} logo" height="40" class="d-inline-block align-text-top me-2">
             {% else %}
-                <i class="bi bi-laptop text-primary"></i>
+                <span class="brand-mark me-2"><i class="bi bi-laptop" aria-hidden="true"></i></span>
             {% endif %}
             {{ company.name|default:"A1 Computer Solutions" }}
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto align-items-lg-center">
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-1 py-2 py-lg-0">
                 <li class="nav-item"><a class="nav-link" href="#services">Services</a></li>
                 <li class="nav-item"><a class="nav-link" href="#why-us">Why Us</a></li>
+                <li class="nav-item"><a class="nav-link" href="#testimonials">Reviews</a></li>
                 <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
                 <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
                 {% if company.blog_url %}
-                    <li class="nav-item"><a class="nav-link" href="{{ company.blog_url }}" target="_blank">Blog</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ company.blog_url }}" target="_blank" rel="noopener">Blog</a></li>
                 {% else %}
-                    <li class="nav-item"><a class="nav-link" href="https://manojtechsolutions.blogspot.com/" target="_blank">Blog</a></li>
+                    <li class="nav-item"><a class="nav-link" href="https://manojtechsolutions.blogspot.com/" target="_blank" rel="noopener">Blog</a></li>
                 {% endif %}
-                
-                <li class="nav-item">
-                    <button class="btn btn-outline-secondary btn-sm rounded-circle" id="themeTogglePublic" title="Switch theme">
-                        <i class="bi bi-moon-fill" id="themeIconPublic"></i>
+
+                <li class="nav-item ms-lg-2">
+                    <button class="theme-toggle-btn" id="themeTogglePublic" title="Switch theme" aria-label="Toggle dark mode">
+                        <i class="bi bi-moon-fill" id="themeIconPublic" aria-hidden="true"></i>
                     </button>
                 </li>
 
                 {% if user.is_authenticated %}
                     {% if user.is_staff %}
                         <li class="nav-item">
-                            <a class="btn btn-outline-primary ms-2" href="{% url 'accounting:dashboard' %}">
-                                <i class="bi bi-speedometer2"></i> Staff Dashboard
+                            <a class="btn-navbar-account ms-lg-2" href="{% url 'accounting:dashboard' %}">
+                                <i class="bi bi-speedometer2 me-1" aria-hidden="true"></i> Staff Dashboard
                             </a>
                         </li>
                     {% else %}
                         <li class="nav-item">
-                            <a class="btn btn-outline-primary ms-2" href="{% url 'customer:customer_dashboard' %}">
-                                <i class="bi bi-person-circle"></i> Dashboard
+                            <a class="btn-navbar-account ms-lg-2" href="{% url 'customer:customer_dashboard' %}">
+                                <i class="bi bi-person-circle me-1" aria-hidden="true"></i> My Dashboard
                             </a>
                         </li>
                     {% endif %}
                     <li class="nav-item">
-                        <form action="{% url 'accounting:logout' %}" method="post" class="d-inline">   
+                        <form action="{% url 'accounting:logout' %}" method="post" class="d-inline">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-danger ms-2">
-                                <i class="bi bi-box-arrow-right"></i> Logout
+                            <button type="submit" class="btn-navbar-signout ms-lg-2">
+                                <i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i> Logout
                             </button>
                         </form>
                     </li>
                 {% else %}
-                    <li class="nav-item"><a class="btn btn-outline-primary ms-2" href="{% url 'accounting:login' %}">Login</a></li>  
-                    <li class="nav-item"><a class="btn btn-primary ms-2" href="{% url 'accounting:register' %}">Register</a></li>  
+                    <li class="nav-item">
+                        <a class="btn btn-navbar-cta ms-lg-3" href="#contact">
+                            <i class="bi bi-wrench-adjustable me-1" aria-hidden="true"></i> Book a Repair
+                        </a>
+                    </li>
+                    <li class="nav-item"><a class="btn-navbar-login ms-lg-2" href="{% url 'accounting:login' %}">Login</a></li>
+                    <li class="nav-item"><a class="btn-navbar-login ms-lg-2" href="{% url 'accounting:register' %}">Register</a></li>
                 {% endif %}
             </ul>
         </div>
     </div>
 </nav>
-
-
-
-
