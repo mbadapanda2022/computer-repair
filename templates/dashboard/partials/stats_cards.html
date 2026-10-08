@@ -3,128 +3,96 @@
 <div class="row g-3 mb-4">
     <!-- 1. Today's Sales -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-currency-rupee fs-4 text-primary"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Today's Sales</small>
-                    <h5 class="mb-0 fw-bold text-primary">₹{{ today_sales|floatformat:2 }}</h5>
-                    <small class="text-muted">Month: ₹{{ month_sales|floatformat:2 }}</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-currency-rupee" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Today's Sales</p>
+                <p class="stat-value text-primary">₹{{ today_sales|floatformat:2 }}</p>
+                <p class="stat-foot">Month: ₹{{ month_sales|floatformat:2 }}</p>
             </div>
         </div>
     </div>
 
     <!-- 2. Pending Repairs -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-tools fs-4 text-warning"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Pending Repairs</small>
-                    <h5 class="mb-0 fw-bold text-warning">{{ pending_repairs }}</h5>
-                    <small class="text-muted">In-progress jobs</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-warning"><i class="bi bi-tools" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Pending Repairs</p>
+                <p class="stat-value">{{ pending_repairs }}</p>
+                <p class="stat-foot">In-progress jobs</p>
             </div>
         </div>
     </div>
 
     <!-- 3. Low Stock -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Low Stock</small>
-                    <h5 class="mb-0 fw-bold text-danger">{{ low_stock }}</h5>
-                    <small class="text-muted">Below threshold</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-danger"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Low Stock</p>
+                <p class="stat-value text-danger">{{ low_stock }}</p>
+                <p class="stat-foot">Below threshold</p>
             </div>
         </div>
     </div>
 
     <!-- 4. Customers -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-people fs-4 text-info"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Customers</small>
-                    <h5 class="mb-0 fw-bold text-info">{{ total_customers }}</h5>
-                    <small class="text-muted">{{ total_vendors }} vendors</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-info"><i class="bi bi-people" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Customers</p>
+                <p class="stat-value">{{ total_customers }}</p>
+                <p class="stat-foot">{{ total_vendors }} vendors</p>
             </div>
         </div>
     </div>
 
     <!-- 5. Products -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-box-seam fs-4 text-success"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Products</small>
-                    <h5 class="mb-0 fw-bold text-success">{{ total_products }}</h5>
-                    <small class="text-muted">Active items</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-success"><i class="bi bi-box-seam" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Products</p>
+                <p class="stat-value text-success">{{ total_products }}</p>
+                <p class="stat-foot">Active items</p>
             </div>
         </div>
     </div>
 
     <!-- 6. Pending Invoices -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-receipt-cutoff fs-4 text-danger"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Pending Invoices</small>
-                    <h5 class="mb-0 fw-bold text-danger">{{ pending_invoices }}</h5>
-                    <small class="text-muted">Unpaid / Partial</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-danger"><i class="bi bi-receipt-cutoff" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Pending Invoices</p>
+                <p class="stat-value text-danger">{{ pending_invoices }}</p>
+                <p class="stat-foot">Unpaid / Partial</p>
             </div>
         </div>
     </div>
 
-    <!-- 7. Today's Receipts (FIXED LABEL) -->
+    <!-- 7. Today's Receipts -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-cash-stack fs-4 text-primary"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Today's Receipts</small>
-                    <h5 class="mb-0 fw-bold text-primary">₹{{ total_payments_today|floatformat:2 }}</h5>
-                    <small class="text-muted">All-time: ₹{{ total_paid_amount|floatformat:2 }}</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-cash-stack" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Today's Receipts</p>
+                <p class="stat-value text-primary">₹{{ total_payments_today|floatformat:2 }}</p>
+                <p class="stat-foot">All-time: ₹{{ total_paid_amount|floatformat:2 }}</p>
             </div>
         </div>
     </div>
 
     <!-- 8. Total Due -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-currency-rupee fs-4 text-danger"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Total Due</small>
-                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_due_amount|floatformat:2 }}</h5>
-                    <small class="text-muted">Outstanding balance</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-danger"><i class="bi bi-hourglass-split" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Total Due</p>
+                <p class="stat-value text-danger">₹{{ total_due_amount|floatformat:2 }}</p>
+                <p class="stat-foot">Outstanding balance</p>
             </div>
         </div>
     </div>

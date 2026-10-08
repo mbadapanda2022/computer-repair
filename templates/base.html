@@ -5,61 +5,70 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="theme-color" content="#0a1f3c">
+    <meta name="robots" content="noindex">
     <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.png' %}">
     <title>{% block title %}Staff Portal – A1 Computer Solutions{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'bootstrap/css/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'bootstrap-icons/bootstrap-icons.css' %}">
     <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+    <link rel="stylesheet" href="{% static 'css/portal-modern.css' %}">
     <link rel="stylesheet" href="{% static 'vendor/tom-select/tom-select.bootstrap5.min.css' %}">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <!-- Global Progress Bar -->
-    {% comment %} <div id="htmx-progress-bar"></div> {% endcomment %}
+    <a class="skip-link" href="#main-content">Skip to main content</a>
 
     <div class="d-flex" id="wrapper">
         <!-- ==================== SIDEBAR ==================== -->
-        <nav class="bg-dark text-white" id="sidebar">
-            <div class="sidebar-header p-3 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 sidebar-brand">A1 Computer Solutions</h5>
-                <button class="btn btn-dark btn-sm" id="sidebarToggle" title="Toggle Sidebar">
-                    <i class="bi bi-chevron-double-left" id="toggle-icon"></i>
+        <nav class="text-white" id="sidebar" aria-label="Staff navigation">
+            <div class="app-brand">
+                <span class="brand-logo"><i class="bi bi-laptop" aria-hidden="true"></i></span>
+                <div class="sidebar-brand flex-grow-1">
+                    <span class="brand-text">A1 Computer Solutions</span>
+                    <span class="brand-role">Staff Portal</span>
+                </div>
+                <button class="sidebar-toggle-btn d-none d-lg-inline-flex" id="sidebarToggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+                    <i class="bi bi-chevron-double-left" id="toggle-icon" aria-hidden="true"></i>
                 </button>
             </div>
-            <ul class="list-unstyled components">
+
+            <ul class="list-unstyled components mb-0">
+                <li class="nav-section-label">Overview</li>
                 <li>
                     <a href="{% url 'home' %}" class="nav-link">
                         <i class="bi bi-house-door"></i>
                         <span class="link-text">Home</span>
                     </a>
                 </li>
-                <!-- Dashboard -->
                 <li>
-                    <a href="{% url 'accounting:dashboard' %}" 
+                    <a href="{% url 'accounting:dashboard' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'dashboard' or request.path == '/' or request.path == '/dashboard/' %}active{% endif %}">
                         <i class="bi bi-speedometer2"></i>
                         <span class="link-text">Dashboard</span>
                     </a>
                 </li>
-                <!-- Contacts -->
+
+                <li class="nav-section-label">Operations</li>
                 <li>
-                    <a href="{% url 'accounting:contact_list' %}" 
-                    class="nav-link {% if request.resolver_match.url_name == 'contact_list' or 'contacts' in request.path %}active{% endif %}">
-                        <i class="bi bi-people"></i>
-                        <span class="link-text">Contacts</span>
-                    </a>
-                </li>
-                <!-- Repairs -->
-                <li>
-                    <a href="{% url 'accounting:repair_list' %}" 
+                    <a href="{% url 'accounting:repair_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'repair_list' or 'repairs' in request.path %}active{% endif %}">
                         <i class="bi bi-tools"></i>
                         <span class="link-text">Repairs</span>
                     </a>
                 </li>
-                <!-- Notifications -->
                 <li>
-                    <a href="{% url 'accounting:notification_list' %}" 
+                    <a href="{% url 'accounting:contact_list' %}"
+                    class="nav-link {% if request.resolver_match.url_name == 'contact_list' or 'contacts' in request.path %}active{% endif %}">
+                        <i class="bi bi-people"></i>
+                        <span class="link-text">Contacts</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'accounting:notification_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'notification_list' or 'notifications' in request.path %}active{% endif %}">
                         <i class="bi bi-bell"></i>
                         <span class="link-text">Notifications</span>
@@ -72,10 +81,8 @@
                         </span>
                     </a>
                 </li>
-
-                <!-- Messages -->
                 <li>
-                    <a href="{% url 'accounting:message_list' %}" 
+                    <a href="{% url 'accounting:message_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'message_list' or 'messages' in request.path %}active{% endif %}">
                         <i class="bi bi-envelope"></i>
                         <span class="link-text">Messages</span>
@@ -89,47 +96,60 @@
                     </a>
                 </li>
 
-                <!-- Sales -->
+                <li class="nav-section-label">Sales &amp; Purchases</li>
                 <li>
-                    <a href="{% url 'accounting:invoice_list' %}" 
+                    <a href="{% url 'accounting:invoice_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'invoice_list' or 'sales' in request.path %}active{% endif %}">
                         <i class="bi bi-receipt"></i>
                         <span class="link-text">Sales</span>
                     </a>
                 </li>
-                <!-- Credit Notes -->
                 <li>
-                    <a href="{% url 'accounting:credit_note_list' %}" 
+                    <a href="{% url 'accounting:credit_note_list' %}"
                     class="nav-link {% if 'credit' in request.path %}active{% endif %}">
                         <i class="bi bi-arrow-return-left"></i>
                         <span class="link-text">Credit Notes</span>
                     </a>
                 </li>
-                <!-- Purchases -->
                 <li>
-                    <a href="{% url 'accounting:purchase_list' %}" 
+                    <a href="{% url 'accounting:purchase_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'purchase_list' or 'purchases' in request.path %}active{% endif %}">
                         <i class="bi bi-cart"></i>
                         <span class="link-text">Purchases</span>
                     </a>
                 </li>
-                <!-- Payments -->
                 <li>
-                    <a href="{% url 'accounting:payment_list' %}" 
+                    <a href="{% url 'accounting:payment_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'payment_list' or 'payment' in request.path %}active{% endif %}">
-                        <i class="bi bi-currency-pound"></i>
+                        <i class="bi bi-cash-stack"></i>
                         <span class="link-text">Payments</span>
                     </a>
                 </li>
-                <!-- Inventory -->
+
+                <li class="nav-section-label">Inventory</li>
                 <li>
-                    <a href="{% url 'accounting:product_list' %}" 
+                    <a href="{% url 'accounting:product_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'product_list' or 'products' in request.path %}active{% endif %}">
                         <i class="bi bi-box"></i>
                         <span class="link-text">Inventory</span>
                     </a>
                 </li>
-                <!-- New Journal -->
+                <li>
+                    <a href="{% url 'accounting:stock_dashboard' %}"
+                    class="nav-link {% if request.resolver_match.url_name == 'stock_dashboard' or 'stock' in request.path %}active{% endif %}">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span class="link-text">Stock</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'accounting:stock_adjustment_list' %}"
+                    class="nav-link {% if request.resolver_match.url_name == 'stock_adjustment_list' or 'stock' in request.path %}active{% endif %}">
+                        <i class="bi bi-clock-history"></i>
+                        <span class="link-text">Stock History</span>
+                    </a>
+                </li>
+
+                <li class="nav-section-label">Finance</li>
                 <li>
                     <a href="{% url 'accounting:journal_create' %}" class="nav-link"
                     hx-get="{% url 'accounting:journal_create' %}"
@@ -139,50 +159,30 @@
                         <span class="link-text">New Journal</span>
                     </a>
                 </li>
-                <!-- Journal List -->
                 <li>
-                    <a href="{% url 'accounting:journal_list' %}" 
+                    <a href="{% url 'accounting:journal_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'journal_list' or 'journals' in request.path %}active{% endif %}">
                         <i class="bi bi-journal-bookmark-fill"></i>
                         <span class="link-text">Journal List</span>
                     </a>
                 </li>
-                <!-- Stock -->
                 <li>
-                    <a href="{% url 'accounting:stock_dashboard' %}" 
-                    class="nav-link {% if request.resolver_match.url_name == 'stock_dashboard' or 'stock' in request.path %}active{% endif %}">
-                        <i class="bi bi-pencil-square"></i>
-                        <span class="link-text">Stock</span>
-                    </a>
-                </li>
-                <!-- Stock History -->
-                <li>
-                    <a href="{% url 'accounting:stock_adjustment_list' %}" 
-                    class="nav-link {% if request.resolver_match.url_name == 'stock_adjustment_list' or 'stock' in request.path %}active{% endif %}">
-                        <i class="bi bi-clock-history"></i>
-                        <span class="link-text">Stock History</span>
-                    </a>
-                </li>
-                <!-- Bank Accounts -->
-                <li>
-                    <a href="{% url 'accounting:bank_account_list' %}" 
+                    <a href="{% url 'accounting:bank_account_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'bank_account_list' or 'bank' in request.path %}active{% endif %}">
                         <i class="bi bi-bank"></i>
                         <span class="link-text">Bank Accounts</span>
                     </a>
                 </li>
 
-                <!-- ============================================================ -->
-                <!-- REPORTS WITH ALL 8 REPORTS                         -->
-                <!-- ============================================================ -->
+                <li class="nav-section-label">Reports</li>
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle {% if 'report' in request.resolver_match.url_name or 'reports' in request.path %}active{% endif %}" 
-                    href="#" role="button" data-bs-toggle="collapse" data-bs-target="#reportsSubmenu" 
+                    <a class="nav-link dropdown-toggle {% if 'report' in request.resolver_match.url_name or 'reports' in request.path %}active{% endif %}"
+                    href="#" role="button" data-bs-toggle="collapse" data-bs-target="#reportsSubmenu"
                     aria-expanded="{% if 'report' in request.resolver_match.url_name or 'reports' in request.path %}true{% else %}false{% endif %}">
                         <i class="bi bi-file-bar-graph"></i>
                         <span class="link-text">Reports</span>
                     </a>
-                    <ul class="collapse list-unstyled ps-4 {% if 'report' in request.resolver_match.url_name or 'reports' in request.path %}show{% endif %}" 
+                    <ul class="collapse list-unstyled ps-4 {% if 'report' in request.resolver_match.url_name or 'reports' in request.path %}show{% endif %}"
                         id="reportsSubmenu">
                         <li><a href="{% url 'accounting:sales_report' %}" class="nav-link sub-link {% if request.resolver_match.url_name == 'sales_report' %}active{% endif %}">
                             <i class="bi bi-receipt me-2"></i>Sales
@@ -194,7 +194,7 @@
                             <i class="bi bi-percent me-2"></i>GST
                         </a></li>
                         <li><a href="{% url 'accounting:profit_loss' %}" class="nav-link sub-link {% if request.resolver_match.url_name == 'profit_loss' %}active{% endif %}">
-                            <i class="bi bi-graph-up-arrow me-2"></i>Profit & Loss
+                            <i class="bi bi-graph-up-arrow me-2"></i>Profit &amp; Loss
                         </a></li>
                         <li><a href="{% url 'accounting:stock_report' %}" class="nav-link sub-link {% if request.resolver_match.url_name == 'stock_report' %}active{% endif %}">
                             <i class="bi bi-box-seam me-2"></i>Stock
@@ -211,62 +211,77 @@
                     </ul>
                 </li>
 
-                <!-- Settings -->
+                <li class="nav-section-label">System</li>
                 <li>
-                    <a href="{% url 'accounting:company_settings' %}" 
+                    <a href="{% url 'accounting:company_settings' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'company_settings' or 'settings' in request.path %}active{% endif %}">
                         <i class="bi bi-gear"></i>
                         <span class="link-text">Settings</span>
                     </a>
                 </li>
             </ul>
+
+            <!-- Signed-in user card -->
+            <div class="sidebar-user-card">
+                <span class="user-avatar">{{ user.get_full_name|default:user.username|slice:":1"|upper }}</span>
+                <div class="user-meta text-truncate">
+                    <div class="user-name">{{ user.get_full_name|default:user.username }}</div>
+                    <div class="user-role">Staff · {% if user.is_superuser %}Admin{% else %}Operator{% endif %}</div>
+                </div>
+            </div>
         </nav>
 
         <!-- ==================== MAIN CONTENT ==================== -->
         <div id="page-content-wrapper">
             <!-- Top Navbar -->
-            <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom px-3">
-                <div class="container-fluid">
-                    <button class="btn btn-outline-dark me-2" id="sidebarToggleMain" title="Toggle Sidebar">
-                        <i class="bi bi-list"></i>
+            <nav class="app-topbar" aria-label="Toolbar">
+                <div class="d-flex align-items-center gap-2">
+                    <button class="icon-btn d-lg-none" id="sidebarToggleMain" type="button" title="Open menu" aria-label="Open menu">
+                        <i class="bi bi-list" aria-hidden="true"></i>
                     </button>
-                    <a href="{% url 'home' %}" class="btn btn-outline-secondary me-2">
-                        <i class="bi bi-house-door"></i> Home
+                    <a href="{% url 'home' %}" class="icon-btn" title="Public website" aria-label="Public website">
+                        <i class="bi bi-globe2" aria-hidden="true"></i>
+                    </a>
+                    <a href="{% url 'accounting:dashboard' %}" class="fw-bold text-decoration-none ms-1 d-none d-sm-block" style="color: var(--pp-ink);">
+                        Staff Portal
                     </a>
 
                     <div class="ms-auto d-flex align-items-center gap-2">
                         <!-- Global Search -->
                         <div class="global-search-wrapper" id="global-search-wrapper">
                             <div class="global-search-input-group">
-                                <i class="bi bi-search global-search-icon"></i>
-                                    <input type="text"
-                                       id="global-search-input"
-                                       class="form-control form-control-sm global-search-input"
-                                       placeholder="Search... (Ctrl+K)"
-                                       autocomplete="off"
-                                       spellcheck="false">
+                                <i class="bi bi-search global-search-icon" aria-hidden="true"></i>
+                                <input type="text"
+                                   id="global-search-input"
+                                   class="form-control form-control-sm global-search-input"
+                                   placeholder="Search... (Ctrl+K)"
+                                   autocomplete="off"
+                                   spellcheck="false"
+                                   aria-label="Global search">
                                 <span id="global-search-spinner"
-                                      class="htmx-indicator spinner-border spinner-border-sm global-search-spinner"></span>
+                                      class="htmx-indicator spinner-border spinner-border-sm global-search-spinner" role="status"></span>
                             </div>
                             <div id="global-search-results" class="global-search-results"></div>
                         </div>
-                        <button class="btn btn-outline-secondary" id="themeToggle" title="Switch theme">
-                            <i class="bi bi-moon-fill" id="themeIcon"></i>
+
+                        <button class="icon-btn" id="themeToggle" type="button" title="Switch theme" aria-label="Toggle dark mode">
+                            <i class="bi bi-moon-fill" id="themeIcon" aria-hidden="true"></i>
                         </button>
 
-                       <!-- Notification Bell -->
+                        <!-- Notification Bell -->
                         <div class="dropdown">
-                            <button class="btn btn-outline-secondary position-relative" type="button"
+                            <button class="icon-btn" type="button"
                                     id="notificationDropdown"
                                     data-bs-toggle="dropdown"
                                     data-bs-auto-close="outside"
                                     aria-expanded="false"
+                                    aria-label="Notifications"
                                     hx-get="{% url 'accounting:notification_dropdown' %}"
                                     hx-target="#notification-dropdown"
                                     hx-swap="innerHTML"
                                     hx-trigger="click">
-                                <i class="bi bi-bell"></i>
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                                <i class="bi bi-bell" aria-hidden="true"></i>
+                                <span class="notif-badge"
                                     id="notificationCount"
                                     hx-get="{% url 'accounting:notification_unread_count_text' %}"
                                     hx-trigger="load, every 30s"
@@ -276,8 +291,8 @@
                             </button>
                             <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0"
                                 style="width:350px; max-width:calc(100vw - 1.25rem); max-height:400px; overflow-y:auto;"
-                                hx-get="{% url 'accounting:notification_dropdown' %}" 
-                                hx-trigger="load, every 30s" 
+                                hx-get="{% url 'accounting:notification_dropdown' %}"
+                                hx-trigger="load, every 30s"
                                 hx-target="#notification-dropdown"
                                 hx-swap="innerHTML">
                                 <div class="text-center py-3 text-muted">Loading notifications...</div>
@@ -286,18 +301,20 @@
 
                         <!-- User Dropdown -->
                         <div class="dropdown">
-                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                <i class="bi bi-person-circle"></i> {{ user.get_full_name|default:user.username }}
+                            <button class="user-chip" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="chip-avatar" aria-hidden="true">{{ user.get_full_name|default:user.username|slice:":1"|upper }}</span>
+                                <span class="chip-name d-none d-md-inline">{{ user.get_full_name|default:user.username }}</span>
+                                <i class="bi bi-chevron-down small" aria-hidden="true"></i>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{% url 'accounting:company_settings' %}">Settings</a></li>
+                                <li><a class="dropdown-item" href="{% url 'accounting:company_settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{% url 'admin:index' %}">Admin Panel</a></li>
+                                <li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Admin Panel</a></li>
                                 <li>
-                                    <form action="{% url 'accounting:logout' %}" method="post" style="display: inline;">
+                                    <form action="{% url 'accounting:logout' %}" method="post" class="d-inline">
                                         {% csrf_token %}
-                                        <button type="submit" class="dropdown-item" style="border: none; background: none; width: 100%; text-align: left; padding: 6px 20px;">
-                                            <i class="bi bi-box-arrow-right"></i> Logout
+                                        <button type="submit" class="dropdown-item text-danger">
+                                            <i class="bi bi-box-arrow-right me-2"></i>Logout
                                         </button>
                                     </form>
                                 </li>
@@ -308,7 +325,7 @@
             </nav>
 
             <!-- Page Content -->
-            <div class="container-fluid mt-3" id="main-content">
+            <div class="container-fluid mt-3 px-3 px-lg-4" id="main-content">
                 {% block content %}{% endblock %}
 
                 <!-- Compact Footer -->
@@ -349,13 +366,13 @@
         </div>
     </div>
 
-
     <!-- Scripts -->
     <script src="{% static 'bootstrap/js/bootstrap.bundle.min.js' %}"></script>
     <script src="{% static 'htmx/htmx.min.js' %}"></script>
     <script src="{% static 'chart.js/chart.umd.js' %}"></script>
     <script src="{% static 'vendor/tom-select/tom-select.complete.min.js' %}"></script>
     <script src="{% static 'js/app.js' %}"></script>
+    <script src="{% static 'js/portal-shell.js' %}" defer></script>
     <!-- Convert Django Messages to Toasts -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -379,6 +396,3 @@
     {% endblock extra_js %}
 </body>
 </html>
-
-
-

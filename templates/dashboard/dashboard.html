@@ -20,19 +20,20 @@
     {% endif %}
 
     <!-- ══════════ HEADER ══════════ -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div class="page-head">
         <div>
-            <h3 class="fw-semibold mb-0">
-                <i class="bi bi-speedometer2 text-primary me-2"></i>Dashboard
-            </h3>
-            <p class="text-muted small mt-1">
+            <h1 class="page-title">
+                <span class="title-chip"><i class="bi bi-speedometer2" aria-hidden="true"></i></span>
+                Dashboard
+            </h1>
+            <p class="page-sub">
                 {% now "l, d M Y" %}
                 {% if unread_notifications > 0 %}
                     <span class="badge bg-danger ms-2">{{ unread_notifications }} unread notifications</span>
                 {% endif %}
             </p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
+        <div class="page-actions">
             <button class="btn btn-outline-primary"
                     hx-get="{% url 'accounting:refresh_stats' %}"
                     hx-target="#stats-container"
@@ -41,7 +42,7 @@
                 <span id="refresh-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
                 <i class="bi bi-arrow-clockwise"></i> Refresh
             </button>
-            <a href="{% url 'accounting:dashboard_export' %}" class="btn btn-success">
+            <a href="{% url 'accounting:dashboard_export' %}" class="btn btn-pp-primary">
                 <i class="bi bi-file-earmark-excel"></i> Export
             </a>
         </div>
@@ -159,62 +160,62 @@
     </div>
 
     <!-- ══════════ QUICK ACTIONS ══════════ -->
-    <div class="card border-0 shadow-sm mt-3">
-        <div class="card-header bg-white fw-semibold">
-            <i class="bi bi-lightning me-2 text-warning"></i>Quick Actions
+    <div class="card border-0">
+        <div class="card-header">
+            <i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Quick Actions
         </div>
         <div class="card-body">
             <div class="row g-2">
-                <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'accounting:invoice_create' %}" class="btn btn-outline-primary w-100">
-                        <i class="bi bi-receipt me-1"></i> New Invoice
+                <div class="col-6 col-md-3 col-xl-3">
+                    <a href="{% url 'accounting:invoice_create' %}" class="quick-action w-100">
+                        <i class="bi bi-receipt" aria-hidden="true"></i>New Invoice
                     </a>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'accounting:purchase_create' %}" class="btn btn-outline-success w-100">
-                        <i class="bi bi-cart me-1"></i> New Purchase
+                <div class="col-6 col-md-3 col-xl-3">
+                    <a href="{% url 'accounting:purchase_create' %}" class="quick-action qa-success w-100">
+                        <i class="bi bi-cart" aria-hidden="true"></i>New Purchase
                     </a>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'accounting:repair_create' %}" class="btn btn-outline-warning w-100">
-                        <i class="bi bi-tools me-1"></i> New Repair
+                <div class="col-6 col-md-3 col-xl-3">
+                    <a href="{% url 'accounting:repair_create' %}" class="quick-action qa-warning w-100">
+                        <i class="bi bi-tools" aria-hidden="true"></i>New Repair
                     </a>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <button class="btn btn-outline-info w-100"
+                <div class="col-6 col-md-3 col-xl-3">
+                    <button class="quick-action qa-info w-100"
                             hx-get="{% url 'accounting:payment_create' %}"
                             hx-target="#mainModalContent"
                             hx-trigger="click">
-                        <i class="bi bi-credit-card me-1"></i> New Payment
+                        <i class="bi bi-credit-card" aria-hidden="true"></i>New Payment
                     </button>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <button class="btn btn-outline-secondary w-100"
+                <div class="col-6 col-md-3 col-xl-3">
+                    <button class="quick-action w-100"
                             hx-get="{% url 'accounting:contact_create' %}"
                             hx-target="#mainModalContent"
                             hx-trigger="click">
-                        <i class="bi bi-plus-circle me-1"></i> Add Contact
+                        <i class="bi bi-person-plus" aria-hidden="true"></i>Add Contact
                     </button>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <button class="btn btn-outline-secondary w-100"
+                <div class="col-6 col-md-3 col-xl-3">
+                    <button class="quick-action w-100"
                             hx-get="{% url 'accounting:product_create' %}"
                             hx-target="#mainModalContent"
                             hx-trigger="click">
-                        <i class="bi bi-box me-1"></i> Add Product
+                        <i class="bi bi-box-seam" aria-hidden="true"></i>Add Product
                     </button>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <button class="btn btn-outline-secondary w-100"
+                <div class="col-6 col-md-3 col-xl-3">
+                    <button class="quick-action qa-info w-100"
                             hx-get="{% url 'accounting:journal_create' %}"
                             hx-target="#mainModalContent"
                             hx-trigger="click">
-                        <i class="bi bi-journal-text me-1"></i> New Journal
+                        <i class="bi bi-journal-text" aria-hidden="true"></i>New Journal
                     </button>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'accounting:stock_adjustment_add' %}" class="btn btn-outline-secondary w-100">
-                        <i class="bi bi-pencil-square me-1"></i> Stock Adjust
+                <div class="col-6 col-md-3 col-xl-3">
+                    <a href="{% url 'accounting:stock_adjustment_add' %}" class="quick-action qa-danger w-100">
+                        <i class="bi bi-sliders" aria-hidden="true"></i>Stock Adjust
                     </a>
                 </div>
             </div>

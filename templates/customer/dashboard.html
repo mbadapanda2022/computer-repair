@@ -4,21 +4,22 @@
 {% block content %}
 <div class="container-fluid px-4 py-3">
     <!-- Header -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div class="page-head">
         <div>
-            <h3 class="fw-semibold mb-0">
-                <i class="bi bi-speedometer2 text-primary me-2"></i>My Dashboard
-            </h3>
-            <p class="text-muted small mt-1">
+            <h1 class="page-title">
+                <span class="title-chip"><i class="bi bi-speedometer2" aria-hidden="true"></i></span>
+                My Dashboard
+            </h1>
+            <p class="page-sub">
                 Welcome back, <strong>{{ customer.name }}</strong>
                 {% if unread_count > 0 %}
                     <span class="badge bg-danger ms-2">{{ unread_count }} unread notifications</span>
                 {% endif %}
             </p>
         </div>
-        <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-outline-primary" 
-                    hx-get="{% url 'customer:refresh_dashboard_stats' %}" 
+        <div class="page-actions">
+            <button class="btn btn-outline-primary"
+                    hx-get="{% url 'customer:refresh_dashboard_stats' %}"
                     hx-target="#dashboard-stats-container"
                     hx-swap="innerHTML"
                     hx-indicator="#refresh-spinner">
@@ -148,33 +149,33 @@
     </div>
 
     <!-- Quick Actions -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white fw-semibold">
-            <i class="bi bi-lightning me-2 text-warning"></i>Quick Actions
+    <div class="card border-0">
+        <div class="card-header">
+            <i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Quick Actions
         </div>
         <div class="card-body">
             <div class="row g-2">
-                <div class="col-md-3 col-sm-6">
-                    <button class="btn btn-outline-warning w-100"
+                <div class="col-6 col-md-3">
+                    <button class="quick-action qa-warning w-100"
                             hx-get="{% url 'customer:customer_repair_create' %}"
                             hx-target="#mainModalContent"
                             hx-trigger="click">
-                        <i class="bi bi-tools me-1"></i> New Repair
+                        <i class="bi bi-tools" aria-hidden="true"></i>New Repair Request
                     </button>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'customer:customer_invoices' %}" class="btn btn-outline-primary w-100">
-                        <i class="bi bi-receipt me-1"></i> View Invoices
+                <div class="col-6 col-md-3">
+                    <a href="{% url 'customer:customer_invoices' %}" class="quick-action w-100">
+                        <i class="bi bi-receipt" aria-hidden="true"></i>View Invoices
                     </a>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'customer:customer_payments' %}" class="btn btn-outline-success w-100">
-                        <i class="bi bi-credit-card me-1"></i> Payment History
+                <div class="col-6 col-md-3">
+                    <a href="{% url 'customer:customer_payments' %}" class="quick-action qa-success w-100">
+                        <i class="bi bi-credit-card" aria-hidden="true"></i>Payment History
                     </a>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <a href="{% url 'customer:customer_statement' %}" class="btn btn-outline-info w-100">
-                        <i class="bi bi-file-text me-1"></i> My Statement
+                <div class="col-6 col-md-3">
+                    <a href="{% url 'customer:customer_statement' %}" class="quick-action qa-info w-100">
+                        <i class="bi bi-file-text" aria-hidden="true"></i>My Statement
                     </a>
                 </div>
             </div>

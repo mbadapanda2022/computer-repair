@@ -1,151 +1,114 @@
 {% load math_filters %}
 
 <div class="row g-3 mb-4">
-
     <!-- 1. Total Invoices -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-receipt fs-4 text-primary"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Total Invoices</small>
-                    <h5 class="mb-0 fw-bold text-primary">{{ total_invoices|default:0 }}</h5>
-                    <small class="text-muted">{{ paid_invoices|default:0 }} paid, {{ unpaid_invoices|default:0 }} pending</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-receipt" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Total Invoices</p>
+                <p class="stat-value text-primary">{{ total_invoices|default:0 }}</p>
+                <p class="stat-foot">{{ paid_invoices|default:0 }} paid, {{ unpaid_invoices|default:0 }} pending</p>
             </div>
         </div>
     </div>
 
-    <!-- 2. Total Payments (Received) -->
+    <!-- 2. Total Payments -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-currency-rupee fs-4 text-success"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Total Payments</small>
-                    <h5 class="mb-0 fw-bold text-success">₹{{ total_payments|default:0|floatformat:2 }}</h5>
-                    <small class="text-muted">Paid by you</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-success"><i class="bi bi-currency-rupee" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Total Payments</p>
+                <p class="stat-value text-success">₹{{ total_payments|default:0|floatformat:2 }}</p>
+                <p class="stat-foot">Paid by you</p>
             </div>
         </div>
     </div>
 
-    <!-- 3. Total Due (FIXED — handles negative / advance) -->
+    <!-- 3. Balance (handles negative / advance) -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                {% if total_due > 0 %}
-                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-exclamation-triangle fs-4 text-danger"></i>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Amount Payable</small>
-                        <h5 class="mb-0 fw-bold text-danger">₹{{ total_due|floatformat:2 }}</h5>
-                        <small class="text-muted">Outstanding balance</small>
-                    </div>
-                {% elif total_due < 0 %}
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-check-circle fs-4 text-success"></i>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Advance Credit</small>
-                        <h5 class="mb-0 fw-bold text-success">₹{{ total_due|abs_filter|floatformat:2 }}</h5>
-                        <small class="text-muted">Credit with us</small>
-                    </div>
-                {% else %}
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-check-circle fs-4 text-success"></i>
-                    </div>
-                    <div>
-                        <small class="text-muted d-block">Balance</small>
-                        <h5 class="mb-0 fw-bold text-success">₹0.00</h5>
-                        <small class="text-muted">No dues</small>
-                    </div>
-                {% endif %}
-            </div>
+        <div class="stat-card">
+            {% if total_due > 0 %}
+                <div class="stat-icon tone-danger"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div>
+                <div class="flex-grow-1 min-width-0">
+                    <p class="stat-label">Amount Payable</p>
+                    <p class="stat-value text-danger">₹{{ total_due|floatformat:2 }}</p>
+                    <p class="stat-foot">Outstanding balance</p>
+                </div>
+            {% elif total_due < 0 %}
+                <div class="stat-icon tone-success"><i class="bi bi-check-circle" aria-hidden="true"></i></div>
+                <div class="flex-grow-1 min-width-0">
+                    <p class="stat-label">Advance Credit</p>
+                    <p class="stat-value text-success">₹{{ total_due|abs_filter|floatformat:2 }}</p>
+                    <p class="stat-foot">Credit with us</p>
+                </div>
+            {% else %}
+                <div class="stat-icon tone-success"><i class="bi bi-check-circle" aria-hidden="true"></i></div>
+                <div class="flex-grow-1 min-width-0">
+                    <p class="stat-label">Balance</p>
+                    <p class="stat-value text-success">₹0.00</p>
+                    <p class="stat-foot">No dues</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 
     <!-- 4. Pending Repairs -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-tools fs-4 text-warning"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Pending Repairs</small>
-                    <h5 class="mb-0 fw-bold text-warning">{{ pending_repairs|default:0 }}</h5>
-                    <small class="text-muted">{{ ready_repairs|default:0 }} ready</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-warning"><i class="bi bi-tools" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Pending Repairs</p>
+                <p class="stat-value">{{ pending_repairs|default:0 }}</p>
+                <p class="stat-foot">{{ ready_repairs|default:0 }} ready</p>
             </div>
         </div>
     </div>
 
     <!-- 5. Completed Repairs -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-check-circle fs-4 text-info"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Completed Repairs</small>
-                    <h5 class="mb-0 fw-bold text-info">{{ completed_repairs|default:0 }}</h5>
-                    <small class="text-muted">Delivered</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-info"><i class="bi bi-check2-circle" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Completed Repairs</p>
+                <p class="stat-value text-info">{{ completed_repairs|default:0 }}</p>
+                <p class="stat-foot">Delivered</p>
             </div>
         </div>
     </div>
 
     <!-- 6. This Month Invoices -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-calendar-event fs-4 text-primary"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">This Month's Invoices</small>
-                    <h5 class="mb-0 fw-bold text-primary">₹{{ month_sales|default:0|floatformat:2 }}</h5>
-                    <small class="text-muted">Invoiced this month</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="bi bi-calendar-event" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">This Month's Invoices</p>
+                <p class="stat-value text-primary">₹{{ month_sales|default:0|floatformat:2 }}</p>
+                <p class="stat-foot">Invoiced this month</p>
             </div>
         </div>
     </div>
 
     <!-- 7. This Month Payments -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-credit-card fs-4 text-success"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">This Month's Payments</small>
-                    <h5 class="mb-0 fw-bold text-success">₹{{ month_payments|default:0|floatformat:2 }}</h5>
-                    <small class="text-muted">Paid this month</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-success"><i class="bi bi-credit-card" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">This Month's Payments</p>
+                <p class="stat-value text-success">₹{{ month_payments|default:0|floatformat:2 }}</p>
+                <p class="stat-foot">Paid this month</p>
             </div>
         </div>
     </div>
 
     <!-- 8. Total Repairs -->
     <div class="col-xl-3 col-md-6">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body d-flex align-items-center">
-                <div class="rounded-circle bg-secondary bg-opacity-10 p-3 me-3">
-                    <i class="bi bi-tools fs-4 text-secondary"></i>
-                </div>
-                <div>
-                    <small class="text-muted d-block">Total Repairs</small>
-                    <h5 class="mb-0 fw-bold text-secondary">{{ total_repairs|default:0 }}</h5>
-                    <small class="text-muted">{{ pending_repairs|default:0 }} pending</small>
-                </div>
+        <div class="stat-card">
+            <div class="stat-icon tone-warning"><i class="bi bi-wrench-adjustable" aria-hidden="true"></i></div>
+            <div class="flex-grow-1 min-width-0">
+                <p class="stat-label">Total Repairs</p>
+                <p class="stat-value">{{ total_repairs|default:0 }}</p>
+                <p class="stat-foot">{{ pending_repairs|default:0 }} pending</p>
             </div>
         </div>
     </div>
