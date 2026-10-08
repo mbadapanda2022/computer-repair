@@ -100,6 +100,7 @@ def restore_database(backup_file):
 
     # Clear existing data
     print("-> Clearing existing data...")
+    fk_off = False
     with connection.cursor() as cursor:
         if connection.vendor == 'postgresql':
             cursor.execute("SET session_replication_role = 'replica';")
@@ -107,23 +108,38 @@ def restore_database(backup_file):
                 cursor.execute(f'DELETE FROM "{model._meta.db_table}";')
             cursor.execute("SET session_replication_role = 'origin';")
         else:
-            # SQLite: use raw SQL to bypass FK constraints
+            # SQLite: disable FK checks for the ENTIRE restore session
+            # (bulk_create runs after this block, so we must keep PRAGMA OFF)
             cursor.execute("PRAGMA foreign_keys = OFF;")
+            fk_off = True
             for model in apps.get_models():
                 cursor.execute(f'DELETE FROM "{model._meta.db_table}";')
-            cursor.execute("PRAGMA foreign_keys = ON;")
 
     # Restore data
     total_restored = 0
-    for model_key, records in backup_data['data'].items():
+    for model_key, payload in backup_data['data'].items():
         app_label, model_name = model_key.split('.')
         model = apps.get_model(app_label, model_name)
+
+        # Support both backup formats:
+        #   Format A (backup_db.py):     {"data": {"model": [record, ...]}}
+        #   Format B (manage.py command): {"data": {"model": {"table": "...", "records": [...]}}}
+        if isinstance(payload, dict) and 'records' in payload:
+            records = payload['records']
+        elif isinstance(payload, list):
+            records = payload
+        else:
+            print(f"  [SKIP] {model_key}: unrecognized payload type {type(payload).__name__}")
+            continue
 
         print(f"  Restoring {model_key}... ({len(records)} records)")
 
         objs = []
         m2m_data = []
         for record in records:
+            if not isinstance(record, dict):
+                print(f"    [WARN] Skipping non-dict record: {type(record).__name__}")
+                continue
             m2m_fields = {}
             for key in list(record.keys()):
                 try:
@@ -154,6 +170,11 @@ def restore_database(backup_file):
 
         total_restored += len(records)
         print(f"    [OK] Restored {len(records)} records")
+
+    # Re-enable FK checks on SQLite (disabled above for the whole restore)
+    if fk_off:
+        with connection.cursor() as cursor:
+            cursor.execute("PRAGMA foreign_keys = ON;")
 
     print(f"[OK] Restore complete: {total_restored} records restored")
     return True
