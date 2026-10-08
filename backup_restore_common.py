@@ -49,8 +49,13 @@ def backup_all_data():
     total = 0
     for model in apps.get_models():
         model_key = f"{model._meta.app_label}.{model._meta.object_name}"
+
+        # Prefer all_objects (includes soft-deleted records) when available,
+        # falling back to the default manager for models without soft-delete.
+        manager = getattr(model, 'all_objects', None) or model.objects
+
         records = []
-        for obj in model.objects.all().iterator():
+        for obj in manager.all().iterator():
             record = {}
             for field in model._meta.get_fields():
                 if hasattr(field, 'attname') and not field.is_relation:
@@ -137,6 +142,10 @@ def restore_from_json(json_data):
 
         print(f"  Restoring {model_key}... ({len(records)} records)")
 
+        # Use all_objects (includes soft-deleted records) when available,
+        # falling back to default manager.
+        manager = getattr(model, 'all_objects', None) or model.objects
+
         objs = []
         m2m_data = []
         for record in records:
@@ -157,7 +166,7 @@ def restore_from_json(json_data):
             if m2m_fields:
                 m2m_data.append((obj, m2m_fields))
 
-        model.objects.bulk_create(objs, ignore_conflicts=True)
+        manager.bulk_create(objs, ignore_conflicts=True)
 
         # Restore M2M relationships
         for obj, m2m_fields in m2m_data:
