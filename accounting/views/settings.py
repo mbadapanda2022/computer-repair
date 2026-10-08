@@ -114,16 +114,13 @@ def company_settings(request):
 @require_http_methods(["GET"])
 def backup_database(request):
     try:
-        # Create a JSON dump of the entire database
-        output = StringIO()
-        call_command('dumpdata', stdout=output, indent=2, exclude=['contenttypes', 'auth.permission'])
-        
-        # Get the dump content
-        dump_content = output.getvalue()
+        # Use the custom JSON format (compatible with both SQLite & PostgreSQL)
+        from backup_restore_common import backup_to_json
+        dump_content = backup_to_json()
+
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"backup_{timestamp}.json"
-        
-        # Create response with JSON file
+
         response = HttpResponse(
             dump_content,
             content_type='application/json'
@@ -131,7 +128,7 @@ def backup_database(request):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         logger.info(f"Database backup created by {request.user.username} (Size: {len(dump_content)} bytes)")
         return response
-        
+
     except Exception as e:
         logger.error(f"Error creating database backup: {e}")
         if is_htmx(request):
@@ -193,18 +190,17 @@ def restore_database(request):
             return render(request, 'settings/restore.html')
 
         try:
-            # Save uploaded file to a temporary location
-            with tempfile.NamedTemporaryFile(mode='wb+', suffix='.json', delete=False) as tmp_file:
-                for chunk in db_file.chunks():
-                    tmp_file.write(chunk)
-                tmp_path = tmp_file.name
+            # Read uploaded JSON file
+            raw = db_file.read()
+            try:
+                backup_data = json.loads(raw)
+            except json.JSONDecodeError as jde:
+                raise ValueError(f"Invalid JSON: {jde}")
 
-            # Load the data using Django's loaddata command
-            # We need to use the file path (not the file object)
-            call_command('loaddata', tmp_path, verbosity=0)
-
-            # Clean up temporary file
-            os.unlink(tmp_path)
+            # Use the custom restore logic (handles both SQLite & PostgreSQL,
+            # and both backup formats from backup_db.py and manage.py command)
+            from backup_restore_common import restore_from_json
+            restore_from_json(backup_data)
 
             logger.info(f"Database restored by {request.user.username} from file: {db_file.name}")
 
@@ -225,13 +221,6 @@ def restore_database(request):
 
         except Exception as e:
             logger.error(f"Error restoring database: {e}")
-            # Clean up temporary file if it exists
-            if 'tmp_path' in locals():
-                try:
-                    os.unlink(tmp_path)
-                except:
-                    pass
-
             if is_htmx(request):
                 return htmx_response(
                     request,
