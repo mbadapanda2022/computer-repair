@@ -148,10 +148,11 @@ class ServiceAdmin(admin.ModelAdmin):
 
 @admin.register(Testimonial)
 class TestimonialAdmin(admin.ModelAdmin):
-    list_display = ['customer_name', 'rating', 'order', 'is_active', 'created_at']
-    list_filter = ['rating', 'is_active', 'created_at']
+    list_display = ['customer_name', 'rating', 'source', 'order', 'is_active', 'created_at']
+    list_filter = ['rating', 'is_active', 'source', 'created_at']
     search_fields = ['customer_name', 'review_text', 'designation']
     list_editable = ['order', 'is_active', 'rating']
+    readonly_fields = ['source', 'google_review_id', 'author_photo_url', 'review_url', 'reviewed_at']
     fieldsets = (
         ('Customer Info', {
             'fields': ('customer_name', 'customer_photo', 'designation', 'company_name')
@@ -161,6 +162,10 @@ class TestimonialAdmin(admin.ModelAdmin):
         }),
         ('Settings', {
             'fields': ('order', 'is_active')
+        }),
+        ('Google Sync (read-only)', {
+            'fields': ('source', 'google_review_id', 'reviewed_at', 'author_photo_url', 'review_url'),
+            'classes': ('collapse',),
         }),
     )
     

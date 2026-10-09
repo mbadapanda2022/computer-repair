@@ -3,14 +3,25 @@
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h3><i class="bi bi-chat-quote"></i> Manage Testimonials</h3>
-        <button class="btn btn-primary" 
-                hx-get="{% url 'accounting:testimonial_create' %}" 
-                hx-target="#mainModalContent"
-                hx-trigger="click">
-            <i class="bi bi-plus-circle"></i> Add Testimonial
-        </button>
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <h3 class="mb-0"><i class="bi bi-chat-quote"></i> Manage Testimonials</h3>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-success"
+                    hx-post="{% url 'accounting:google_reviews_sync' %}"
+                    hx-target="#testimonial-list-container"
+                    hx-swap="innerHTML"
+                    hx-indicator="#googleSyncSpinner"
+                    title="Fetch latest reviews from your Google Business Profile">
+                <span id="googleSyncSpinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <i class="bi bi-google"></i> Sync Google Reviews
+            </button>
+            <button class="btn btn-primary" 
+                    hx-get="{% url 'accounting:testimonial_create' %}" 
+                    hx-target="#mainModalContent"
+                    hx-trigger="click">
+                <i class="bi bi-plus-circle"></i> Add Testimonial
+            </button>
+        </div>
     </div>
     
     <div id="testimonial-list-container">

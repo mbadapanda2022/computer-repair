@@ -189,6 +189,18 @@ cloudinary.config(
 )
 
 # ============================================================
+# GOOGLE BUSINESS PROFILE REVIEWS (Places API – New)
+# Reviews are synced by accounting/management/commands/sync_google_reviews.py
+# and lazily in the background from the landing page.
+# GOOGLE_PLACE_ID example: "ChIJ..." (find via places search or the
+# business.google.com listing URL). Empty key => sync disabled, manual
+# testimonials keep displaying.
+# ============================================================
+GOOGLE_PLACES_API_KEY = os.getenv('GOOGLE_PLACES_API_KEY', '')
+GOOGLE_PLACE_ID = os.getenv('GOOGLE_PLACE_ID', '')
+GOOGLE_REVIEWS_SYNC_INTERVAL = int(os.getenv('GOOGLE_REVIEWS_SYNC_INTERVAL', 12 * 3600))
+
+# ============================================================
 # CLOUDINARY STORAGE — same filename pe overwrite allow karo
 # ============================================================
 CLOUDINARY_STORAGE = {

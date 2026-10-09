@@ -16,6 +16,7 @@ from ..forms import ContactMessageForm, ServiceForm, TestimonialForm, FAQForm
 from .utils import is_htmx, htmx_response
 from ..decorators import handle_errors
 from ..utils.notification_helpers import send_notification_to_staff
+from ..google_reviews import maybe_background_refresh, sync_google_reviews, is_configured as google_reviews_configured
 
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 def landing(request):
     """Public landing page with company info, services, testimonials, FAQs."""
+    maybe_background_refresh()
     company = CompanyProfile.get_instance()
     faqs = FAQ.objects.filter(is_active=True).order_by('order', 'created_at')
     testimonials = Testimonial.objects.filter(is_active=True).order_by('order', '-created_at')
@@ -311,6 +313,38 @@ def testimonial_delete(request, pk):
         return response
     messages.success(request, f'Testimonial from "{name}" deleted.')
     return redirect('accounting:dashboard')
+
+
+@csrf_protect
+@staff_member_required
+@require_http_methods(["POST"])
+def google_reviews_sync(request):
+    """Manually trigger Google Business Profile reviews sync (HTMX button)."""
+    if not google_reviews_configured():
+        message, level = (
+            'Google Places API not configured. Set GOOGLE_PLACES_API_KEY and '
+            'GOOGLE_PLACE_ID in the environment.', 'warning'
+        )
+    else:
+        stats = sync_google_reviews()
+        if stats['error']:
+            message, level = f"Sync failed: {stats['error']} (existing reviews kept)", 'danger'
+        else:
+            message, level = (
+                f"Google reviews synced: {stats['created']} new, {stats['updated']} updated, "
+                f"{stats['deactivated']} removed.", 'success'
+            )
+    if is_htmx(request):
+        testimonials = Testimonial.objects.all().order_by('order', '-created_at')
+        html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+        response = HttpResponse(html)
+        response['HX-Trigger'] = json.dumps({'showToast': {'level': level, 'message': message}})
+        return response
+    if level == 'success':
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
+    return redirect('accounting:manage_testimonials')
 
 
 # ---------- FAQS ----------

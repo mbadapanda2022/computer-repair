@@ -6,6 +6,8 @@
             <div class="d-flex align-items-center mb-3">
                 {% if testimonial.customer_photo %}
                     <img src="{{ testimonial.customer_photo.url }}" alt="{{ testimonial.customer_name }}" class="avatar me-3" width="52" height="52" loading="lazy">
+                {% elif testimonial.author_photo_url %}
+                    <img src="{{ testimonial.author_photo_url }}" alt="{{ testimonial.customer_name }}" class="avatar me-3" width="52" height="52" loading="lazy">
                 {% else %}
                     <div class="avatar me-3" aria-hidden="true">
                         {{ testimonial.customer_name|first|upper }}
@@ -23,6 +25,11 @@
             <div class="stars" role="img" aria-label="{{ testimonial.rating }} out of 5 stars">
                 {% for i in "12345"|slice:":testimonial.rating" %}★{% endfor %}
             </div>
+            {% if testimonial.source == 'google' and testimonial.review_url %}
+                <a href="{{ testimonial.review_url }}" target="_blank" rel="noopener nofollow" class="google-review-source">
+                    <i class="bi bi-google" aria-hidden="true"></i> Google review
+                </a>
+            {% endif %}
             
             {% if include_controls %}
             <div class="mt-3 d-flex justify-content-start gap-2">

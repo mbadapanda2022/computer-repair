@@ -245,6 +245,7 @@ urlpatterns = [
     path('landing/testimonials/create/', landing_views.testimonial_create, name='testimonial_create'),
     path('landing/testimonials/<int:pk>/edit/', landing_views.testimonial_edit, name='testimonial_edit'),
     path('landing/testimonials/<int:pk>/delete/', landing_views.testimonial_delete, name='testimonial_delete'),
+    path('landing/testimonials/google-sync/', landing_views.google_reviews_sync, name='google_reviews_sync'),
 
     path('landing/faqs/', landing_views.faq_list_partial, name='faq_list_partial'),
     path('landing/faqs/create/', landing_views.faq_create, name='faq_create'),

@@ -443,6 +443,7 @@ class Service(SoftDeleteModel):
 
 class Testimonial(SoftDeleteModel):
     RATING_CHOICES = [(i, '⭐ ' * i + str(i) + ' Star' + ('s' if i>1 else '')) for i in range(1,6)]
+    SOURCE_CHOICES = [('manual', 'Manual'), ('google', 'Google Business Profile')]
     customer_name = models.CharField(max_length=100)
     customer_photo = models.ImageField(upload_to='testimonials/', blank=True, null=True)
     designation = models.CharField(max_length=100, blank=True)
@@ -451,6 +452,11 @@ class Testimonial(SoftDeleteModel):
     rating = models.PositiveSmallIntegerField(choices=RATING_CHOICES, default=5)
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
+    source = models.CharField(max_length=10, choices=SOURCE_CHOICES, default='manual')
+    google_review_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    author_photo_url = models.URLField(max_length=500, blank=True)
+    review_url = models.URLField(max_length=500, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
