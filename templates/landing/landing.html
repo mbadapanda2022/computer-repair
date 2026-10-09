@@ -60,6 +60,93 @@
     </div>
 </section>
 
+<!-- ===== TRACK YOUR REPAIR ===== -->
+<section id="track-repair" class="lp-section track-section">
+    <div class="container">
+        <div class="track-panel reveal">
+            <div class="row g-0">
+                <div class="col-lg-7">
+                    <div class="track-form-side">
+                        <span class="section-eyebrow">Live status</span>
+                        <h2 class="section-heading text-start">Track Your Repair</h2>
+                        <p class="section-lede text-start mb-4">
+                            Enter your job number and the mobile number we have on record —
+                            no login, no registration. Works for every customer.
+                        </p>
+                        <form method="post" action="{% url 'tracking:repair_lookup' %}" id="repairTrackForm">
+                            {% csrf_token %}
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="track-label" for="trackJobNumber">Job / Repair Number</label>
+                                    <div class="track-input-wrap">
+                                        <i class="bi bi-hash" aria-hidden="true"></i>
+                                        <input type="text" id="trackJobNumber" name="job_number"
+                                               class="form-control track-input"
+                                               placeholder="REP-0001" autocomplete="off"
+                                               maxlength="50" required
+                                               value="{{ track_job }}"
+                                               style="text-transform:uppercase">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="track-label" for="trackPhone">Mobile Number</label>
+                                    <div class="track-input-wrap">
+                                        <i class="bi bi-phone" aria-hidden="true"></i>
+                                        <input type="tel" id="trackPhone" name="phone"
+                                               class="form-control track-input"
+                                               placeholder="10-digit mobile number" autocomplete="tel"
+                                               inputmode="numeric" maxlength="11" required
+                                               value="{{ track_mobile }}">
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <button type="submit" id="trackSubmitBtn" class="btn track-submit-btn">
+                                        <i class="bi bi-search me-2" aria-hidden="true"></i>Track Repair
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                        {% if track_token %}
+                        <div class="track-result track-result-ok" role="status">
+                            <div class="track-result-icon"><i class="bi bi-check-circle-fill"></i></div>
+                            <div class="track-result-body">
+                                <strong>Repair found!</strong>
+                                <span>Open the live tracking page for job <strong>{{ track_job }}</strong>.</span>
+                                <a href="/tracking/repair/{{ track_token }}/" class="btn track-open-btn">
+                                    <i class="bi bi-eye-fill me-1"></i>View Full Tracking
+                                </a>
+                            </div>
+                        </div>
+                        {% elif track_err %}
+                        <div class="track-result track-result-error" role="alert">
+                            <div class="track-result-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+                            <div class="track-result-body">
+                                <strong>Not found</strong>
+                                <span>{{ track_err }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="track-info-side">
+                        <h3><i class="bi bi-shield-check me-2" aria-hidden="true"></i>How it works</h3>
+                        <ul class="track-steps">
+                            <li><span class="num">1</span> Enter your <strong>Job Number</strong> from your repair slip / WhatsApp message</li>
+                            <li><span class="num">2</span> Enter your registered <strong>10-digit mobile number</strong></li>
+                            <li><span class="num">3</span> See live status, timeline, estimate &amp; payment details instantly</li>
+                        </ul>
+                        <div class="track-note">
+                            <i class="bi bi-info-circle" aria-hidden="true"></i>
+                            Don't know your job number? Call us or WhatsApp your mobile number and we'll share the tracking link.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
 <!-- ===== SERVICES SECTION (Dynamic Carousel) ===== -->
 <section id="services" class="lp-section">
     <div class="container">

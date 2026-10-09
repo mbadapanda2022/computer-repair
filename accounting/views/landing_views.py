@@ -48,6 +48,10 @@ def landing(request):
         'testimonials': testimonials,
         'services': services,   
         'meta': meta,
+        'track_token': request.GET.get('token', ''),
+        'track_err': request.GET.get('err', ''),
+        'track_job': request.GET.get('job', ''),
+        'track_mobile': request.GET.get('mobile', ''),
     }
     return render(request, 'landing/landing.html', context)
 

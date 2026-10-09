@@ -38,3 +38,26 @@
     );
     revealEls.forEach(function (el) { io.observe(el); });
 })();
+
+/* ---- Track Repair widget: digit-only mobile + double-submit guard ---- */
+(function () {
+    function init() {
+        var form = document.getElementById("repairTrackForm");
+        if (!form) return;
+        var phone = document.getElementById("trackPhone");
+        if (phone) {
+            phone.addEventListener("input", function () {
+                this.value = this.value.replace(/\D/g, "").slice(0, 10);
+            });
+        }
+        form.addEventListener("submit", function () {
+            var btn = document.getElementById("trackSubmitBtn");
+            if (btn) setTimeout(function () { btn.disabled = true; }, 0);
+        });
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+    } else {
+        init();
+    }
+})();
