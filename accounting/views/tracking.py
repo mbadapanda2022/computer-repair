@@ -10,13 +10,24 @@ from ..utils.tracking import verify_tracking_token, generate_tracking_token
 
 RATE_LIMIT_PER_MIN = 30
 
+# Progress % shown on the public tracking page
+STATUS_PROGRESS = {
+    'pending': 10,
+    'received': 30,
+    'diagnosis': 50,
+    'repairing': 70,
+    'ready': 90,
+    'delivered': 100,
+    'cancelled': 0,
+}
+
 
 @require_http_methods(["GET"])
 def repair_track(request, token):
     """
     Public tracking page — no login required.
-    Shows only safe fields: status, timeline, device, amount.
-    No DB writes. Rate limited.
+    Shows only safe fields: status, timeline, device, issue, estimate,
+    cost breakdown and payment status. No DB writes. Rate limited.
     """
     # ---- Light rate limit per IP ----
     ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() \
@@ -38,7 +49,11 @@ def repair_track(request, token):
 
     # ---- Fetch repair ----
     try:
-        repair = RepairJob.objects.select_related('customer').get(pk=job_id)
+        repair = RepairJob.objects.select_related(
+            'customer', 'invoice'
+        ).prefetch_related(
+            'parts__product', 'services__product'
+        ).get(pk=job_id)
     except RepairJob.DoesNotExist:
         return render(request, 'tracking/invalid.html', status=404)
 
@@ -47,5 +62,10 @@ def repair_track(request, token):
     context = {
         'repair': repair,
         'company': company,
+        'progress': STATUS_PROGRESS.get(repair.status, 0),
+        'show_costs': (
+            repair.status in ('ready', 'delivered')
+            or repair.invoice_id is not None
+        ),
     }
     return render(request, 'tracking/track.html', context)

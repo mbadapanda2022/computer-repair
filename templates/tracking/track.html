@@ -10,181 +10,248 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
+        :root {
+            --tk-navy: #0a1f3c;
+            --tk-navy-2: #0e2a52;
+            --tk-blue: #1a73e8;
+            --tk-blue-dark: #0d5bd0;
+            --tk-cyan: #22b8cf;
+            --tk-amber: #f6a609;
+            --tk-bg: #f2f5fa;
+            --tk-border: #e3e9f2;
+            --tk-muted: #6b7a90;
+            --tk-green: #16a34a;
+            --tk-red: #dc3545;
+        }
         * { box-sizing: border-box; }
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+            background: var(--tk-bg);
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            padding: 16px;
             margin: 0;
+            color: #1c2b3a;
         }
-        .track-card {
-            max-width: 620px;
-            margin: 16px auto;
-            background: #fff;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
-            overflow: hidden;
-        }
-        .track-header {
-            background: linear-gradient(135deg, #1a3c72 0%, #2e5a9c 100%);
-            color: #fff;
-            padding: 26px 22px;
-            text-align: center;
-        }
-        .track-header .company-name {
-            opacity: 0.9;
-            font-size: 0.85rem;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-        }
-        .track-header h2 {
-            margin: 0 0 6px 0;
-            font-weight: 700;
-            font-size: 1.4rem;
-        }
-        .job-number {
-            opacity: 0.85;
-            font-size: 0.9rem;
-            letter-spacing: 1px;
-        }
-        .status-badge-large {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 22px;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 0.95rem;
-            margin-top: 14px;
-            background: rgba(255,255,255,0.18);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-        .status-badge-large.pending { background: rgba(255,193,7,0.35); }
-        .status-badge-large.received { background: rgba(108,117,125,0.5); }
-        .status-badge-large.diagnosis { background: rgba(13,202,240,0.35); }
-        .status-badge-large.repairing { background: rgba(255,193,7,0.35); }
-        .status-badge-large.ready { background: rgba(13,110,253,0.45); }
-        .status-badge-large.delivered { background: rgba(25,135,84,0.5); }
-        .status-badge-large.cancelled { background: rgba(220,53,69,0.5); }
 
-        .info-box {
-            padding: 18px 22px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        .info-box h6 {
-            font-weight: 700;
-            margin: 0 0 12px 0;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #495057;
-        }
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 0;
-            font-size: 0.9rem;
-        }
-        .info-label { color: #6c757d; }
-        .info-value { font-weight: 600; color: #1a1a2e; }
-
-        .timeline {
-            padding: 22px;
-            background: #f8f9fa;
-        }
-        .timeline h6 {
-            font-weight: 700;
-            margin: 0 0 18px 0;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #495057;
-        }
-        .timeline-step {
-            display: flex;
-            align-items: flex-start;
-            padding: 10px 0;
+        /* ---------- Header ---------- */
+        .tk-hero {
+            background: linear-gradient(135deg, var(--tk-navy) 0%, var(--tk-navy-2) 55%, var(--tk-blue-dark) 100%);
             position: relative;
+            padding: 32px 16px 84px;
+            color: #fff;
         }
-        .timeline-step:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            left: 18px;
-            top: 46px;
-            width: 2px;
-            height: 28px;
-            background: #dee2e6;
+        .tk-hero::after {
+            content: "";
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+            background-size: 28px 28px;
+            pointer-events: none;
         }
-        .timeline-step.done::after { background: #28a745; }
-        .step-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #dee2e6;
-            color: #6c757d;
-            margin-right: 14px;
-            flex-shrink: 0;
-            font-size: 1rem;
+        .tk-wrap { max-width: 780px; margin: 0 auto; position: relative; z-index: 1; }
+        .tk-brandrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        .tk-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; letter-spacing: .3px; }
+        .tk-brand .bub {
+            width: 38px; height: 38px; border-radius: 10px;
+            background: linear-gradient(135deg, var(--tk-blue), var(--tk-cyan));
+            display: grid; place-items: center; font-size: 1.15rem;
+            box-shadow: 0 6px 16px rgba(34,184,207,.35);
         }
-        .timeline-step.done .step-icon { background: #28a745; color: #fff; }
-        .timeline-step.active .step-icon {
-            background: #ffc107; color: #000;
-            animation: pulse 1.5s infinite;
+        .job-chip {
+            background: rgba(255,255,255,.12);
+            border: 1px solid rgba(255,255,255,.25);
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: .85rem;
+            font-weight: 600;
+            backdrop-filter: blur(4px);
+        }
+        .tk-hero h1 { font-size: 1.6rem; font-weight: 800; margin: 22px 0 4px; }
+        .tk-hero .sub { color: rgba(255,255,255,.75); font-size: .95rem; margin-bottom: 18px; }
+        .status-badge-large {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 8px 18px; border-radius: 999px;
+            font-weight: 700; font-size: .95rem;
+            box-shadow: 0 8px 20px rgba(0,0,0,.22);
+        }
+        .st-pending   { background: #8592a3; color: #fff; }
+        .st-received  { background: var(--tk-cyan); color: #06333c; }
+        .st-diagnosis { background: var(--tk-amber); color: #3d2a00; }
+        .st-repairing { background: var(--tk-blue); color: #fff; }
+        .st-ready     { background: var(--tk-green); color: #fff; }
+        .st-delivered { background: #0ea371; color: #fff; }
+        .st-cancelled { background: var(--tk-red); color: #fff; }
+
+        /* ---------- Progress ---------- */
+        .progress-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 12px 32px rgba(10,31,60,.10);
+            padding: 20px;
+            margin-top: -56px;
+            position: relative; z-index: 2;
+        }
+        .progress-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+        .progress-head .lbl { font-weight: 700; font-size: .92rem; color: var(--tk-navy); }
+        .progress-head .pct { font-weight: 800; color: var(--tk-blue); }
+        .progress-rail {
+            height: 12px; border-radius: 999px;
+            background: #e8edf5; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 999px;
+            background: linear-gradient(90deg, var(--tk-blue), var(--tk-cyan));
+            transition: width .8s ease;
+        }
+        .progress-fill.cancelled { background: linear-gradient(90deg, #dc3545, #f0717b); }
+        .progress-steps {
+            display: flex; justify-content: space-between;
+            margin-top: 10px; font-size: .72rem; color: var(--tk-muted);
+            font-weight: 600;
+        }
+
+        /* ---------- Sections ---------- */
+        .tk-section { margin-top: 22px; }
+        .section-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: .82rem; font-weight: 800; letter-spacing: .8px;
+            text-transform: uppercase; color: var(--tk-muted);
+            margin: 0 0 10px 2px;
+        }
+        .section-title i { color: var(--tk-blue); }
+        .panel {
+            background: #fff;
+            border: 1px solid var(--tk-border);
+            border-radius: 14px;
+            box-shadow: 0 4px 14px rgba(10,31,60,.05);
+            padding: 18px;
+        }
+
+        /* summary tiles */
+        .tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .tile {
+            background: #fff;
+            border: 1px solid var(--tk-border);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex; gap: 12px; align-items: center;
+            box-shadow: 0 4px 14px rgba(10,31,60,.05);
+        }
+        .tile .icon {
+            width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+            display: grid; place-items: center; font-size: 1.1rem;
+            background: #eaf2ff; color: var(--tk-blue);
+        }
+        .tile .t-k { font-size: .72rem; color: var(--tk-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+        .tile .t-v { font-size: .92rem; font-weight: 700; color: var(--tk-navy); word-break: break-word; }
+
+        /* info rows */
+        .info-row { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px dashed var(--tk-border); font-size: .92rem; }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .k { color: var(--tk-muted); font-weight: 600; flex-shrink: 0; }
+        .info-row .v { text-align: right; font-weight: 600; color: var(--tk-navy); word-break: break-word; }
+        .issue-text { font-size: .95rem; line-height: 1.65; color: #2a3a4d; }
+        .issue-text p:last-child { margin-bottom: 0; }
+
+        /* estimate badge */
+        .est-badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+        .est-pending  { background: #fff3cd; color: #7a5b00; }
+        .est-approved { background: #d1f0dc; color: #116a37; }
+        .est-on_hold  { background: #e2e8f0; color: #435368; }
+        .est-rejected { background: #fde3e5; color: #a1121f; }
+
+        /* ---------- Timeline ---------- */
+        .timeline { position: relative; padding-left: 26px; }
+        .timeline::before {
+            content: ""; position: absolute; left: 8px; top: 6px; bottom: 6px;
+            width: 2px; background: var(--tk-border);
+        }
+        .tl-item { position: relative; padding: 0 0 16px 10px; }
+        .tl-item:last-child { padding-bottom: 0; }
+        .tl-dot {
+            position: absolute; left: -25px; top: 3px;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #fff; border: 3px solid #c9d4e3;
+        }
+        .tl-item.done .tl-dot { border-color: var(--tk-green); background: var(--tk-green); }
+        .tl-item.active .tl-dot {
+            border-color: var(--tk-blue); background: var(--tk-blue);
+            box-shadow: 0 0 0 5px rgba(26,115,232,.18);
+            animation: pulse 1.6s infinite;
         }
         @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(255,193,7,0.6); }
-            50% { box-shadow: 0 0 0 10px rgba(255,193,7,0); }
+            0%,100% { box-shadow: 0 0 0 4px rgba(26,115,232,.18); }
+            50% { box-shadow: 0 0 0 8px rgba(26,115,232,.08); }
         }
-        .step-info { flex-grow: 1; padding-top: 2px; }
-        .step-title { font-weight: 600; margin: 0; font-size: 0.92rem; color: #1a1a2e; }
-        .step-date { color: #6c757d; font-size: 0.8rem; margin: 3px 0 0 0; }
+        .tl-title { font-weight: 700; font-size: .92rem; color: var(--tk-navy); }
+        .tl-item.pending-step .tl-title { color: var(--tk-muted); font-weight: 600; }
+        .tl-time { font-size: .78rem; color: var(--tk-muted); }
 
-        .amount-box {
-            padding: 18px 22px;
-            background: #f0f9f4;
-            border-bottom: 1px solid #e0f0e5;
-        }
-        .amount-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .amount-label { color: #155724; font-weight: 600; }
-        .amount-value { font-size: 1.35rem; font-weight: 700; color: #198754; }
+        /* ---------- Cost breakdown ---------- */
+        .line-row { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--tk-border); font-size: .92rem; }
+        .line-row .lname { font-weight: 600; color: #22364c; }
+        .line-row .lsub { font-size: .78rem; color: var(--tk-muted); }
+        .line-row .lamt { font-weight: 700; color: var(--tk-navy); white-space: nowrap; }
+        .line-total { display: flex; justify-content: space-between; padding: 12px 0 4px; font-weight: 800; font-size: 1.02rem; color: var(--tk-navy); }
+        .line-total.grand { border-top: 2px solid var(--tk-navy); margin-top: 8px; padding-top: 14px; font-size: 1.12rem; }
+        .payment-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 14px; }
+        .pay-tile { background: #f7f9fc; border: 1px solid var(--tk-border); border-radius: 12px; padding: 12px; text-align: center; }
+        .pay-tile .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .5px; color: var(--tk-muted); font-weight: 700; }
+        .pay-tile .v { font-size: 1rem; font-weight: 800; color: var(--tk-navy); }
+        .pay-badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
+        .pay-paid { background: #d1f0dc; color: #116a37; }
+        .pay-partial { background: #fff3cd; color: #7a5b00; }
+        .pay-unpaid { background: #fde3e5; color: #a1121f; }
 
-        .contact-footer {
-            padding: 20px 22px;
-            background: #fff;
+        /* ---------- Footer ---------- */
+        .tk-footer {
+            margin-top: 28px;
+            background: linear-gradient(135deg, var(--tk-navy), var(--tk-navy-2));
+            color: #fff;
+            border-radius: 16px;
+            padding: 22px 18px;
             text-align: center;
         }
-        .contact-footer .hint { color: #6c757d; font-size: 0.85rem; margin-bottom: 10px; }
-        .contact-footer .btn { border-radius: 50px; padding: 8px 18px; font-weight: 500; }
-
-        .bottom-note {
-            text-align: center;
-            margin-top: 16px;
-            color: rgba(255,255,255,0.85);
-            font-size: 0.8rem;
+        .tk-footer .f-name { font-weight: 800; font-size: 1.05rem; }
+        .tk-footer .f-addr { color: rgba(255,255,255,.72); font-size: .85rem; margin: 4px 0 14px; }
+        .btn-ghost {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 9px 18px; border-radius: 999px;
+            font-weight: 700; font-size: .88rem; text-decoration: none;
+            background: rgba(255,255,255,.12); color: #fff;
+            border: 1px solid rgba(255,255,255,.28);
+            margin: 4px;
+            transition: background .2s;
+        }
+        .btn-ghost:hover { background: rgba(255,255,255,.22); color: #fff; }
+        .btn-solid {
+            background: linear-gradient(90deg, var(--tk-blue), var(--tk-cyan));
+            color: #fff; border: none;
+        }
+        .btn-solid:hover { filter: brightness(1.08); color: #fff; }
+        .bottom-note { text-align: center; color: var(--tk-muted); font-size: .8rem; padding: 18px 0 26px; }
+        .bottom-note a { color: var(--tk-blue); text-decoration: none; font-weight: 600; }
+        @media (max-width: 575px) {
+            .tk-hero h1 { font-size: 1.3rem; }
+            .info-row { flex-direction: column; gap: 2px; }
+            .info-row .v { text-align: left; }
         }
     </style>
 </head>
 <body>
 
-<div class="track-card">
-    <!-- HEADER -->
-    <div class="track-header">
-        <div class="company-name">
-            <i class="bi bi-tools"></i> {{ company.name|default:"A1 Computer Solutions" }}
+<!-- ================= HERO ================= -->
+<div class="tk-hero">
+    <div class="tk-wrap">
+        <div class="tk-brandrow">
+            <div class="tk-brand">
+                <span class="bub"><i class="bi bi-laptop"></i></span>
+                <span>{{ company.name|default:"A1 Computer Solutions" }}</span>
+            </div>
+            <span class="job-chip">#{{ repair.job_number }}</span>
         </div>
-        <h2>Repair Tracking</h2>
-        <div class="job-number">#{{ repair.job_number }}</div>
-
-        <div class="status-badge-large {{ repair.status }}">
+        <h1>Repair Tracking</h1>
+        <div class="sub">Track your device's repair progress in real time</div>
+        <span class="status-badge-large st-{{ repair.status }}">
             {% if repair.status == 'pending' %}
                 <i class="bi bi-hourglass-split"></i> {{ repair.get_status_display }}
             {% elif repair.status == 'received' %}
@@ -202,137 +269,258 @@
             {% else %}
                 {{ repair.get_status_display }}
             {% endif %}
-        </div>
+        </span>
     </div>
+</div>
 
-    <!-- DEVICE INFO -->
-    <div class="info-box">
-        <h6><i class="bi bi-laptop me-1"></i> Device Info</h6>
-        <div class="info-row">
-            <span class="info-label">Device</span>
-            <span class="info-value">{{ repair.device_model }}</span>
+<div class="tk-wrap">
+
+    <!-- ================= PROGRESS ================= -->
+    <div class="progress-card">
+        <div class="progress-head">
+            <span class="lbl"><i class="bi bi-activity text-primary"></i> Repair Progress</span>
+            <span class="pct">{{ progress }}%</span>
         </div>
-        {% if repair.serial_number %}
-        <div class="info-row">
-            <span class="info-label">Serial #</span>
-            <span class="info-value">{{ repair.serial_number }}</span>
+        <div class="progress-rail">
+            <div class="progress-fill{% if repair.status == 'cancelled' %} cancelled{% endif %}" style="width: {{ progress }}%;"></div>
+        </div>
+        {% if repair.status != 'cancelled' %}
+        <div class="progress-steps">
+            <span>Received</span><span>Diagnosis</span><span>Repair</span><span>Ready</span><span>Delivered</span>
         </div>
         {% endif %}
-        <div class="info-row">
-            <span class="info-label">Customer</span>
-            <span class="info-value">{{ repair.customer.name }}</span>
+    </div>
+
+    <!-- ================= SUMMARY TILES ================= -->
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-grid-1x2-fill"></i> Overview</div>
+        <div class="tile-grid">
+            <div class="tile">
+                <div class="icon"><i class="bi bi-laptop"></i></div>
+                <div>
+                    <div class="t-k">Device</div>
+                    <div class="t-v">{{ repair.device_model|default:"—" }}</div>
+                </div>
+            </div>
+            <div class="tile">
+                <div class="icon" style="background:#e6f9fb;color:var(--tk-cyan);"><i class="bi bi-person"></i></div>
+                <div>
+                    <div class="t-k">Customer</div>
+                    <div class="t-v">{{ repair.customer.name }}</div>
+                </div>
+            </div>
+            <div class="tile">
+                <div class="icon" style="background:#fff4dd;color:var(--tk-amber);"><i class="bi bi-box-arrow-in-down"></i></div>
+                <div>
+                    <div class="t-k">Date In</div>
+                    <div class="t-v">{{ repair.date_in|date:"d M Y" }}</div>
+                </div>
+            </div>
+            <div class="tile">
+                <div class="icon" style="background:#eaf7ef;color:var(--tk-green);"><i class="bi bi-arrow-repeat"></i></div>
+                <div>
+                    <div class="t-k">Last Updated</div>
+                    <div class="t-v">{{ repair.updated_at|date:"d M Y, h:i A" }}</div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- TIMELINE -->
-    <div class="timeline">
-        <h6><i class="bi bi-clock-history me-1"></i> Progress Timeline</h6>
-
-        <!-- Submitted -->
-        <div class="timeline-step {% if repair.submitted_at %}done{% endif %}">
-            <div class="step-icon"><i class="bi bi-cloud-upload"></i></div>
-            <div class="step-info">
-                <p class="step-title">Submitted</p>
-                <p class="step-date">
-                    {% if repair.submitted_at %}{{ repair.submitted_at|date:"d M Y, H:i" }}{% else %}Pending{% endif %}
-                </p>
+    <!-- ================= JOB DETAILS ================= -->
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-clipboard2-pulse"></i> Job Details</div>
+        <div class="panel">
+            {% if repair.issue_description %}
+            <div class="mb-3">
+                <div class="t-k mb-1" style="font-size:.72rem;color:var(--tk-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Reported Issue</div>
+                <div class="issue-text">{{ repair.issue_description|linebreaksbr }}</div>
             </div>
+            {% endif %}
+            <div class="info-row"><span class="k">Serial / IMEI No.</span><span class="v">{{ repair.serial_number|default:"—" }}</span></div>
+            {% if repair.accessories %}
+            <div class="info-row"><span class="k">Accessories Given</span><span class="v">{{ repair.accessories }}</span></div>
+            {% endif %}
+            {% if repair.device_condition or repair.received_remarks %}
+            <div class="info-row"><span class="k">Condition on Receive</span><span class="v">{{ repair.device_condition|default:repair.received_remarks }}</span></div>
+            {% endif %}
+            {% if repair.received_at %}
+            <div class="info-row"><span class="k">Received On</span><span class="v">{{ repair.received_at|date:"d M Y" }}</span></div>
+            {% endif %}
         </div>
+    </div>
 
-        <!-- Received -->
-        <div class="timeline-step {% if repair.received_at %}done{% elif repair.status == 'pending' %}active{% endif %}">
-            <div class="step-icon"><i class="bi bi-box-arrow-in-down"></i></div>
-            <div class="step-info">
-                <p class="step-title">Received at Shop</p>
-                <p class="step-date">
-                    {% if repair.received_at %}
-                        {{ repair.received_at|date:"d M Y" }}
-                    {% else %}
-                        Awaiting device drop-off
+    <!-- ================= ESTIMATE ================= -->
+    {% if repair.estimated_cost %}
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-calculator"></i> Repair Estimate</div>
+        <div class="panel">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--tk-navy);">₹{{ repair.estimated_cost|floatformat:2 }}</div>
+                    <div style="font-size:.82rem;color:var(--tk-muted);">Estimated repair cost</div>
+                </div>
+                <div class="text-end">
+                    <span class="est-badge est-{{ repair.estimate_status }}">{{ repair.get_estimate_status_display }}</span>
+                    {% if repair.estimate_approved_at %}
+                    <div class="tl-time mt-1">Approved on {{ repair.estimate_approved_at|date:"d M Y, h:i A" }}</div>
                     {% endif %}
-                </p>
+                </div>
             </div>
-        </div>
-
-        <!-- Diagnosis -->
-        <div class="timeline-step {% if repair.status == 'diagnosis' or repair.status == 'repairing' or repair.status == 'ready' or repair.status == 'delivered' %}done{% elif repair.status == 'received' %}active{% endif %}">
-            <div class="step-icon"><i class="bi bi-search"></i></div>
-            <div class="step-info">
-                <p class="step-title">Under Diagnosis</p>
-                <p class="step-date">
-                    {% if repair.status == 'diagnosis' %}In Progress
-                    {% elif repair.status == 'repairing' or repair.status == 'ready' or repair.status == 'delivered' %}Completed
-                    {% else %}Pending{% endif %}
-                </p>
-            </div>
-        </div>
-
-        <!-- Repairing -->
-        <div class="timeline-step {% if repair.status == 'repairing' or repair.status == 'ready' or repair.status == 'delivered' %}done{% elif repair.status == 'diagnosis' %}active{% endif %}">
-            <div class="step-icon"><i class="bi bi-tools"></i></div>
-            <div class="step-info">
-                <p class="step-title">Under Repair</p>
-                <p class="step-date">
-                    {% if repair.status == 'repairing' %}In Progress
-                    {% elif repair.status == 'ready' or repair.status == 'delivered' %}Completed
-                    {% else %}Pending{% endif %}
-                </p>
-            </div>
-        </div>
-
-        <!-- Ready -->
-        <div class="timeline-step {% if repair.ready_at %}done{% elif repair.status == 'repairing' %}active{% endif %}">
-            <div class="step-icon"><i class="bi bi-check2-circle"></i></div>
-            <div class="step-info">
-                <p class="step-title">Ready for Delivery</p>
-                <p class="step-date">
-                    {% if repair.ready_at %}{{ repair.ready_at|date:"d M Y" }}{% else %}Pending{% endif %}
-                </p>
-            </div>
-        </div>
-
-        <!-- Delivered -->
-        <div class="timeline-step {% if repair.delivered_at %}done{% elif repair.status == 'ready' %}active{% endif %}">
-            <div class="step-icon"><i class="bi bi-truck"></i></div>
-            <div class="step-info">
-                <p class="step-title">Delivered</p>
-                <p class="step-date">
-                    {% if repair.delivered_at %}{{ repair.delivered_at|date:"d M Y, H:i" }}{% else %}Pending{% endif %}
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- AMOUNT (only if ready or delivered) -->
-    {% if repair.status == 'ready' or repair.status == 'delivered' %}
-    <div class="amount-box">
-        <div class="amount-row">
-            <span class="amount-label">Final Amount</span>
-            <span class="amount-value">₹{{ repair.final_amount|floatformat:2 }}</span>
         </div>
     </div>
     {% endif %}
 
-    <!-- CONTACT -->
-    <div class="contact-footer">
-        <div class="hint">Need help? Contact us:</div>
-        <div class="d-flex justify-content-center gap-2 flex-wrap">
-            {% if company.phone %}
-            <a href="tel:{{ company.phone }}" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-telephone"></i> {{ company.phone }}
-            </a>
+    <!-- ================= DIAGNOSIS ================= -->
+    {% if repair.diagnosis_report and repair.status != 'pending' and repair.status != 'received' %}
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-search"></i> Diagnosis Summary</div>
+        <div class="panel">
+            <div class="issue-text">{{ repair.diagnosis_report|linebreaksbr }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ================= TIMELINE ================= -->
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-clock-history"></i> Status Timeline</div>
+        <div class="panel">
+            <div class="timeline">
+                <div class="tl-item {% if repair.submitted_at %}done{% else %}pending-step{% endif %}">
+                    <span class="tl-dot"></span>
+                    <div class="tl-title">Request Submitted</div>
+                    <div class="tl-time">{% if repair.submitted_at %}{{ repair.submitted_at|date:"d M Y, h:i A" }}{% else %}Walk-in / created by staff{% endif %}</div>
+                </div>
+                <div class="tl-item {% if repair.received_at %}done{% elif repair.status == 'pending' %}active{% endif %}">
+                    <span class="tl-dot"></span>
+                    <div class="tl-title">Device Received at Shop</div>
+                    <div class="tl-time">{% if repair.received_at %}{{ repair.received_at|date:"d M Y" }}{% else %}Awaiting device drop-off{% endif %}</div>
+                </div>
+                <div class="tl-item {% if repair.status == 'diagnosis' %}active{% elif repair.received_at and repair.status != 'pending' and repair.status != 'cancelled' %}done{% elif repair.status == 'received' %}pending-step{% endif %}">
+                    <span class="tl-dot"></span>
+                    <div class="tl-title">Under Diagnosis</div>
+                    <div class="tl-time">{% if repair.status == 'diagnosis' %}In progress…{% elif repair.status == 'pending' or repair.status == 'received' or repair.status == 'cancelled' %}Pending{% else %}Completed{% endif %}</div>
+                </div>
+                <div class="tl-item {% if repair.status == 'repairing' %}active{% elif repair.status == 'ready' or repair.status == 'delivered' %}done{% endif %}">
+                    <span class="tl-dot"></span>
+                    <div class="tl-title">Repair in Progress</div>
+                    <div class="tl-time">{% if repair.status == 'repairing' %}Work in progress…{% elif repair.status == 'ready' or repair.status == 'delivered' %}Completed{% else %}Pending{% endif %}</div>
+                </div>
+                <div class="tl-item {% if repair.status == 'ready' %}active{% elif repair.ready_at or repair.delivered_at %}done{% endif %}">
+                    <span class="tl-dot"></span>
+                    <div class="tl-title">Ready for Pickup</div>
+                    <div class="tl-time">{% if repair.ready_at %}{{ repair.ready_at|date:"d M Y" }}{% else %}Pending{% endif %}</div>
+                </div>
+                <div class="tl-item {% if repair.status == 'delivered' and not repair.delivered_at %}active{% elif repair.delivered_at %}done{% endif %}">
+                    <span class="tl-dot"></span>
+                    <div class="tl-title">Delivered</div>
+                    <div class="tl-time">{% if repair.delivered_at %}{{ repair.delivered_at|date:"d M Y, h:i A" }}{% else %}Pending{% endif %}</div>
+                </div>
+                {% if repair.status == 'cancelled' %}
+                <div class="tl-item">
+                    <span class="tl-dot" style="border-color:var(--tk-red);background:var(--tk-red);"></span>
+                    <div class="tl-title" style="color:var(--tk-red);">Job Cancelled</div>
+                    <div class="tl-time">{{ repair.updated_at|date:"d M Y, h:i A" }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= COST BREAKDOWN ================= -->
+    {% if show_costs %}
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-receipt"></i> Cost Breakdown</div>
+        <div class="panel">
+            {% for part in repair.parts.all %}
+            <div class="line-row">
+                <div>
+                    <div class="lname"><i class="bi bi-cpu me-1" style="color:var(--tk-blue);"></i>{{ part.product.name }}</div>
+                    <div class="lsub">{{ part.quantity }} × ₹{{ part.unit_price|floatformat:2 }}</div>
+                </div>
+                <div class="lamt">₹{{ part.line_total|floatformat:2 }}</div>
+            </div>
+            {% endfor %}
+            {% for svc in repair.services.all %}
+            <div class="line-row">
+                <div>
+                    <div class="lname"><i class="bi bi-wrench-adjustable me-1" style="color:var(--tk-cyan);"></i>{{ svc.product.name }}</div>
+                    {% if svc.description %}<div class="lsub">{{ svc.description }}</div>{% endif %}
+                </div>
+                <div class="lamt">₹{{ svc.line_total|floatformat:2 }}</div>
+            </div>
+            {% endfor %}
+
+            {% if repair.invoice %}
+            <div class="line-total">
+                <span>Parts + Service Subtotal</span>
+                <span>₹{{ repair.final_amount|floatformat:2 }}</span>
+            </div>
+            {% if repair.invoice.tax_amount %}
+            <div class="line-row" style="border-bottom:none;">
+                <div class="lname">GST / Tax</div>
+                <div class="lamt">₹{{ repair.invoice.tax_amount|floatformat:2 }}</div>
+            </div>
             {% endif %}
-            {% if company.whatsapp_number %}
-            <a href="https://wa.me/{{ company.whatsapp_number }}" class="btn btn-sm btn-success" target="_blank">
-                <i class="bi bi-whatsapp"></i> WhatsApp
-            </a>
+            <div class="line-total grand">
+                <span>Total Payable</span>
+                <span>₹{{ repair.invoice.grand_total|floatformat:2 }}</span>
+            </div>
+            <div class="payment-strip">
+                <div class="pay-tile">
+                    <div class="k">Invoice</div>
+                    <div class="v" style="font-size:.85rem;">{{ repair.invoice.invoice_number }}</div>
+                </div>
+                <div class="pay-tile">
+                    <div class="k">Paid</div>
+                    <div class="v">₹{{ repair.invoice.paid_amount|floatformat:2 }}</div>
+                </div>
+                <div class="pay-tile">
+                    <div class="k">Balance Due</div>
+                    <div class="v">₹{{ repair.invoice.balance_due|floatformat:2 }}</div>
+                </div>
+                <div class="pay-tile">
+                    <div class="k">Payment</div>
+                    <div class="v"><span class="pay-badge pay-{{ repair.invoice.payment_status }}">{{ repair.invoice.get_payment_status_display }}</span></div>
+                </div>
+            </div>
+            {% else %}
+            <div class="line-total grand">
+                <span>Total (Parts + Service)</span>
+                <span>₹{{ repair.final_amount|floatformat:2 }}</span>
+            </div>
             {% endif %}
         </div>
     </div>
-</div>
+    {% endif %}
 
-<div class="bottom-note">
-    <i class="bi bi-shield-check"></i> Secure tracking link · Valid for 90 days · No login required
+    <!-- ================= DELIVERY ================= -->
+    {% if repair.delivered_at %}
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-truck"></i> Delivery</div>
+        <div class="panel">
+            <div class="info-row"><span class="k">Delivered To</span><span class="v">{{ repair.delivered_to_name|default:"Customer" }}</span></div>
+            <div class="info-row"><span class="k">Delivered On</span><span class="v">{{ repair.delivered_at|date:"d M Y, h:i A" }}</span></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ================= FOOTER ================= -->
+    <div class="tk-footer">
+        <div class="f-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        {% if company.address %}<div class="f-addr">{{ company.address }}</div>{% endif %}
+        <div>
+            {% if company.phone %}
+            <a class="btn-ghost btn-solid" href="tel:{{ company.phone }}"><i class="bi bi-telephone-fill"></i> {{ company.phone }}</a>
+            {% endif %}
+            {% if company.whatsapp_number %}
+            <a class="btn-ghost" href="https://wa.me/{{ company.whatsapp_number }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bottom-note">
+        <i class="bi bi-shield-check"></i> Secure tracking link · Valid for 90 days · No login required &nbsp;·&nbsp; <a href="/">Back to website</a>
+    </div>
 </div>
 
 </body>
