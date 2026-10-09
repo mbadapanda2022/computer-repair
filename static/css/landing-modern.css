@@ -1442,3 +1442,146 @@ html.no-reveal-js .reveal {
     .track-info-side { padding: 30px 24px; }
     .track-submit-btn { width: 100%; }
 }
+
+/* ================================================================
+   15. PROFESSIONAL DENSITY REFINEMENT
+   Laptop screens pe typography kaafi badi aur spacing dhaali-dhaali
+   lagti thi — ye section type scale, padding aur colours ko calmer,
+   tighter aur corporate banata hai. Mobile sizes intentionally
+   untouched hain (min-width: 992px ke andar hi apply hota hai).
+   ================================================================ */
+
+/* --- Colour polish: calmer neutrals, solid corporate navy bands --- */
+:root {
+    --lp-gradient-soft: linear-gradient(180deg, #f7f9fc 0%, #f0f4f9 100%);
+    --lp-gradient-navy: linear-gradient(125deg, #0a1f3c 0%, #10294d 60%, #143a6b 100%);
+}
+.stats-band,
+.cta-band {
+    background: var(--lp-gradient-navy);
+}
+.hero-modern::before {
+    background-image:
+        radial-gradient(circle at 82% 18%, rgba(77, 148, 240, 0.20), transparent 42%),
+        radial-gradient(circle at 8% 88%, rgba(34, 184, 207, 0.10), transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+}
+.section-heading::after {
+    width: 54px;
+    height: 4px;
+    margin-top: 0.65rem;
+}
+
+/* --- Global component trims (affect desktop via clamp caps) --- */
+.hero-visual { max-width: 500px; }
+.hero-badge-card {
+    bottom: -16px;
+    left: -12px;
+    padding: 0.7rem 1rem;
+    gap: 0.65rem;
+}
+.hero-badge-card .icon-wrap {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    font-size: 1.1rem;
+}
+.hero-badge-card strong { font-size: 0.95rem; }
+.hero-badge-card small { font-size: 0.75rem; }
+.feature-card .feature-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    font-size: 1.4rem;
+    margin-bottom: 0.85rem;
+}
+.testimonial-card::before {
+    font-size: 3.4rem;
+    width: 42px;
+    height: 42px;
+    top: -11px;
+    right: 14px;
+}
+.testimonial-card .avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 1.05rem;
+}
+#servicesCarousel .service-icon {
+    width: 84px;
+    height: 84px;
+    font-size: 2.2rem;
+    margin-bottom: 0.9rem;
+}
+.public-footer .footer-about { font-size: 0.88rem; line-height: 1.65; }
+.public-footer .footer-contact li { font-size: 0.86rem; margin-bottom: 0.55rem; }
+.public-footer .footer-links a { font-size: 0.88rem; }
+.social-btn { width: 36px; height: 36px; border-radius: 10px; font-size: 1rem; }
+.public-footer h5, .public-footer h6 { margin-bottom: 0.8rem; }
+.public-footer .footer-heading-rule { margin: -0.4rem 0 0.8rem; }
+.public-footer .footer-bottom { margin-top: 1.6rem; padding-top: 1.1rem; font-size: 0.82rem; }
+.public-navbar .brand-mark { width: 34px; height: 34px; border-radius: 10px; font-size: 1.05rem; }
+.public-navbar .navbar-brand { font-size: 1.15rem !important; }
+.public-navbar .nav-link { font-size: 0.88rem; padding: 0.45rem 0.8rem; }
+.theme-toggle-btn { width: 34px; height: 34px; font-size: 0.95rem; }
+
+/* Template utility spacing — tighten landing sections without touching HTML */
+main section.pb-5 { padding-bottom: 2.4rem !important; }
+.public-footer.pt-5 { padding-top: 2.6rem !important; }
+.public-footer.pb-4 { padding-bottom: 1.4rem !important; }
+.lp-section .mb-5 { margin-bottom: 2.4rem !important; }
+
+/* --- Desktop density (laptop / large screens only) --- */
+@media (min-width: 992px) {
+    html { font-size: 93.75%; }        /* 15px base — calmer type rhythm */
+
+    .hero-modern { padding: 3.4rem 0 4.3rem; }
+    .hero-modern::after { height: 44px; border-radius: 100% 100% 0 0 / 44px 44px 0 0; }
+    .hero-eyebrow { font-size: 0.76rem; padding: 0.3rem 0.95rem; margin-bottom: 1rem; }
+    .hero-title { font-size: clamp(1.9rem, 1.55rem + 1.1vw, 2.55rem); margin-bottom: 0.85rem; }
+    .hero-sub { font-size: 0.98rem; line-height: 1.6; max-width: 30rem; margin-bottom: 1.5rem; }
+    .btn-hero-primary,
+    .btn-hero-ghost { padding: 0.66rem 1.7rem; font-size: 0.93rem; }
+    .hero-trust { margin-top: 1.5rem; font-size: 0.84rem; gap: 0.5rem 1.1rem; }
+
+    .lp-section { padding: 3.2rem 0; }
+    .section-eyebrow { font-size: 0.7rem; padding: 0.26rem 0.85rem; margin-bottom: 0.7rem; }
+    .section-heading { font-size: clamp(1.45rem, 1.2rem + 0.85vw, 1.85rem); margin-bottom: 0.55rem; }
+    .section-lede { font-size: 0.92rem; }
+
+    .stats-band { padding: 1.9rem 1.25rem; }
+    .stat-tile .stat-number { font-size: clamp(1.55rem, 1.25rem + 1vw, 2.05rem); }
+    .stat-tile .stat-label { font-size: 0.83rem; margin-top: 0.25rem; }
+
+    .feature-card { padding: 1.35rem 1.1rem; }
+    .feature-card h5 { font-size: 0.96rem; }
+    .feature-card p { font-size: 0.85rem; line-height: 1.55; }
+
+    #servicesCarousel { padding-bottom: 2.8rem; }
+    #servicesCarousel .card-body { padding: 1.3rem 1.2rem; }
+
+    .testimonial-card { padding: 1.25rem 1.2rem 1.05rem; }
+    .testimonial-card .review-text { font-size: 0.88rem; line-height: 1.62; }
+    .testimonial-card .customer-name { font-size: 0.92rem; }
+    .testimonial-card .stars { font-size: 0.9rem; }
+
+    #faqAccordion .accordion-button { padding: 0.85rem 1.15rem; font-size: 0.93rem; }
+    #faqAccordion .accordion-body { padding: 0.15rem 1.15rem 0.95rem; line-height: 1.6; font-size: 0.9rem; }
+    #faqAccordion .accordion-item { margin-bottom: 0.7rem; }
+
+    .contact-panel .panel-head { padding: 1rem 1.35rem; }
+    .contact-panel .card-body,
+    .contact-panel .panel-body { padding: 1.4rem; }
+    .map-frame,
+    .map-frame iframe,
+    .map-frame embed,
+    .map-frame object { min-height: 330px; }
+    .btn-send-message { padding: 0.65rem 1.4rem; font-size: 0.92rem; }
+
+    .cta-band { padding: 2rem 1.6rem; }
+    .cta-band h2 { font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.7rem); }
+
+    .track-form-side { padding: 30px 32px; }
+    .track-info-side { padding: 30px 28px; }
+}
