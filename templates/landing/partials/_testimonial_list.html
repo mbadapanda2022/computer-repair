@@ -59,4 +59,16 @@
         <p>No testimonials yet. Add some!</p>
     </div>
     {% endfor %}
+
+    <!-- Google Review CTA after Contact Form -->
+    {% if company.google_review_link %}
+        <div class="text-center mt-5 reveal">
+            <a href="{{ company.google_review_link }}"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="btn-google-review text-decoration-none d-inline-flex align-items-center gap-2">
+                <i class="bi bi-google me-2" aria-hidden="true"></i>Rate us on Google
+            </a>
+        </div>
+    {% endif %}
 </div>

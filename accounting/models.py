@@ -2336,6 +2336,40 @@ class RepairJob(SoftDeleteModel):
         """Convenience flag for templates."""
         return self.invoice_id is not None
 
+    def tracking_share_content(self, tracking_url):
+        """(whatsapp_url, plain_message) with job info + tracking link."""
+        from urllib.parse import quote
+
+        parts = [
+            f"Hello {self.customer.name}," if self.customer and self.customer.name else "Hello,",
+            f"Your device repair is being tracked by {CompanyProfile.get_instance().name}.",
+            f"Job Number: {self.job_number}",
+            f"Device: {self.device_model}" if self.device_model else None,
+            f"Current Status: {self.get_status_display()}",
+            f"Date In: {self.date_in.strftime('%d %b %Y')}" if self.date_in else None,
+        ]
+        if self.status in ('ready', 'delivered') and self.final_amount:
+            parts.append(f"Total Amount: Rs.{self.display_amount:.2f}")
+        elif self.estimated_cost:
+            parts.append(f"Estimated Cost: Rs.{self.estimated_cost:.2f} ({self.get_estimate_status_display()})")
+        parts += [
+            "Tap the link below to see live status, timeline and payment details (no login required, valid for 90 days):",
+            tracking_url,
+        ]
+        text = "\n".join(p for p in parts if p)
+        url = f"https://wa.me/{self.customer_whatsapp_target}?text={quote(text)}"
+        return url, text
+
+    @property
+    def customer_whatsapp_target(self):
+        """wa.me number for the customer (91-prefixed 10-digit)."""
+        if not self.customer or not self.customer.phone:
+            return ''
+        digits = ''.join(filter(str.isdigit, str(self.customer.phone)))
+        if len(digits) == 10:
+            return '91' + digits
+        return digits if len(digits) > 10 else ''
+
     @property
     def can_be_invoiced(self):
         return not self.invoice and self.status in ('ready', 'delivered')

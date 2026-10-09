@@ -869,17 +869,21 @@
                     <label class="form-label fw-semibold small">Tracking URL:</label>
                     <div class="input-group">
                         <input type="text" class="form-control" id="trackingUrlInput"
-                               value="{{ request.scheme }}://{{ request.get_host }}{% url 'tracking:repair_track' track_token %}"
+                               value="{{ track_url }}"
                                readonly>
                         <button class="btn btn-success" type="button" onclick="copyTrackingUrl()">
                             <i class="bi bi-clipboard"></i> Copy
                         </button>
                     </div>
                 </div>
-                {% if job.customer.phone %}
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Message the customer will receive:</label>
+                    <div class="border rounded p-2 bg-light small text-muted" style="white-space:pre-wrap; max-height:180px; overflow:auto;">{{ track_share_message }}</div>
+                </div>
+                {% if job.customer_whatsapp_target %}
                 <div class="d-grid">
-                    <a href="https://wa.me/91{{ job.customer.phone }}?text={{ 'Your repair tracking link: '|urlencode }}{{ request.scheme }}://{{ request.get_host }}{% url 'tracking:repair_track' track_token %}"
-                       target="_blank" class="btn btn-success">
+                    <a href="{{ track_whatsapp_url }}"
+                       target="_blank" rel="noopener" class="btn btn-success">
                         <i class="bi bi-whatsapp"></i> Send via WhatsApp to {{ job.customer.name }}
                     </a>
                 </div>

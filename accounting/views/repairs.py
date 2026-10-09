@@ -788,8 +788,10 @@ def repair_detail(request, pk):
             is_deleted=False,
         ).exists()
 
-    from ..utils.tracking import generate_tracking_token
+    from ..utils.tracking import generate_tracking_token, generate_tracking_url
     track_token = generate_tracking_token(job)
+    track_url = generate_tracking_url(job, request)
+    track_whatsapp_url, track_share_message = job.tracking_share_content(track_url)
 
     context = {
         'job': job,
@@ -818,6 +820,9 @@ def repair_detail(request, pk):
 
         'invoice_has_physical_parts': invoice_has_physical_parts,
         'track_token': track_token,
+        'track_url': track_url,
+        'track_whatsapp_url': track_whatsapp_url,
+        'track_share_message': track_share_message,
     }
     return render(request, 'repairs/repair_detail.html', context)
 

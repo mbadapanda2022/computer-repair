@@ -9,6 +9,7 @@ hai — registered ho ya staff-created contact, dono case cover hote hain.
 """
 from __future__ import annotations
 
+from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
 
 from django.test import Client, TestCase, override_settings
@@ -103,3 +104,35 @@ class RepairLookupTests(TestCase):
         r = self.lookup(self.job.job_number, self.phone)
         self.assertEqual(r.status_code, 302)
         self.assertIn('Too many attempts', self.params(r).get('err', [''])[0])
+
+
+class TrackingShareMessageTests(TestCase):
+    """WhatsApp share bhejta hai info + link, sirf nanga link nahi."""
+
+    def setUp(self):
+        self.customer = Contact.objects.create(
+            contact_type='customer', name='Share Test', phone='9876543210',
+        )
+        self.job = RepairJob.objects.create(
+            customer=self.customer, device_model='Dell Inspiron',
+            issue_description='Not powering on', status='repairing',
+        )
+
+    def test_message_contains_job_info_and_link(self):
+        url, text = self.job.tracking_share_content('http://example.com/track/abc/')
+        for expected in [self.job.job_number, 'Dell Inspiron', 'Under Repair',
+                         'Share Test', 'http://example.com/track/abc/']:
+            self.assertIn(expected, text)
+        self.assertTrue(url.startswith('https://wa.me/919876543210?text='))
+
+    def test_ready_job_includes_amount(self):
+        self.job.status = 'ready'
+        self.job.final_amount = Decimal('2450.00')
+        _, text = self.job.tracking_share_content('http://example.com/track/abc/')
+        self.assertIn('Rs.2450.00', text)
+
+    def test_estimate_included_when_no_final_amount(self):
+        self.job.estimated_cost = Decimal('1500.00')
+        self.job.estimate_status = 'approved'
+        _, text = self.job.tracking_share_content('http://x/')
+        self.assertIn('Estimated Cost: Rs.1500.00 (Approved)', text)
