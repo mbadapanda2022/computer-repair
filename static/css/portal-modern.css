@@ -856,3 +856,100 @@ body {
         margin-inline: auto;
     }
 }
+
+/* ================================================================
+   12. PROFESSIONAL DENSITY REFINEMENT (desktop ≥992px only)
+    Staff + customer portals: tighter type scale, compact spacing,
+    no more "big and empty" look on laptop screens.
+    Mobile (≤767.98px) and collapsed-sidebar behavior untouched.
+   ================================================================ */
+@media (min-width: 992px) {
+    html {
+        font-size: 93.75%; /* 15px base — subtle scale-down, keeps rem ratios */
+    }
+
+    /* Page header */
+    .page-head { margin-bottom: 1.05rem; }
+    .page-title { font-size: 1.22rem; }
+    .page-title .title-chip { width: 34px; height: 34px; font-size: 1rem; border-radius: 10px; }
+    .page-sub { font-size: 0.82rem; margin-left: 2.75rem; }
+
+    /* Topbar */
+    .app-topbar { padding: 0.45rem 0.9rem; }
+    .icon-btn { width: 35px; height: 35px; font-size: 0.98rem; }
+    .user-chip { font-size: 0.82rem; padding: 0.26rem 0.75rem 0.26rem 0.3rem; }
+    .user-chip .chip-avatar { width: 28px; height: 28px; font-size: 0.8rem; }
+    .notif-badge { top: -5px; right: -5px; min-width: 17px; height: 17px; font-size: 0.62rem; }
+
+    /* Sidebar */
+    .app-brand { padding: 0.85rem 0.85rem 0.75rem; }
+    .app-brand .brand-logo { width: 32px; height: 32px; font-size: 1.02rem; border-radius: 9px; }
+    .app-brand .brand-text { font-size: 0.9rem; }
+    .nav-section-label { padding: 0.9rem 1.15rem 0.32rem; font-size: 0.63rem; }
+    #sidebar .nav-link,
+    #customer-sidebar .nav-link {
+        font-size: 0.855rem;
+        padding: 0.46rem 0.65rem;
+        margin: 0.1rem 0.55rem;
+    }
+    #sidebar .nav-link i,
+    #customer-sidebar .nav-link i { width: 22px; font-size: 0.97rem; }
+    #sidebar .sub-link,
+    #customer-sidebar .sub-link { font-size: 0.8rem; padding: 0.33rem 0.65rem; }
+    .sidebar-toggle-btn { width: 29px; height: 29px; }
+    .sidebar-user-card { margin: 0.9rem 0.55rem 0.75rem; padding: 0.65rem 0.75rem; gap: 0.6rem; }
+    .sidebar-user-card .user-avatar { width: 33px; height: 33px; font-size: 0.88rem; }
+    .sidebar-user-card .user-name { font-size: 0.8rem; }
+    .sidebar-user-card .user-role { font-size: 0.65rem; }
+
+    /* Cards & layout rhythm */
+    #page-content-wrapper .card { margin-bottom: 1rem; }
+    #page-content-wrapper .card > .card-header { padding: 0.7rem 1rem; font-size: 0.92rem; }
+    #page-content-wrapper .card > .card-body { padding: 1rem 1.1rem; }
+
+    /* KPI stat cards */
+    .stat-card { padding: 0.95rem 1.05rem; gap: 0.85rem; }
+    .stat-card .stat-icon { width: 44px; height: 44px; border-radius: 13px; font-size: 1.2rem; }
+    .stat-card .stat-label { font-size: 0.7rem; }
+    .stat-card .stat-value { font-size: 1.15rem; }
+    .stat-card .stat-foot { font-size: 0.72rem; }
+
+    /* Quick actions */
+    .quick-action { min-height: 84px; font-size: 0.8rem; padding: 0.7rem 0.45rem; gap: 0.4rem; }
+    .quick-action i { font-size: 1.25rem; }
+
+    /* Tables */
+    #page-content-wrapper .table > :not(caption) > * > * { padding: 0.55rem 0.75rem; }
+    #page-content-wrapper .table { font-size: 0.875rem; }
+    .table > thead th,
+    .table > thead td { font-size: 0.7rem; }
+    .badge { font-size: 0.7rem; padding: 0.35em 0.75em; }
+
+    /* Forms & buttons */
+    .form-label { font-size: 0.8rem; margin-bottom: 0.3rem; }
+    .form-control,
+    .form-select { padding: 0.5rem 0.72rem; font-size: 0.875rem; }
+    #page-content-wrapper .btn:not(.btn-sm):not(.btn-lg):not(.icon-btn):not(.quick-action) {
+        font-size: 0.85rem;
+        padding: 0.45rem 0.95rem;
+    }
+    .dropdown-menu { font-size: 0.86rem; padding: 0.3rem; }
+    .dropdown-item { padding: 0.4rem 0.65rem; }
+
+    /* Modals */
+    .modal-header { padding: 0.85rem 1.15rem; }
+    .modal-title { font-size: 1.05rem; }
+    .modal-body { padding: 1.05rem 1.15rem; }
+    .modal-footer { padding: 0.7rem 1.15rem; }
+
+    /* Auth pages (login / register / OTP / reset) */
+    .auth-shell { padding: 1.4rem 1rem; }
+    .auth-card { max-width: 420px; }
+    .auth-card .auth-head { padding: 1.4rem 1.3rem 1.25rem; }
+    .auth-card .auth-head .auth-logo { width: 48px; height: 48px; border-radius: 14px; font-size: 1.4rem; margin-bottom: 0.7rem; }
+    .auth-card .auth-head h1 { font-size: 1.2rem; }
+    .auth-card .auth-head p { font-size: 0.85rem; }
+    .auth-card .auth-body { padding: 1.5rem 1.6rem 1.3rem; }
+    .auth-card .btn-auth { font-size: 0.95rem; padding: 0.7rem; }
+    .auth-card .auth-foot { font-size: 0.84rem; padding: 0 1.6rem 1.3rem; }
+}
