@@ -22,6 +22,35 @@ fi
 echo "→ Running migrations..."
 python manage.py migrate --no-input --verbosity 2
 
+
+echo "→ Running migrations..."
+python manage.py migrate --no-input --verbosity 2
+
+# ⬇⬇⬇ YE NAYA SECTION ADD KARO ⬇⬇⬇
+echo "→ Verifying blog tables..."
+python manage.py shell -c "
+from accounting.models import BlogCategory, BlogPost, BlogTag, BlogComment
+print('BlogCategory:', BlogCategory.objects.count())
+print('BlogPost:', BlogPost.objects.count())
+print('BlogTag:', BlogTag.objects.count())
+print('BlogComment:', BlogComment.objects.count())
+"
+
+echo "→ Verifying existing data integrity..."
+python manage.py shell -c "
+from accounting.models import Contact, Invoice, Purchase, RepairJob, Payment
+print('Contacts:', Contact.objects.count())
+print('Invoices:', Invoice.objects.count())
+print('Purchases:', Purchase.objects.count())
+print('Repairs:', RepairJob.objects.count())
+print('Payments:', Payment.objects.count())
+"
+# ⬆⬆⬆ NAYA SECTION KHATAM ⬆⬆⬆
+
+echo "→ Creating cache table..."
+python manage.py createcachetable
+# ... baaki build.sh waise hi rahega ...
+
 echo "→ Creating cache table..."
 python manage.py createcachetable
 
