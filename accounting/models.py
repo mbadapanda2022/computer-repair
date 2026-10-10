@@ -1,5 +1,7 @@
 # accounting/models.py
-
+import re
+from django.utils.text import slugify
+from django_ckeditor_5.fields import CKEditor5Field
 from decimal import Decimal
 import json
 import logging
@@ -14,7 +16,6 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
-
 from django.utils import timezone
 def to_aware_datetime(value):
     """
@@ -3618,7 +3619,253 @@ class EmailOTP(models.Model):
 
     def is_valid(self):
         return not self.is_used and timezone.now() <= self.expires_at
+    
+# =========================================================
+# My Persional blog 
+# ========================================================
 
+# ── Helper: collision-free slug generator ───────────────────
+def _unique_slug(instance, value, slug_field='slug', max_length=220):
+    """
+    URL-safe unique slug banata hai.
+
+    - Slugify karta hai value ko
+    - Collision par -2, -3 ... suffix lagata hai
+    - Soft-deleted rows bhi count karta hai (all_objects)
+      taaki restore ke waqt slug clash na ho
+    """
+    base = slugify(value)[:max_length] or 'item'
+    slug = base
+    Model = instance.__class__
+    qs = Model.all_objects.exclude(pk=instance.pk)
+    i = 2
+    while qs.filter(**{slug_field: slug}).exists():
+        suffix = f"-{i}"
+        slug = f"{base[:max_length - len(suffix)]}{suffix}"
+        i += 1
+    return slug
+
+
+# ============================================================
+# BLOG CATEGORY
+# ============================================================
+
+class BlogCategory(SoftDeleteModel):
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=120, unique=True, blank=True)
+    order = models.PositiveIntegerField(default=0, help_text="Lower = earlier in lists")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['order', 'name']
+        verbose_name = "Blog Category"
+        verbose_name_plural = "Blog Categories"
+        indexes = [models.Index(fields=['is_active', 'order'])]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _unique_slug(self, self.name, max_length=120)
+        super().save(*args, **kwargs)
+
+
+# ============================================================
+# BLOG TAG
+# ============================================================
+
+class BlogTag(SoftDeleteModel):
+    name = models.CharField(max_length=60, unique=True)
+    slug = models.SlugField(max_length=80, unique=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Blog Tag"
+        verbose_name_plural = "Blog Tags"
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = _unique_slug(self, self.name, max_length=80)
+        super().save(*args, **kwargs)
+
+
+# ============================================================
+# BLOG POST
+# ============================================================
+
+class BlogPostQuerySet(SoftDeleteQuerySet):
+    """Custom queryset — `.published()` shortcut ke saath."""
+
+    def published(self):
+        return self.filter(
+            is_deleted=False,
+            status='published',
+            published_at__lte=timezone.now(),
+        )
+
+    def featured(self):
+        return self.published().filter(is_featured=True)
+
+
+class BlogPostManager(SoftDeleteManager):
+    def get_queryset(self):
+        return BlogPostQuerySet(self.model, using=self._db).filter(is_deleted=False)
+
+    def published(self):
+        return self.get_queryset().published()
+
+    def featured(self):
+        return self.get_queryset().featured()
+
+
+class BlogPost(SoftDeleteModel):
+    STATUS_CHOICES = (
+        ('draft',     'Draft'),
+        ('scheduled', 'Scheduled'),
+        ('published', 'Published'),
+    )
+
+    # ── Identity ──
+    title = models.CharField(max_length=250)
+    slug = models.SlugField(max_length=280, unique=True, blank=True, db_index=True)
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='blog_posts',
+    )
+    category = models.ForeignKey(
+        BlogCategory,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='posts',
+    )
+    tags = models.ManyToManyField(BlogTag, blank=True, related_name='posts')
+
+    # ── Content ──
+    excerpt = models.TextField(
+        max_length=500, blank=True,
+        help_text="List page ka short summary (khali chodo to body se auto-trim).",
+    )
+    # ⬇⬇⬇  FREE RICH-TEXT EDITOR  ⬇⬇⬇
+    body = CKEditor5Field(
+        'Body',
+        config_name='extends',
+        help_text="Rich text — headings, lists, links, images, tables, code.",
+    )
+    cover_image = models.ImageField(
+        upload_to='blog/covers/', blank=True, null=True,
+    )
+
+    # ── Publication ──
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    published_at = models.DateTimeField(
+        null=True, blank=True, db_index=True,
+        help_text="Auto-set when status → published. Back-date allowed.",
+    )
+    is_featured = models.BooleanField(default=False, db_index=True)
+
+    # ── Metrics ──
+    views = models.PositiveIntegerField(default=0, editable=False)
+    reading_time = models.PositiveIntegerField(
+        default=0, editable=False,
+        help_text="Estimated reading time (minutes), auto-computed @200 wpm.",
+    )
+
+    # ── SEO ──
+    meta_title = models.CharField(max_length=70, blank=True)
+    meta_description = models.CharField(max_length=160, blank=True)
+    meta_keywords = models.CharField(max_length=200, blank=True)
+    canonical_url = models.URLField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = BlogPostManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        ordering = ['-published_at', '-created_at']
+        verbose_name = "Blog Post"
+        verbose_name_plural = "Blog Posts"
+        indexes = [
+            models.Index(fields=['status', 'published_at']),
+            models.Index(fields=['slug']),
+            models.Index(fields=['is_featured', 'status']),
+            models.Index(fields=['category', 'status']),
+        ]
+
+    def __str__(self):
+        return self.title
+
+    # ────────────────────────────────────────────────────────
+    # SAVE — auto-slug, excerpt, reading-time, publish-date
+    # ────────────────────────────────────────────────────────
+    def save(self, *args, **kwargs):
+        # 1. Slug (title change par bhi regenerate nahi karte — SEO stable)
+        if not self.slug:
+            self.slug = _unique_slug(self, self.title, max_length=280)
+
+        # 2. Plain-text nikalo HTML body se (excerpt + reading time ke liye)
+        plain = ''
+        if self.body:
+            plain = re.sub(r'<[^>]+>', ' ', self.body)
+            plain = re.sub(r'\s+', ' ', plain).strip()
+
+        # 3. Auto-excerpt
+        if not self.excerpt and plain:
+            self.excerpt = plain[:300]
+
+        # 4. Reading time (~200 words/minute)
+        if plain:
+            words = len(plain.split())
+            self.reading_time = max(1, round(words / 200))
+
+        # 5. Auto publish date
+        if self.status == 'published' and not self.published_at:
+            self.published_at = timezone.now()
+
+        super().save(*args, **kwargs)
+
+    # ────────────────────────────────────────────────────────
+    # HELPERS
+    # ────────────────────────────────────────────────────────
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse('blog:post_detail', kwargs={'slug': self.slug})
+
+    @property
+    def is_published(self):
+        return (
+            self.status == 'published'
+            and self.published_at is not None
+            and self.published_at <= timezone.now()
+        )
+
+    def increment_views(self):
+        """Race-safe view counter (SQL F() expression use karta hai)."""
+        BlogPost.objects.filter(pk=self.pk).update(views=F('views') + 1)
+        self.views = (self.views or 0) + 1
+
+    @property
+    def effective_meta_title(self):
+        return self.meta_title or self.title[:70]
+
+    @property
+    def effective_meta_description(self):
+        if self.meta_description:
+            return self.meta_description
+        return (self.excerpt or '')[:160]
+
+
+
+    
 
 # ============================================================
 # 16. SIGNALS (Opening Balance, User Prefs, Contact Balance)

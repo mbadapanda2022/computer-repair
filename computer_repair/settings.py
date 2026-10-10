@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django_eventstream',
     'django_cleanup.apps.CleanupConfig',
     'anymail',
+    'django_ckeditor_5',
     'accounting.apps.AccountingConfig',
 ]
 
@@ -251,6 +252,37 @@ else:
         }
         MEDIA_URL = '/media/'
         MEDIA_ROOT = BASE_DIR / 'media'
+        
+        
+# Editor config — sane defaults
+CKEDITOR_5_CONFIGS = {
+    'default': {
+        'toolbar': ['heading', '|', 'bold', 'italic', 'link',
+                    'bulletedList', 'numberedList', 'blockQuote', 'imageUpload'],
+    },
+    'extends': {
+        'blockToolbar': ['paragraph', 'heading1', 'heading2', 'heading3',
+                         '|', 'bulletedList', 'numberedList'],
+        'toolbar': [
+            'heading', '|', 'outdent', 'indent', '|',
+            'bold', 'italic', 'underline', 'strikethrough', 'code', '|',
+            'link', 'bulletedList', 'numberedList', 'todoList',
+            'insertTable', 'blockQuote', 'codeBlock', '|',
+            'imageUpload', 'mediaEmbed', '|',
+            'undo', 'redo',
+        ],
+        'image': {
+            'toolbar': ['imageTextAlternative', 'imageStyle:inline',
+                        'imageStyle:block', 'imageStyle:side'],
+        },
+        'table': {
+            'contentToolbar': ['tableColumn', 'tableRow', 'mergeTableCells'],
+        },
+        'height': '500px',
+    },
+}
+CKEDITOR_5_FILE_STORAGE = "django.core.files.storage.default_storage"
+CKEDITOR_5_UPLOAD_FILE_TYPES = ['jpg', 'jpeg', 'png', 'gif', 'webp']
 
 WHITENOISE_MANIFEST_STRICT = False
 

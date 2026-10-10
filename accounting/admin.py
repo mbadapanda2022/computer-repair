@@ -6,7 +6,7 @@ from django.db.models import Sum, Count
 from django.contrib import messages
 from django.utils import timezone
 from decimal import Decimal
-
+from django.utils.html import format_html
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin
 from .models import (
@@ -17,8 +17,8 @@ from .models import (
     Notification, NotificationPreference, ContactMessage, 
     FAQ, Testimonial, Service, EmailOTP,
     BankAccount, BankTransaction, PaymentAllocation, AdvanceAdjustment,
-    Account, AccountGroup, AuditLog,
-    RepairStatusLog,
+    Account, AccountGroup, AuditLog, RepairStatusLog, 
+    BlogCategory, BlogTag, BlogPost
 )
 
 from .models import sync_invoice_ledger
@@ -1251,3 +1251,51 @@ class AuditLogAdmin(admin.ModelAdmin):
         except Exception:
             return str(obj.changes)
     
+
+
+@admin.register(BlogCategory)
+class BlogCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'order', 'is_active', 'is_deleted')
+    list_filter = ('is_active', 'is_deleted')
+    search_fields = ('name',)
+    prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(BlogTag)
+class BlogTagAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug')
+    search_fields = ('name',)
+    prepopulated_fields = {'slug': ('name',)}
+
+
+@admin.register(BlogPost)
+class BlogPostAdmin(admin.ModelAdmin):
+    list_display = ('title', 'author', 'category', 'status',
+                    'published_at', 'views', 'reading_time', 'is_featured')
+    list_filter = ('status', 'is_featured', 'category', 'tags', 'is_deleted')
+    search_fields = ('title', 'excerpt', 'body')
+    prepopulated_fields = {'slug': ('title',)}
+    date_hierarchy = 'published_at'
+    filter_horizontal = ('tags',)
+    readonly_fields = ('views', 'reading_time', 'created_at', 'updated_at')
+    fieldsets = (
+        ('Identity', {
+            'fields': ('title', 'slug', 'author', 'category', 'tags')
+        }),
+        ('Content', {
+            'fields': ('excerpt', 'body', 'cover_image')
+        }),
+        ('Publication', {
+            'fields': ('status', 'published_at', 'is_featured')
+        }),
+        ('SEO', {
+            'classes': ('collapse',),
+            'fields': ('meta_title', 'meta_description',
+                       'meta_keywords', 'canonical_url'),
+        }),
+        ('Metrics', {
+            'classes': ('collapse',),
+            'fields': ('views', 'reading_time', 'created_at', 'updated_at'),
+        }),
+    )
+

@@ -17,6 +17,9 @@ from django.utils import timezone
 from .models import (
     BankAccount,
     BankTransaction,
+    BlogCategory,
+    BlogPost,
+    BlogTag,
     CompanyProfile,
     Contact,
     ContactMessage,
@@ -1985,3 +1988,52 @@ class EmailChangeRequestForm(forms.Form):
                 "This is your current email. Please enter a different email."
             )
         return email
+    
+    
+# ============================================================
+# 14. BLOG FORMS
+# ------------------------------------------------------------
+
+# ============================================================
+# Blog LIST filter form (HTMX-powered, blog list page ke liye)
+# ============================================================
+class BlogPostFilterForm(forms.Form):
+    """
+    Search + category + tag filter for the blog list page.
+    HTMX `keyup changed delay:500ms` se live-filter hota hai.
+    """
+    search = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search posts…',
+            'hx-get': reverse_lazy('blog:post_list'),
+            'hx-trigger': 'keyup changed delay:500ms',
+            'hx-target': '#blog-list',
+            'hx-include': '#blog-filter',
+        }),
+    )
+    category = forms.ModelChoiceField(
+        queryset=BlogCategory.objects.filter(is_active=True),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'hx-get': reverse_lazy('blog:post_list'),
+            'hx-trigger': 'change',
+            'hx-target': '#blog-list',
+            'hx-include': '#blog-filter',
+        }),
+        empty_label="All Categories",
+    )
+    tag = forms.ModelChoiceField(
+        queryset=BlogTag.objects.all(),
+        required=False,
+        widget=forms.Select(attrs={
+            'class': 'form-select',
+            'hx-get': reverse_lazy('blog:post_list'),
+            'hx-trigger': 'change',
+            'hx-target': '#blog-list',
+            'hx-include': '#blog-filter',
+        }),
+        empty_label="All Tags",
+    )
