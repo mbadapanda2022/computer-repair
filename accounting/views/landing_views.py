@@ -30,7 +30,11 @@ def landing(request):
     company = CompanyProfile.get_instance()
     faqs = FAQ.objects.filter(is_active=True).order_by('order', 'created_at')
     testimonials = Testimonial.objects.filter(is_active=True).order_by('order', '-created_at')
-    services = Service.objects.filter(is_active=True).order_by('order', 'created_at') 
+    services = Service.objects.filter(is_active=True).order_by('order', 'created_at')
+    latest_posts = (
+        BlogPost.objects.published()
+        .select_related('author', 'category')[:3]
+    )
 
     meta = {
         'title': company.meta_title or f"{company.name} – Laptop & Printer Repair",
@@ -44,7 +48,8 @@ def landing(request):
         'company': company,
         'faqs': faqs,
         'testimonials': testimonials,
-        'services': services,   
+        'services': services,
+        'latest_posts': latest_posts,
         'meta': meta,
         'track_token': request.GET.get('token', ''),
         'track_err': request.GET.get('err', ''),

@@ -1995,6 +1995,43 @@ class EmailChangeRequestForm(forms.Form):
 # ------------------------------------------------------------
 
 # ============================================================
+# Blog Post Form (Staff)
+# ============================================================
+class BlogPostForm(forms.ModelForm):
+    class Meta:
+        model = BlogPost
+        fields = [
+            'title', 'slug', 'author', 'category', 'tags',
+            'excerpt', 'body', 'cover_image',
+            'status', 'published_at', 'is_featured',
+            'meta_title', 'meta_description', 'meta_keywords',
+            'canonical_url',
+        ]
+        widgets = {
+            'title': BS_TEXT(attrs={'placeholder': 'Enter post title'}),
+            'slug': BS_TEXT(attrs={'placeholder': 'URL-friendly slug (auto-filled)'}),
+            'author': BS_SELECT(attrs={'class': 'form-select'}),
+            'category': BS_SELECT(attrs={'class': 'form-select'}),
+            'tags': forms.SelectMultiple(attrs={'class': 'form-select', 'size': '6'}),
+            'excerpt': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 3,
+                'placeholder': 'Short summary for list page (leave blank to auto-generate).',
+            }),
+            'published_at': BS_DATETIME(),
+            'is_featured': BS_CHECKBOX(),
+            'meta_title': BS_TEXT(attrs={'placeholder': 'SEO title (max 70 chars)'}),
+            'meta_description': BS_TEXT(attrs={'placeholder': 'SEO description (max 160 chars)'}),
+            'meta_keywords': BS_TEXT(attrs={'placeholder': 'Comma-separated keywords'}),
+            'canonical_url': BS_TEXT(attrs={'placeholder': 'https://...'}),
+        }
+        help_texts = {
+            'slug': 'Used in the URL. Leave blank to auto-generate from title.',
+            'excerpt': 'Leave blank to auto-generate from the body content.',
+            'published_at': 'Auto-set when status → Published. You can back-date.',
+            'is_featured': 'Show this post in the featured section.',
+        }
+
+# ============================================================
 # Blog LIST filter form (HTMX-powered, blog list page ke liye)
 # ============================================================
 class BlogPostFilterForm(forms.Form):

@@ -22,11 +22,7 @@
                 <li class="nav-item"><a class="nav-link" href="#testimonials">Reviews</a></li>
                 <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
                 <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
-                {% if company.blog_url %}
-                    <li class="nav-item"><a class="nav-link" href="{{ company.blog_url }}" target="_blank" rel="noopener">Blog</a></li>
-                {% else %}
-                    <li class="nav-item"><a class="nav-link" href="https://manojtechsolutions.blogspot.com/" target="_blank" rel="noopener">Blog</a></li>
-                {% endif %}
+                <li class="nav-item"><a class="nav-link" href="{% url 'blog:post_list' %}"><i class="bi bi-file-text me-1"></i>Blog</a></li>
 
                 <li class="nav-item ms-lg-2">
                     <button class="theme-toggle-btn" id="themeTogglePublic" title="Switch theme" aria-label="Toggle dark mode">

@@ -1,0 +1,112 @@
+{% load static %}
+{% load humanize %}
+
+<div id="blog-post-list" class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th class="border-0">Post</th>
+                <th class="border-0">Category</th>
+                <th class="border-0">Status</th>
+                <th class="border-0">Published</th>
+                <th class="border-0">Views</th>
+                <th class="border-0 text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in page_obj %}
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center gap-3">
+                        {% if post.cover_image %}
+                        <img src="{{ post.cover_image.url }}" alt="{{ post.title }}" class="rounded" style="width: 50px; height: 35px; object-fit: cover;">
+                        {% else %}
+                        <img src="{% static 'images/blog-placeholder.png' %}" alt="{{ post.title }}" class="rounded" style="width: 50px; height: 35px; object-fit: cover;">
+                        {% endif %}
+                        <div>
+                            <a href="{{ post.get_absolute_url }}" class="fw-medium text-decoration-none" target="_blank">{{ post.title|truncatechars:50 }}</a>
+                            <div class="text-muted small">{{ post.excerpt|truncatechars:60|default:"(no excerpt)" }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    {% if post.category %}
+                    <span class="badge bg-secondary bg-opacity-10 text-secondary">{{ post.category.name }}</span>
+                    {% else %}
+                    <span class="text-muted small fst-italic">None</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if post.status == 'published' %}
+                    <span class="badge bg-success">Published</span>
+                    {% elif post.status == 'scheduled' %}
+                    <span class="badge bg-info">Scheduled</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Draft</span>
+                    {% endif %}
+                </td>
+                <td class="text-muted small">
+                    {% if post.published_at %}{{ post.published_at|date:"M j, Y" }}{% else %}—{% endif %}
+                </td>
+                <td class="text-muted small">{{ post.views|intcomma }}</td>
+                <td class="text-end">
+                    <div class="d-flex justify-content-end gap-1">
+                        <button class="btn btn-sm btn-outline-primary"
+                                hx-get="{% url 'blog:post_edit' post.pk %}"
+                                hx-target="#mainModalContent"
+                                title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger"
+                                hx-delete="{% url 'blog:post_delete' post.pk %}"
+                                hx-target="#blog-posts-container"
+                                hx-swap="innerHTML"
+                                hx-confirm="Delete this post? This cannot be undone."
+                                title="Delete">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    <i class="bi bi-file-text fs-1 mb-2"></i>
+                    <p class="mb-0">No blog posts yet. Click "Add Blog Post" to get started.</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="d-flex justify-content-center mt-4">
+    <nav aria-label="Blog management pages">
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+                {% if num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endif %}

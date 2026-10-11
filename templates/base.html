@@ -211,6 +211,15 @@
                     </ul>
                 </li>
 
+                <li class="nav-section-label">Content</li>
+                <li>
+                    <a href="{% url 'blog:manage_blog' %}"
+                       class="nav-link {% if request.resolver_match.namespace == 'blog' %}active{% endif %}">
+                        <i class="bi bi-file-text"></i>
+                        <span class="link-text">Blog</span>
+                    </a>
+                </li>
+
                 <li class="nav-section-label">System</li>
                 <li>
                     <a href="{% url 'accounting:company_settings' %}"

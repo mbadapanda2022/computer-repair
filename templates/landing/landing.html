@@ -344,6 +344,52 @@
     </div>
 </section>
 
+<!-- ===== BLOG PREVIEW ===== -->
+{% if latest_posts %}
+<section class="lp-section lp-section-soft" id="blog-preview">
+    <div class="container">
+        <div class="text-center mb-5 reveal">
+            <span class="section-eyebrow">From the Blog</span>
+            <h2 class="section-heading">Latest Insights</h2>
+            <p class="section-lede">Tech tips, repair guides, and industry news from our experts.</p>
+        </div>
+        <div class="row g-4">
+            {% for post in latest_posts %}
+            <div class="col-md-6 col-lg-4">
+                <article class="card h-100 border-0 shadow-sm blog-post-card">
+                    {% if post.cover_image %}
+                    <img src="{{ post.cover_image.url }}" alt="{{ post.title }}" class="card-img-top" style="height: 160px; object-fit: cover;">
+                    {% else %}
+                    <img src="https://picsum.photos/seed/blog-{{ post.pk }}/400/160" alt="{{ post.title }}" class="card-img-top" style="height: 160px; object-fit: cover;">
+                    {% endif %}
+                    <div class="card-body d-flex flex-column h-100">
+                        {% if post.category %}
+                        <a href="{% url 'blog:category' post.category.slug %}" class="text-decoration-none mb-2">
+                            <small class="badge bg-light text-dark border">{{ post.category.name }}</small>
+                        </a>
+                        {% endif %}
+                        <h3 class="h6 fw-bold card-title mb-2">
+                            <a href="{{ post.get_absolute_url }}" class="text-decoration-none stretched-link">{{ post.title|truncatechars:60 }}</a>
+                        </h3>
+                        <p class="card-text text-muted small mb-3 flex-grow-1">{{ post.excerpt|truncatechars:100 }}</p>
+                        <div class="post-meta text-muted small d-flex justify-content-between">
+                            <span><i class="bi bi-clock me-1"></i> {{ post.reading_time }} min read</span>
+                            <span><i class="bi bi-calendar3 me-1"></i> {{ post.published_at|date:"M j, Y" }}</span>
+                        </div>
+                    </div>
+                </article>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="text-center mt-4">
+            <a href="{% url 'blog:post_list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-newspaper me-1"></i> Read All Articles
+            </a>
+        </div>
+    </div>
+</section>
+{% endif %}
+
 <!-- ===== CTA BAND ===== -->
 <section class="pb-5" aria-label="Call to action">
     <div class="container">

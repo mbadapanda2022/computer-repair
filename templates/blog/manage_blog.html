@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Manage Blog – {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <h2 class="mb-0"><i class="bi bi-file-text"></i> Manage Blog</h2>
+        </div>
+        <button class="btn btn-primary"
+                hx-get="{% url 'blog:post_create' %}"
+                hx-target="#mainModalContent"
+                hx-trigger="click">
+            <i class="bi bi-plus-circle"></i> Add Blog Post
+        </button>
+    </div>
+
+    <div id="blog-posts-container">
+        {% include 'blog/staff/_post_list.html' with page_obj=page_obj %}
+    </div>
+</div>
+{% endblock %}

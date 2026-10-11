@@ -1,0 +1,116 @@
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}{% if category %}{{ category.name }} – Blog{% elif tag %}{{ tag.name }} – Blog{% else %}Blog{% endif %} – {{ company.name|default:"A1 Computer Solutions" }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .blog-post-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .blog-post-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important; }
+    .post-meta { font-size: 0.85rem; }
+    .blog-hero { min-height: 200px; background: linear-gradient(135deg, #0a1f3c 0%, #1a3a6c 100%); }
+    .reading-time { font-size: 0.8rem; }
+    .filter-bar { background: var(--lp-surface-soft, #f8f9fa); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ===== BLOG HEADER ===== -->
+<div class="blog-hero d-flex align-items-center text-white mb-5">
+    <div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0 text-white-50">
+                <li class="breadcrumb-item"><a href="{% if user.is_staff %}{% url 'accounting:dashboard' %}{% else %}{% url 'home' %}{% endif %}" class="text-white-50">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Blog</li>
+            </ol>
+        </nav>
+        <h1 class="display-4 fw-bold mt-3 mb-2">
+            {% if category %}{{ category.name }}{% elif tag %}#{{ tag.name }}{% else %}Blog{% endif %}
+        </h1>
+        {% if category %}<p class="lead mb-0">{{ category.name }} articles and insights.</p>
+        {% elif tag %}<p class="lead mb-0">Posts tagged #{{ tag.name }}.</p>
+        {% else %}<p class="lead mb-0">Insights, tips, and the latest from our repair experts.</p>
+        {% endif %}
+        {% if user.is_staff %}
+        <div class="mt-4">
+            <a href="{% url 'blog:manage_blog' %}" class="btn btn-outline-light btn-sm me-2">
+                <i class="bi bi-speedometer2 me-1"></i>Staff Dashboard
+            </a>
+            <a href="{% url 'blog:post_create' %}" class="btn btn-light btn-sm text-primary fw-semibold">
+                <i class="bi bi-plus-circle me-1"></i>New Post
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container mb-5">
+    <!-- Search + Filter Bar -->
+    <div class="filter-bar p-4 rounded-3 mb-4">
+        <form method="get" class="row g-3 align-items-end" id="blog-filter">
+            <div class="col-md-5">
+                <label class="form-label small fw-medium mb-1">Search</label>
+                <div class="position-relative">
+                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-2 text-muted"></i>
+                    <input type="search" name="search" value="{{ request.GET.search|default:'' }}"
+                           class="form-control ps-5" placeholder="Search posts…"
+                           hx-get="{% url 'blog:post_list' %}"
+                           hx-target="#blog-list"
+                           hx-trigger="keyup changed delay:500ms, load"
+                           hx-include="#blog-filter">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-medium mb-1">Category</label>
+                <select name="category" class="form-select"
+                        hx-get="{% url 'blog:post_list' %}"
+                        hx-target="#blog-list"
+                        hx-trigger="change"
+                        hx-include="#blog-filter">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.slug }}" {% if request.GET.category == cat.slug %}selected{% endif %}{% if not cat.is_active %}disabled{% endif %}>
+                        {{ cat.name }}{% if not cat.is_active %} (inactive){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-medium mb-1">Tag</label>
+                <select name="tag" class="form-select"
+                        hx-get="{% url 'blog:post_list' %}"
+                        hx-target="#blog-list"
+                        hx-trigger="change"
+                        hx-include="#blog-filter">
+                    <option value="">All Tags</option>
+                    {% for tag in tags %}
+                    <option value="{{ tag.slug }}" {% if request.GET.tag == tag.slug %}selected{% endif %}>
+                        {{ tag.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 text-end">
+                <button type="submit" class="btn btn-outline-primary w-100 h-100">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Blog List (HTMX-swappable) -->
+    <div id="blog-list">
+        {% include 'blog/partials/_blog_list.html' %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+        if (evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect')) {
+            window.location.href = evt.detail.xhr.getResponseHeader('HX-Redirect');
+        }
+    });
+</script>
+{% endblock %}
