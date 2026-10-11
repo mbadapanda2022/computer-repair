@@ -1,11 +1,12 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.core.paginator import Paginator
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.views.decorators.http import require_http_methods
 from django.template.loader import render_to_string
 from django.http import HttpResponse
+from django.utils import timezone
 import json
 
 from ..models import BlogPost, BlogCategory, BlogTag
@@ -48,6 +49,42 @@ def _staff_page_obj(request):
 # PUBLIC VIEWS
 # ============================================================
 
+def _blog_meta(title=None, description=None):
+    """Build a meta dict for blog pages (SEO)."""
+    return {
+        'title': title or 'Blog',
+        'description': description or 'Insights, tips, and the latest from our repair experts.',
+        'keywords': 'computer repair, laptop repair, tech tips, DIY guides',
+        'og_url': '',
+        'og_image': '',
+    }
+
+
+def _blog_page_context(request, queryset, page_size=9, **extra):
+    """Paginate a queryset and return context dict for blog list partials."""
+    paginator = Paginator(queryset, page_size)
+    page = paginator.get_page(request.GET.get('page'))
+    ctx = {
+        'page_obj': page,
+        'paginator': paginator,
+    }
+    ctx.update(extra)
+    ctx.update(_common_context())
+    return ctx
+
+
+def _blog_list_context(request):
+    """Build common context for the blog list page (categories, tags, filter form)."""
+    return {
+        'form': BlogPostFilterForm(request.GET),
+        **_common_context(),
+    }
+
+
+# ============================================================
+# PUBLIC VIEWS
+# ============================================================
+
 def post_list(request):
     qs = _published_qs()
     form = BlogPostFilterForm(request.GET)
@@ -63,42 +100,48 @@ def post_list(request):
     if tag_slug:
         qs = qs.filter(tags__slug=tag_slug)
 
-    paginator = Paginator(qs, 9)
-    page = paginator.get_page(request.GET.get('page'))
+    ctx = _blog_page_context(request, qs)
+    if is_htmx(request):
+        return render(request, 'blog/partials/_blog_list.html', ctx)
 
-    return render(request, 'blog/list.html', {
-        'form': form,
-        'page_obj': page,
-        **_common_context(),
-    })
+    ctx.update(_blog_list_context(request))
+    ctx['meta'] = _blog_meta(
+        title='Blog',
+        description='Tech tips, repair guides, and the latest from our repair experts.',
+    )
+    return render(request, 'blog/list.html', ctx)
 
 
 def category_posts(request, slug):
     category = get_object_or_404(BlogCategory, slug=slug, is_active=True)
     qs = _published_qs().filter(category=category)
-    paginator = Paginator(qs, 9)
-    page = paginator.get_page(request.GET.get('page'))
 
-    return render(request, 'blog/list.html', {
-        'form': BlogPostFilterForm(),
-        'page_obj': page,
-        'category': category,
-        **_common_context(),
-    })
+    ctx = _blog_page_context(request, qs, category=category)
+    if is_htmx(request):
+        return render(request, 'blog/partials/_blog_list.html', ctx)
+
+    ctx.update(_blog_list_context(request))
+    ctx['meta'] = _blog_meta(
+        title=f'{category.name} – Blog',
+        description=f'{category.name} articles and insights from our repair experts.',
+    )
+    return render(request, 'blog/list.html', ctx)
 
 
 def tag_posts(request, slug):
     tag = get_object_or_404(BlogTag, slug=slug)
     qs = _published_qs().filter(tags=tag)
-    paginator = Paginator(qs, 9)
-    page = paginator.get_page(request.GET.get('page'))
 
-    return render(request, 'blog/list.html', {
-        'form': BlogPostFilterForm(),
-        'page_obj': page,
-        'tag': tag,
-        **_common_context(),
-    })
+    ctx = _blog_page_context(request, qs, tag=tag)
+    if is_htmx(request):
+        return render(request, 'blog/partials/_blog_list.html', ctx)
+
+    ctx.update(_blog_list_context(request))
+    ctx['meta'] = _blog_meta(
+        title=f'#{tag.name} – Blog',
+        description=f'Posts tagged #{tag.name} from our repair experts.',
+    )
+    return render(request, 'blog/list.html', ctx)
 
 
 def post_detail(request, slug):
@@ -110,9 +153,19 @@ def post_detail(request, slug):
         if post.category_id else []
     )
 
+    meta = _blog_meta(
+        title=post.effective_meta_title,
+        description=post.effective_meta_description or post.excerpt,
+    )
+    if post.cover_image:
+        meta['og_image'] = post.cover_image.url
+    if post.canonical_url:
+        meta['og_url'] = post.canonical_url
+
     return render(request, 'blog/detail.html', {
         'post': post,
         'related': related,
+        'meta': meta,
         **_common_context(),
     })
 
@@ -146,6 +199,12 @@ def blog_post_create(request):
         if not is_htmx(request):
             messages.error(request, 'Please correct the errors below.')
             return redirect('blog:post_create')
+        if is_htmx(request):
+            resp = render(request, 'blog/partials/_post_form.html', {
+                'form': form, 'action': 'Add', **_common_context()
+            })
+            resp['HX-Retarget'] = '#mainModalContent'
+            return resp
     else:
         form = BlogPostForm()
     return render(request, 'blog/partials/_post_form.html', {
@@ -169,6 +228,12 @@ def blog_post_edit(request, pk):
         if not is_htmx(request):
             messages.error(request, 'Please correct the errors below.')
             return redirect('blog:post_edit', pk=post.pk)
+        if is_htmx(request):
+            resp = render(request, 'blog/partials/_post_form.html', {
+                'form': form, 'action': 'Edit', 'post': post, **_common_context()
+            })
+            resp['HX-Retarget'] = '#mainModalContent'
+            return resp
     else:
         form = BlogPostForm(instance=post)
     return render(request, 'blog/partials/_post_form.html', {

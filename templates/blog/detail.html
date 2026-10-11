@@ -5,13 +5,82 @@
 
 {% block extra_head %}
 <style>
-    .blog-detail-content h1, .blog-detail-content h2, .blog-detail-content h3, .blog-detail-content h4 { margin-top: 1.5rem; margin-bottom: 1rem; }
-    .blog-detail-content p { margin-bottom: 1rem; line-height: 1.8; }
-    .blog-detail-content ul, .blog-detail-content ol { margin-bottom: 1rem; }
-    .blog-detail-content img { max-width: 100%; height: auto; border-radius: 0.5rem; }
-    .blog-detail-content blockquote { border-left: 4px solid var(--lp-primary, #0a1f3c); padding: 1rem 1.5rem; margin: 1.5rem 0; background: var(--lp-surface-soft, #f8f9fa); }
+    .blog-detail-content {
+        font-size: 1.05rem;
+        line-height: 1.8;
+    }
+    .blog-detail-content h1, .blog-detail-content h2, .blog-detail-content h3, .blog-detail-content h4 {
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+        color: var(--lp-navy-900);
+    }
+    .blog-detail-content h1 { font-size: 2rem; }
+    .blog-detail-content h2 { font-size: 1.6rem; }
+    .blog-detail-content h3 { font-size: 1.3rem; }
+    .blog-detail-content p { margin-bottom: 1.2rem; }
+    .blog-detail-content ul, .blog-detail-content ol { margin-bottom: 1rem; padding-left: 2rem; }
+    .blog-detail-content li { margin-bottom: 0.3rem; }
+    .blog-detail-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: var(--lp-radius-sm);
+        margin: 1.5rem 0;
+        box-shadow: var(--lp-shadow-sm);
+    }
+    .blog-detail-content a { color: var(--lp-blue-600); }
+    .blog-detail-content blockquote {
+        border-left: 4px solid var(--lp-brand);
+        padding: 1.2rem 1.5rem;
+        margin: 1.5rem 0;
+        background: var(--lp-surface-soft);
+        border-radius: 0 var(--lp-radius-sm) var(--lp-radius-sm) 0;
+        font-style: italic;
+    }
+    .blog-detail-content code {
+        background: var(--lp-surface-soft);
+        padding: 0.2rem 0.45rem;
+        border-radius: var(--lp-radius-sm);
+        font-size: 0.9rem;
+        color: var(--lp-blue-600);
+    }
+    .blog-detail-content pre {
+        background: var(--lp-navy-900);
+        color: var(--lp-ink);
+        padding: 1.2rem;
+        border-radius: var(--lp-radius-sm);
+        overflow-x: auto;
+        margin: 1.5rem 0;
+    }
+    .blog-detail-content pre code { background: none; padding: 0; color: inherit; }
+    .blog-detail-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+    }
+    .blog-detail-content th, .blog-detail-content td {
+        border: 1px solid var(--lp-border);
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+    }
+    .blog-detail-content th { background: var(--lp-surface-soft); }
     .post-meta span { font-size: 0.85rem; }
-    .related-card:hover { transform: translateY(-2px); }
+    .related-card {
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .related-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--lp-shadow-lg);
+    }
+    .post-meta-divider { width: 32px; height: 1px; background: var(--lp-border); }
+    .author-badge {
+        background: var(--lp-gradient-brand);
+        color: #fff;
+        padding: 0.25rem 0.6rem;
+        border-radius: var(--lp-radius-pill);
+        font-size: 0.72rem;
+        font-weight: 600;
+    }
 </style>
 {% endblock %}
 
@@ -20,39 +89,47 @@
     <!-- Breadcrumb -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ request.scheme }}://{{ request.get_host }}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
             <li class="breadcrumb-item"><a href="{% url 'blog:post_list' %}">Blog</a></li>
             {% if post.category %}<li class="breadcrumb-item"><a href="{% url 'blog:category' post.category.slug %}">{{ post.category.name }}</a></li>{% endif %}
             <li class="breadcrumb-item active" aria-current="page">{{ post.title|truncatechars:40 }}</li>
         </ol>
     </nav>
 
-    <!-- Blog Post -->
-    <article class="blog-detail mx-auto" style="max-width: 800px;">
+    <article class="blog-detail mx-auto" style="max-width: 820px;">
         <!-- Cover Image -->
         {% if post.cover_image %}
-        <img src="{{ post.cover_image.url }}" alt="{{ post.title }}" class="img-fluid rounded-3 shadow mb-4 w-100" style="max-height: 420px; object-fit: cover;">
+        <img src="{{ post.cover_image.url }}" alt="{{ post.title }}" class="w-100 rounded-3 shadow mb-4">
         {% endif %}
 
         <!-- Title -->
-        <h1 class="display-4 fw-bold mb-3">{{ post.title }}</h1>
+        <h1 class="display-4 fw-bold mb-4">{{ post.title }}</h1>
 
         <!-- Meta -->
-        <div class="post-meta text-muted d-flex align-items-center gap-4 mb-4">
-            <span class="d-flex align-items-center gap-1">
-                <i class="bi bi-person-circle"></i> {{ post.author.get_full_name|default:post.author.username }}
-            </span>
-            <span class="d-flex align-items-center gap-1">
-                <i class="bi bi-calendar3"></i> {{ post.published_at|date:"F j, Y" }}
-            </span>
-            <span class="d-flex align-items-center gap-1">
-                <i class="bi bi-clock"></i> {{ post.reading_time }} min read
-            </span>
+        <div class="post-meta text-muted d-flex align-items-center gap-4 mb-4 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-person-circle fs-5"></i>
+                <span>{{ post.author.get_full_name|default:post.author.username }}</span>
+                {% if post.author.is_staff %}<span class="author-badge">Staff</span>{% endif %}
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-calendar3"></i>
+                <span>{{ post.published_at|date:"F j, Y" }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-clock"></i>
+                <span>{{ post.reading_time }} min read</span>
+            </div>
             {% if post.category %}
-            <span class="d-flex align-items-center gap-1">
-                <i class="bi bi-folder"></i> <a href="{% url 'blog:category' post.category.slug %}" class="text-decoration-none">{{ post.category.name }}</a>
-            </span>
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-folder"></i>
+                <a href="{% url 'blog:category' post.category.slug %}" class="text-decoration-none">{{ post.category.name }}</a>
+            </div>
             {% endif %}
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-eye"></i>
+                <span>{{ post.views }}</span>
+            </div>
         </div>
 
         <!-- Tags -->

@@ -1,42 +1,107 @@
 {% extends 'base_public.html' %}
 {% load static %}
 
-{% block title %}{% if category %}{{ category.name }} – Blog{% elif tag %}{{ tag.name }} – Blog{% else %}Blog{% endif %} – {{ company.name|default:"A1 Computer Solutions" }}{% endblock %}
+{% block title %}{% if category %}{{ category.name }}{% elif tag %}#{{ tag.name }}{% else %}Blog{% endif %} – {{ company.name|default:"A1 Computer Solutions" }}{% endblock %}
 
 {% block extra_head %}
 <style>
-    .blog-post-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-    .blog-post-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.1) !important; }
+    .blog-hero {
+        min-height: 280px;
+        background: linear-gradient(135deg, var(--lp-navy-900) 0%, var(--lp-navy-700) 100%);
+        position: relative;
+        overflow: hidden;
+    }
+    .blog-hero::before {
+        content: "";
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: url('{% static "images/blog-placeholder.png" %}') no-repeat center/30% opacity(0.05);
+        opacity: 0.05;
+        z-index: 0;
+    }
+    .blog-hero .container { position: relative; z-index: 1; }
     .post-meta { font-size: 0.85rem; }
-    .blog-hero { min-height: 200px; background: linear-gradient(135deg, #0a1f3c 0%, #1a3a6c 100%); }
-    .reading-time { font-size: 0.8rem; }
-    .filter-bar { background: var(--lp-surface-soft, #f8f9fa); }
+    .blog-post-card {
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+        border: 1px solid var(--lp-border);
+        border-radius: var(--lp-radius-md);
+        overflow: hidden;
+    }
+    .blog-post-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--lp-shadow-lg);
+    }
+    .card-img-top {
+        height: 180px;
+        object-fit: cover;
+        border-bottom: 1px solid var(--lp-border);
+    }
+    .filter-bar {
+        background: var(--lp-surface);
+        border-radius: var(--lp-radius-md);
+        box-shadow: var(--lp-shadow-sm);
+        border: 1px solid var(--lp-border);
+    }
+    .filter-bar .form-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--lp-ink);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .search-box-wrap {
+        position: relative;
+    }
+    .search-box-wrap .bi-search {
+        left: 12px;
+        color: var(--lp-muted);
+    }
+    .page-link:hover { color: var(--lp-navy-900) !important; }
+    .pagination .page-item.active .page-link { background: var(--lp-brand); border-color: var(--lp-brand); }
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1.5rem;
+        color: var(--lp-muted);
+    }
+    .empty-state i { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
+    .badge-staff { font-size: 0.75rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- ===== BLOG HEADER ===== -->
-<div class="blog-hero d-flex align-items-center text-white mb-5">
-    <div class="container">
+<!-- ===== BLOG HERO ===== -->
+<div class="blog-hero d-flex align-items-center text-white mb-0">
+    <div class="container py-5">
         <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-0 text-white-50">
-                <li class="breadcrumb-item"><a href="{% if user.is_staff %}{% url 'accounting:dashboard' %}{% else %}{% url 'home' %}{% endif %}" class="text-white-50">Home</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Blog</li>
+            <ol class="breadcrumb mb-2 text-white-50">
+                <li class="breadcrumb-item"><a href="{% if user.is_staff %}{% url 'accounting:dashboard' %}{% else %}{% url 'home' %}{% endif %}" class="text-white-50 text-decoration-none">Home</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'blog:post_list' %}" class="text-white-50 text-decoration-none">Blog</a></li>
+                {% if category %}
+                <li class="breadcrumb-item active" aria-current="page">{{ category.name }}</li>
+                {% elif tag %}
+                <li class="breadcrumb-item active" aria-current="page">#{{ tag.name }}</li>
+                {% else %}
+                <li class="breadcrumb-item active" aria-current="page">All Posts</li>
+                {% endif %}
             </ol>
         </nav>
-        <h1 class="display-4 fw-bold mt-3 mb-2">
+        <h1 class="display-4 fw-bold mb-2">
             {% if category %}{{ category.name }}{% elif tag %}#{{ tag.name }}{% else %}Blog{% endif %}
         </h1>
-        {% if category %}<p class="lead mb-0">{{ category.name }} articles and insights.</p>
-        {% elif tag %}<p class="lead mb-0">Posts tagged #{{ tag.name }}.</p>
-        {% else %}<p class="lead mb-0">Insights, tips, and the latest from our repair experts.</p>
+        {% if category %}
+            <p class="lead mb-0">{{ category.name }} articles and insights.</p>
+        {% elif tag %}
+            <p class="lead mb-0">Posts tagged #{{ tag.name }}.</p>
+        {% else %}
+            <p class="lead mb-0">Insights, tips, and the latest from our repair experts.</p>
         {% endif %}
         {% if user.is_staff %}
-        <div class="mt-4">
-            <a href="{% url 'blog:manage_blog' %}" class="btn btn-outline-light btn-sm me-2">
+        <div class="mt-4 d-flex gap-2">
+            <a href="{% url 'blog:manage_blog' %}" class="btn btn-outline-light btn-sm">
                 <i class="bi bi-speedometer2 me-1"></i>Staff Dashboard
             </a>
-            <a href="{% url 'blog:post_create' %}" class="btn btn-light btn-sm text-primary fw-semibold">
+            <a href="{% url 'blog:post_create' %}" class="btn btn-light btn-sm text-primary fw-semibold"
+               hx-get="{% url 'blog:post_create' %}" hx-target="#mainModalContent" hx-trigger="click">
                 <i class="bi bi-plus-circle me-1"></i>New Post
             </a>
         </div>
@@ -44,14 +109,14 @@
     </div>
 </div>
 
-<div class="container mb-5">
-    <!-- Search + Filter Bar -->
-    <div class="filter-bar p-4 rounded-3 mb-4">
+<div class="container py-5">
+    <!-- Filter Bar -->
+    <div class="filter-bar p-4 mb-4">
         <form method="get" class="row g-3 align-items-end" id="blog-filter">
             <div class="col-md-5">
-                <label class="form-label small fw-medium mb-1">Search</label>
-                <div class="position-relative">
-                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-2 text-muted"></i>
+                <label class="form-label">Search</label>
+                <div class="search-box-wrap">
+                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-2"></i>
                     <input type="search" name="search" value="{{ request.GET.search|default:'' }}"
                            class="form-control ps-5" placeholder="Search posts…"
                            hx-get="{% url 'blog:post_list' %}"
@@ -61,7 +126,7 @@
                 </div>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-medium mb-1">Category</label>
+                <label class="form-label">Category</label>
                 <select name="category" class="form-select"
                         hx-get="{% url 'blog:post_list' %}"
                         hx-target="#blog-list"
@@ -69,14 +134,14 @@
                         hx-include="#blog-filter">
                     <option value="">All Categories</option>
                     {% for cat in categories %}
-                    <option value="{{ cat.slug }}" {% if request.GET.category == cat.slug %}selected{% endif %}{% if not cat.is_active %}disabled{% endif %}>
+                    <option value="{{ cat.slug }}" {% if request.GET.category == cat.slug %}selected{% endif %}>
                         {{ cat.name }}{% if not cat.is_active %} (inactive){% endif %}
                     </option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="form-label small fw-medium mb-1">Tag</label>
+                <label class="form-label">Tag</label>
                 <select name="tag" class="form-select"
                         hx-get="{% url 'blog:post_list' %}"
                         hx-target="#blog-list"
@@ -90,7 +155,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-1 text-end">
+            <div class="col-md-1">
                 <button type="submit" class="btn btn-outline-primary w-100 h-100">
                     <i class="bi bi-funnel"></i>
                 </button>
@@ -99,7 +164,7 @@
     </div>
 
     <!-- Blog List (HTMX-swappable) -->
-    <div id="blog-list">
+    <div id="blog-list" hx-target="#blog-list" hx-swap="innerHTML">
         {% include 'blog/partials/_blog_list.html' %}
     </div>
 </div>
