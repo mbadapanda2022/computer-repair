@@ -42,6 +42,7 @@ class AccessControlMiddleware:
         'verify_otp', 'resend_otp', 'reset_password_set',
         'validate_login_field', 'validate_register_field',
         'health_check',
+        'post_list', 'category', 'tag', 'post_detail',
     })
 
     PUBLIC_NAMESPACES = frozenset({'account', 'tracking'})
