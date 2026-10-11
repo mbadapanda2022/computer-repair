@@ -1255,8 +1255,8 @@ class AuditLogAdmin(admin.ModelAdmin):
 
 @admin.register(BlogCategory)
 class BlogCategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'order', 'is_active', 'is_deleted')
-    list_filter = ('is_active', 'is_deleted')
+    list_display = ('name', 'slug', 'order', 'is_active')
+    list_filter = ('is_active',)
     search_fields = ('name',)
     prepopulated_fields = {'slug': ('name',)}
 
@@ -1272,7 +1272,7 @@ class BlogTagAdmin(admin.ModelAdmin):
 class BlogPostAdmin(admin.ModelAdmin):
     list_display = ('title', 'author', 'category', 'status',
                     'published_at', 'views', 'reading_time', 'is_featured')
-    list_filter = ('status', 'is_featured', 'category', 'tags', 'is_deleted')
+    list_filter = ('status', 'is_featured', 'category', 'tags')
     search_fields = ('title', 'excerpt', 'body')
     prepopulated_fields = {'slug': ('title',)}
     date_hierarchy = 'published_at'

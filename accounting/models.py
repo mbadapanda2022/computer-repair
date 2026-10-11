@@ -17,6 +17,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+
 def to_aware_datetime(value):
     """
     Convert a date OR naive/aware datetime to timezone-aware datetime.
@@ -3626,18 +3627,10 @@ class EmailOTP(models.Model):
 
 # ── Helper: collision-free slug generator ───────────────────
 def _unique_slug(instance, value, slug_field='slug', max_length=220):
-    """
-    URL-safe unique slug banata hai.
-
-    - Slugify karta hai value ko
-    - Collision par -2, -3 ... suffix lagata hai
-    - Soft-deleted rows bhi count karta hai (all_objects)
-      taaki restore ke waqt slug clash na ho
-    """
     base = slugify(value)[:max_length] or 'item'
     slug = base
     Model = instance.__class__
-    qs = Model.all_objects.exclude(pk=instance.pk)
+    qs = Model.objects.exclude(pk=instance.pk)
     i = 2
     while qs.filter(**{slug_field: slug}).exists():
         suffix = f"-{i}"
@@ -3650,7 +3643,7 @@ def _unique_slug(instance, value, slug_field='slug', max_length=220):
 # BLOG CATEGORY
 # ============================================================
 
-class BlogCategory(SoftDeleteModel):
+class BlogCategory(models.Model):
     name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(max_length=120, unique=True, blank=True)
     order = models.PositiveIntegerField(default=0, help_text="Lower = earlier in lists")
@@ -3676,7 +3669,7 @@ class BlogCategory(SoftDeleteModel):
 # BLOG TAG
 # ============================================================
 
-class BlogTag(SoftDeleteModel):
+class BlogTag(models.Model):
     name = models.CharField(max_length=60, unique=True)
     slug = models.SlugField(max_length=80, unique=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -3699,12 +3692,11 @@ class BlogTag(SoftDeleteModel):
 # BLOG POST
 # ============================================================
 
-class BlogPostQuerySet(SoftDeleteQuerySet):
+class BlogPostQuerySet(models.QuerySet):
     """Custom queryset — `.published()` shortcut ke saath."""
 
     def published(self):
         return self.filter(
-            is_deleted=False,
             status='published',
             published_at__lte=timezone.now(),
         )
@@ -3713,9 +3705,9 @@ class BlogPostQuerySet(SoftDeleteQuerySet):
         return self.published().filter(is_featured=True)
 
 
-class BlogPostManager(SoftDeleteManager):
+class BlogPostManager(models.Manager):
     def get_queryset(self):
-        return BlogPostQuerySet(self.model, using=self._db).filter(is_deleted=False)
+        return BlogPostQuerySet(self.model, using=self._db)
 
     def published(self):
         return self.get_queryset().published()
@@ -3724,7 +3716,7 @@ class BlogPostManager(SoftDeleteManager):
         return self.get_queryset().featured()
 
 
-class BlogPost(SoftDeleteModel):
+class BlogPost(models.Model):
     STATUS_CHOICES = (
         ('draft',     'Draft'),
         ('scheduled', 'Scheduled'),
@@ -3788,7 +3780,6 @@ class BlogPost(SoftDeleteModel):
     updated_at = models.DateTimeField(auto_now=True)
 
     objects = BlogPostManager()
-    all_objects = models.Manager()
 
     class Meta:
         ordering = ['-published_at', '-created_at']

@@ -21,6 +21,8 @@ urlpatterns = [
     path('validate-contact-field/', landing_views.validate_contact_field, name='validate_contact_field'),
     path('privacy-policy/', landing_views.privacy_policy, name='privacy_policy'),
     path('cookie-policy/', landing_views.cookie_policy, name='cookie_policy'),
+    
+    path('blog/', include('accounting.blog_urls')),
 
     # Customer URLs (Dashboard, Profile, etc.)
     path('customer/', include(('accounting.customer_urls', 'customer'))),
@@ -28,6 +30,7 @@ urlpatterns = [
     # Staff / Accounting URLs (Login, Register, Dashboard, etc.)
     path('', include(('accounting.urls', 'accounting'))),
     path('tracking/', include('accounting.tracking_urls')),
+    path('ckeditor5/', include('django_ckeditor_5.urls')),
 ]
 
 # Static & Media serving in Development
