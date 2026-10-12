@@ -2888,6 +2888,21 @@ class BankAccount(SoftDeleteModel):
     def __str__(self):
         return f"{self.name} ({self.bank_name or self.account_type})"
 
+    def recalculate_balance(self):
+        """Recalculate current_balance from opening_balance + all transactions."""
+        from django.db.models import Sum
+        total_deposits = self.transactions.filter(
+            transaction_type='deposit'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        total_withdrawals = self.transactions.filter(
+            transaction_type='withdrawal'
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        self.current_balance = (
+            self.opening_balance + total_deposits - total_withdrawals
+        ).quantize(Decimal('0.01'))
+        self.save(update_fields=['current_balance'])
+        return self.current_balance
+
 
 class BankTransaction(SoftDeleteModel):
     TRANSACTION_TYPES = (('deposit', 'Deposit'), ('withdrawal', 'Withdrawal'))
@@ -3208,6 +3223,7 @@ class Payment(SoftDeleteModel):
             invoice=linked_invoice,
             reconciled=self.reconciled,
         )
+        self.bank_account.recalculate_balance()
 
     def update_bank_transaction(self):
         if not self.bank_account:
@@ -3230,6 +3246,7 @@ class Payment(SoftDeleteModel):
             txn.invoice = linked_invoice
             txn.reconciled = self.reconciled
             txn.save()
+            self.bank_account.recalculate_balance()
         else:
             self.create_bank_transaction()
 

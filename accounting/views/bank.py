@@ -36,19 +36,7 @@ except ImportError:
 # =============================================================
 def recalculate_account_balance(account):
     """Recalculate and update current_balance for a bank account."""
-    total_deposits = account.transactions.filter(
-        transaction_type='deposit'
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-
-    total_withdrawals = account.transactions.filter(
-        transaction_type='withdrawal'
-    ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
-
-    account.current_balance = (
-        account.opening_balance + total_deposits - total_withdrawals
-    ).quantize(Decimal('0.01'))
-    account.save(update_fields=['current_balance'])
-    return account.current_balance
+    return account.recalculate_balance()
 
 
 # =============================================================
