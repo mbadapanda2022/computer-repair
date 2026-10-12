@@ -2809,7 +2809,11 @@ def sync_bank_transaction_ledger(txn):
         return
 
     with transaction.atomic():
-        entry, _created = LedgerEntry.objects.get_or_create(
+        # Use all_objects: a soft-deleted mirror still occupies the
+        # bank_transaction OneToOne slot, so get_or_create on the
+        # default manager would miss it and violate the UNIQUE constraint
+        # (e.g. when a soft-deleted bank transaction is restored).
+        entry, _created = LedgerEntry.all_objects.get_or_create(
             entry_type='bank_manual',
             reference_id=txn.pk,
             defaults={
@@ -2820,6 +2824,11 @@ def sync_bank_transaction_ledger(txn):
                 'bank_transaction': txn,
             },
         )
+        # Revive a soft-deleted mirror (e.g. after txn restore)
+        if entry.is_deleted:
+            entry.is_deleted = False
+            entry.deleted_at = None
+            entry.deleted_by = None
         # Always refresh (date/amount/desc may have changed)
         entry.date = txn.date
         entry.description = txn.description or txn.get_source_type_display()
@@ -2951,6 +2960,18 @@ class BankTransaction(SoftDeleteModel):
             entry.delete()
 
         super().delete(*args, **kwargs)
+        if self.bank_account_id:
+            self.bank_account.recalculate_balance()
+
+    def restore(self, *args, **kwargs):
+        super().restore(*args, **kwargs)
+        if self.bank_account_id:
+            self.bank_account.recalculate_balance()
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        if self.bank_account_id:
+            self.bank_account.recalculate_balance()
 
     def __str__(self):
         return f"{self.get_transaction_type_display()} - {self.amount} ({self.bank_account.name})"
@@ -3223,11 +3244,14 @@ class Payment(SoftDeleteModel):
             invoice=linked_invoice,
             reconciled=self.reconciled,
         )
-        self.bank_account.recalculate_balance()
 
     def update_bank_transaction(self):
+        old_account = None
+        if hasattr(self, 'bank_transaction'):
+            old_account = self.bank_transaction.bank_account
+
         if not self.bank_account:
-            if hasattr(self, 'bank_transaction'):
+            if old_account is not None:
                 self.bank_transaction.delete()
             return
         
@@ -3246,9 +3270,12 @@ class Payment(SoftDeleteModel):
             txn.invoice = linked_invoice
             txn.reconciled = self.reconciled
             txn.save()
-            self.bank_account.recalculate_balance()
         else:
             self.create_bank_transaction()
+
+        self.bank_account.recalculate_balance()
+        if old_account is not None and old_account.pk != self.bank_account.pk:
+            old_account.recalculate_balance()
 
     def update_invoices(self):
         """Update invoice paid amounts based on PaymentAllocation and AdvanceAdjustment."""
