@@ -4,12 +4,15 @@ Tracking page — advance payment visibility tests.
 Chalane ka tareeka:
     python manage.py test accounting.tests_tracking_advance -v 2
 
-Rule: customer ne is repair ke liye advance diya hai (invoice par
-AdvanceAdjustment applied) toh tracking page par "Advance Paid" dikhna
-chahiye; advance nahi hai toh bilkul nahi dikhna chahiye.
+Rule: customer ne is repair ke liye advance diya (invoice par applied
+AdvanceAdjustment, ya intake par recorded unapplied advance Payment)
+toh tracking par "Advance" section dikhna chahiye; advance nahi hai toh
+bilkul nahi dikhna chahiye. Invoice maujood na hone par bhi advance
+dikhna chahiye.
 """
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 
 from django.test import Client, TestCase, override_settings
@@ -34,54 +37,105 @@ class TrackingAdvanceVisibilityTests(TestCase):
             contact_type='customer', name=f'Adv Cust {suffix}',
             phone='95' + suffix,
         )
-        self.invoice = Invoice.objects.create(
-            customer=self.customer, grand_total=Decimal('1000.00'),
-            subtotal=Decimal('1000.00'), paid_amount=Decimal('300.00'),
-            balance_due=Decimal('700.00'), payment_status='partial',
-        )
         self.job = RepairJob.objects.create(
             customer=self.customer, device_model='HP Test',
-            issue_description='Boot loop', status='ready',
-            final_amount=Decimal('1000.00'), invoice=self.invoice,
+            issue_description='Boot loop', status='received',
         )
-        self.advance_payment = Payment.objects.create(
+
+    def advance_payment(self, amount='1000.00', days_ago=0, is_advance=True, **kwargs):
+        return Payment.objects.create(
             direction='received', contact=self.customer,
-            amount=Decimal('300.00'), is_advance=True,
+            amount=Decimal(amount), is_advance=is_advance,
+            date=timezone.now().date() - timedelta(days=days_ago),
+            **kwargs,
         )
 
     def track_page(self):
         token = generate_tracking_token(self.job)
         return self.client.get(f'/tracking/repair/{token}/')
 
-    def test_advance_not_shown_when_none_applied(self):
+    def make_invoice(self, total='1000.00'):
+        invoice = Invoice.objects.create(
+            customer=self.customer, grand_total=Decimal(total),
+            subtotal=Decimal(total),
+        )
+        self.job.invoice = invoice
+        self.job.final_amount = Decimal(total)
+        self.job.save()
+        return invoice
+
+    # ---------- hidden cases ----------
+
+    def test_no_advance_means_no_section(self):
         page = self.track_page()
         self.assertEqual(page.status_code, 200)
-        self.assertNotContains(page, 'Advance Paid')
-        # Normal payment tiles still render
-        self.assertContains(page, 'Balance Due')
+        self.assertNotContains(page, 'Advance Payment')
 
-    def test_advance_shown_when_applied_to_invoice(self):
+    def test_normal_non_advance_payment_not_shown(self):
+        self.advance_payment(is_advance=False)
+        page = self.track_page()
+        self.assertNotContains(page, 'Advance Payment')
+
+    def test_old_advance_before_job_not_shown(self):
+        self.advance_payment(days_ago=30)
+        page = self.track_page()
+        self.assertNotContains(page, 'Advance Payment')
+
+    def test_advance_fully_settled_on_other_invoice_not_shown(self):
+        other_invoice = Invoice.objects.create(
+            customer=self.customer, grand_total=Decimal('500.00'),
+        )
+        pay = self.advance_payment()
         AdvanceAdjustment.objects.create(
-            payment=self.advance_payment, invoice=self.invoice,
-            amount=Decimal('300.00'),
+            payment=pay, invoice=other_invoice, amount=Decimal('1000.00'),
         )
         page = self.track_page()
+        self.assertNotContains(page, 'Advance Payment')
+
+    def test_soft_deleted_advance_payment_not_shown(self):
+        pay = self.advance_payment()
+        pay.soft_delete()
+        page = self.track_page()
+        self.assertNotContains(page, 'Advance Payment')
+
+    # ---------- visible cases ----------
+
+    def test_unapplied_advance_at_intake_shown_without_invoice(self):
+        # Suvam Giri jaisa case: advance Payment recorded, invoice abhi nahi
+        self.advance_payment('1000.00')
+        page = self.track_page()
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, 'Advance Paid')
+        self.assertContains(page, 'Advance Payment')
+        self.assertContains(page, '₹1000.00')
+
+    def test_advance_applied_to_invoice_shown(self):
+        invoice = self.make_invoice()
+        pay = self.advance_payment('300.00')
+        AdvanceAdjustment.objects.create(
+            payment=pay, invoice=invoice, amount=Decimal('300.00'),
+        )
+        page = self.track_page()
+        self.assertContains(page, 'Advance Payment')
         self.assertContains(page, '₹300.00')
 
-    def test_soft_deleted_advance_not_shown(self):
+    def test_applied_plus_remaining_both_counted(self):
+        invoice = self.make_invoice(total='2000.00')
+        pay = self.advance_payment('1000.00')
+        AdvanceAdjustment.objects.create(
+            payment=pay, invoice=invoice, amount=Decimal('400.00'),
+        )
+        page = self.track_page()
+        # applied 400 (invoice) + remaining 600 (unapplied) = 1000
+        self.assertContains(page, '₹1000.00')
+
+    def test_soft_deleted_adjustment_falls_back_to_unapplied(self):
+        invoice = self.make_invoice()
+        pay = self.advance_payment('500.00')
         adj = AdvanceAdjustment.objects.create(
-            payment=self.advance_payment, invoice=self.invoice,
-            amount=Decimal('300.00'),
+            payment=pay, invoice=invoice, amount=Decimal('500.00'),
         )
         adj.soft_delete()
         page = self.track_page()
-        self.assertNotContains(page, 'Advance Paid')
-
-    def test_no_invoice_means_no_advance(self):
-        self.job.invoice = None
-        self.job.save()
-        page = self.track_page()
-        self.assertEqual(page.status_code, 200)
-        self.assertNotContains(page, 'Advance Paid')
+        # adjustment cancelled -> payment ka pura 500 unapplied advance hai
+        self.assertContains(page, 'Advance Payment')
+        self.assertContains(page, '₹500.00')

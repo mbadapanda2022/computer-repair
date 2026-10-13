@@ -370,6 +370,22 @@
     </div>
     {% endif %}
 
+    <!-- ================= ADVANCE ================= -->
+    {% if advance_paid > 0 %}
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-cash-coin"></i> Advance Payment</div>
+        <div class="panel">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--tk-green);">₹{{ advance_paid|floatformat:2 }}</div>
+                    <div style="font-size:.82rem;color:var(--tk-muted);">Advance received for this repair</div>
+                </div>
+                <span class="pay-badge pay-paid"><i class="bi bi-check-circle me-1"></i>Advance Received</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- ================= DIAGNOSIS ================= -->
     {% if repair.diagnosis_report and repair.status != 'pending' and repair.status != 'received' %}
     <div class="tk-section">
@@ -474,12 +490,6 @@
                     <div class="k">Paid</div>
                     <div class="v">₹{{ repair.invoice.paid_amount|floatformat:2 }}</div>
                 </div>
-                {% if advance_paid > 0 %}
-                <div class="pay-tile">
-                    <div class="k">Advance Paid</div>
-                    <div class="v" style="color:var(--tk-green);">₹{{ advance_paid|floatformat:2 }}</div>
-                </div>
-                {% endif %}
                 <div class="pay-tile">
                     <div class="k">Balance Due</div>
                     <div class="v">₹{{ repair.invoice.balance_due|floatformat:2 }}</div>

@@ -1,5 +1,6 @@
 # accounting/views/tracking.py
 import re
+from datetime import timedelta
 from decimal import Decimal
 
 from django.shortcuts import render, redirect
@@ -9,12 +10,15 @@ from django.views.decorators.csrf import csrf_protect
 from django.core.cache import cache
 from django.db import models
 
-from ..models import RepairJob, CompanyProfile
+from ..models import RepairJob, CompanyProfile, Payment, AdvanceAdjustment
 from ..utils.tracking import verify_tracking_token, generate_tracking_token
 
 
 RATE_LIMIT_PER_MIN = 30
 LOOKUP_RATE_LIMIT_PER_MIN = 8
+
+# Advance paid a few days before the device came in still belongs to this job
+ADVANCE_LOOKBACK_DAYS = 7
 
 # Progress % shown on the public tracking page
 STATUS_PROGRESS = {
@@ -26,6 +30,45 @@ STATUS_PROGRESS = {
     'delivered': 100,
     'cancelled': 0,
 }
+
+
+def _repair_advance_paid(repair):
+    """
+    Is repair se related advance (rupee me):
+      (a) invoice par applied AdvanceAdjustments, PLUS
+      (b) customer ke unapplied advance Payments jo job start ke aas-paas
+          received hue (intake par advance, invoice abhi bana hi nahi).
+    Payment soft-delete/adjustment settled amounts automatically exclude
+    ho jate hain (SoftDeleteManager).
+    """
+    total = Decimal('0')
+    if repair.invoice_id:
+        total += repair.invoice.advance_adjustments.aggregate(
+            t=models.Sum('amount')
+        )['t'] or Decimal('0')
+
+    job_start = (
+        repair.date_in
+        or (repair.submitted_at.date() if repair.submitted_at else None)
+        or repair.created_at.date()
+    )
+    payments = Payment.objects.filter(
+        contact_id=repair.customer_id,
+        direction='received',
+        is_advance=True,
+        date__gte=job_start - timedelta(days=ADVANCE_LOOKBACK_DAYS),
+    )
+    settled = {
+        row['payment_id']: row['t']
+        for row in AdvanceAdjustment.objects.filter(payment__in=payments)
+                                .values('payment_id')
+                                .annotate(t=models.Sum('amount'))
+    }
+    for pay in payments:
+        remaining = pay.amount - settled.get(pay.pk, Decimal('0'))
+        if remaining > 0:
+            total += remaining
+    return total
 
 
 @require_http_methods(["GET"])
@@ -65,19 +108,10 @@ def repair_track(request, token):
 
     company = CompanyProfile.get_instance()
 
-    # Advance applied to this repair's invoice only (per-job, not the
-    # customer's global advance balance) — SoftDeleteManager excludes
-    # cancelled adjustments.
-    advance_paid = Decimal('0')
-    if repair.invoice_id:
-        advance_paid = repair.invoice.advance_adjustments.aggregate(
-            total=models.Sum('amount')
-        )['total'] or Decimal('0')
-
     context = {
         'repair': repair,
         'company': company,
-        'advance_paid': advance_paid,
+        'advance_paid': _repair_advance_paid(repair),
         'progress': STATUS_PROGRESS.get(repair.status, 0),
         'show_costs': (
             repair.status in ('ready', 'delivered')
