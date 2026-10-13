@@ -43,6 +43,7 @@ class AccessControlMiddleware:
         'validate_login_field', 'validate_register_field',
         'health_check',
         'post_list', 'category', 'tag', 'post_detail',
+        'sitemap',
     })
 
     PUBLIC_NAMESPACES = frozenset({'account', 'tracking'})
