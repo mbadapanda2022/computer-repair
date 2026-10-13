@@ -847,7 +847,7 @@ def customer_statement_whatsapp(request, contact_id):
 💰 Opening Balance: ₹{opening:,.2f}
 💵 Closing Balance: ₹{closing:,.2f}
 
-For complete statement, please visit our portal https://a1computersolutions.onrender.com/
+For complete statement, please visit our portal https://a1computersolutions.in/
 
 Thank you,
 {company.name}
@@ -1955,7 +1955,7 @@ def vendor_statement_whatsapp(request, contact_id):
 💰 Opening Balance: ₹{opening:,.2f}
 💵 Closing Balance: ₹{closing:,.2f}
 
-For complete statement, please visit our portal https://a1computersolutions.onrender.com/
+For complete statement, please visit our portal https://a1computersolutions.in/
 
 Thank you,
 {company.name}
