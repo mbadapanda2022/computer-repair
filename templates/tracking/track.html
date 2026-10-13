@@ -474,6 +474,12 @@
                     <div class="k">Paid</div>
                     <div class="v">₹{{ repair.invoice.paid_amount|floatformat:2 }}</div>
                 </div>
+                {% if advance_paid > 0 %}
+                <div class="pay-tile">
+                    <div class="k">Advance Paid</div>
+                    <div class="v" style="color:var(--tk-green);">₹{{ advance_paid|floatformat:2 }}</div>
+                </div>
+                {% endif %}
                 <div class="pay-tile">
                     <div class="k">Balance Due</div>
                     <div class="v">₹{{ repair.invoice.balance_due|floatformat:2 }}</div>

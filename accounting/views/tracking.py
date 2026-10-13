@@ -1,5 +1,6 @@
 # accounting/views/tracking.py
 import re
+from decimal import Decimal
 
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
@@ -64,9 +65,19 @@ def repair_track(request, token):
 
     company = CompanyProfile.get_instance()
 
+    # Advance applied to this repair's invoice only (per-job, not the
+    # customer's global advance balance) — SoftDeleteManager excludes
+    # cancelled adjustments.
+    advance_paid = Decimal('0')
+    if repair.invoice_id:
+        advance_paid = repair.invoice.advance_adjustments.aggregate(
+            total=models.Sum('amount')
+        )['total'] or Decimal('0')
+
     context = {
         'repair': repair,
         'company': company,
+        'advance_paid': advance_paid,
         'progress': STATUS_PROGRESS.get(repair.status, 0),
         'show_costs': (
             repair.status in ('ready', 'delivered')
