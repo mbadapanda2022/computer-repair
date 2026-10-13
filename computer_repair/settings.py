@@ -364,6 +364,8 @@ CSRF_FAILURE_VIEW = 'accounting.views.error_handlers.csrf_failure'
 
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',
+    'https://a1computersolutions.in',
+    'https://www.a1computersolutions.in',
 ]
 
 # ENV se bhi allow karo — future proof
