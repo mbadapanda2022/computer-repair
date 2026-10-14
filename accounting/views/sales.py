@@ -77,8 +77,13 @@ def get_paginated_invoices_context(request, queryset=None):
         queryset = queryset.filter(customer_id=customer_id)
     if status == 'overdue':
         queryset = queryset.filter(
-            payment_status__in=['unpaid', 'partial'],
+            payment_status__in=Invoice.OUTSTANDING_STATUSES,
             due_date__lt=timezone.now().date(),
+        )
+    elif status == 'pending':
+        # Dashboard "Pending Invoices" / "Total Due" cards ka exact set.
+        queryset = queryset.filter(
+            payment_status__in=Invoice.OUTSTANDING_STATUSES
         )
     elif status:
         queryset = queryset.filter(payment_status=status)
@@ -682,8 +687,13 @@ def invoice_list_print(request):
         queryset = queryset.filter(customer_id=customer_id)
     if status == 'overdue':
         queryset = queryset.filter(
-            payment_status__in=['unpaid', 'partial'],
+            payment_status__in=Invoice.OUTSTANDING_STATUSES,
             due_date__lt=timezone.now().date(),
+        )
+    elif status == 'pending':
+        # Dashboard "Pending Invoices" / "Total Due" cards ka exact set.
+        queryset = queryset.filter(
+            payment_status__in=Invoice.OUTSTANDING_STATUSES
         )
     elif status:
         queryset = queryset.filter(payment_status=status)
@@ -777,7 +787,16 @@ def invoice_list_excel(request):
         )
     if customer_id:
         queryset = queryset.filter(customer_id=customer_id)
-    if status:
+    if status == 'overdue':
+        queryset = queryset.filter(
+            payment_status__in=Invoice.OUTSTANDING_STATUSES,
+            due_date__lt=timezone.now().date(),
+        )
+    elif status == 'pending':
+        queryset = queryset.filter(
+            payment_status__in=Invoice.OUTSTANDING_STATUSES
+        )
+    elif status:
         queryset = queryset.filter(payment_status=status)
     if date_from:
         queryset = queryset.filter(date__gte=date_from)

@@ -112,6 +112,7 @@
                             hx-include="#invoice-filter-form"
                             hx-push-url="true">
                         <option value="">All Status</option>
+                        <option value="pending" {% if status == 'pending' %}selected{% endif %}>Outstanding (Unpaid + Partial)</option>
                         <option value="paid" {% if status == 'paid' %}selected{% endif %}>Paid</option>
                         <option value="partial" {% if status == 'partial' %}selected{% endif %}>Partial</option>
                         <option value="unpaid" {% if status == 'unpaid' %}selected{% endif %}>Unpaid</option>

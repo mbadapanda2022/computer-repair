@@ -446,7 +446,10 @@ def get_paginated_repairs_context(request, queryset=None):
             Q(device_model__icontains=search) |
             Q(serial_number__icontains=search)
         )
-    if status:
+    if status == 'open':
+        # Dashboard "Pending Repairs" card ka exact set.
+        queryset = queryset.filter(status__in=RepairJob.OPEN_STATUSES)
+    elif status:
         queryset = queryset.filter(status=status)
     if customer_id:
         queryset = queryset.filter(customer_id=customer_id)
@@ -570,7 +573,9 @@ def repair_list_print(request):
             Q(device_model__icontains=search) |
             Q(serial_number__icontains=search)
         )
-    if status:
+    if status == 'open':
+        jobs = jobs.filter(status__in=RepairJob.OPEN_STATUSES)
+    elif status:
         jobs = jobs.filter(status=status)
     if customer_id:
         jobs = jobs.filter(customer_id=customer_id)
@@ -2033,7 +2038,9 @@ def export_repairs_excel(request):
             Q(device_model__icontains=search) |
             Q(serial_number__icontains=search)
         )
-    if status_filter:
+    if status_filter == 'open':
+        queryset = queryset.filter(status__in=RepairJob.OPEN_STATUSES)
+    elif status_filter:
         queryset = queryset.filter(status=status_filter)
     if customer_id:
         queryset = queryset.filter(customer_id=customer_id)

@@ -52,7 +52,7 @@ def dashboard(request):
         )['total'] or Decimal('0')
         
         pending_repairs = RepairJob.objects.filter(
-            status__in=['pending', 'diagnosis', 'repairing', 'ready']
+            status__in=RepairJob.OPEN_STATUSES
         ).count()
         
         low_stock = Product.objects.filter(
@@ -71,7 +71,7 @@ def dashboard(request):
         total_products = Product.objects.filter(is_active=True).count()
         
         pending_invoices = Invoice.objects.filter(
-            payment_status__in=['unpaid', 'partial']
+            payment_status__in=Invoice.OUTSTANDING_STATUSES
         ).count()
         
         total_invoices = Invoice.objects.count()

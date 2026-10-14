@@ -110,6 +110,7 @@
                             hx-include="#repair-filter-form"
                             hx-push-url="true">
                         <option value="">All Status</option>
+                        <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open (In-progress)</option>
                         {% for value, label in status_choices %}
                             <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}

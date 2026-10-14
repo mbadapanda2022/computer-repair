@@ -1089,6 +1089,9 @@ def sync_invoice_ledger(invoice):
 
 
 class Invoice(SoftDeleteModel):
+    # Unpaid + partial = "outstanding" — ek hi set dashboard card,
+    # list filter aur dropdown use karte taaki count kabhi diverge na ho.
+    OUTSTANDING_STATUSES = ['unpaid', 'partial']
     GST_TYPE = (('regular', 'Regular (B2B)'), ('non_gst', 'Non-GST'), ('interstate', 'Inter-state (IGST)'), ('intrastate', 'Intra-state (CGST+SGST)'))
     PAYMENT_STATUS = (('paid', 'Paid'), ('partial', 'Partially Paid'), ('unpaid', 'Unpaid'))
     
@@ -2275,6 +2278,9 @@ class RepairStatusLog(models.Model):
 
 
 class RepairJob(SoftDeleteModel):
+    # "Open" = abhi shop me / under-work — dashboard Pending Repairs card
+    # aur repair_list open filter yahi set use karte hain.
+    OPEN_STATUSES = ['pending', 'diagnosis', 'repairing', 'ready']
     STATUS_CHOICES = (
         ('pending',    'Pending (Awaiting Receipt)'),
         ('received',   'Received at Shop'),
