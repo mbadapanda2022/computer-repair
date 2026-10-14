@@ -77,6 +77,25 @@
         </div>
     </div>
 
+    <!-- ==================== ADVANCE SETTLE BANNER ==================== -->
+    {% if invoice.balance_due > 0 and unapplied_advance > 0 %}
+    <div class="alert alert-warning d-flex flex-wrap justify-content-between align-items-center gap-2 border-0 shadow-sm">
+        <div class="mb-0">
+            <i class="bi bi-cash-coin me-1"></i>
+            <strong>{{ invoice.customer.name }}</strong> has
+            <strong>₹{{ unapplied_advance|floatformat:2 }} unapplied advance</strong>.
+            Applying it will reduce the balance due to
+            <strong>₹{{ advance_balance_after_apply|floatformat:2 }}</strong>.
+        </div>
+        <form method="post" action="{% url 'accounting:invoice_apply_advance' invoice.pk %}" class="mb-0">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-warning fw-bold">
+                <i class="bi bi-check-circle me-1"></i>Apply ₹{{ advance_apply_amount|floatformat:2 }} to this invoice
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- ==================== INFO + FINANCIALS ==================== -->
     <div class="row g-3 mb-4">
         <div class="col-md-6">
@@ -184,6 +203,12 @@
                             <td class="text-success">Paid</td>
                             <td class="text-end text-success fw-bold">₹{{ invoice.paid_amount|floatformat:2 }}</td>
                         </tr>
+                        {% if advance_applied_total > 0 %}
+                        <tr>
+                            <td class="text-muted small ps-3">incl. advance applied</td>
+                            <td class="text-end text-muted small">₹{{ advance_applied_total|floatformat:2 }}</td>
+                        </tr>
+                        {% endif %}
                         <tr class="border-top">
                             <td class="fw-bold">Balance Due</td>
                             <td class="text-end fw-bold fs-5 {% if invoice.balance_due > 0 %}text-danger{% else %}text-success{% endif %}">
@@ -312,6 +337,42 @@
             <div id="payment-list-container">
                 {% include "sales/partials/payment_list.html" with payment_allocations=payment_allocations %}
             </div>
+            {% if advance_adjustments %}
+            <div class="table-responsive border-top">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th><i class="bi bi-cash-coin me-1"></i>Advance Applied</th>
+                            <th>Date</th>
+                            <th class="text-end">Amount</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for adj in advance_adjustments %}
+                        <tr>
+                            <td class="text-muted small">
+                                From advance payment #{{ adj.payment_id }}
+                                ({{ adj.payment.get_method_display }})
+                                {% if adj.notes %}· {{ adj.notes }}{% endif %}
+                            </td>
+                            <td class="small">{{ adj.date|date:"d M Y" }}</td>
+                            <td class="text-end fw-bold text-success">₹{{ adj.amount|floatformat:2 }}</td>
+                            <td class="text-end">
+                                <form method="post" action="{% url 'accounting:invoice_unapply_advance' invoice.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                            onclick="return confirm('Move this advance back to the customer\'s pool? Invoice balance due will increase.');">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>Un-apply
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
         </div>
     </div>
 

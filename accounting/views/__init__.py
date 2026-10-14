@@ -13,6 +13,7 @@ from .dashboard import (
 
 from .auth import *
 from .bank import *
+from .cash import *
 from .contacts import *
 from .contact_messages import *
 from .error_handlers import *

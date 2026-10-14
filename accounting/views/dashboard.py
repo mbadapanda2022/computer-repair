@@ -14,7 +14,8 @@ from django.core.paginator import Paginator
 
 from ..models import (
     Invoice, InvoiceItem, Purchase, Contact, Product,
-    RepairJob, Payment, CompanyProfile, Notification
+    RepairJob, Payment, CompanyProfile, Notification,
+    get_cash_in_hand, get_total_bank_balance,
 )
 from .utils import is_htmx
 from ..decorators import handle_errors
@@ -99,6 +100,9 @@ def dashboard(request):
             recipient=request.user,
             is_read=False
         ).count()
+
+        cash_in_hand = get_cash_in_hand()
+        bank_balance = get_total_bank_balance()
         
         # ── Overdue Invoices ──
         from datetime import date as _date
@@ -139,6 +143,8 @@ def dashboard(request):
             'overdue_count': overdue_count,
             'overdue_amount': overdue_amount,
             'low_stock_products': low_stock_products,
+            'cash_in_hand': cash_in_hand,
+            'bank_balance': bank_balance,
             # Recent
             'recent_invoices': recent_invoices,
             'recent_repairs': recent_repairs,
@@ -175,6 +181,8 @@ def dashboard(request):
             'overdue_count': 0,
             'overdue_amount': Decimal('0'),
             'low_stock_products': [],
+            'cash_in_hand': Decimal('0'),
+            'bank_balance': Decimal('0'),
             'recent_invoices': [],
             'recent_repairs': [],
             'recent_payments': [],
@@ -309,6 +317,8 @@ def refresh_stats(request):
             recipient=request.user,
             is_read=False
         ).count(),
+        'cash_in_hand': get_cash_in_hand(),
+        'bank_balance': get_total_bank_balance(),
     }
     return render(request, 'dashboard/partials/stats_cards.html', context)
 

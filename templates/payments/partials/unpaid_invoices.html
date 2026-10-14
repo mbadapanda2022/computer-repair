@@ -2,6 +2,15 @@
 {% load static %}
 
 {% if unpaid_invoices %}
+    {% if contact.advance_balance > 0 %}
+    <div class="alert alert-info py-2 small mb-2">
+        <i class="bi bi-info-circle me-1"></i>
+        {{ contact.name }} has <strong>₹{{ contact.advance_balance|floatformat:2 }} unapplied advance</strong>.
+        The "Due" below already has any applied advance deducted — this is a
+        <em>balance payment</em>, not a fresh advance. Do not re-enter the advance here.
+        Tip: apply the advance from the invoice page first for an accurate Due.
+    </div>
+    {% endif %}
     <div class="table-responsive border rounded">
         <table class="table table-sm table-hover align-middle mb-0">
             <thead class="table-light">

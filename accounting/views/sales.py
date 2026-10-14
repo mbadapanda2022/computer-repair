@@ -553,13 +553,89 @@ def remove_invoice_item(request, index):
 def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related('customer'), pk=pk)
     payment_allocations = invoice.payment_allocations.select_related('payment').all().order_by('-payment__date')
-    payments = [pa.payment for pa in payment_allocations] 
+    payments = [pa.payment for pa in payment_allocations]
+    advance_adjustments = (
+        invoice.advance_adjustments
+        .select_related('payment').order_by('-date', '-id')
+    )
+    unapplied = (
+        invoice.customer.unapplied_advance() if invoice.customer else Decimal('0')
+    )
+    apply_amount = min(unapplied, invoice.balance_due)
     context = {
         'invoice': invoice,
         'payments': payments,
         'payment_allocations': payment_allocations,
+        'advance_adjustments': (
+            advance_adjustments
+        ),
+        'advance_applied_total': sum(
+            (a.amount for a in advance_adjustments), Decimal('0')
+        ),
+        'unapplied_advance': unapplied,
+        'advance_apply_amount': apply_amount,
+        'advance_balance_after_apply': invoice.balance_due - apply_amount,
     }
     return render(request, 'sales/invoice_detail.html', context)
+
+
+# ============================================================
+# 8b. ADVANCE SETTLE (advance → invoice)
+# ============================================================
+@login_required
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:invoice_list')
+def invoice_apply_advance(request, pk):
+    """Settle the customer's unapplied advance(s) onto this invoice."""
+    invoice = get_object_or_404(
+        Invoice.objects.select_related('customer'), pk=pk
+    )
+    applied = invoice.apply_available_advance(
+        note=f'Applied by {request.user.username}'
+    )
+    if applied:
+        total = sum(a for _, a in applied)
+        messages.success(
+            request,
+            f"₹{total} advance applied to {invoice.invoice_number}. "
+            f"Balance due: ₹{invoice.balance_due}.",
+        )
+    else:
+        available = (
+            invoice.customer.unapplied_advance() if invoice.customer
+            else Decimal('0')
+        )
+        if available <= 0:
+            messages.info(request, "Customer has no unapplied advance.")
+        else:
+            messages.info(
+                request,
+                "Nothing to apply — the invoice balance is already covered.",
+            )
+    return redirect('accounting:invoice_detail', pk=invoice.pk)
+
+
+@login_required
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:invoice_list')
+def invoice_unapply_advance(request, pk):
+    """Move advance(s) applied to this invoice back to the customer's pool."""
+    invoice = get_object_or_404(
+        Invoice.objects.select_related('customer'), pk=pk
+    )
+    removed = invoice.unapply_advance()
+    if removed:
+        total = sum(a.amount for a in removed)
+        messages.success(
+            request,
+            f"₹{total} advance moved back to {invoice.customer.name}'s "
+            f"advance pool. Balance due: ₹{invoice.balance_due}.",
+        )
+    else:
+        messages.info(request, "No advance was applied to this invoice.")
+    return redirect('accounting:invoice_detail', pk=invoice.pk)
 
 
 # ============================================================

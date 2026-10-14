@@ -37,6 +37,7 @@ from .models import (
     Service,
     StockMovement,
     Testimonial,
+    get_cash_in_hand,
 )
 
 User = get_user_model()
@@ -1601,6 +1602,11 @@ class PaymentForm(forms.ModelForm):
                 "Please select a bank account for bank/UPI payments.",
             )
 
+        if method == 'cash' and bank_account:
+            # Cash till (register) me aata hai, bank me nahi — warna
+            # ledger cash aur bank statement dono confuse hote hain.
+            cleaned_data['bank_account'] = None
+
         if contact and direction:
             if direction == 'received' and contact.contact_type not in ('customer', 'both'):
                 self.add_error(
@@ -2074,3 +2080,58 @@ class BlogPostFilterForm(forms.Form):
         }),
         empty_label="All Tags",
     )
+
+# ============================================================
+# 14. CASH BOOK — CONTRA (cash ↔ bank transfer)
+# ============================================================
+class ContraForm(forms.Form):
+    """Move cash between the shop cash box and a bank account (contra entry)."""
+    DIRECTION = (
+        ('deposit', 'Cash with me → Deposit into Bank account'),
+        ('withdrawal', 'From Bank account → Withdraw cash (Cash to counter)'),
+    )
+    direction = forms.ChoiceField(
+        choices=DIRECTION,
+        widget=BS_SELECT(),
+        label='Type of movement',
+    )
+    bank_account = forms.ModelChoiceField(
+        queryset=BankAccount.objects.filter(is_active=True),
+        widget=BS_SELECT(),
+        label='Bank account',
+    )
+    amount = forms.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal('0.01'),
+        widget=BS_NUMBER(), label='Amount (₹)',
+    )
+    date = forms.DateField(
+        widget=BS_DATE(), initial=timezone.localdate, label='Date',
+    )
+    notes = forms.CharField(
+        max_length=200, required=False,
+        widget=BS_TEXT(placeholder='e.g. Weekly cash deposit to Bank of Baroda'),
+        label='Notes',
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        direction = cleaned_data.get('direction')
+        bank = cleaned_data.get('bank_account')
+        amount = cleaned_data.get('amount')
+        if not (direction and bank and amount):
+            return cleaned_data
+
+        cash_in_hand = get_cash_in_hand()
+        if direction == 'deposit' and amount > cash_in_hand:
+            self.add_error(
+                'amount',
+                f'Cash in hand is only ₹{cash_in_hand}. '
+                'Deposit less, or first record the cash payments received.',
+            )
+        elif direction == 'withdrawal' and amount > bank.current_balance:
+            self.add_error(
+                'amount',
+                f"'{bank.name}' balance is only ₹{bank.current_balance}. "
+                'Withdraw less.',
+            )
+        return cleaned_data

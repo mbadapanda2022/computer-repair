@@ -765,6 +765,37 @@ class Contact(SoftDeleteModel):
         self.advance_balance = new_advance
         self.save(update_fields=['advance_balance'])
 
+    def unapplied_advance_rows(self, direction='received'):
+        """
+        Advance payments jo kisi invoice par settle NAHI hue.
+
+        Returns [(Payment, remaining_amount)] oldest-first (FIFO), so a
+        later invoice settles against the earliest pending advance first.
+        """
+        payments = self.payments.filter(
+            is_advance=True, direction=direction,
+        ).order_by('date', 'id')
+
+        settled = {
+            row['payment_id']: row['t']
+            for row in AdvanceAdjustment.objects.filter(payment__in=payments)
+            .values('payment_id').annotate(t=Sum('amount'))
+        }
+
+        rows = []
+        for pay in payments:
+            remaining = pay.amount - settled.get(pay.pk, Decimal('0'))
+            if remaining > 0:
+                rows.append((pay, remaining.quantize(TAX_PRECISION)))
+        return rows
+
+    def unapplied_advance(self, direction='received'):
+        """Total unapplied advance credit for this contact."""
+        return sum(
+            (r for _, r in self.unapplied_advance_rows(direction)),
+            Decimal('0'),
+        ).quantize(TAX_PRECISION)
+
     # ════════════════════════════════════════════════════════════
     # SOFT DELETE OVERRIDE — also anonymize linked User
     # ════════════════════════════════════════════════════════════
@@ -1318,6 +1349,63 @@ class Invoice(SoftDeleteModel):
             self.payment_status = 'partial'
         else:
             self.payment_status = 'unpaid'
+
+    def apply_available_advance(self, note=''):
+        """
+        Customer ke unapplied advance (FIFO) ko is invoice ke balance_due
+        par settle karo — AdvanceAdjustment rows bana ke.
+
+        Intake par liya gaya advance tab tak sirf customer pool me para
+        rehta hai aur invoice kam-paid dikhta hai, jis se staff/customer
+        dono confuse hote hain. Returns [(Payment, amount)] applied.
+        """
+        if not self.customer_id:
+            return []
+
+        applied = []
+        with transaction.atomic():
+            remaining_due = self.balance_due
+            for pay, avail in self.customer.unapplied_advance_rows():
+                if remaining_due <= 0:
+                    break
+                # (payment, invoice) unique_together hai — jo advance pehle se
+                # is invoice par settle hai us par dobara row create mat karo.
+                if AdvanceAdjustment.objects.filter(payment=pay, invoice=self).exists():
+                    continue
+                take = min(avail, remaining_due)
+                AdvanceAdjustment.objects.create(
+                    payment=pay,
+                    invoice=self,
+                    amount=take,
+                    date=timezone.now().date(),
+                    notes=note,
+                )
+                applied.append((pay, take))
+                remaining_due -= take
+
+        if applied:
+            # sync_advance_adjustment signal DB state recalc kar chuka hai;
+            # in-memory copy refresh karo taaki caller sahi balance_due pade.
+            self.refresh_from_db(
+                fields=['paid_amount', 'balance_due', 'payment_status']
+            )
+        return applied
+
+    def unapply_advance(self):
+        """
+        Is invoice ke saare advance settle hatao — credit wapas customer
+        ke advance pool me chala jata hai (signals invoice/pool recalc
+        karte hain).
+        """
+        adjustments = list(self.advance_adjustments.all())
+        if adjustments:
+            with transaction.atomic():
+                for adj in adjustments:
+                    adj.delete()  # soft delete → post_save → recalc signals
+            self.refresh_from_db(
+                fields=['paid_amount', 'balance_due', 'payment_status']
+            )
+        return adjustments
 
 
 class InvoiceItem(SoftDeleteModel):
@@ -2781,7 +2869,10 @@ _BANK_SOURCE_ACCOUNTS = {
     # source_type → (code, name, type, group_code)
     'interest':     ('4012', 'Interest Income', 'income', '4'),
     'bank_charge':  ('5014', 'Bank Charges', 'expense', '5'),
-    # 'transfer', 'manual', 'payment_received', 'payment_made' → Suspense
+    # 'transfer' = cash↔bank contra: deposit → Dr Bank/Cr Cash,
+    # withdrawal → Dr Cash/Cr Bank.
+    'transfer':     ('1001', 'Cash', 'asset', '1'),
+    # 'manual', 'payment_received', 'payment_made' → Suspense
 }
 _BANK_SUSPENSE = ('1020', 'Bank Suspense', 'asset', '1')
 
@@ -2801,6 +2892,7 @@ def sync_bank_transaction_ledger(txn):
     ACCOUNT MAPPING:
       deposit + interest     → Dr Bank (1010) / Cr Interest Income (4012)
       withdrawal + bank_charge → Dr Bank Charges (5014) / Cr Bank (1010)
+      deposit/withdrawal + transfer → contra with Cash (1001)
       everything else        → Dr/Cr Bank ↔ Dr/Cr Bank Suspense (1020)
 
     Idempotent — safe to call multiple times.
@@ -2983,6 +3075,36 @@ class BankTransaction(SoftDeleteModel):
         return f"{self.get_transaction_type_display()} - {self.amount} ({self.bank_account.name})"
 
 
+def get_cash_in_hand(up_to=None):
+    """Cash account (1001) balance derived from the ledger. up_to = optional date cutoff."""
+    qs = LedgerLine.objects.filter(
+        account__code='1001',
+        is_deleted=False,
+        ledger_entry__is_deleted=False,
+    )
+    if up_to:
+        qs = qs.filter(ledger_entry__date__lte=up_to)
+    agg = qs.aggregate(debit=Sum('debit'), credit=Sum('credit'))
+    return ((agg['debit'] or Decimal('0')) - (agg['credit'] or Decimal('0'))).quantize(Decimal('0.01'))
+
+
+def get_total_bank_balance(up_to=None):
+    """Sum of current_balance across active bank accounts (ledger-1010-independent view)."""
+    qs = BankAccount.objects.filter(is_active=True, is_deleted=False)
+    if up_to:
+        total = Decimal('0')
+        for acct in qs:
+            deposits = acct.transactions.filter(
+                transaction_type='deposit', is_deleted=False, date__lte=up_to
+            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+            withdrawals = acct.transactions.filter(
+                transaction_type='withdrawal', is_deleted=False, date__lte=up_to
+            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+            total += acct.opening_balance + deposits - withdrawals
+        return total.quantize(Decimal('0.01'))
+    return qs.aggregate(t=Sum('current_balance'))['t'] or Decimal('0')
+
+
 # ============================================================
 # 13. PAYMENTS (Full Enterprise with Advance, Discount, Soft Delete)
 # ============================================================
@@ -3084,36 +3206,45 @@ class Payment(SoftDeleteModel):
 
     def _trim_allocations_to_amount(self):
         """
-        Trim allocations (and advance adjustments) from the newest first
-        until the total allocated ≤ payment.amount.
+        Trim allocations AND advance adjustments from the newest first
+        until the total committed ≤ payment.amount.
 
         Called automatically when Payment.amount decreases on edit.
         """
-        allocations = list(
+        rows = list(
             self.allocations.select_related('invoice').order_by('-id')
+        ) + list(
+            self.advance_adjustments.select_related('invoice').order_by('-id')
         )
-        total = sum(a.amount for a in allocations)
+        rows.sort(key=lambda r: r.pk, reverse=True)
 
-        for alloc in allocations:
+        total = sum((r.amount for r in rows), Decimal('0'))
+
+        for row in rows:
             if total <= self.amount:
                 break
             excess = total - self.amount
-            if alloc.amount <= excess:
-                # Remove this allocation entirely — HARD delete so the
+            if row.amount <= excess:
+                # Remove this row entirely — HARD delete so the
                 # (payment, invoice) unique constraint is freed for reuse.
-                total -= alloc.amount
-                alloc.hard_delete()
+                total -= row.amount
+                row.hard_delete()
             else:
-                # Partial trim — reduce this allocation's amount
-                alloc.amount = (alloc.amount - excess).quantize(TAX_PRECISION)
-                alloc.save(update_fields=['amount'])
+                # Partial trim — reduce this row's amount
+                row.amount = (row.amount - excess).quantize(TAX_PRECISION)
+                row.save(update_fields=['amount'])
                 total -= excess
 
     def _get_account_name(self):
-        """Get the appropriate account for this payment."""
-        if self.bank_account:
-            return get_account('1010', 'Bank Account', 'asset', '1')
-        return get_account('1001', 'Cash', 'asset', '1')
+        """
+        Money side is decided by method: cash → Cash(1001),
+        bank/upi → Bank(1010). (Earlier the bank_account FK decided, so a
+        'cash' payment with a stray bank account picked landed in Bank and
+        the till balance never matched physical cash.)
+        """
+        if self.method == 'cash':
+            return get_account('1001', 'Cash', 'asset', '1')
+        return get_account('1010', 'Bank Account', 'asset', '1')
 
     def create_ledger_entry(self):
         """Create ledger entry for payment (with advance and discount support)."""
@@ -3230,7 +3361,9 @@ class Payment(SoftDeleteModel):
                     LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
 
     def create_bank_transaction(self):
-        if not self.bank_account:
+        # Cash never moves through a bank account — till me rehta hai.
+        # (method-based ledger side ke saath consistent rehne ke liye.)
+        if not self.bank_account or self.method == 'cash':
             return
         txn_type = 'deposit' if self.direction == 'received' else 'withdrawal'
         source_type = 'payment_received' if self.direction == 'received' else 'payment_made'
@@ -3256,7 +3389,7 @@ class Payment(SoftDeleteModel):
         if hasattr(self, 'bank_transaction'):
             old_account = self.bank_transaction.bank_account
 
-        if not self.bank_account:
+        if not self.bank_account or self.method == 'cash':
             if old_account is not None:
                 self.bank_transaction.delete()
             return
@@ -3339,7 +3472,10 @@ class Payment(SoftDeleteModel):
 
         # ── Delete child records ──
         self.allocations.all().delete()
-        AdvanceAdjustment.objects.filter(payment=self).delete()
+        # Per-instance so sync_advance_adjustment fires: invoice recalc +
+        # settle-ledger cleanup (bulk queryset.delete() skips signals).
+        for adj in list(AdvanceAdjustment.objects.filter(payment=self)):
+            adj.delete()
 
         if hasattr(self, 'bank_transaction'):
             self.bank_transaction.delete()
@@ -3577,10 +3713,13 @@ def sync_payment_allocation(sender, instance, **kwargs):
         instance.payment.update_invoices()
 
 
-@receiver(post_save, sender=AdvanceAdjustment)
-@receiver(post_delete, sender=AdvanceAdjustment)
-def sync_advance_adjustment(sender, instance, **kwargs):
-    """Keep invoice totals, payment totals and advance balance in sync."""
+def _sync_advance_adjustment_state(instance):
+    """
+    Invoice totals/pool recalc. Ledger side: sync_invoice_ledger (called via
+    invoice.save inside _recalculate_invoice_payment) already emits the
+    Dr Advance / Cr Receivable settle lines — do NOT create a separate
+    settle entry here or the settlement double-counts.
+    """
     if instance.invoice_id:
         try:
             invoice = Invoice.all_objects.get(pk=instance.invoice_id)
@@ -3593,6 +3732,13 @@ def sync_advance_adjustment(sender, instance, **kwargs):
         instance.payment.update_invoices()
         if instance.payment.contact:
             instance.payment.contact.recalc_advance_balance()
+
+
+@receiver(post_save, sender=AdvanceAdjustment)
+@receiver(post_delete, sender=AdvanceAdjustment)
+def sync_advance_adjustment(sender, instance, **kwargs):
+    """Keep invoice totals, payment totals and advance balance in sync."""
+    _sync_advance_adjustment_state(instance)
 
 
 

@@ -1726,6 +1726,14 @@ def create_invoice_from_repair(request, pk):
         job.invoice = invoice
         job.save(update_fields=['invoice'])
 
+        # ── Auto-settle any unapplied customer advance onto this invoice ──
+        # Without this, an intake advance (is_advance=True) floats in the
+        # customer pool and the invoice always shows the advance still due,
+        # so staff collects it twice. Applies FIFO, capped at balance_due.
+        advance_applied = invoice.apply_available_advance(
+            note='Auto-applied at invoice generation'
+        )
+
     # Clear session
     _clear_repair_invoice_session(request)
 
@@ -1744,14 +1752,28 @@ def create_invoice_from_repair(request, pk):
         request,
         f"Invoice {invoice.invoice_number} created for repair {job.job_number}.",
     )
+    if advance_applied:
+        _adv_total = sum(a for _, a in advance_applied)
+        messages.info(
+            request,
+            f"₹{_adv_total} customer advance applied to this invoice. "
+            f"Balance due now ₹{invoice.balance_due}.",
+        )
 
     if is_htmx(request):
         response = HttpResponse()
         response['HX-Redirect'] = reverse('accounting:invoice_detail', args=[invoice.pk])
+        _toast_msg = f'Invoice {invoice.invoice_number} created.'
+        if advance_applied:
+            _toast_msg = (
+                f'Invoice {invoice.invoice_number} created — '
+                f'₹{sum(a for _, a in advance_applied)} advance applied, '
+                f'due ₹{invoice.balance_due}.'
+            )
         response['HX-Trigger'] = json.dumps({
             'showToast': {
                 'level': 'success',
-                'message': f'Invoice {invoice.invoice_number} created.',
+                'message': _toast_msg,
             },
             'closeModal': '',
         })

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-cash-stack text-success me-2"></i>Cash Book
+            </h3>
+            <p class="text-muted small mt-1 mb-0">
+                Every rupee that comes into or goes out of the shop cash box, with running balance
+            </p>
+        </div>
+        <div class="text-end">
+            <small class="text-muted d-block text-uppercase fw-semibold">Cash in Hand Right Now</small>
+            <h4 class="fw-bold text-success mb-0">₹{{ cash_in_hand_now|floatformat:2 }}</h4>
+        </div>
+    </div>
+
+    <!-- Summary Tiles -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-secondary">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Opening Balance</small>
+                    <h5 class="mb-0 fw-bold">₹{{ opening_balance|floatformat:2 }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Cash In</small>
+                    <h5 class="mb-0 fw-bold text-success">₹{{ total_in|floatformat:2 }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Cash Out</small>
+                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_out|floatformat:2 }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Closing Balance</small>
+                    <h5 class="mb-0 fw-bold text-primary">₹{{ closing_balance|floatformat:2 }}</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Register -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <form method="get" class="row g-2 align-items-end mb-3">
+                        <div class="col-auto">
+                            <label class="form-label small mb-1">From</label>
+                            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label small mb-1">To</label>
+                            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="bi bi-funnel me-1"></i>Apply
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Particulars</th>
+                                    <th>Type</th>
+                                    <th class="text-end">Cash In (₹)</th>
+                                    <th class="text-end">Cash Out (₹)</th>
+                                    <th class="text-end">Balance (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in rows %}
+                                <tr>
+                                    <td class="text-nowrap">{{ row.date|date:"d M Y" }}</td>
+                                    <td>{{ row.particulars }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ row.label }}</span></td>
+                                    <td class="text-end text-success">{% if row.cash_in %}{{ row.cash_in|floatformat:2 }}{% endif %}</td>
+                                    <td class="text-end text-danger">{% if row.cash_out %}{{ row.cash_out|floatformat:2 }}{% endif %}</td>
+                                    <td class="text-end fw-semibold">{{ row.balance|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        No cash movements in this period.
+                                        Cash received/paid via Payments (method = Cash) appears here automatically.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            {% if page_obj.paginator.total %}
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="3">Total</td>
+                                    <td class="text-end">{{ total_in|floatformat:2 }}</td>
+                                    <td class="text-end">{{ total_out|floatformat:2 }}</td>
+                                    <td class="text-end">{{ closing_balance|floatformat:2 }}</td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+
+                    {% if page_obj.has_other_pages %}
+                    <nav class="mt-3">
+                        <ul class="pagination pagination-sm justify-content-end mb-0">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?date_from={{ date_from }}&date_to={{ date_to }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+                            {% if page_obj.has_next %}
+                            <li class="page-item"><a class="page-link" href="?date_from={{ date_from }}&date_to={{ date_to }}&page={{ page_obj.next_page_number }}">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Contra form -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white pt-3">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-arrow-left-right text-primary me-2"></i>Cash ⇄ Bank Movement</h6>
+                    <p class="text-muted small mt-2 mb-0">
+                        Deposit shop cash into a bank account, or bring cash from bank to the counter.
+                    </p>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="{% url 'accounting:contra_create' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">{{ contra_form.direction.label }}</label>
+                            {{ contra_form.direction }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">{{ contra_form.bank_account.label }}</label>
+                            {{ contra_form.bank_account }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">{{ contra_form.amount.label }}</label>
+                            {{ contra_form.amount }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">{{ contra_form.date.label }}</label>
+                            {{ contra_form.date }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">{{ contra_form.notes.label }}</label>
+                            {{ contra_form.notes }}
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-check2-circle me-1"></i>Record Movement
+                        </button>
+                    </form>
+                    <div class="alert alert-info small mt-3 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        This does <b>not</b> change any customer or vendor due — it only moves money
+                        between your cash box and bank.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

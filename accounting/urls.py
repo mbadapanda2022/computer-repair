@@ -69,6 +69,8 @@ urlpatterns = [
     path('sales/export/excel/', sales.invoice_list_excel, name='invoice_list_excel'),
     path('sales/create/', sales.invoice_create, name='invoice_create'),
     path('sales/<int:pk>/', sales.invoice_detail, name='invoice_detail'),
+    path('sales/<int:pk>/apply-advance/', sales.invoice_apply_advance, name='invoice_apply_advance'),
+    path('sales/<int:pk>/unapply-advance/', sales.invoice_unapply_advance, name='invoice_unapply_advance'),
     path('sales/<int:pk>/print/', sales.invoice_print, name='invoice_print'),
     path('sales/<int:pk>/update/', sales.invoice_update, name='invoice_update'),
     path('sales/<int:pk>/delete/', sales.invoice_delete, name='invoice_delete'),
@@ -189,6 +191,10 @@ urlpatterns = [
     path('bank/transaction/<int:account_pk>/add/', bank_transaction_add, name='bank_transaction_add'),
     path('bank/transaction/<int:pk>/edit/', bank_transaction_edit, name='bank_transaction_edit'),
     path('bank/transaction/<int:pk>/delete/', bank_transaction_delete, name='bank_transaction_delete'),
+
+    # ===== Cash Book =====
+    path('cash-book/', cash_book, name='cash_book'),
+    path('cash-book/contra/', contra_create, name='contra_create'),
 
     # ===== Settings =====
     path('settings/', company_settings, name='company_settings'),
