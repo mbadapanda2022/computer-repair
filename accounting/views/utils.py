@@ -1,14 +1,10 @@
 # accounting/views/utils.py
 import json
 import logging
-from functools import wraps
-from urllib.parse import urlparse
 
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse, NoReverseMatch
-from django.conf import settings
-from django.contrib import messages
 from django.db import connections
 from django.db.utils import OperationalError
 
@@ -24,37 +20,6 @@ def is_htmx(request):
     Returns True if the 'HX-Request' header is present and 'true'.
     """
     return request.headers.get('HX-Request', '').lower() == 'true'
-
-
-# ============================================================
-# SAFE REDIRECT (Prevents Infinite Loops & Open Redirects)
-# ============================================================
-def safe_redirect(default_url='home', fallback_url='home', request=None):
-    """
-    Returns a safe redirect URL.
-    If request is provided, it validates HTTP_REFERER to prevent open redirects.
-    """
-    if not request:
-        return default_url
-
-    referer = request.META.get('HTTP_REFERER')
-    if not referer:
-        return default_url
-
-    try:
-        parsed_referer = urlparse(referer)
-        parsed_host = urlparse(request.build_absolute_uri('/'))
-        
-        # Only allow redirects to our own domain
-        if parsed_referer.netloc == parsed_host.netloc:
-            # Prevent redirect loops: don't redirect to the same page
-            current_path = request.path
-            if parsed_referer.path != current_path:
-                return referer
-    except Exception as e:
-        logger.warning(f"Error parsing referer: {e}")
-    
-    return default_url
 
 
 # ============================================================
@@ -82,18 +47,6 @@ def redirect_to_customer(view_name, *args, **kwargs):
     except NoReverseMatch as e:
         logger.error(f"Redirect to customer '{view_name}' failed: {e}. Falling back to home.")
         return redirect('home')
-
-
-# ============================================================
-# STANDARD TEMPLATE RENDER
-# ============================================================
-def render_partial(request, template, context=None):
-    """
-    Render a template (simple wrapper for render).
-    """
-    if context is None:
-        context = {}
-    return render(request, template, context)
 
 
 # ============================================================
@@ -191,78 +144,6 @@ def toast_only_response(toast, status=200):
 
 
 # ============================================================
-# JSON RESPONSE (For APIs / Non-HTMX endpoints)
-# ============================================================
-def json_response(data, status=200, toast=None):
-    """
-    Return JSON response with optional toast.
-    """
-    response = JsonResponse(data, status=status)
-    if toast:
-        response['HX-Trigger'] = json.dumps({
-            'showToast': {
-                'level': toast.get('level', 'info'),
-                'message': toast.get('message', ''),
-                'title': toast.get('title', 'Notification'),
-                'link': toast.get('link', '')
-            }
-        })
-    return response
-
-
-# ============================================================
-# ERROR RESPONSE (JSON)
-# ============================================================
-def error_response(message, status=400, toast=None):
-    """
-    Return JSON error response with optional toast.
-    """
-    toast_data = toast or {'level': 'danger', 'message': message, 'title': 'Error'}
-    response = JsonResponse({'error': message}, status=status)
-    response['HX-Trigger'] = json.dumps({
-        'showToast': {
-            'level': toast_data.get('level', 'danger'),
-            'message': toast_data.get('message', message),
-            'title': toast_data.get('title', 'Error'),
-            'link': toast_data.get('link', '')
-        }
-    })
-    return response
-
-
-# ============================================================
-# SAFE REDIRECT WITH RESPONSE (For Views)
-# ============================================================
-def safe_redirect_response(request, default_url='home'):
-    """
-    Returns an HTTP redirect response to a safe URL.
-    Prevents open redirect vulnerabilities.
-    """
-    redirect_url = safe_redirect(default_url, default_url, request)
-    return redirect(redirect_url)
-
-
-# ============================================================
-# DECORATOR: HTMX REQUIRED
-# ============================================================
-def htmx_required(view_func):
-    """
-    Decorator to ensure the request is an HTMX request.
-    Returns 400 error if not HTMX.
-    """
-    @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
-        if not is_htmx(request):
-            logger.warning(f"Non-HTMX request to HTMX-only view: {request.path}")
-            return HttpResponse(
-                "This view requires HTMX. Please use the website normally.",
-                status=400
-            )
-        return view_func(request, *args, **kwargs)
-    return wrapper
-
-
-# ============================================================
 # HEALTH CHECK (For Render & Supabase Keep-Alive)
 # ============================================================
 def health_check(request):
@@ -284,11 +165,13 @@ def health_check(request):
         }, status=200)
     except OperationalError as e:
         logger.error(f"Health check failed: {e}")
+        # Public endpoint — DB error text (host/user/db fragments) never
+        # jaana chahiye, detail sirf log me.
         return JsonResponse({
             'status': 'error',
             'database': 'disconnected',
             'server': 'active',
-            'message': str(e)
+            'message': 'Database unavailable.'
         }, status=500)
     except Exception as e:
         logger.error(f"Unexpected health check error: {e}")
@@ -296,34 +179,10 @@ def health_check(request):
             'status': 'error',
             'database': 'unknown',
             'server': 'active',
-            'message': str(e)
+            'message': 'Health check failed.'
         }, status=500)
         
         
-# ============================================================
-# SAFE DECIMAL PARSER (shared by sales, purchases, etc.)
-# ============================================================
-from decimal import Decimal, InvalidOperation
-
-
-def safe_decimal(value, default=Decimal('0')):
-    """
-    Safely parse a value to Decimal.
-
-    Returns `default` on None, empty string, or invalid input.
-    Never raises.
-    """
-    if value is None:
-        return default
-    s = str(value).strip()
-    if s == '':
-        return default
-    try:
-        return Decimal(s)
-    except (ValueError, TypeError, ArithmeticError, InvalidOperation):
-        return default
-
-
 # ============================================================
 # HTMX FIELD-VALIDATION RESPONSE (escaped)
 # ============================================================

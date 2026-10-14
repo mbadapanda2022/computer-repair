@@ -492,7 +492,7 @@
                 </div>
                 <div class="pay-tile">
                     <div class="k">Balance Due</div>
-                    <div class="v">₹{{ repair.invoice.balance_due|floatformat:2 }}</div>
+                    <div class="v">₹{% if repair.invoice.balance_due > 0 %}{{ repair.invoice.balance_due|floatformat:2 }}{% else %}0.00{% endif %}</div>
                 </div>
                 <div class="pay-tile">
                     <div class="k">Payment</div>

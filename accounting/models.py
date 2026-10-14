@@ -1305,7 +1305,13 @@ class Invoice(SoftDeleteModel):
         )['total'] or Decimal('0')
         total_paid = total_allocations + total_advance
 
-        self.balance_due = (self.grand_total - total_paid).quantize(TAX_PRECISION)
+        # Over-payment (advance > bill) par negative due store NAHI karte —
+        # field MinValueValidator(0) wala hai aur displays "₹-200 Due"
+        # dikha dete. Credit ka exact amount Payment/AdvanceAdjustment aur
+        # Contact.advance_balance me tracked rehta hai.
+        self.balance_due = max(
+            Decimal('0'), self.grand_total - total_paid
+        ).quantize(TAX_PRECISION)
         if self.balance_due <= 0:
             self.payment_status = 'paid'
         elif total_paid > 0 and self.balance_due < self.grand_total:
@@ -3285,7 +3291,9 @@ class Payment(SoftDeleteModel):
                 total_paid = inv.payment_allocations.aggregate(total=Sum('amount'))['total'] or Decimal('0')
                 total_advance = inv.advance_adjustments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
                 inv.paid_amount = total_paid + total_advance
-                inv.balance_due = (inv.grand_total - inv.paid_amount).quantize(TAX_PRECISION)
+                inv.balance_due = max(
+                    Decimal('0'), inv.grand_total - inv.paid_amount
+                ).quantize(TAX_PRECISION)
                 if inv.balance_due <= 0: inv.payment_status = 'paid'
                 elif inv.paid_amount > 0 and inv.balance_due < inv.grand_total: inv.payment_status = 'partial'
                 else: inv.payment_status = 'unpaid'
@@ -3351,7 +3359,9 @@ class Payment(SoftDeleteModel):
                 total=Sum('amount')
             )['total'] or Decimal('0')
             inv.paid_amount = total_paid + total_advance
-            inv.balance_due = (inv.grand_total - inv.paid_amount).quantize(TAX_PRECISION)
+            inv.balance_due = max(
+                Decimal('0'), inv.grand_total - inv.paid_amount
+            ).quantize(TAX_PRECISION)
             if inv.balance_due <= 0:
                 inv.payment_status = 'paid'
             elif inv.paid_amount > 0 and inv.balance_due < inv.grand_total:
@@ -3536,8 +3546,9 @@ def _recalculate_invoice_payment(invoice):
     )['total'] or Decimal('0')
 
     invoice.paid_amount = total_paid + total_advance
-    invoice.balance_due = (
-        invoice.grand_total - invoice.paid_amount
+    invoice.balance_due = max(
+        Decimal('0'),
+        invoice.grand_total - invoice.paid_amount,
     ).quantize(TAX_PRECISION)
 
     if invoice.balance_due <= 0:

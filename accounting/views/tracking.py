@@ -1,4 +1,5 @@
 # accounting/views/tracking.py
+import hashlib
 import re
 from datetime import timedelta
 from decimal import Decimal
@@ -9,6 +10,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_protect
 from django.core.cache import cache
 from django.db import models
+from django.utils import timezone
 
 from ..models import RepairJob, CompanyProfile, Payment, AdvanceAdjustment
 from ..utils.tracking import verify_tracking_token, generate_tracking_token
@@ -57,6 +59,9 @@ def _repair_advance_paid(repair):
         direction='received',
         is_advance=True,
         date__gte=job_start - timedelta(days=ADVANCE_LOOKBACK_DAYS),
+        # Aaj ke baad ki date wala advance kisi agle job ka ho sakta hai —
+        # is job par attribute mat karo.
+        date__lte=timezone.now().date(),
     )
     settled = {
         row['payment_id']: row['t']
@@ -81,7 +86,8 @@ def repair_track(request, token):
     # ---- Light rate limit per IP ----
     ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() \
          or request.META.get('REMOTE_ADDR', 'unknown')
-    cache_key = f'track_rl_{ip}'
+    # Hashed key: raw XFF strings can exceed cache key length and collide.
+    cache_key = 'track_rl_' + hashlib.sha256(ip.encode()).hexdigest()[:24]
     hits = cache.get(cache_key, 0)
     if hits >= RATE_LIMIT_PER_MIN:
         return HttpResponse(
@@ -150,7 +156,7 @@ def repair_lookup(request):
     """
     ip = request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip() \
          or request.META.get('REMOTE_ADDR', 'unknown')
-    cache_key = f'track_lookup_rl_{ip}'
+    cache_key = 'track_lookup_rl_' + hashlib.sha256(ip.encode()).hexdigest()[:24]
     hits = cache.get(cache_key, 0)
     if hits >= LOOKUP_RATE_LIMIT_PER_MIN:
         return redirect_to_track(request, error='Too many attempts. Please try again in a minute.')

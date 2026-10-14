@@ -7,7 +7,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <!-- ===== GOOGLE SEARCH CONSOLE VERIFICATION ===== -->
-    <meta name="google-site-verification" content="google-site-verification: googlee55d1d8a01b15058.html" />
     <meta name="google-site-verification" content="nIwVGiwbtc6LoXxFtKpDuhia_RbWcD8TNXYzqLCrOBM" />
 
     <!-- ===== PRIMARY META TAGS ===== -->
@@ -29,7 +28,7 @@
     {% elif company.logo %}
         <meta property="og:image" content="{{ company.logo.url }}">
     {% else %}
-        <meta property="og:image" content="{% static 'images/og-default.jpg' %}">
+        <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'images/og-default.jpg' %}">
     {% endif %}
     <meta property="og:site_name" content="{{ company.name|default:'A1 Computer Solutions' }}">
 
@@ -48,19 +47,19 @@
     {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
-        "name": "{{ company.name|default:'A1 Computer Solutions' }}",
+        "name": "{{ company.name|default:'A1 Computer Solutions'|escapejs }}",
         "description": "{{ meta.description|default:company.about_text|escapejs }}",
         "image": "{% if company.logo %}{{ company.logo.url }}{% endif %}",
         "address": {
             "@type": "PostalAddress",
-            "streetAddress": "{{ company.address|default:'' }}",
+            "streetAddress": "{{ company.address|default:''|escapejs }}",
             "addressLocality": "Keonjhar",
             "addressRegion": "Odisha",
             "postalCode": "758001",
             "addressCountry": "IN"
         },
-        "telephone": "{{ company.phone|default:'' }}",
-        "email": "{{ company.email|default:'' }}",
+        "telephone": "{{ company.phone|default:''|escapejs }}",
+        "email": "{{ company.email|default:''|escapejs }}",
         "url": "{{ meta.og_url|default:request.build_absolute_uri }}",
         "openingHours": "{{ company.working_hours|default:'Mo-Sa 10:00-20:00' }}",
         "priceRange": "₹₹"
@@ -68,7 +67,7 @@
     </script>
 
     <!-- ===== FAVICON & FONTS ===== -->
-    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.png' %}">
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}?v=2">
     <meta name="theme-color" content="#0a1f3c">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

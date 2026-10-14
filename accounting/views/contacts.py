@@ -544,54 +544,6 @@ def contact_detail_modal(request, pk):
 
 
 # ============================================================
-# QUICK REDIRECTS
-# ============================================================
-
-def quick_journal(request, pk):
-    contact = get_object_or_404(Contact, pk=pk)
-    return redirect_to_staff('journal_create_for_contact', contact_id=contact.pk)
-
-
-def quick_statement(request, pk):
-    contact = get_object_or_404(Contact, pk=pk)
-    if contact.contact_type in ('customer', 'both'):
-        return redirect_to_staff('customer_statement', contact_id=contact.pk)
-    return redirect_to_staff('vendor_statement', contact_id=contact.pk)
-
-
-# ============================================================
-# BULK DELETE
-# ============================================================
-
-@csrf_protect
-@require_http_methods(["POST"])
-@handle_errors(default_redirect='accounting:contact_list')
-def bulk_delete_contacts(request):
-    ids = request.POST.getlist('ids')
-    if not ids:
-        return JsonResponse(
-            {'status': 'error', 'message': 'No contacts selected.'}, status=400,
-        )
-
-    contacts = Contact.objects.filter(pk__in=ids)
-
-    blocking = []
-    for contact in contacts:
-        if _has_real_transactions(contact):
-            blocking.append(contact.name)
-
-    if blocking:
-        return JsonResponse({
-            'status': 'error',
-            'message': f'Cannot delete: {", ".join(blocking)} (has transactions).',
-        }, status=400)
-
-    count = contacts.count()
-    contacts.delete()  # soft delete all
-    return JsonResponse({'status': 'ok', 'deleted': count})
-
-
-# ============================================================
 # CONTACT SEARCH (JSON autocomplete)
 # ============================================================
 

@@ -43,7 +43,7 @@ class AccessControlMiddleware:
         'validate_login_field', 'validate_register_field',
         'health_check',
         'post_list', 'category', 'tag', 'post_detail',
-        'sitemap',
+        'sitemap', 'robots_txt',
     })
 
     PUBLIC_NAMESPACES = frozenset({'account', 'tracking'})
@@ -51,7 +51,6 @@ class AccessControlMiddleware:
     PUBLIC_PATH_PREFIXES = (
         '/admin/login/',
         '/auth/validate-',
-        '/events/',              # django-eventstream SSE
     )
 
     def __init__(self, get_response):

@@ -38,7 +38,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
 # Excel export
 try:
@@ -873,6 +873,7 @@ def repair_delete(request, pk):
 # 6. ESTIMATE APPROVE / HOLD / REJECT
 # ════════════════════════════════════════════════════════════
 @csrf_protect
+@require_POST
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs')
 def repair_estimate_approve(request, pk):
@@ -894,10 +895,13 @@ def repair_estimate_approve(request, pk):
             'approval_source',
         ])
 
-        # Status state machine se — guards + history + notification.
-        # (Purana behaviour: amount > 0 ho to repair shuru)
+        # Status ab state machine se — guards + history + notification.
+        # Staff-side approval (repairs.py) se parity: 'received' job par
+        # received→repairing transition allowed nahi, isliye sirf
+        # pending/diagnosis se hi start_repair hota hai; received jobs
+        # ke liye approval record ho jata hai, staff aage badhata hai.
         if repair.estimated_cost and repair.estimated_cost > 0 \
-                and repair.status in ('pending', 'received', 'diagnosis'):
+                and repair.status in ('pending', 'diagnosis'):
             repair.start_repair(
                 by=request.user,
                 remarks='Customer ne portal se estimate approve kiya',
@@ -925,6 +929,7 @@ def repair_estimate_approve(request, pk):
 
 
 @csrf_protect
+@require_POST
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs')
 def repair_estimate_hold(request, pk):
@@ -961,6 +966,7 @@ def repair_estimate_hold(request, pk):
 
 
 @csrf_protect
+@require_POST
 @login_required
 @handle_errors(default_redirect='customer:customer_repairs')
 def repair_estimate_reject(request, pk):

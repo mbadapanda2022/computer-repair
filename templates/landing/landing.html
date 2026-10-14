@@ -45,7 +45,7 @@
                     {% if hero_url %}
                         <img src="{{ hero_url }}" alt="Our technicians at work" class="hero-img" loading="eager" decoding="async" width="600" height="400">
                     {% else %}
-                        <img src="https://picsum.photos/seed/repair/600/400" alt="Computer repair workshop" class="hero-img" loading="eager" decoding="async" width="600" height="400">
+                        <img src="{% static 'images/blog-fallback.jpg' %}" alt="Computer repair workshop" class="hero-img" loading="eager" decoding="async" width="600" height="400">
                     {% endif %}
                     <div class="hero-badge-card">
                         <div class="icon-wrap"><i class="bi bi-star-fill" aria-hidden="true"></i></div>
@@ -360,7 +360,7 @@
                     {% if post.cover_image %}
                     <img src="{{ post.cover_image.url }}" alt="{{ post.title }}" class="card-img-top" style="height: 160px; object-fit: cover;">
                     {% else %}
-                    <img src="https://picsum.photos/seed/blog-{{ post.pk }}/400/160" alt="{{ post.title }}" class="card-img-top" style="height: 160px; object-fit: cover;">
+                    <img src="{% static 'images/blog-fallback.jpg' %}" alt="{{ post.title }}" class="card-img-top" style="height: 160px; object-fit: cover;">
                     {% endif %}
                     <div class="card-body d-flex flex-column h-100">
                         {% if post.category %}

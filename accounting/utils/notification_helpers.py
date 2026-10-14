@@ -7,13 +7,10 @@ Design decisions (Render free tier friendly):
 1. NO real SSE (django-eventstream) — in-process SSE doesn't work with
    multi-worker Gunicorn on Render. Instead we rely on HTMX polling
    in the base templates (every 30-60s).
-2. `send_notification_sse()` is kept as a NO-OP stub for backward
-   compatibility — it silently does nothing but doesn't break any
-   existing imports.
-3. Bulk insert notifications to staff (avoids N+1 queries).
-4. Content-type detection uses regex fallback ONLY when URL resolver
+2. Bulk insert notifications to staff (avoids N+1 queries).
+3. Content-type detection uses regex fallback ONLY when URL resolver
    fails — safer across refactors.
-5. Email is opt-in and fail-safe (never crashes the caller).
+4. Email is opt-in and fail-safe (never crashes the caller).
 
 Public API:
 ───────────
@@ -22,7 +19,6 @@ Public API:
 - send_notification_to_customer(contact)    -> Notification | None (alias)
 - send_notification_to_contact(contact)     -> Notification | None (primary)
 - send_notification_to_all_staff(...)       -> alias
-- send_notification_sse(user)               -> None (no-op stub)
 - get_unread_count(user)                    -> int
 """
 
@@ -232,33 +228,6 @@ def send_notification_to_contact(
 send_notification_to_customer = send_notification_to_contact
 send_notification_to_all_staff = send_notification_to_staff
 
-
-# ════════════════════════════════════════════════════════════
-# SSE STUB (no-op) — kept for backward compatibility
-# ════════════════════════════════════════════════════════════
-
-def send_notification_sse(user):
-    """
-    NO-OP STUB — kept for backward compatibility.
-
-    Previously this triggered an in-process SSE event via
-    django-eventstream. That approach does NOT work on Render
-    free tier (multi-worker Gunicorn: worker A's event never
-    reaches worker B's client).
-
-    Real-time badge/dropdown refresh is now handled by HTMX
-    polling in the base templates (every 30-60 seconds).
-
-    This function exists only so legacy imports
-    (accounting/views/payments.py, accounting/models.py, etc.)
-    don't crash. It does nothing.
-    """
-    return None
-
-
-# ════════════════════════════════════════════════════════════
-# UNREAD COUNT HELPERS
-# ════════════════════════════════════════════════════════════
 
 def get_unread_count(user):
     """Fast unread count. Returns 0 on any error."""

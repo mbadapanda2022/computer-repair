@@ -30,27 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# HELPER: Update product stock and optionally latest purchase price
-# ============================================================
-def update_product_stock(product, quantity, price=None, is_purchase=False):
-    """
-    Update product stock and optionally the purchase price (if purchase).
-    Returns the new current_stock.
-    """
-    if quantity == 0:
-        return product.current_stock
-
-    product.current_stock += quantity
-    product.save(update_fields=['current_stock'])
-
-    if is_purchase and price is not None:
-        product.purchase_price = price
-        product.save(update_fields=['purchase_price'])
-
-    return product.current_stock
-
-
-# ============================================================
 # HELPER: Get auto-selling price (with markup)
 # ============================================================
 def get_auto_selling_price(product, markup_percent=20):

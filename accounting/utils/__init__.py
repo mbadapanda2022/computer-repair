@@ -1,49 +1,5 @@
 # accounting/utils/__init__.py
 
-# ============================================================
-# LEDGER HELPERS
-# ============================================================
-
-def create_or_update_invoice_ledger(invoice):
-    """
-    Create or update ledger entries for an invoice.
-    Always delete old entry first to avoid ghost lines.
-    """
-    from ..models import LedgerEntry, LedgerLine   # ✅ Local Import
-
-    # Delete old entry (including all its LedgerLine children)
-    LedgerEntry.objects.filter(
-        reference_id=invoice.id,
-        entry_type='sales'
-    ).delete()
-
-    if invoice.grand_total == 0:
-        return
-
-    entry = LedgerEntry.objects.create(
-        date=invoice.date,
-        entry_type='sales',
-        reference_id=invoice.id,
-        description=f"Invoice {invoice.invoice_number}",
-        total_amount=invoice.grand_total
-    )
-
-    LedgerLine.objects.create(
-        ledger_entry=entry,
-        account=f'Customer: {invoice.customer.name}',
-        contact=invoice.customer,
-        debit=invoice.grand_total,
-        credit=0
-    )
-
-    LedgerLine.objects.create(
-        ledger_entry=entry,
-        account='Sales',
-        debit=0,
-        credit=invoice.grand_total
-    )
-
-
 def create_journal_lines(entry, contact, amount, journal_type, bank_account=None):
     """
     Create ledger lines for a journal entry.

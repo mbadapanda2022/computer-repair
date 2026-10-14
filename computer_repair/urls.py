@@ -4,8 +4,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from accounting.views import landing_views
 
-from django.views.generic import TemplateView
-
 # Custom Error Handlers
 handler404 = 'accounting.views.error_handlers.custom_404'
 handler500 = 'accounting.views.error_handlers.custom_500'
@@ -16,7 +14,8 @@ urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
     path('accounts/', include('allauth.urls')),
-    path('sitemap.xml', TemplateView.as_view(template_name='sitemap.xml', content_type='application/xml'), name='sitemap'),
+    path('sitemap.xml', landing_views.sitemap_xml, name='sitemap'),
+    path('robots.txt', landing_views.robots_txt, name='robots_txt'),
 
     # Public Landing Pages
     path('', landing_views.landing, name='home'),

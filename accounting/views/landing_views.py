@@ -1,19 +1,22 @@
 # accounting/views/landing_views.py
+import io
 import json
 import logging
+
+from django.core.cache import cache
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.forms import modelform_factory
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_protect
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_GET
 from django.contrib.admin.views.decorators import staff_member_required
 from django.urls import reverse
 from django.contrib import messages
 
 from ..models import *
 from ..forms import ContactMessageForm, ServiceForm, TestimonialForm, FAQForm
-from .utils import is_htmx, htmx_response
+from .utils import is_htmx
 from ..decorators import handle_errors
 from ..utils.notification_helpers import send_notification_to_staff
 
@@ -63,11 +66,45 @@ def landing(request):
 # CONTACT MESSAGE SUBMISSION (HTMX) + HONEYPOT
 # ============================================================
 
+def _client_ip(request):
+    xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if xff:
+        return xff.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', 'unknown')
+
+
+def _throttle(key_prefix, request, limit, window):
+    """True if caller exceeded `limit` hits in `window` seconds (per IP)."""
+    import hashlib
+    ip_hash = hashlib.sha256(f'{_client_ip(request)}|{key_prefix}'.encode()).hexdigest()[:24]
+    key = f'{key_prefix}_{ip_hash}'
+    hits = cache.get(key, 0)
+    if hits >= limit:
+        return True
+    cache.set(key, hits + 1, timeout=window)
+    return False
+
+
+CONTACT_SUCCESS_HTML = (
+    '<div id="contactFormContainer" class="alert alert-success">'
+    'Thank you! Your message has been sent.</div>'
+)
+
+
 @csrf_protect
 @handle_errors(default_redirect='home')
 def contact_message(request):
     """Handle contact form submission via HTMX with real-time staff notification."""
     if request.method == 'POST':
+        # Spam/abuse throttle: max 3 messages per 10 minutes per IP.
+        # (Each message also sends email to all staff, so this protects
+        # both the DB queue and the SMTP relay.)
+        if _throttle('contact_rl', request, limit=3, window=600):
+            html = ('<div id="contactFormContainer" class="alert alert-warning">'
+                    'Too many messages from your connection. Please try again '
+                    'after 10 minutes, or call us directly.</div>')
+            return HttpResponse(html, status=429)
+
         form = ContactMessageForm(request.POST)
         
         # ============================================================
@@ -75,8 +112,7 @@ def contact_message(request):
         # ============================================================
         if request.POST.get('website', '').strip():
             logger.warning(f"🔥 Honeypot triggered from IP {request.META.get('REMOTE_ADDR')}")
-            html = '<div class="alert alert-success">Thank you! Your message has been sent.</div>'
-            response = HttpResponse(html)
+            response = HttpResponse(CONTACT_SUCCESS_HTML)
             response['HX-Trigger'] = json.dumps({
                 'showToast': {'level': 'success', 'message': 'Message sent successfully!'}
             })
@@ -94,14 +130,18 @@ def contact_message(request):
                 send_email=True  
             )
             
-            html = '<div class="alert alert-success">Thank you! Your message has been sent.</div>'
+            html = CONTACT_SUCCESS_HTML
             response = HttpResponse(html)
             response['HX-Trigger'] = json.dumps({
                 'showToast': {'level': 'success', 'message': 'Message sent successfully!'}
             })
             return response
         else:
-            html = render_to_string('landing/partials/_contact_form.html', {'form': form}, request=request)
+            # Partial ka root element container-div ke andar render karo —
+            # warna outerHTML swap container ka id mita deta hai aur
+            # ek validation-error ke baad form ka target toot jata tha.
+            inner = render_to_string('landing/partials/_contact_form.html', {'form': form}, request=request)
+            html = f'<div id="contactFormContainer">{inner}</div>'
             return HttpResponse(html, status=200)
     else:
         form = ContactMessageForm()
@@ -113,6 +153,9 @@ def contact_message(request):
 # ============================================================
 ALLOWED_FIELDS = {'name', 'email', 'phone', 'subject', 'message'}
 def validate_contact_field(request):
+    if _throttle('contact_validate_rl', request, limit=60, window=60):
+        return HttpResponse("", status=429)
+
     field_name = request.GET.get('field')
     if field_name not in ALLOWED_FIELDS:
         return HttpResponse("", status=200)
@@ -138,10 +181,86 @@ def validate_contact_field(request):
 # ============================================================
 
 def privacy_policy(request):
-    return render(request, 'landing/privacy_policy.html', {})
+    company = CompanyProfile.get_instance()
+    meta = {
+        'title': 'Privacy Policy | ' + (company.name or 'A1 Computer Solutions'),
+        'description': 'How A1 Computer Solutions collects, uses and protects your data.',
+    }
+    return render(request, 'landing/privacy_policy.html', {'meta': meta})
 
 def cookie_policy(request):
-    return render(request, 'landing/cookie_policy.html')
+    company = CompanyProfile.get_instance()
+    meta = {
+        'title': 'Cookie Policy | ' + (company.name or 'A1 Computer Solutions'),
+        'description': 'Cookie usage policy for a1computersolutions.in.',
+    }
+    return render(request, 'landing/cookie_policy.html', {'meta': meta})
+
+
+# ============================================================
+# SEO: robots.txt + dynamic sitemap.xml
+# ============================================================
+
+@require_GET
+def robots_txt(request):
+    base = request.build_absolute_uri('/').rstrip('/')
+    lines = [
+        'User-agent: *',
+        'Allow: /$',
+        'Allow: /blog/',
+        'Allow: /privacy-policy/',
+        'Allow: /cookie-policy/',
+        'Disallow: /customer/',
+        'Disallow: /accounts/',
+        'Disallow: /admin/',
+        'Disallow: /tracking/',
+        'Disallow: /staff/',
+        f'Sitemap: {base}/sitemap.xml',
+    ]
+    return HttpResponse('\n'.join(lines) + '\n', content_type='text/plain')
+
+
+@require_GET
+def sitemap_xml(request):
+    """Dynamic sitemap: static public pages + published blog posts + categories."""
+    from django.utils.xmlutils import SimplerXMLGenerator
+
+    base = request.build_absolute_uri('/').rstrip('/')
+    buf = io.StringIO()
+    xml = SimplerXMLGenerator(buf, None)
+    xml.startDocument()
+    xml.startElement('urlset', {'xmlns': 'http://www.sitemaps.org/schemas/sitemap/0.9'})
+
+    def add(url, changefreq, priority, lastmod=None):
+        xml.startElement('url', {})
+        xml.startElement('loc', {}); xml.characters(url); xml.endElement('loc')
+        if lastmod:
+            xml.startElement('lastmod', {})
+            xml.characters(lastmod.strftime('%Y-%m-%d'))
+            xml.endElement('lastmod')
+        xml.startElement('changefreq', {}); xml.characters(changefreq); xml.endElement('changefreq')
+        xml.startElement('priority', {}); xml.characters(priority); xml.endElement('priority')
+        xml.endElement('url')
+
+    add(base + '/', 'daily', '1.0')
+    add(base + reverse('blog:post_list'), 'daily', '0.8')
+    add(base + reverse('privacy_policy'), 'yearly', '0.3')
+    add(base + reverse('cookie_policy'), 'yearly', '0.3')
+
+    for post in (BlogPost.objects.published()
+                 .only('slug', 'updated_at').order_by('-published_at')):
+        add(base + reverse('blog:post_detail', args=[post.slug]),
+            'weekly', '0.7', lastmod=post.updated_at)
+
+    for cat in BlogCategory.objects.exclude(slug='').only('slug'):
+        add(base + reverse('blog:category', args=[cat.slug]), 'weekly', '0.5')
+
+    for tag in BlogTag.objects.exclude(slug='').only('slug'):
+        add(base + reverse('blog:tag', args=[tag.slug]), 'weekly', '0.4')
+
+    xml.endElement('urlset')
+    xml.endDocument()
+    return HttpResponse(buf.getvalue(), content_type='application/xml')
 
 
 # ============================================================

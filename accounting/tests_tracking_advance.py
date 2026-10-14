@@ -139,3 +139,18 @@ class TrackingAdvanceVisibilityTests(TestCase):
         # adjustment cancelled -> payment ka pura 500 unapplied advance hai
         self.assertContains(page, 'Advance Payment')
         self.assertContains(page, '₹500.00')
+
+    def test_overpaid_invoice_balance_shown_as_zero_not_negative(self):
+        # advance 1000 bill 800 par -> balance_due model me -200 store hota hai
+        invoice = self.make_invoice(total='800.00')
+        pay = self.advance_payment('1000.00')
+        AdvanceAdjustment.objects.create(
+            payment=pay, invoice=invoice, amount=Decimal('1000.00'),
+        )
+        invoice.paid_amount = Decimal('1000.00')
+        invoice.balance_due = Decimal('-200.00')
+        invoice.save()
+        page = self.track_page()
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, '₹-200.00')
+        self.assertNotContains(page, '-200.00')

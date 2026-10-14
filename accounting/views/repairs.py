@@ -1643,6 +1643,15 @@ def create_invoice_from_repair(request, pk):
     # Build invoice atomically
     # ════════════════════════════════════════════════════════
     with transaction.atomic():
+        # Race guard: upar ka check lock ke bahar tha — do concurrent POSTs
+        # dono ek hi job par invoice bana sakte the (last-writer-win, pehla
+        # invoice orphan). Row lock ke andar re-check.
+        job = RepairJob.objects.select_for_update().get(pk=job.pk)
+        if job.invoice_id:
+            _clear_repair_invoice_session(request)
+            messages.info(request, "Invoice already exists for this repair.")
+            return redirect_to_staff('invoice_detail', pk=job.invoice.pk)
+
         company = CompanyProfile.get_instance()
 
         if gst_type:
