@@ -290,7 +290,7 @@ def refresh_stats(request):
             total=Sum('grand_total')
         )['total'] or Decimal('0'),
         'pending_repairs': RepairJob.objects.filter(
-            status__in=['pending', 'diagnosis', 'repairing', 'ready']
+            status__in=RepairJob.OPEN_STATUSES
         ).count(),
         'low_stock': Product.objects.filter(
             is_service=False,
@@ -394,7 +394,7 @@ def dashboard_export(request):
         stats = [
             ('Today\'s Sales', Invoice.objects.filter(date=today).aggregate(total=Sum('grand_total'))['total'] or Decimal('0')),
             ('Month Sales', Invoice.objects.filter(date__gte=today.replace(day=1)).aggregate(total=Sum('grand_total'))['total'] or Decimal('0')),
-            ('Pending Repairs', RepairJob.objects.filter(status__in=['pending', 'diagnosis', 'repairing', 'ready']).count()),
+            ('Pending Repairs', RepairJob.objects.filter(status__in=RepairJob.OPEN_STATUSES).count()),
             ('Low Stock Items', Product.objects.filter(is_service=False, current_stock__lte=F('low_stock_threshold')).count()),
             ('Total Customers', Contact.objects.filter(contact_type__in=['customer', 'both']).count()),
             ('Total Vendors', Contact.objects.filter(contact_type__in=['vendor', 'both']).count()),
