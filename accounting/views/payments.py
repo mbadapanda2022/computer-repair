@@ -16,6 +16,7 @@ from django.urls import reverse
 
 from ..models import (
     Payment, BankTransaction, Contact, Invoice, PaymentAllocation,
+    CompanyProfile,
 )
 from ..forms import PaymentForm
 from .utils import is_htmx, htmx_response, redirect_to_staff
@@ -67,42 +68,63 @@ def _safe_next_url(request):
     return None
 
 
+def _filter_payment_queryset(request):
+    """Apply list filters from GET params. Returns (queryset, params)."""
+    queryset = (
+        Payment.objects
+        .select_related('contact', 'bank_account', 'expense_account')
+        .prefetch_related('allocations__invoice')
+        .all()
+        .order_by('-date', '-id')
+    )
+
+    params = {
+        'search': request.GET.get('search', '').strip(),
+        'direction': request.GET.get('direction', '').strip(),
+        'method': request.GET.get('method', '').strip(),
+        'date_from': request.GET.get('date_from', '').strip(),
+        'date_to': request.GET.get('date_to', '').strip(),
+        'reconciled': request.GET.get('reconciled', '').strip(),
+    }
+
+    if params['search']:
+        queryset = queryset.filter(
+            Q(contact__name__icontains=params['search']) |
+            Q(contact__phone__icontains=params['search']) |
+            Q(reference__icontains=params['search']) |
+            Q(upi_ref__icontains=params['search']) |
+            Q(description__icontains=params['search']) |
+            Q(expense_account__name__icontains=params['search']) |
+            Q(allocations__invoice__invoice_number__icontains=params['search'])
+        ).distinct()
+    if params['direction']:
+        queryset = queryset.filter(direction=params['direction'])
+    if params['method']:
+        queryset = queryset.filter(method=params['method'])
+    if params['date_from']:
+        queryset = queryset.filter(date__gte=params['date_from'])
+    if params['date_to']:
+        queryset = queryset.filter(date__lte=params['date_to'])
+    if params['reconciled'] in ('yes', 'no'):
+        queryset = queryset.filter(reconciled=(params['reconciled'] == 'yes'))
+
+    return queryset, params
+
+
 def _get_paginated_payments_context(request, queryset=None):
     """Shared filter + paginate + annotate for payments list."""
     if queryset is None:
-        queryset = (
-            Payment.objects
-            .select_related('contact', 'bank_account')
-            .prefetch_related('allocations__invoice')
-            .all()
-            .order_by('-date', '-id')
-        )
-
-    search = request.GET.get('search', '').strip()
-    direction = request.GET.get('direction', '')
-    method = request.GET.get('method', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
+        queryset, params = _filter_payment_queryset(request)
+    else:
+        params = {
+            'search': request.GET.get('search', '').strip(),
+            'direction': request.GET.get('direction', '').strip(),
+            'method': request.GET.get('method', '').strip(),
+            'date_from': request.GET.get('date_from', '').strip(),
+            'date_to': request.GET.get('date_to', '').strip(),
+            'reconciled': request.GET.get('reconciled', '').strip(),
+        }
     page_number = request.GET.get('page', 1)
-
-    # ── Filters ──
-    if search:
-        queryset = queryset.filter(
-            Q(contact__name__icontains=search) |
-            Q(contact__phone__icontains=search) |
-            Q(reference__icontains=search) |
-            Q(upi_ref__icontains=search) |
-            Q(description__icontains=search) |
-            Q(allocations__invoice__invoice_number__icontains=search)
-        ).distinct()
-    if direction:
-        queryset = queryset.filter(direction=direction)
-    if method:
-        queryset = queryset.filter(method=method)
-    if date_from:
-        queryset = queryset.filter(date__gte=date_from)
-    if date_to:
-        queryset = queryset.filter(date__lte=date_to)
 
     # ── Totals (computed on filtered queryset) ──
     # Note: `.distinct()` + `.aggregate()` is safe here because distinct
@@ -126,6 +148,10 @@ def _get_paginated_payments_context(request, queryset=None):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
+    from urllib.parse import urlencode
+    active_parts = {k: v for k, v in params.items() if v}
+    filters_qs = ('&' + urlencode(active_parts)) if active_parts else ''
+
     return {
         'payments': page_obj.object_list,
         'page_obj': page_obj,
@@ -134,11 +160,8 @@ def _get_paginated_payments_context(request, queryset=None):
         'upi_count': upi_count,
         'pending_reconciliation': pending_reconciliation,
         'total_amount': total_amount,
-        'search': search,
-        'direction': direction,
-        'method': method,
-        'date_from': date_from,
-        'date_to': date_to,
+        'filters_qs': filters_qs,
+        **params,
     }
 
 
@@ -204,9 +227,189 @@ def payment_list(request):
 
 
 # ============================================================
-# LOAD UNPAID INVOICES (HTMX endpoint)
+# PAYMENT DETAIL MODAL
 # ============================================================
-@require_http_methods(["GET"])
+def payment_detail_modal(request, pk):
+    payment = get_object_or_404(
+        Payment.objects.select_related(
+            'contact', 'bank_account', 'expense_account',
+        ).prefetch_related(
+            'allocations__invoice', 'advance_adjustments__invoice',
+        ),
+        pk=pk,
+    )
+    allocated_total = sum(
+        (a.amount for a in payment.allocations.all()), Decimal('0')
+    ) + sum(
+        (a.amount for a in payment.advance_adjustments.all()), Decimal('0')
+    )
+    unallocated = payment.amount - allocated_total
+    return render(request, 'payments/partials/payment_detail_modal.html', {
+        'payment': payment,
+        'allocated_total': allocated_total,
+        'unallocated': unallocated,
+    })
+
+
+# ============================================================
+# PAYMENT PRINT (single receipt voucher)
+# ============================================================
+def payment_print(request, pk):
+    payment = get_object_or_404(
+        Payment.objects.select_related(
+            'contact', 'bank_account', 'expense_account',
+        ).prefetch_related(
+            'allocations__invoice', 'advance_adjustments__invoice',
+        ),
+        pk=pk,
+    )
+    company = CompanyProfile.get_instance()
+    logo_exists = bool(
+        company.logo and company.logo.name and company.logo.storage.exists(company.logo.name)
+    )
+    return render(request, 'payments/payment_print.html', {
+        'payment': payment,
+        'company': company,
+        'logo_exists': logo_exists,
+    })
+
+
+# ============================================================
+# PAYMENT LIST — PRINT (filtered, no pagination)
+# ============================================================
+@handle_errors(default_redirect='accounting:payment_list')
+def payment_list_print(request):
+    queryset, params = _filter_payment_queryset(request)
+    payments = list(queryset)
+    company = CompanyProfile.get_instance()
+
+    total_received = sum(
+        (p.amount for p in payments if p.direction == 'received'), Decimal('0')
+    )
+    total_paid = sum(
+        (p.amount for p in payments if p.direction == 'paid'), Decimal('0')
+    )
+
+    return render(request, 'payments/payment_list_print.html', {
+        'payments': payments,
+        'company': company,
+        'total_received': total_received,
+        'total_paid': total_paid,
+        **params,
+    })
+
+
+# ============================================================
+# PAYMENT LIST — EXCEL EXPORT (filtered)
+# ============================================================
+@handle_errors(default_redirect='accounting:payment_list')
+def payment_list_excel(request):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    queryset, params = _filter_payment_queryset(request)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Payments"
+
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    title_font = Font(bold=True, size=14, color="1F4E78")
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin'),
+    )
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    left = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    right = Alignment(horizontal='right', vertical='center')
+    money_fmt = '#,##0.00'
+
+    headers = [
+        'Date', 'Payment ID', 'Direction', 'Contact', 'Amount (Rs.)',
+        'Discount (Rs.)', 'Net (Rs.)', 'Method', 'UPI / Ref', 'Account',
+        'Applied To', 'Expense Head', 'Advance', 'Reconciled', 'Description',
+    ]
+    TOTAL_COLS = len(headers)
+    last_col = get_column_letter(TOTAL_COLS)
+
+    ws.merge_cells(f'A1:{last_col}1')
+    t = ws.cell(row=1, column=1, value="Payment Register")
+    t.font = title_font
+    t.alignment = center
+    ws.row_dimensions[1].height = 30
+
+    for col_idx, header in enumerate(headers, 1):
+        c = ws.cell(row=2, column=col_idx, value=header)
+        c.font = header_font
+        c.fill = header_fill
+        c.border = thin_border
+        c.alignment = center
+    ws.row_dimensions[2].height = 25
+
+    for row_idx, p in enumerate(queryset, start=3):
+        applied = ', '.join(
+            f"{a.invoice.invoice_number}({a.amount})"
+            for a in p.allocations.select_related('invoice').all()
+        ) or ', '.join(
+            f"ADV:{a.invoice.invoice_number}({a.amount})"
+            for a in p.advance_adjustments.select_related('invoice').all()
+        )
+        row_data = [
+            p.date.strftime('%d-%m-%Y'),
+            p.pk,
+            p.get_direction_display(),
+            p.contact.name if p.contact else '',
+            float(p.amount),
+            float(p.discount_amount or 0),
+            float(p.net_amount),
+            p.get_method_display(),
+            p.upi_ref or p.reference or '',
+            p.bank_account.name if p.bank_account else 'Cash',
+            applied,
+            p.expense_account.name if p.expense_account else '',
+            'Yes' if p.is_advance else '',
+            'Yes' if p.reconciled else 'Pending',
+            p.description or '',
+        ]
+        for col_idx, value in enumerate(row_data, 1):
+            c = ws.cell(row=row_idx, column=col_idx, value=value)
+            c.border = thin_border
+            if col_idx in (5, 6, 7):
+                c.alignment = right
+                c.number_format = money_fmt
+            elif col_idx in (1, 2, 13, 14):
+                c.alignment = center
+            else:
+                c.alignment = left
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            try:
+                if cell.value:
+                    max_len = max(max_len, len(str(cell.value)))
+            except Exception:
+                pass
+        ws.column_dimensions[col_letter].width = max(min(max_len + 3, 45), 10)
+
+    ws.freeze_panes = 'A3'
+
+    from django.utils import timezone
+    fname = f"payments_{timezone.localdate().strftime('%Y%m%d')}.xlsx"
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+    wb.save(response)
+    return response
+
+
+# ============================================================
+# LOAD UNPAID INVOICES (HTMX endpoint)
+# ============================================================@require_http_methods(["GET"])
 def load_unpaid_invoices(request):
     """Return partial HTML with unpaid invoices for a contact."""
     contact_id = request.GET.get('contact', '').strip()

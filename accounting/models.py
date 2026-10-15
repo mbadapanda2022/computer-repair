@@ -3207,6 +3207,62 @@ class Payment(SoftDeleteModel):
             models.Index(fields=['is_advance']),
         ]
 
+    @property
+    def net_amount(self):
+        return self.amount - self.discount_amount
+
+    @property
+    def whatsapp_share_url(self):
+        if not self.contact or not self.contact.phone:
+            return None
+        phone = ''.join(filter(str.isdigit, str(self.contact.phone)))
+        if len(phone) == 10:
+            phone = '91' + phone
+        elif len(phone) < 10:
+            return None
+        from urllib.parse import quote
+        mode = self.get_method_display()
+        if self.upi_ref:
+            mode += f" (Ref: {self.upi_ref})"
+        elif self.reference:
+            mode += f" (Ref: {self.reference})"
+        lines = []
+        if self.direction == 'received':
+            lines += [
+                f"Hi {self.contact.name},",
+                "Payment received by A1 Computer Solutions.",
+                f"Amount: Rs.{self.amount:.2f}",
+            ]
+            if self.discount_amount:
+                lines.append(
+                    f"Discount: Rs.{self.discount_amount:.2f}, "
+                    f"Net: Rs.{self.net_amount:.2f}"
+                )
+            lines.append(f"Date: {self.date.strftime('%d %b %Y')}")
+            lines.append(f"Mode: {mode}")
+            allocs = list(self.allocations.select_related('invoice').all())
+            if allocs:
+                lines.append("Applied to:")
+                lines += [
+                    f"  - {a.invoice.invoice_number}: Rs.{a.amount:.2f}"
+                    for a in allocs
+                ]
+            elif self.is_advance:
+                lines.append("This is an advance (no invoice applied yet).")
+        else:
+            lines += [
+                f"Hi {self.contact.name},",
+                f"Payment of Rs.{self.amount:.2f} made by A1 Computer Solutions.",
+                f"Date: {self.date.strftime('%d %b %Y')}",
+                f"Mode: {mode}",
+            ]
+            if self.expense_account_id:
+                lines.append(f"Towards: {self.expense_account.name}")
+            if self.description:
+                lines.append(f"Note: {self.description}")
+        lines.append("Thank you.")
+        return f"https://wa.me/{phone}?text={quote(chr(10).join(lines))}"
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         old_amount = None

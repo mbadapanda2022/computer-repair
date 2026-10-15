@@ -1,0 +1,169 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Payment #{{ payment.pk }} — {{ payment.contact.name }}</title>
+<style>
+    @page { size: A4; margin: 12mm; }
+    @media print { body { font-size: 10pt; margin: 0; } .no-print { display: none !important; } }
+    body { font-family: Arial, sans-serif; color: #333; margin: 0 auto; max-width: 800px; padding: 15px; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 14px; }
+    .company-logo { max-height: 50px; margin-bottom: 4px; }
+    .company-name { font-size: 16pt; font-weight: bold; color: #1a1a2e; margin: 0 0 4px 0; }
+    .company-details { font-size: 8pt; color: #555; }
+    .doc-title { font-size: 14pt; font-weight: bold; color: {% if payment.direction == 'received' %}#198754{% else %}#dc3545{% endif %}; text-align: right; margin: 0; letter-spacing: 1px; }
+    .doc-info { font-size: 9pt; text-align: right; margin-top: 4px; }
+    .amount-box { border: 2px solid {% if payment.direction == 'received' %}#198754{% else %}#dc3545{% endif %}; border-radius: 6px; padding: 10px 14px; margin: 12px 0; display: flex; justify-content: space-between; align-items: center; background: {% if payment.direction == 'received' %}#f0fdf4{% else %}#fff5f5{% endif %}; }
+    .amount-box .label { font-size: 9pt; text-transform: uppercase; color: #666; letter-spacing: 0.5px; }
+    .amount-box .amount { font-size: 20pt; font-weight: bold; color: {% if payment.direction == 'received' %}#198754{% else %}#dc3545{% endif %}; }
+    .in-words { font-size: 9.5pt; font-style: italic; color: #555; margin: 2px 0 14px 0; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .box { padding: 10px; background: #f8f9fa; border-left: 3px solid #0d6efd; border-radius: 3px; }
+    .box .label { font-size: 8pt; text-transform: uppercase; color: #666; letter-spacing: 0.5px; margin-bottom: 3px; }
+    .box .name { font-weight: bold; font-size: 11pt; }
+    .box .details { font-size: 9pt; color: #555; margin-top: 2px; line-height: 1.5; }
+    table.items { width: 100%; border-collapse: collapse; font-size: 9.5pt; margin-top: 8px; }
+    table.items th, table.items td { border: 1px solid #ddd; padding: 5px 8px; }
+    table.items th { background: #1F4E78; color: #fff; font-size: 9pt; text-align: left; }
+    .text-end { text-align: right; }
+    .footer { text-align: center; margin-top: 30px; font-size: 8pt; color: #666; border-top: 1px solid #ddd; padding-top: 8px; }
+    .signatures { display: flex; justify-content: space-between; margin-top: 34px; font-size: 9pt; }
+    .signature-block { text-align: center; }
+    .signature-line { border-top: 1px solid #333; width: 180px; margin: 4px auto; }
+    .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; color: #fff; }
+    .btn-primary { background: #0d6efd; }
+    .btn-secondary { background: #6c757d; }
+    .watermark-note { text-align:center; font-size: 8.5pt; color: #888; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <div>
+        {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
+        <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        <div class="company-details">
+            {% if company.address %}{{ company.address }}<br>{% endif %}
+            {% if company.phone %}Phone: {{ company.phone }}{% endif %}
+            {% if company.email %} | {{ company.email }}{% endif %}
+            {% if company.gstin %}<br>GSTIN: {{ company.gstin }}{% endif %}
+        </div>
+    </div>
+    <div>
+        <p class="doc-title">
+            {% if payment.direction == 'received' %}PAYMENT RECEIVED{% else %}PAYMENT VOUCHER{% endif %}
+        </p>
+        <div class="doc-info">
+            <strong>Payment #{{ payment.pk }}</strong><br>
+            Date: {{ payment.date|date:"d M Y" }}<br>
+            {% if payment.reconciled %}Status: Reconciled{% else %}Status: Pending Reconciliation{% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- AMOUNT -->
+<div class="amount-box">
+    <div>
+        <div class="label">
+            {% if payment.direction == 'received' %}Received from {{ payment.contact.name }}{% else %}Paid to {{ payment.contact.name }}{% endif %}
+        </div>
+        <div class="details" style="font-size:8.5pt;color:#666;margin-top:2px;">
+            via {{ payment.get_method_display }}{% if payment.bank_account %} — {{ payment.bank_account.name }}{% elif payment.method != 'cash' %} — Bank{% else %} — Cash{% endif %}
+        </div>
+    </div>
+    <div class="amount">₹{{ payment.amount|floatformat:2 }}</div>
+</div>
+<div class="in-words">
+    {{ payment.amount|number_to_words_inr }}{% if payment.discount_amount > 0 %} (Net after discount: Rs.{{ payment.net_amount|floatformat:2 }}){% endif %}
+</div>
+
+<!-- DETAILS GRID -->
+<div class="grid">
+    <div class="box">
+        <div class="label">Party</div>
+        <div class="name">{{ payment.contact.name }}</div>
+        <div class="details">
+            {{ payment.contact.get_contact_type_display }}
+            {% if payment.contact.phone %}<br>📞 {{ payment.contact.phone }}{% endif %}
+            {% if payment.contact.email %}<br>✉ {{ payment.contact.email }}{% endif %}
+            {% if payment.contact.address %}<br>{{ payment.contact.address }}{% endif %}
+        </div>
+    </div>
+    <div class="box">
+        <div class="label">Payment Mode</div>
+        <div class="name">{{ payment.get_method_display }}</div>
+        <div class="details">
+            {% if payment.bank_account %}Account: {{ payment.bank_account.name }}{% if payment.bank_account.account_number %} (…{{ payment.bank_account.account_number|slice:"-4:" }}){% endif %}<br>{% endif %}
+            {% if payment.upi_ref %}Txn Ref: {{ payment.upi_ref }}<br>{% endif %}
+            {% if payment.reference %}Reference: {{ payment.reference }}<br>{% endif %}
+            {% if payment.expense_account %}Head: {{ payment.expense_account.name }}{% endif %}
+            {% if payment.is_advance %}<span style="color:#0d6efd;">Advance payment</span>{% endif %}
+        </div>
+    </div>
+</div>
+
+{% if payment.allocations.all or payment.advance_adjustments.all %}
+<!-- APPLIED TO -->
+<table class="items">
+    <thead>
+        <tr>
+            <th style="width:40px;">#</th>
+            <th>Applied To Invoice</th>
+            <th class="text-end" style="width:120px;">Amount</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for alloc in payment.allocations.all %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ alloc.invoice.invoice_number }} — {{ alloc.invoice.date|date:"d M Y" }}</td>
+            <td class="text-end">₹{{ alloc.amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        {% for adj in payment.advance_adjustments.all %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ adj.invoice.invoice_number }} (from advance) — {{ adj.invoice.date|date:"d M Y" }}</td>
+            <td class="text-end">₹{{ adj.amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if payment.description %}
+<div class="box" style="margin-top:12px;border-left-color:#6c757d;">
+    <div class="label">Description</div>
+    <div class="details">{{ payment.description }}</div>
+</div>
+{% endif %}
+
+<!-- FOOTER -->
+<div class="footer">
+    <div class="signatures">
+        <div class="signature-block">
+            <div class="signature-line"></div>
+            <div>{% if payment.direction == 'received' %}Received By (Staff){% else %}Received By (Party){% endif %}</div>
+        </div>
+        <div class="signature-block">
+            <div class="signature-line"></div>
+            <div>For {{ company.name|default:"A1 Computer Solutions" }}</div>
+            <div style="font-size: 8pt; color: #666;">Authorized Signatory</div>
+        </div>
+    </div>
+    <p style="margin-top: 15px; font-style: italic;">
+        This is a computer-generated payment receipt. Generated on {% now "d M Y, h:i A" %}.
+    </p>
+</div>
+
+<!-- BUTTONS -->
+<div class="no-print" style="text-align:center; margin-top:15px;">
+    <hr>
+    <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+    <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+</div>
+
+</body>
+</html>

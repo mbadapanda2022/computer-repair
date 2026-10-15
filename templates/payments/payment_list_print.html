@@ -1,0 +1,121 @@
+{% load math_filters %}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Payment Register — {{ company.name }}</title>
+<style>
+    @page { size: A4 landscape; margin: 8mm; }
+    @media print { body { font-size: 9pt; margin: 0; } .no-print { display: none !important; } }
+    body { font-family: Arial, sans-serif; color: #333; margin: 0 auto; max-width: 1200px; padding: 15px; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0d6efd; padding-bottom: 8px; margin-bottom: 10px; }
+    .company-name { font-size: 15pt; font-weight: bold; color: #1a1a2e; margin: 0 0 3px 0; }
+    .company-details { font-size: 8pt; color: #555; }
+    .doc-title { font-size: 13pt; font-weight: bold; color: #0d6efd; text-align: right; }
+    .filters { font-size: 8.5pt; color: #555; margin-bottom: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+    th, td { border: 1px solid #999; padding: 4px 6px; }
+    th { background: #1F4E78; color: #fff; text-align: left; }
+    .text-end { text-align: right; }
+    .text-center { text-align: center; }
+    tfoot td { background: #f8f9fa; font-weight: bold; }
+    .received { color: #198754; font-weight: bold; }
+    .paid { color: #dc3545; font-weight: bold; }
+    .footer { text-align: center; margin-top: 14px; font-size: 8pt; color: #666; border-top: 1px solid #ddd; padding-top: 6px; }
+    .btn { padding: 6px 16px; border: none; border-radius: 4px; font-size: 11pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        <div class="company-details">
+            {% if company.address %}{{ company.address }} · {% endif %}
+            {% if company.phone %}Phone: {{ company.phone }}{% endif %}
+        </div>
+    </div>
+    <div class="doc-title">PAYMENT REGISTER</div>
+</div>
+
+<div class="filters">
+    <strong>Filters:</strong>
+    {% if date_from %} From: {{ date_from }}{% endif %}
+    {% if date_to %} To: {{ date_to }}{% endif %}
+    {% if direction %} | Direction: {{ direction|title }}{% endif %}
+    {% if method %} | Method: {{ method|title }}{% endif %}
+    {% if reconciled %} | Reconciled: {{ reconciled|title }}{% endif %}
+    {% if search %} | Search: "{{ search }}"{% endif %}
+    | Total rows: {{ payments|length }}
+    | Generated: {% now "d M Y, h:i A" %}
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th style="width:80px;">Date</th>
+            <th style="width:55px;">Pay #</th>
+            <th style="width:110px;">Direction</th>
+            <th>Party</th>
+            <th class="text-end" style="width:90px;">Amount</th>
+            <th class="text-end" style="width:80px;">Discount</th>
+            <th style="width:70px;">Method</th>
+            <th style="width:110px;">Ref / UPI</th>
+            <th style="width:100px;">Account</th>
+            <th>Applied To / Head</th>
+            <th class="text-center" style="width:60px;">Recon.</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in payments %}
+        <tr>
+            <td>{{ p.date|date:"d M Y" }}</td>
+            <td class="text-center">{{ p.pk }}</td>
+            <td class="{% if p.direction == 'received' %}received{% else %}paid{% endif %}">{{ p.get_direction_display }}</td>
+            <td>{{ p.contact.name }}</td>
+            <td class="text-end">₹{{ p.amount|floatformat:2 }}</td>
+            <td class="text-end">{% if p.discount_amount > 0 %}₹{{ p.discount_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td>{{ p.get_method_display }}</td>
+            <td style="font-size:7.5pt;">{{ p.upi_ref|default:p.reference|default:"—" }}</td>
+            <td>{% if p.bank_account %}{{ p.bank_account.name }}{% else %}Cash{% endif %}</td>
+            <td style="font-size:7.5pt;">
+                {% if p.is_advance %}Advance pool{% elif p.expense_account %}{{ p.expense_account.name }}{% else %}{% for a in p.allocations.all %}{{ a.invoice.invoice_number }}{% if not forloop.last %}, {% endif %}{% empty %}Direct{% endfor %}{% endif %}
+            </td>
+            <td class="text-center">{% if p.reconciled %}✓{% else %}…{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="11" class="text-center" style="padding:18px;">No payments match the current filters.</td></tr>
+        {% endfor %}
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" class="text-end">Received Total</td>
+            <td class="text-end received">₹{{ total_received|floatformat:2 }}</td>
+            <td colspan="6"></td>
+        </tr>
+        <tr>
+            <td colspan="4" class="text-end">Paid Total</td>
+            <td class="text-end paid">₹{{ total_paid|floatformat:2 }}</td>
+            <td colspan="6"></td>
+        </tr>
+        <tr>
+            <td colspan="4" class="text-end">Net</td>
+            <td class="text-end">₹{{ total_received|subtract:total_paid }}</td>
+            <td colspan="6"></td>
+        </tr>
+    </tfoot>
+</table>
+
+<div class="footer">
+    Computer-generated payment register — A1 Computer Solutions. For internal accounting use.
+</div>
+
+<div class="no-print" style="text-align:center; margin-top:12px;">
+    <button onclick="window.print()" class="btn btn-primary">🖨️ Print / PDF</button>
+    <button onclick="window.close()" class="btn btn-secondary">✕ Close</button>
+</div>
+
+</body>
+</html>

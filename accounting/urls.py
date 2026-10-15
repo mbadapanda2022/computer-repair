@@ -144,7 +144,11 @@ urlpatterns = [
 
     # ===== Payments =====
     path('payments/', payments.payment_list, name='payment_list'),
+    path('payments/print/', payments.payment_list_print, name='payment_list_print'),
+    path('payments/export/excel/', payments.payment_list_excel, name='payment_list_excel'),
     path('payments/create/', payments.payment_create, name='payment_create'),
+    path('payments/<int:pk>/detail-modal/', payments.payment_detail_modal, name='payment_detail_modal'),
+    path('payments/<int:pk>/print/', payments.payment_print, name='payment_print'),
     path('payments/<int:pk>/update/', payments.payment_update, name='payment_update'),
     path('payments/<int:pk>/delete/', payments.payment_delete, name='payment_delete'),
     path('payments/<int:pk>/reconcile/', payments.reconcile_payment, name='reconcile_payment'),

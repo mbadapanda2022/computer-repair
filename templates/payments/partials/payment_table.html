@@ -1,13 +1,15 @@
 <!-- templates/payments/partials/payment_table.html -->
+{% load math_filters %}
 <div class="card border-0 shadow-sm">
-    <div class="card-body p-0">
+    {# ══════════ DESKTOP TABLE (lg and up) ══════════ #}
+    <div class="card-body p-0 d-none d-lg-block">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
                         <th>Date</th>
                         <th>Direction</th>
-                        <th>Contact</th>
+                        <th>Party</th>
                         <th class="text-end">Amount</th>
                         <th>Applied To</th>
                         <th>Method</th>
@@ -19,32 +21,56 @@
                 <tbody>
                     {% for payment in payments %}
                     <tr>
-                        <td class="text-nowrap">{{ payment.date|date:"d M Y" }}</td>
+                        <td class="text-nowrap">
+                            {{ payment.date|date:"d M Y" }}
+                            <small class="text-muted d-block">Pay #{{ payment.pk }}</small>
+                        </td>
                         <td>
                             <span class="badge {% if payment.direction == 'received' %}bg-success{% else %}bg-danger{% endif %}">
                                 {{ payment.get_direction_display }}
                             </span>
                         </td>
-                        <td>{{ payment.contact.name }}</td>
-                        <td class="text-end fw-semibold">
+                        <td>
+                            <button class="btn btn-link p-0 fw-semibold text-decoration-none d-block text-start"
+                                    hx-get="{% url 'accounting:payment_detail_modal' payment.pk %}"
+                                    hx-target="#mainModalContent"
+                                    title="View payment details">
+                                {{ payment.contact.name }}
+                            </button>
+                            {% if payment.contact.phone %}
+                                <small class="text-muted">{{ payment.contact.phone }}</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-semibold text-nowrap">
                             ₹{{ payment.amount|floatformat:2 }}
-                            {% if payment.discount_amount and payment.discount_amount > 0 %}
-                                <br><small class="text-muted">Disc: ₹{{ payment.discount_amount|floatformat:2 }}</small>
+                            {% if payment.discount_amount > 0 %}
+                                <br><small class="text-muted">Disc ₹{{ payment.discount_amount|floatformat:2 }} · Net ₹{{ payment.net_amount|floatformat:2 }}</small>
                             {% endif %}
                         </td>
                         <td>
-                            {% if payment.is_advance %}
-                                <span class="badge bg-info text-dark">
-                                    <i class="bi bi-arrow-up-right"></i> Advance
-                                </span>
-                            {% elif payment.allocations.all %}
+                            {% if payment.allocations.all or payment.advance_adjustments.all %}
                                 {% for alloc in payment.allocations.all %}
                                     <a href="{% url 'accounting:invoice_detail' alloc.invoice.pk %}"
                                        class="badge bg-primary text-decoration-none mb-1"
-                                       target="_blank">
+                                       target="_blank" title="₹{{ alloc.amount|floatformat:2 }} applied">
                                         {{ alloc.invoice.invoice_number }}
                                     </a>
                                 {% endfor %}
+                                {% for adj in payment.advance_adjustments.all %}
+                                    <a href="{% url 'accounting:invoice_detail' adj.invoice.pk %}"
+                                       class="badge bg-info text-dark text-decoration-none mb-1"
+                                       target="_blank" title="₹{{ adj.amount|floatformat:2 }} from advance">
+                                        ADV → {{ adj.invoice.invoice_number }}
+                                    </a>
+                                {% endfor %}
+                            {% elif payment.is_advance %}
+                                <span class="badge bg-info text-dark">
+                                    <i class="bi bi-arrow-up-right"></i> Advance Pool
+                                </span>
+                            {% elif payment.expense_account %}
+                                <span class="badge bg-warning text-dark" title="Direct expense (Dr Head / Cr Cash|Bank)">
+                                    <i class="bi bi-tags"></i> {{ payment.expense_account.name }}
+                                </span>
                             {% else %}
                                 <span class="text-muted small">Direct</span>
                             {% endif %}
@@ -52,12 +78,16 @@
                         <td>
                             <span class="badge bg-secondary">{{ payment.get_method_display }}</span>
                             {% if payment.upi_ref %}
-                                <br><small class="text-muted">UPI: {{ payment.upi_ref }}</small>
+                                <br><small class="text-muted text-break">UPI: {{ payment.upi_ref }}</small>
+                            {% elif payment.reference %}
+                                <br><small class="text-muted">Ref: {{ payment.reference }}</small>
                             {% endif %}
                         </td>
                         <td>
                             {% if payment.bank_account %}
                                 <span class="badge bg-info text-dark">{{ payment.bank_account.name }}</span>
+                            {% elif payment.method == 'cash' %}
+                                <span class="badge bg-light text-dark border">Cash</span>
                             {% else %}
                                 <span class="text-muted">–</span>
                             {% endif %}
@@ -79,7 +109,27 @@
                                         data-bs-boundary="viewport">
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-end">
+                                <ul class="dropdown-menu dropdown-menu-end shadow">
+                                    <li>
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:payment_detail_modal' payment.pk %}"
+                                                hx-target="#mainModalContent">
+                                            <i class="bi bi-eye me-2 text-primary"></i>View Details
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'accounting:payment_print' payment.pk %}" target="_blank">
+                                            <i class="bi bi-printer me-2 text-info"></i>Print Receipt
+                                        </a>
+                                    </li>
+                                    {% if payment.whatsapp_share_url %}
+                                    <li>
+                                        <a class="dropdown-item" href="{{ payment.whatsapp_share_url }}" target="_blank">
+                                            <i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp
+                                        </a>
+                                    </li>
+                                    {% endif %}
                                     <li>
                                         <button class="dropdown-item"
                                                 hx-get="{% url 'accounting:payment_update' payment.pk %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
@@ -144,22 +194,115 @@
         </div>
     </div>
 
+    {# ══════════ MOBILE / SMALL SCREEN CARDS (below lg) ══════════ #}
+    <div class="d-lg-none p-3">
+        {% for payment in payments %}
+        <div class="card border shadow-sm mb-3">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="fw-bold">{{ payment.contact.name }}</div>
+                        <small class="text-muted">{{ payment.date|date:"d M Y" }} · Pay #{{ payment.pk }}</small>
+                    </div>
+                    <div class="text-end">
+                        <div class="fw-bold fs-6 {% if payment.direction == 'received' %}text-success{% else %}text-danger{% endif %}">
+                            ₹{{ payment.amount|floatformat:2 }}
+                        </div>
+                        <small class="text-muted">{{ payment.get_method_display }}</small>
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-1 mt-2">
+                    <span class="badge {% if payment.direction == 'received' %}bg-success{% else %}bg-danger{% endif %}">
+                        {{ payment.get_direction_display }}
+                    </span>
+                    {% if payment.allocations.all %}
+                        {% for alloc in payment.allocations.all %}
+                            <a href="{% url 'accounting:invoice_detail' alloc.invoice.pk %}" target="_blank"
+                               class="badge bg-primary text-decoration-none">{{ alloc.invoice.invoice_number }}</a>
+                        {% endfor %}
+                    {% elif payment.is_advance %}
+                        <span class="badge bg-info text-dark">Advance</span>
+                    {% elif payment.expense_account %}
+                        <span class="badge bg-warning text-dark"><i class="bi bi-tags"></i> {{ payment.expense_account.name }}</span>
+                    {% endif %}
+                    {% if payment.reconciled %}
+                        <span class="badge bg-success ms-auto">Reconciled</span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark ms-auto">Pending</span>
+                    {% endif %}
+                </div>
+                {% if payment.upi_ref %}
+                    <small class="text-muted d-block mt-1 text-break">UPI: {{ payment.upi_ref }}</small>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-white py-2">
+                <div class="d-flex flex-wrap gap-1 justify-content-end">
+                    <button class="btn btn-sm btn-outline-primary"
+                            hx-get="{% url 'accounting:payment_detail_modal' payment.pk %}"
+                            hx-target="#mainModalContent">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <a class="btn btn-sm btn-outline-info"
+                       href="{% url 'accounting:payment_print' payment.pk %}" target="_blank">
+                        <i class="bi bi-printer"></i>
+                    </a>
+                    {% if payment.whatsapp_share_url %}
+                    <a class="btn btn-sm btn-outline-success"
+                       href="{{ payment.whatsapp_share_url }}" target="_blank">
+                        <i class="bi bi-whatsapp"></i>
+                    </a>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-warning"
+                            hx-get="{% url 'accounting:payment_update' payment.pk %}"
+                            hx-target="#mainModalContent">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success"
+                            hx-post="{% url 'accounting:reconcile_payment' payment.pk %}"
+                            hx-vals='{"reconciled": "{% if payment.reconciled %}false{% else %}true{% endif %}"}'
+                            hx-target="#payment-table-container">
+                        <i class="bi bi-check2-circle"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger"
+                            hx-delete="{% url 'accounting:payment_delete' payment.pk %}"
+                            hx-target="#payment-table-container"
+                            hx-confirm="Delete this payment? Related invoices will be recalculated.">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox display-6 d-block mb-3 text-muted opacity-50"></i>
+            <h5 class="text-muted">No payments found</h5>
+            <p class="text-muted">Try adjusting your filters or create a new payment.</p>
+            <button class="btn btn-primary mt-2"
+                    hx-get="{% url 'accounting:payment_create' %}"
+                    hx-target="#mainModalContent"
+                    hx-trigger="click">
+                <i class="bi bi-plus-circle"></i> New Payment
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+
     <!-- Pagination -->
     {% if page_obj.has_other_pages %}
     <div class="card-footer bg-white border-0">
         <nav aria-label="Payment pagination">
-            <ul class="pagination justify-content-center mb-0">
+            <ul class="pagination justify-content-center mb-0 flex-wrap">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:payment_list' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if direction %}&direction={{ direction }}{% endif %}{% if method %}&method={{ method }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:payment_list' %}?page=1{{ filters_qs }}"
                        hx-target="#payment-table-container">
                         <i class="bi bi-chevron-double-left"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:payment_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if direction %}&direction={{ direction }}{% endif %}{% if method %}&method={{ method }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:payment_list' %}?page={{ page_obj.previous_page_number }}{{ filters_qs }}"
                        hx-target="#payment-table-container">
                         <i class="bi bi-chevron-left"></i>
                     </a>
@@ -176,14 +319,14 @@
                 {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:payment_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if direction %}&direction={{ direction }}{% endif %}{% if method %}&method={{ method }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:payment_list' %}?page={{ page_obj.next_page_number }}{{ filters_qs }}"
                        hx-target="#payment-table-container">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
                 <li class="page-item">
                     <a class="page-link" href="#"
-                       hx-get="{% url 'accounting:payment_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if direction %}&direction={{ direction }}{% endif %}{% if method %}&method={{ method }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-get="{% url 'accounting:payment_list' %}?page={{ page_obj.paginator.num_pages }}{{ filters_qs }}"
                        hx-target="#payment-table-container">
                         <i class="bi bi-chevron-double-right"></i>
                     </a>
@@ -196,7 +339,7 @@
         </nav>
         <p class="text-center text-muted small mb-0 mt-2">
             Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} —
-            showing {{ page_obj.object_list|length }} of {{ page_obj.paginator.count }} payments.
+            showing {{ payments|length }} of {{ page_obj.paginator.count }} payments.
         </p>
     </div>
     {% endif %}

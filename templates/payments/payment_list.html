@@ -1,17 +1,26 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container-fluid px-4 py-3">
+<div class="container-fluid px-3 px-lg-4 py-3">
 
     <!-- HEADER -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <div>
             <h3 class="fw-semibold mb-0">
                 <i class="bi bi-credit-card text-primary me-2"></i>Payments
             </h3>
             <p class="text-muted small mt-1 mb-0">Track all incoming and outgoing payments</p>
         </div>
-        <div class="mt-2 mt-sm-0">
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-success"
+               href="{% url 'accounting:payment_list_excel' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">
+                <i class="bi bi-file-earmark-excel me-1"></i>Excel
+            </a>
+            <a class="btn btn-outline-info"
+               target="_blank"
+               href="{% url 'accounting:payment_list_print' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}">
+                <i class="bi bi-printer me-1"></i>Print
+            </a>
             <button class="btn btn-primary"
                     hx-get="{% url 'accounting:payment_create' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
                     hx-target="#mainModalContent"
@@ -22,38 +31,38 @@
     </div>
 
     <!-- STATS CARDS -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-3 col-sm-6">
+    <div class="row g-2 g-lg-3 mb-4">
+        <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-arrow-down-circle fs-4 text-success"></i>
+                <div class="card-body d-flex align-items-center p-2 p-lg-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-2 p-lg-3 me-2 me-lg-3">
+                        <i class="bi bi-arrow-down-circle fs-5 fs-lg-4 text-success"></i>
                     </div>
-                    <div>
+                    <div class="overflow-hidden">
                         <small class="text-muted d-block text-uppercase fw-semibold">Received</small>
-                        <h5 class="mb-0 fw-bold text-success">₹{{ total_received|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-success text-truncate">₹{{ total_received|floatformat:2 }}</h5>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 col-sm-6">
+        <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-arrow-up-circle fs-4 text-danger"></i>
+                <div class="card-body d-flex align-items-center p-2 p-lg-3">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-2 p-lg-3 me-2 me-lg-3">
+                        <i class="bi bi-arrow-up-circle fs-5 fs-lg-4 text-danger"></i>
                     </div>
-                    <div>
+                    <div class="overflow-hidden">
                         <small class="text-muted d-block text-uppercase fw-semibold">Paid</small>
-                        <h5 class="mb-0 fw-bold text-danger">₹{{ total_paid|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-danger text-truncate">₹{{ total_paid|floatformat:2 }}</h5>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 col-sm-6">
+        <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-info">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-upc-scan fs-4 text-info"></i>
+                <div class="card-body d-flex align-items-center p-2 p-lg-3">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-2 p-lg-3 me-2 me-lg-3">
+                        <i class="bi bi-upc-scan fs-5 fs-lg-4 text-info"></i>
                     </div>
                     <div>
                         <small class="text-muted d-block text-uppercase fw-semibold">UPI Transactions</small>
@@ -62,11 +71,11 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3 col-sm-6">
+        <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
-                <div class="card-body d-flex align-items-center">
-                    <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                        <i class="bi bi-hourglass-split fs-4 text-warning"></i>
+                <div class="card-body d-flex align-items-center p-2 p-lg-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-2 p-lg-3 me-2 me-lg-3">
+                        <i class="bi bi-hourglass-split fs-5 fs-lg-4 text-warning"></i>
                     </div>
                     <div>
                         <small class="text-muted d-block text-uppercase fw-semibold">Pending Reconcile</small>
@@ -80,11 +89,11 @@
     <!-- FILTERS -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
-            <form id="payment-filter-form" class="row g-3">
-                <div class="col-md-3">
+            <form id="payment-filter-form" class="row g-2 g-lg-3">
+                <div class="col-12 col-md-4 col-lg-3">
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" class="form-control" placeholder="Search contact or reference..."
+                        <input type="text" class="form-control" placeholder="Search contact, ref, UPI, invoice..."
                                name="search" value="{{ search }}"
                                hx-get="{% url 'accounting:payment_list' %}"
                                hx-trigger="keyup changed delay:300ms"
@@ -93,8 +102,8 @@
                                hx-push-url="true">
                     </div>
                 </div>
-                <div class="col-md-2">
-                    <select class="form-select" name="direction"
+                <div class="col-6 col-md-2 col-lg-2">
+                    <select class="form-select" name="direction" aria-label="Direction filter"
                             hx-get="{% url 'accounting:payment_list' %}"
                             hx-trigger="change"
                             hx-target="#payment-table-container"
@@ -105,8 +114,8 @@
                         <option value="paid" {% if direction == 'paid' %}selected{% endif %}>Paid</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <select class="form-select" name="method"
+                <div class="col-6 col-md-2 col-lg-2">
+                    <select class="form-select" name="method" aria-label="Method filter"
                             hx-get="{% url 'accounting:payment_list' %}"
                             hx-trigger="change"
                             hx-target="#payment-table-container"
@@ -118,25 +127,37 @@
                         <option value="upi" {% if method == 'upi' %}selected{% endif %}>UPI</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-2 col-lg-2">
+                    <select class="form-select" name="reconciled" aria-label="Reconcile filter"
+                            hx-get="{% url 'accounting:payment_list' %}"
+                            hx-trigger="change"
+                            hx-target="#payment-table-container"
+                            hx-include="#payment-filter-form"
+                            hx-push-url="true">
+                        <option value="">All Reconcile</option>
+                        <option value="yes" {% if reconciled == 'yes' %}selected{% endif %}>Reconciled</option>
+                        <option value="no" {% if reconciled == 'no' %}selected{% endif %}>Pending</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-lg-2">
                     <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
-                           title="From date"
+                           title="From date" aria-label="From date"
                            hx-get="{% url 'accounting:payment_list' %}"
                            hx-trigger="change"
                            hx-target="#payment-table-container"
                            hx-include="#payment-filter-form"
                            hx-push-url="true">
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-md-3 col-lg-2">
                     <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
-                           title="To date"
+                           title="To date" aria-label="To date"
                            hx-get="{% url 'accounting:payment_list' %}"
                            hx-trigger="change"
                            hx-target="#payment-table-container"
                            hx-include="#payment-filter-form"
                            hx-push-url="true">
                 </div>
-                <div class="col-md-1">
+                <div class="col-6 col-md-3 col-lg-1">
                     <button type="button"
                             class="btn btn-secondary w-100"
                             onclick="resetPaymentFilters()"
@@ -180,10 +201,26 @@ function updatePaymentActiveFilters() {
     const textEl = document.getElementById('payment-active-filters-text');
     if (!form || !container || !textEl) return;
 
+    const labels = {
+        search: 'Search',
+        direction: 'Direction',
+        method: 'Method',
+        reconciled: 'Reconcile',
+        date_from: 'From',
+        date_to: 'To',
+    };
+    const valueLabels = {
+        received: 'Received', paid: 'Paid', cash: 'Cash', bank: 'Bank',
+        upi: 'UPI', yes: 'Reconciled', no: 'Pending',
+    };
+
     const fd = new FormData(form);
     const parts = [];
     for (const [k, v] of fd.entries()) {
-        if (v && v.trim() !== '') parts.push(k + ': "' + v + '"');
+        if (v && v.trim() !== '') {
+            const shown = valueLabels[v] || v;
+            parts.push((labels[k] || k) + ': "' + shown + '"');
+        }
     }
 
     if (parts.length === 0) {
