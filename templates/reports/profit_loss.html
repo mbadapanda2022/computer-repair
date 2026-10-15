@@ -40,60 +40,84 @@
         </div>
     </div>
 
-    <!-- Income Section -->
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header bg-white fw-semibold">Income</div>
+    <div class="row g-3 mb-3">
+        <!-- Trading Account -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-boxes me-2 text-primary"></i>Trading Account
+                    <span class="text-muted small fw-normal ms-2">(Gross Profit)</span>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td>Sales Revenue</td>
+                            <td class="text-end">₹{{ sales_total|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Repair Income (Labour)</td>
+                            <td class="text-end">₹{{ repair_income|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Less: Direct Expenses <span class="text-muted small">(Purchases, Wages, Carriage…)</span></td>
+                            <td class="text-end text-danger">− ₹{{ total_direct_expenses|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-light fw-bold">
+                            <td>Gross Profit</td>
+                            <td class="text-end {% if gross_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                ₹{{ gross_profit|floatformat:2 }}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profit & Loss Account -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-graph-up me-2 text-success"></i>Profit &amp; Loss Account
+                    <span class="text-muted small fw-normal ms-2">(Net Profit)</span>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td>Gross Profit b/d</td>
+                            <td class="text-end">₹{{ gross_profit|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Add: Other Income</td>
+                            <td class="text-end">₹{{ other_income_total|floatformat:2 }}</td>
+                        </tr>
+                        <tr>
+                            <td>Less: Indirect Expenses <span class="text-muted small">(Rent, Salary, Electricity…)</span></td>
+                            <td class="text-end text-danger">− ₹{{ total_indirect_expenses|floatformat:2 }}</td>
+                        </tr>
+                        <tr class="table-light fw-bold">
+                            <td>Net Profit</td>
+                            <td class="text-end {% if net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                ₹{{ net_profit|floatformat:2 }}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Totals -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold">Overall Totals (period)</div>
         <div class="card-body">
-            <table class="table table-sm">
+            <table class="table table-sm mb-0">
                 <tr>
-                    <td>Sales Revenue</td>
-                    <td class="text-end">₹{{ sales_total|floatformat:2 }}</td>
-                </tr>
-                <tr>
-                    <td>Repair Income (Labour)</td>
-                    <td class="text-end">₹{{ repair_income|floatformat:2 }}</td>
-                </tr>
-                <tr class="table-light fw-bold">
-                    <td>Total Income</td>
+                    <td>Total Income (Sales + Repair + Other)</td>
                     <td class="text-end">₹{{ total_income|floatformat:2 }}</td>
                 </tr>
-            </table>
-        </div>
-    </div>
-
-    <!-- Expenses Section -->
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header bg-white fw-semibold">Expenses</div>
-        <div class="card-body">
-            <table class="table table-sm">
                 <tr>
-                    <td>Cost of Goods Sold (Purchases)</td>
-                    <td class="text-end">₹{{ purchase_total|floatformat:2 }}</td>
-                </tr>
-                <tr class="table-light fw-bold">
-                    <td>Total Expenses</td>
+                    <td>Total Expenses (Direct + Indirect)</td>
                     <td class="text-end">₹{{ total_expenses|floatformat:2 }}</td>
-                </tr>
-            </table>
-        </div>
-    </div>
-
-    <!-- Summary Section -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white fw-semibold">Summary</div>
-        <div class="card-body">
-            <table class="table table-sm">
-                <tr>
-                    <td>Gross Profit (Sales - COGS)</td>
-                    <td class="text-end fw-bold {% if gross_profit > 0 %}text-success{% else %}text-danger{% endif %}">
-                        ₹{{ gross_profit|floatformat:2 }}
-                    </td>
-                </tr>
-                <tr>
-                    <td>Net Profit (Gross + Repair Income)</td>
-                    <td class="text-end fw-bold {% if net_profit > 0 %}text-success{% else %}text-danger{% endif %}">
-                        ₹{{ net_profit|floatformat:2 }}
-                    </td>
                 </tr>
             </table>
         </div>

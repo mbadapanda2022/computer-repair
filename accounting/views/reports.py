@@ -503,7 +503,7 @@ def gst_report(request):
 
 
 # ============================================================
-# 4. PROFIT & LOSS (Enhanced)
+# 4. PROFIT & LOSS (Enhanced with Direct/Indirect Expenses)
 # ============================================================
 
 @handle_errors(default_redirect='accounting:profit_loss')
@@ -522,17 +522,6 @@ def profit_loss(request):
             sales = sales.filter(date__lte=date_to)
         sales_total = sales.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
         
-        # Cost of Goods Sold (from purchases)
-        purchases = Purchase.objects.all()
-        if date_from:
-            purchases = purchases.filter(date__gte=date_from)
-        if date_to:
-            purchases = purchases.filter(date__lte=date_to)
-        purchase_total = purchases.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
-        
-        # Gross Profit
-        gross_profit = sales_total - purchase_total
-        
         # Repair Income (labour charges from repairs)
         repairs = RepairJob.objects.all()
         if date_from:
@@ -546,21 +535,64 @@ def profit_loss(request):
             .aggregate(total=Sum('line_total'))['total']
         ) or Decimal('0')
         
+        # Ledger-based heads (expenses/other income) isi report date range
+        # me gine jate hain — warna period select karne par bhi all-time
+        # expenses jud jate.
+        entry_q = Q(ledger_entry__is_deleted=False)
+        if date_from:
+            entry_q &= Q(ledger_entry__date__gte=date_from)
+        if date_to:
+            entry_q &= Q(ledger_entry__date__lte=date_to)
+
+        # DIRECT EXPENSES (Trading Account) - Cost of Goods Sold
+        # Group code 51: Direct Expenses
+        direct_expenses = Account.objects.filter(
+            group__code='51', account_type='expense'
+        ).values_list('id', flat=True)
+        
+        # Purchase entries + direct expense journal entries
+        total_direct_expenses = LedgerLine.objects.filter(
+            account_id__in=direct_expenses,
+            ledger_entry__entry_type__in=['purchase', 'journal'],
+        ).filter(entry_q).aggregate(total=Sum('debit'))['total'] or Decimal('0')
+        
+        # INDIRECT EXPENSES (Profit & Loss Account)  
+        # Group code 52: Indirect Expenses
+        indirect_expenses = Account.objects.filter(
+            group__code='52', account_type='expense'
+        ).values_list('id', flat=True)
+        
+        total_indirect_expenses = LedgerLine.objects.filter(
+            account_id__in=indirect_expenses,
+        ).filter(entry_q).aggregate(total=Sum('debit'))['total'] or Decimal('0')
+        
+        # Other income (non-operational)
+        other_income_accounts = Account.objects.filter(
+            group__code='4', account_type='income'
+        ).exclude(name__in=['Sales Revenue', 'Discount Received'])  # Exclude sales-related
+        other_income_total = LedgerLine.objects.filter(
+            account_id__in=other_income_accounts,
+            ledger_entry__entry_type__in=['journal', 'contra'],
+        ).filter(entry_q).aggregate(total=Sum('credit'))['total'] or Decimal('0')
+        
+        # Calculate profits
+        gross_profit = sales_total + repair_income - total_direct_expenses
+        net_profit = gross_profit + other_income_total - total_indirect_expenses
+        
         # Total Income
-        total_income = sales_total + repair_income
+        total_income = sales_total + repair_income + other_income_total
         
-        # Total Expenses (for now, just purchases)
-        total_expenses = purchase_total
+        # Total Expenses
+        total_expenses = total_direct_expenses + total_indirect_expenses
         
-        # Net Profit
-        net_profit = gross_profit + repair_income
-        
-        # Summary data
+        # Summary data for Tally-style presentation
         summary_data = [
             {'category': 'Total Sales', 'amount': sales_total},
             {'category': 'Repair Income', 'amount': repair_income},
+            {'category': 'Other Income', 'amount': other_income_total},
             {'category': 'Total Income', 'amount': total_income},
-            {'category': 'Cost of Goods Sold', 'amount': purchase_total},
+            {'category': 'Direct Expenses', 'amount': total_direct_expenses},
+            {'category': 'Indirect Expenses', 'amount': total_indirect_expenses},
             {'category': 'Total Expenses', 'amount': total_expenses},
             {'category': 'Gross Profit', 'amount': gross_profit},
             {'category': 'Net Profit', 'amount': net_profit},
@@ -574,12 +606,14 @@ def profit_loss(request):
             company = CompanyProfile.get_instance()
             context = {
                 'sales_total': sales_total,
-                'purchase_total': purchase_total,
                 'repair_income': repair_income,
+                'other_income_total': other_income_total,
+                'total_income': total_income,
+                'total_direct_expenses': total_direct_expenses,
+                'total_indirect_expenses': total_indirect_expenses,
+                'total_expenses': total_expenses,
                 'gross_profit': gross_profit,
                 'net_profit': net_profit,
-                'total_income': total_income,
-                'total_expenses': total_expenses,
                 'date_from': date_from,
                 'date_to': date_to,
                 'company': company,
@@ -589,12 +623,14 @@ def profit_loss(request):
         
         context = {
             'sales_total': sales_total,
-            'purchase_total': purchase_total,
             'repair_income': repair_income,
+            'other_income_total': other_income_total,
+            'total_income': total_income,
+            'total_direct_expenses': total_direct_expenses,
+            'total_indirect_expenses': total_indirect_expenses,
+            'total_expenses': total_expenses,
             'gross_profit': gross_profit,
             'net_profit': net_profit,
-            'total_income': total_income,
-            'total_expenses': total_expenses,
             'date_from': date_from,
             'date_to': date_to,
         }
@@ -605,9 +641,11 @@ def profit_loss(request):
         messages.error(request, "Unable to generate profit/loss report.")
         return render(request, 'reports/profit_loss.html', {
             'sales_total': 0, 'purchase_total': 0,
-            'repair_income': 0, 'gross_profit': 0,
-            'net_profit': 0, 'total_income': 0,
-            'total_expenses': 0
+            'repair_income': 0, 'other_income_total': 0,
+            'total_income': 0,
+            'total_direct_expenses': 0, 'total_indirect_expenses': 0,
+            'total_expenses': 0,
+            'gross_profit': 0, 'net_profit': 0,
         })
 
 

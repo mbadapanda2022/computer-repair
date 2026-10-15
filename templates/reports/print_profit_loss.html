@@ -3,20 +3,23 @@
 
 {% block report_content %}
 <table class="table">
-    <thead><tr><th colspan="2" class="text-center">Profit & Loss Report</th></tr></thead>
+    <thead><tr><th colspan="2" class="text-center">Profit &amp; Loss Report</th></tr></thead>
     <tbody>
-        <tr><td colspan="2" class="fw-bold">Income</td></tr>
+        <tr><td colspan="2" class="fw-bold">Trading Account</td></tr>
         <tr><td>Sales Revenue</td><td class="text-end">₹{{ sales_total|floatformat:2 }}</td></tr>
         <tr><td>Repair Income</td><td class="text-end">₹{{ repair_income|floatformat:2 }}</td></tr>
-        <tr class="fw-bold"><td>Total Income</td><td class="text-end">₹{{ total_income|floatformat:2 }}</td></tr>
-        
-        <tr><td colspan="2" class="fw-bold">Expenses</td></tr>
-        <tr><td>Cost of Goods Sold</td><td class="text-end">₹{{ purchase_total|floatformat:2 }}</td></tr>
-        <tr class="fw-bold"><td>Total Expenses</td><td class="text-end">₹{{ total_expenses|floatformat:2 }}</td></tr>
-        
-        <tr><td colspan="2" class="fw-bold">Summary</td></tr>
-        <tr><td>Gross Profit</td><td class="text-end fw-bold">₹{{ gross_profit|floatformat:2 }}</td></tr>
-        <tr><td>Net Profit</td><td class="text-end fw-bold">₹{{ net_profit|floatformat:2 }}</td></tr>
+        <tr><td>Less: Direct Expenses</td><td class="text-end">₹{{ total_direct_expenses|floatformat:2 }}</td></tr>
+        <tr class="fw-bold"><td>Gross Profit</td><td class="text-end">₹{{ gross_profit|floatformat:2 }}</td></tr>
+
+        <tr><td colspan="2" class="fw-bold">Profit &amp; Loss Account</td></tr>
+        <tr><td>Gross Profit b/d</td><td class="text-end">₹{{ gross_profit|floatformat:2 }}</td></tr>
+        <tr><td>Add: Other Income</td><td class="text-end">₹{{ other_income_total|floatformat:2 }}</td></tr>
+        <tr><td>Less: Indirect Expenses</td><td class="text-end">₹{{ total_indirect_expenses|floatformat:2 }}</td></tr>
+        <tr class="fw-bold"><td>Net Profit</td><td class="text-end">₹{{ net_profit|floatformat:2 }}</td></tr>
+
+        <tr><td colspan="2" class="fw-bold">Totals</td></tr>
+        <tr><td>Total Income</td><td class="text-end">₹{{ total_income|floatformat:2 }}</td></tr>
+        <tr><td>Total Expenses</td><td class="text-end">₹{{ total_expenses|floatformat:2 }}</td></tr>
     </tbody>
 </table>
 {% endblock %}
