@@ -54,12 +54,29 @@
         </div>
 
         <div class="d-flex gap-2 flex-wrap">
-            {% if job.estimate_status == 'pending' and job.estimated_cost %}
-                <button class="btn btn-success"
-                        hx-get="{% url 'accounting:staff_approve_estimate' job.pk %}"
-                        hx-target="#mainModalContent" hx-trigger="click">
-                    <i class="bi bi-check-circle"></i> Approve Estimate
-                </button>
+            {% if job.estimated_cost and job.status != 'cancelled' %}
+                {% if job.estimate_status != 'approved' %}
+                    <button class="btn btn-success"
+                            hx-get="{% url 'accounting:staff_approve_estimate' job.pk %}"
+                            hx-target="#mainModalContent" hx-trigger="click">
+                        <i class="bi bi-check-circle"></i>
+                        {% if job.estimate_status == 'pending' %}Approve Estimate{% else %}Re-approve Estimate{% endif %}
+                    </button>
+                {% endif %}
+                {% if job.estimate_status == 'pending' or job.estimate_status == 'rejected' %}
+                    <button class="btn btn-warning"
+                            hx-get="{% url 'accounting:staff_estimate_hold' job.pk %}"
+                            hx-target="#mainModalContent" hx-trigger="click">
+                        <i class="bi bi-pause-circle"></i> Hold
+                    </button>
+                {% endif %}
+                {% if job.estimate_status == 'pending' or job.estimate_status == 'on_hold' %}
+                    <button class="btn btn-outline-danger"
+                            hx-get="{% url 'accounting:staff_estimate_reject' job.pk %}"
+                            hx-target="#mainModalContent" hx-trigger="click">
+                        <i class="bi bi-x-octagon"></i> Reject
+                    </button>
+                {% endif %}
             {% endif %}
 
             {% if not job.invoice and job.status != 'cancelled' %}
@@ -151,6 +168,35 @@
             </a>
         </div>
     </div>
+
+    {% if job.status == 'cancelled' %}
+    <div class="alert alert-danger d-flex align-items-start gap-2 shadow-sm">
+        <i class="bi bi-x-octagon-fill fs-4 mt-1"></i>
+        <div class="flex-grow-1">
+            <div class="fw-bold">This job is cancelled</div>
+            {% if job.cancellation_reason %}
+                <div class="small">Reason: {{ job.cancellation_reason }}</div>
+            {% endif %}
+            {% if job.cancelled_at %}
+                <div class="small text-muted">Closed on {{ job.cancelled_at|date:"d M Y, h:i A" }}</div>
+            {% endif %}
+            {% if job.cancellation_charge and job.invoice %}
+                <div class="small mt-1">
+                    <i class="bi bi-receipt me-1"></i>
+                    Cancellation charge ₹{{ job.cancellation_charge|floatformat:2 }} —
+                    <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}" class="fw-bold">
+                        view invoice {{ job.invoice.invoice_number }}
+                    </a>
+                    {% if job.invoice.balance_due > 0 %}
+                        <span class="badge bg-warning text-dark">Balance due ₹{{ job.invoice.balance_due|floatformat:2 }}</span>
+                    {% else %}
+                        <span class="badge bg-success">Paid</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- ═══════════════════════════════════════════════════════ -->
     <!-- STATUS PIPELINE                                         -->

@@ -158,8 +158,30 @@
             <ul class="mb-0 small">
                 <li>All parts added to this repair will be deleted</li>
                 <li>Stock will be automatically restored</li>
-                <li>This action cannot be undone</li>
+                <li>Reason customer ko tracking page par dikhega</li>
             </ul>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">
+                Cancellation Reason <span class="text-danger">*</span>
+            </label>
+            <textarea name="cancel_reason" rows="2" class="form-control" required
+                      placeholder="e.g. Customer declined estimate / repair not economical / duplicate entry">{{ job.cancellation_reason|default:'' }}</textarea>
+            <small class="text-muted">Ye karan customer ko public tracking page par dikhega.</small>
+        </div>
+
+        <div class="mb-0">
+            <label class="form-label fw-semibold">
+                Charge to customer (₹)
+                <span class="text-muted fw-normal">(diagnosis/service — 0 = no charge)</span>
+            </label>
+            <input type="number" name="cancel_charge" class="form-control"
+                   min="0" step="0.01" value="{{ job.cancellation_charge|floatformat:2 }}">
+            <small class="text-muted">
+                Charge daalne par cancellation invoice ban jaayega;
+                jo advance liya tha usse balance auto-adjust hoga.
+            </small>
         </div>
         {% endif %}
 

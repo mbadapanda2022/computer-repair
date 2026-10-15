@@ -96,7 +96,6 @@ class DashboardCardLinkTests(TestCase):
 
     def test_repair_list_open_shows_card_status_set(self):
         open_jobs = [self.make_job(s) for s in RepairJob.OPEN_STATUSES]
-        received = self.make_job('received')
         delivered = self.make_job('delivered')
         cancelled = self.make_job('cancelled')
 
@@ -106,7 +105,7 @@ class DashboardCardLinkTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         shown = {job.pk for job in resp.context['jobs']}
         self.assertEqual(shown, {job.pk for job in open_jobs})
-        for excluded in (received, delivered, cancelled):
+        for excluded in (delivered, cancelled):
             self.assertNotIn(excluded.pk, shown)
 
     def test_repair_open_count_matches_dashboard_card(self):

@@ -278,18 +278,70 @@
     <!-- ================= PROGRESS ================= -->
     <div class="progress-card">
         <div class="progress-head">
-            <span class="lbl"><i class="bi bi-activity text-primary"></i> Repair Progress</span>
-            <span class="pct">{{ progress }}%</span>
+            <span class="lbl">
+                {% if repair.status == 'cancelled' %}
+                    <i class="bi bi-x-circle text-danger"></i> Job Status
+                {% else %}
+                    <i class="bi bi-activity text-primary"></i> Repair Progress
+                {% endif %}
+            </span>
+            <span class="pct{% if repair.status == 'cancelled' %} text-danger{% endif %}">
+                {% if repair.status == 'cancelled' %}Closed{% else %}{{ progress }}%{% endif %}
+            </span>
         </div>
         <div class="progress-rail">
-            <div class="progress-fill{% if repair.status == 'cancelled' %} cancelled{% endif %}" style="width: {{ progress }}%;"></div>
+            <div class="progress-fill{% if repair.status == 'cancelled' %} cancelled{% endif %}"
+                 style="width: {% if repair.status == 'cancelled' %}100{% else %}{{ progress }}{% endif %}%"></div>
         </div>
-        {% if repair.status != 'cancelled' %}
+        {% if repair.status == 'cancelled' %}
+        <div class="progress-steps">
+            <span>This job was cancelled</span>
+        </div>
+        {% else %}
         <div class="progress-steps">
             <span>Received</span><span>Diagnosis</span><span>Repair</span><span>Ready</span><span>Delivered</span>
         </div>
         {% endif %}
     </div>
+
+    {% if repair.status == 'cancelled' %}
+    <!-- ================= CANCELLATION ================= -->
+    <div class="tk-section">
+        <div class="panel" style="border-color:#f3c1c6;background:#fdf2f3;">
+            <div class="section-title" style="color:var(--tk-red);margin-bottom:8px;">
+                <i class="bi bi-x-octagon-fill"></i> Job Cancelled
+            </div>
+            {% if repair.cancellation_reason %}
+            <div class="info-row">
+                <span class="k">Reason</span>
+                <span class="v">{{ repair.cancellation_reason }}</span>
+            </div>
+            {% endif %}
+            {% if repair.cancelled_at %}
+            <div class="info-row">
+                <span class="k">Cancelled On</span>
+                <span class="v">{{ repair.cancelled_at|date:"d M Y, h:i A" }}</span>
+            </div>
+            {% endif %}
+            {% if repair.invoice %}
+            <div class="info-row">
+                <span class="k">Cancellation / Diagnosis Charge</span>
+                <span class="v">₹{{ repair.invoice.grand_total|floatformat:2 }}</span>
+            </div>
+            <div class="info-row">
+                <span class="k">Payment Status</span>
+                <span class="v">
+                    {% if repair.invoice.balance_due > 0 %}
+                        <span class="pay-badge pay-partial">Balance due ₹{{ repair.invoice.balance_due|floatformat:2 }}</span>
+                    {% else %}
+                        <span class="pay-badge pay-paid">Paid</span>
+                    {% endif %}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 
     <!-- ================= SUMMARY TILES ================= -->
     <div class="tk-section">
@@ -435,7 +487,7 @@
                 <div class="tl-item">
                     <span class="tl-dot" style="border-color:var(--tk-red);background:var(--tk-red);"></span>
                     <div class="tl-title" style="color:var(--tk-red);">Job Cancelled</div>
-                    <div class="tl-time">{{ repair.updated_at|date:"d M Y, h:i A" }}</div>
+                    <div class="tl-time">{{ repair.cancelled_at|default:repair.updated_at|date:"d M Y, h:i A" }}</div>
                 </div>
                 {% endif %}
             </div>

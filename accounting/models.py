@@ -2280,7 +2280,7 @@ class RepairStatusLog(models.Model):
 class RepairJob(SoftDeleteModel):
     # "Open" = abhi shop me / under-work — dashboard Pending Repairs card
     # aur repair_list open filter yahi set use karte hain.
-    OPEN_STATUSES = ['pending', 'diagnosis', 'repairing', 'ready']
+    OPEN_STATUSES = ['pending', 'received', 'diagnosis', 'repairing', 'ready']
     STATUS_CHOICES = (
         ('pending',    'Pending (Awaiting Receipt)'),
         ('received',   'Received at Shop'),
@@ -2322,6 +2322,28 @@ class RepairJob(SoftDeleteModel):
         null=True,
         blank=True,
         related_name='approved_estimates',
+    )
+    estimate_decided_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Auto: jab estimate hold/rejected mark hua (approved ke liye "
+                  "estimate_approved_at dekhein).",
+    )
+
+    # ---------- Cancellation ----------
+    cancellation_reason = models.TextField(
+        blank=True, null=True,
+        help_text="Job cancel/reject hone ka karan (staff) — tracking page par "
+                  "customer ko dikhta hai.",
+    )
+    cancelled_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Auto: status 'cancelled' hote hi stamp hota hai.",
+    )
+    cancellation_charge = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0'),
+        validators=POSITIVE_VALIDATOR,
+        help_text="Cancel/reject par customer se liya gaya charge (diagnosis etc.) "
+                  "— is amount ka invoice cancel ke waqt ban jaata hai.",
     )
     approval_source = models.CharField(
         max_length=30,

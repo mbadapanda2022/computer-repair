@@ -575,11 +575,12 @@ class RepairWorkflowMixin:
                     "zaroori hai — warna handover ka record nahi rahega."
                 )
 
-        if new_status == 'repairing' and old_status == 'diagnosis' \
+        if new_status in ('repairing', 'ready') \
                 and self.estimate_status == 'rejected':
             raise InvalidStatusTransition(
-                "Customer ne estimate reject kar diya hai — repair shuru karne "
-                "se pehle estimate_status badlein (ya naya estimate bhejein)."
+                "Customer ne estimate reject kar diya hai — aage kaam karne se "
+                "pehle Approve Estimate se naya approval record karein "
+                "(ya cancel karke diagnosis charge bill banayein)."
             )
 
     # ── side-effects ─────────────────────────────────────────────
@@ -594,8 +595,14 @@ class RepairWorkflowMixin:
 
         2. Customer notification (exactly once — notified_at guard).
         """
-        if new_status == 'cancelled' and getattr(
-            settings, 'REPAIR_REVERSE_LINES_ON_CANCEL', True
+        if new_status == 'cancelled':
+            # Cancel ka time stamp — tracking page "Job Closed" dikhane ke liye
+            # ise hi use karta hai (admin/shell cancels par bhi lage).
+            self.cancelled_at = timezone.now()
+            self.save(update_fields=['cancelled_at'])
+
+        if getattr(settings, 'REPAIR_REVERSE_LINES_ON_CANCEL', True) and (
+            new_status == 'cancelled'
         ):
             for service in list(self.services.all()):
                 service.delete()
@@ -1017,8 +1024,15 @@ REPAIR_TRANSITIONS = {
             confirm="Device customer ko de diya? 'Received By' (naam ya phone) "
                     "bhara hona zaroori hai.",
         ),
-        # 'ready → cancelled' jaan-boojh kar nahi: device taiyar hai. Manager
-        # chaahe to change_status('cancelled', force=True, ...) kare.
+        # Customer ne delivery mana kar di / estimate reject kiya / device
+        # pickup nahi — 'ready' se bhi cancel ho sakta hai (reason + optional
+        # charge view me handle hota hai).
+        'cancelled': Transition(
+            set(), label='Cancel Job', method='cancel',
+            icon='bi-x-octagon', kind='danger',
+            confirm="Device taiyar hai phir bhi cancel? Reason likhein — "
+                    "zaroorat par diagnosis charge ka bill ban sakta hai.",
+        ),
     },
     'delivered': {
         'repairing': Transition(

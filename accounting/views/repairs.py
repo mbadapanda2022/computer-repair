@@ -127,6 +127,106 @@ def _safe_notify(customer, **kwargs):
 
 
 # ════════════════════════════════════════════════════════════
+# HELPER: Cancellation charge invoice (cancel/reject ke waqt charge)
+# ════════════════════════════════════════════════════════════
+CANCEL_CHARGE_PRODUCT_NAME = 'Diagnosis / Service Charge (Cancelled Repair)'
+
+
+def _get_cancel_charge_product():
+    product = Product.objects.filter(
+        name=CANCEL_CHARGE_PRODUCT_NAME, is_service=True,
+    ).first()
+    if product:
+        return product
+    product, _ = Product.all_objects.get_or_create(
+        name=CANCEL_CHARGE_PRODUCT_NAME,
+        is_service=True,
+        defaults={'selling_price': Decimal('0'), 'is_active': True},
+    )
+    if product.is_deleted:
+        product.restore()
+    return product
+
+
+def _parse_cancel_charge(raw):
+    """Cancel charge ko Decimal me; khaali/galat/negative → 0 (lenient)."""
+    raw = (raw or '').strip()
+    if not raw:
+        return Decimal('0')
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        return Decimal('0')
+    return value if value > 0 else Decimal('0')
+
+
+def _create_cancellation_invoice(job, charge, user, reason):
+    """
+    Cancel/reject hone par customer ka charge (diagnosis etc.) — seedha invoice,
+    status-guard wale create_invoice_from_repair se alag raasta (job cancelled
+    status me hota hai aur parts/services lines cancel par delete ho chuke hain).
+    Advance auto-settle bhi hota hai (normal repair invoice jaisa).
+    """
+    company = CompanyProfile.get_instance()
+    with transaction.atomic():
+        job = RepairJob.objects.select_for_update().get(pk=job.pk)
+        if job.invoice_id:
+            return job.invoice
+
+        product = _get_cancel_charge_product()
+        invoice = Invoice(
+            customer=job.customer,
+            date=timezone.now().date(),
+            gst_type=_auto_detect_gst_type(job, company),
+            notes=(
+                f"Cancellation charges for repair {job.job_number}\n"
+                f"Device: {job.device_model}\n"
+                f"Reason: {reason}"
+            ),
+        )
+        invoice.save()
+
+        InvoiceItem.objects.create(
+            invoice=invoice,
+            product=product,
+            quantity=Decimal('1'),
+            unit_price=charge,
+            tax_rate=Decimal('0'),
+            description=(
+                f"Diagnosis/service charge — repair complete nahi hui "
+                f"(cancelled). {reason}"
+            )[:200],
+            stock_already_deducted=True,
+        )
+
+        invoice.calculate_totals()
+        invoice.save()
+        sync_invoice_ledger(invoice)
+
+        job.invoice = invoice
+        job.cancellation_charge = charge
+        job.save(update_fields=['invoice', 'cancellation_charge'])
+
+        invoice.apply_available_advance(
+            note='Auto-applied on cancellation charge'
+        )
+
+        # Model.save() har baar final_amount ko parts+services se recalculata
+        # hai; cancel par lines delete ho chuke hain → 0 aa jata. Charge invoice
+        # ka total final_amount me set karne ke liye save() BYPASS karke
+        # queryset.update() karo.
+        RepairJob.all_objects.filter(pk=job.pk).update(final_amount=charge)
+        job.final_amount = charge
+
+    logger.info(
+        "Cancellation invoice %s created for job %s (Rs.%s) by %s",
+        invoice.invoice_number, job.job_number, charge,
+        getattr(user, 'username', 'system'),
+    )
+    return invoice
+
+
+# ════════════════════════════════════════════════════════════
 # HELPERS: Aging / Pipeline / Timeline / Warranty
 # ════════════════════════════════════════════════════════════
 def _compute_aging(job):
@@ -959,6 +1059,34 @@ def update_repair_status(request, pk):
             status=400,
         )
 
+    cancel_reason = ''
+    cancel_charge = Decimal('0')
+    if new_status == 'cancelled':
+        cancel_reason = (request.POST.get('cancel_reason') or '').strip()
+        if not cancel_reason:
+            return toast_only_response(
+                {
+                    'level': 'danger',
+                    'message': (
+                        'Cancel karne se pehle reason likhein — ye customer ko '
+                        'tracking page par dikhta hai.'
+                    ),
+                },
+                status=400,
+            )
+        raw_charge = (request.POST.get('cancel_charge') or '').strip()
+        if raw_charge:
+            try:
+                cancel_charge = Decimal(raw_charge)
+            except InvalidOperation:
+                cancel_charge = Decimal('-1')
+            if cancel_charge < 0:
+                return toast_only_response(
+                    {'level': 'danger',
+                     'message': 'Invalid charge amount.'},
+                    status=400,
+                )
+
     # ── Collect optional fields from POST ──
     DATE_FIELDS = {'received_at', 'ready_at', 'delivery_date'}
     TEXT_FIELDS = {
@@ -982,11 +1110,15 @@ def update_repair_status(request, pk):
         else:
             extra[field] = raw
 
+    if new_status == 'cancelled':
+        extra['cancellation_reason'] = cancel_reason
+
     # ── Apply atomically ──
     # NOTE: Cancel par parts delete karne ki zaroorat NAHI hai — ab wo kaam
     # model ke `RepairJob._on_status_change()` karta hai (stock reversal ke
     # saath), taaki admin/shell/script se cancel karne par bhi stock sahi
     # reverse ho. Yahan se duplicate logic hata di gayi hai.
+    charged_invoice = None
     try:
         with transaction.atomic():
             # Pehle extra fields (dates/remarks) save karo
@@ -1004,8 +1136,17 @@ def update_repair_status(request, pk):
             job.change_status(
                 new_status,
                 by=request.user,
-                remarks=(request.POST.get('remarks') or '').strip()[:300],
+                remarks=(
+                    (request.POST.get('remarks') or '').strip()
+                    or cancel_reason
+                )[:300],
             )
+
+            charged_invoice = None
+            if new_status == 'cancelled' and cancel_charge > 0:
+                charged_invoice = _create_cancellation_invoice(
+                    job, cancel_charge, request.user, cancel_reason,
+                )
     except ValidationError as exc:
         # Guard ka error — user ko saaf message (500 nahi)
         message = exc.messages[0] if getattr(exc, 'messages', None) else str(exc)
@@ -1025,6 +1166,28 @@ def update_repair_status(request, pk):
         job.job_number, old_status, new_status, request.user.username,
     )
 
+    success_message = f'Status updated to {job.get_status_display()}.'
+    if charged_invoice is not None:
+        success_message = (
+            f'Job cancelled. Charge invoice {charged_invoice.invoice_number} '
+            f'(₹{charged_invoice.grand_total:.2f}) created — balance due '
+            f'₹{charged_invoice.balance_due:.2f}.'
+        )
+        _safe_notify(
+            job.customer,
+            title=f"Cancellation Charges: {charged_invoice.invoice_number}",
+            message=(
+                f"Repair {job.job_number} was cancelled. Charges of "
+                f"₹{charged_invoice.grand_total:.2f} have been billed "
+                f"(invoice {charged_invoice.invoice_number})."
+            ),
+            link=reverse('customer:customer_invoice_detail',
+                         args=[charged_invoice.pk]),
+            notif_type='warning',
+            category='sales',
+            send_email=False,
+        )
+
     if is_htmx(request):
         response = HttpResponse()
         response['HX-Redirect'] = reverse('accounting:repair_detail', args=[job.pk])
@@ -1032,14 +1195,14 @@ def update_repair_status(request, pk):
             'closeModal': '',
             'showToast': {
                 'level': 'success',
-                'message': f'Status updated to {job.get_status_display()}.',
+                'message': success_message,
             },
         })
         return response
 
     messages.success(
         request,
-        f"Status updated to {job.get_status_display()}.",
+        success_message,
     )
     return redirect_to_staff('repair_detail', pk=job.pk)
 
@@ -1938,10 +2101,12 @@ def repair_create_for_contact(request, contact_id):
 def staff_approve_estimate(request, pk):
     repair = get_object_or_404(RepairJob, pk=pk)
 
-    if repair.estimate_status != 'pending':
+    # Approved hone ke baad dobara approve na ho; pending/hold/rejected se
+    # approve allowed (customer baad me haan keh sakta hai).
+    if repair.estimate_status == 'approved':
         messages.warning(
             request,
-            f"This estimate is already {repair.get_estimate_status_display()}."
+            "This estimate is already approved."
         )
         return redirect('accounting:repair_detail', pk=repair.pk)
 
@@ -1952,6 +2117,7 @@ def staff_approve_estimate(request, pk):
         with transaction.atomic():
             # Estimate fields pehle save karo (status ko chhue bina)
             repair.estimate_status = 'approved'
+            repair.estimate_decided_at = None
             repair.estimate_approved_at = timezone.now()
             repair.estimate_approved_by = request.user
             repair.approval_source = source
@@ -1960,7 +2126,7 @@ def staff_approve_estimate(request, pk):
                 f"Approved by {request.user.get_full_name() or request.user.username}"
             )
             repair.save(update_fields=[
-                'estimate_status', 'estimate_approved_at',
+                'estimate_status', 'estimate_decided_at', 'estimate_approved_at',
                 'estimate_approved_by', 'approval_source', 'approval_remarks',
             ])
 
@@ -1995,6 +2161,164 @@ def staff_approve_estimate(request, pk):
         return redirect('accounting:repair_detail', pk=repair.pk)
 
     return render(request, 'repairs/partials/staff_approve_modal.html', {'repair': repair})
+
+
+# ════════════════════════════════════════════════════════════
+# 14b. STAFF ESTIMATE HOLD / REJECT
+# ════════════════════════════════════════════════════════════
+@login_required
+@handle_errors(default_redirect='accounting:repair_list')
+def staff_estimate_hold(request, pk):
+    repair = get_object_or_404(RepairJob, pk=pk)
+
+    if repair.estimate_status == 'approved':
+        messages.warning(request, "Approved estimate ko hold nahi kar sakte.")
+        return redirect('accounting:repair_detail', pk=repair.pk)
+
+    if request.method == 'POST':
+        source = request.POST.get('source', 'staff_phone')
+        remarks = (request.POST.get('remarks') or '').strip()
+
+        repair.estimate_status = 'on_hold'
+        repair.estimate_decided_at = timezone.now()
+        repair.approval_source = source
+        repair.approval_remarks = remarks or 'Estimate placed on hold'
+        repair.save(update_fields=[
+            'estimate_status', 'estimate_decided_at',
+            'approval_source', 'approval_remarks',
+        ])
+
+        _safe_notify(
+            repair.customer,
+            title=f"Repair {repair.job_number} on hold",
+            message=(
+                f"Your repair estimate for {repair.device_model} is on hold. "
+                f"Please contact us to proceed."
+            ),
+            link=reverse('customer:customer_repair_detail', args=[repair.pk]),
+            notif_type='warning',
+            category='repairs',
+            send_email=False,
+        )
+        messages.success(request, f"Estimate for {repair.job_number} placed on hold.")
+
+        if is_htmx(request):
+            response = HttpResponse()
+            response['HX-Redirect'] = reverse('accounting:repair_detail', args=[repair.pk])
+            response['HX-Trigger'] = json.dumps({'closeModal': ''})
+            return response
+        return redirect('accounting:repair_detail', pk=repair.pk)
+
+    return render(request, 'repairs/partials/staff_estimate_decision_modal.html',
+                  {'repair': repair, 'action': 'hold'})
+
+
+@login_required
+@handle_errors(default_redirect='accounting:repair_list')
+def staff_estimate_reject(request, pk):
+    repair = get_object_or_404(RepairJob, pk=pk)
+
+    if repair.estimate_status == 'approved':
+        messages.warning(request, "Approved estimate ko reject nahi kar sakte.")
+        return redirect('accounting:repair_detail', pk=repair.pk)
+
+    if request.method == 'POST':
+        source = request.POST.get('source', 'staff_phone')
+        remarks = (request.POST.get('remarks') or '').strip()
+        cancel_job = request.POST.get('cancel_job') == '1'
+        cancel_reason = (request.POST.get('cancel_reason') or '').strip()
+        raw_charge = (request.POST.get('cancel_charge') or '').strip()
+
+        with transaction.atomic():
+            repair.estimate_status = 'rejected'
+            repair.estimate_decided_at = timezone.now()
+            repair.approval_source = source
+            repair.approval_remarks = remarks or 'Estimate rejected'
+            repair.save(update_fields=[
+                'estimate_status', 'estimate_decided_at',
+                'approval_source', 'approval_remarks',
+            ])
+
+        charged_invoice = None
+        cancel_error = None
+        if cancel_job:
+            if repair.invoice_id or repair.status in ('delivered', 'cancelled'):
+                cancel_error = (
+                    "Estimate reject ho gaya, lekin job cancel nahi hui "
+                    "(invoice already hai ya device deliver/cancel ho chuka hai)."
+                )
+            else:
+                reason = cancel_reason or remarks or "Customer ne estimate reject kiya"
+                try:
+                    with transaction.atomic():
+                        repair = RepairJob.objects.get(pk=pk)
+                        repair.cancellation_reason = reason[:300]
+                        repair.save(update_fields=['cancellation_reason'])
+                        repair.change_status(
+                            'cancelled', by=request.user, remarks=reason[:300],
+                        )
+                        charge = _parse_cancel_charge(raw_charge)
+                        if charge > 0:
+                            charged_invoice = _create_cancellation_invoice(
+                                repair, charge, request.user, reason,
+                            )
+                except ValidationError as exc:
+                    cancel_error = (
+                        exc.messages[0] if getattr(exc, 'messages', None)
+                        else str(exc)
+                    )
+
+        _safe_notify(
+            repair.customer,
+            title=f"Repair {repair.job_number} estimate rejected",
+            message=(
+                f"The estimate for {repair.device_model} was marked rejected. "
+                + ("Device ka kaam band kar diya gaya hai."
+                   if repair.status == 'cancelled' else
+                   "Aap chahein toh naya estimate approve karwa sakte hain.")
+            ),
+            link=reverse('customer:customer_repair_detail', args=[repair.pk]),
+            notif_type='warning',
+            category='repairs',
+            send_email=False,
+        )
+
+        if charged_invoice:
+            messages.success(
+                request,
+                f"Estimate rejected. Job cancelled. Charge invoice "
+                f"{charged_invoice.invoice_number} "
+                f"(₹{charged_invoice.grand_total:.2f}) created — "
+                f"balance due ₹{charged_invoice.balance_due:.2f}."
+            )
+            _safe_notify(
+                repair.customer,
+                title=f"Cancellation Charges: {charged_invoice.invoice_number}",
+                message=(
+                    f"A cancellation/diagnosis charge of "
+                    f"₹{charged_invoice.grand_total:.2f} has been billed for "
+                    f"repair {repair.job_number}."
+                ),
+                link=reverse('customer:customer_invoice_detail',
+                             args=[charged_invoice.pk]),
+                notif_type='warning',
+                category='sales',
+                send_email=False,
+            )
+        elif cancel_error:
+            messages.warning(request, cancel_error)
+        else:
+            messages.success(request, f"Estimate for {repair.job_number} rejected.")
+
+        if is_htmx(request):
+            response = HttpResponse()
+            response['HX-Redirect'] = reverse('accounting:repair_detail', args=[repair.pk])
+            response['HX-Trigger'] = json.dumps({'closeModal': ''})
+            return response
+        return redirect('accounting:repair_detail', pk=repair.pk)
+
+    return render(request, 'repairs/partials/staff_estimate_decision_modal.html',
+                  {'repair': repair, 'action': 'reject'})
 
 
 # ════════════════════════════════════════════════════════════
