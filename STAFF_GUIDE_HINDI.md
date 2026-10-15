@@ -163,19 +163,35 @@ Advance **टिक न करें** (यह साधारण भुगत�
   → ये **Profit & Loss Account** में जाते हैं और **Net Profit** निकालते हैं।
 
 रोज़ का खर्चा दर्ज करने के दो तरीके:
-1. सामान खरीदना → **Purchases** (§5) बनाना (सबसे सही)।
-2. कोई और खर्चा (बिजली का बिल, किराया) → **Journal** entry या **Payments** (दिशा = *Paid*),
-   सही expense account चुनें (51 या 52 समूह से)।
+1. सामान खरीदना (जिसका bill/stock बने) → **Purchases** (§5) बनाना।
+2. बिना bill वाला खर्चा — दुकान का किराया, सैलरी, बिजली का बिल, मज़दूरी आदि →
+   **Payments → Add** खोलें:
+   - Direction = **Paid to Supplier** चुनें
+   - Contact = जिसको पैसे दिए (मकान मालिक/सैलरीदार) पहले से vendor के रूप में हो तो चुनें,
+     न हो तो Contacts से बना लें
+   - Amount + Date + Method (Cash / Bank / UPI) भरें
+   - **Expense Account** ड्रॉपडाउन से सही खर्चा चुनें (किराया → *Rent - Shop/Office*,
+     सैलरी → *Salaries - Staff*, बिजली → *Electricity - Office/Shop* आदि)
+   - Save → सीधे **Dr खर्चा / Cr कैश|बैंक** की entry बनती है; कोई vendor bill या
+     invoice से जोड़ने की ज़रूरत नहीं।
 
-> Accounts/GROUP बदलना admin/owner का काम है; स्टाफ सिर्फ़ सही account चुने।
+> **उदाहरण — 3 महीने का किराया एक साथ दिया (₹4,500):** एक ही Payment बनाएँ,
+> amount ₹4,500, Expense Account = Shop Rent। ध्यान रहे: पूरा ₹4,500 उसी महीने
+> की P&L में गिना जाएगा जिसकी **Date** डाली है। तीनों महीनों में हिसाब बँटना हो
+> तो हर महीने की अलग entry करें — ₹1,500 × 3, हर entry की date उसी महीने की।
+
+> Expense Account सिर्फ़ **Paid** दिशा में चलता है; Advance या Discount के साथ
+> एक ही समय में नहीं लग सकता। Accounts/GROUP बदलना admin/owner का काम है;
+> स्टाफ सिर्फ़ सही account चुने।
 
 ---
 
 ## 9. जर्नल (Journal)
 
 मेन्यू → **Journals** (`/journals/`) — अकाउंटेंट के लिए manual entries
-(discount, adjustment, कोई खास खर्चा)। आम बिक्री/खरीद/भुगतान यहाँ से नहीं,
-ऊपर वाले मॉड्यूल्स से होंगे।
+(discount/advance समायोजन)। रोज़ का खर्चा (किराया, सैलरी, बिजली) यहाँ से
+**नहीं** — वह §8 के अनुसार Payments (Paid + Expense Account) से करें।
+आम बिक्री/खरीद/भुगतान भी ऊपर वाले मॉड्यूल्स से होंगे।
 
 ---
 
@@ -235,5 +251,6 @@ Gross Profit + Other Income − Indirect Expenses (समूह 52) = NET PROFIT
 | बिल बनाना | Sales → Add / Repair → Create Invoice |
 | बाकी भुगतान | Payments → Add (Advance ✗) |
 | सामान खरीद | Purchases → Add |
+| किराया/सैलरी/बिजली जैसा खर्चा | Payments → Add (Paid + Expense Account) |
 | कैश जमा/निकास | Cash Book → Contra |
 | मुनाफ़ा देखना | Reports → Profit & Loss |

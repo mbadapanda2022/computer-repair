@@ -550,10 +550,9 @@ def profit_loss(request):
             group__code='51', account_type='expense'
         ).values_list('id', flat=True)
         
-        # Purchase entries + direct expense journal entries
+        # Purchase entries + direct expense journal/expense-payment entries
         total_direct_expenses = LedgerLine.objects.filter(
             account_id__in=direct_expenses,
-            ledger_entry__entry_type__in=['purchase', 'journal'],
         ).filter(entry_q).aggregate(total=Sum('debit'))['total'] or Decimal('0')
         
         # INDIRECT EXPENSES (Profit & Loss Account)  

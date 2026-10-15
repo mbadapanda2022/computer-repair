@@ -3146,6 +3146,15 @@ class Payment(SoftDeleteModel):
     description = models.CharField(max_length=200, blank=True)
     
     is_advance = models.BooleanField(default=False, help_text="Is this an advance payment?")
+    expense_account = models.ForeignKey(
+        'Account',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='expense_payments',
+        limit_choices_to={'account_type': 'expense'},
+        help_text="Paid me seedha kharcha (Rent, Salary, Bijli…) — yeh account debit hoga, "
+                  "koi vendor bill nahi chahiye.",
+    )
     
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     discount_note = models.TextField(blank=True, help_text="Reason for discount on payment")
@@ -3188,6 +3197,15 @@ class Payment(SoftDeleteModel):
 
         with transaction.atomic():
             super().save(*args, **kwargs)
+
+            if self.is_deleted:
+                # soft_delete()/restore() ke save() yahan pahunchte hain.
+                # Delete path par payment.delete() ne ledger already clean kar
+                # diya hota hai — sync dobara chalane par entries RECREATE ho
+                # jaati thin (ghost ledger rows). Restore par is_deleted=False
+                # hota hai, neeche wala sync khud hi entries bana dega.
+                return
+
             if is_new:
                 self.create_ledger_entry()
                 self.create_bank_transaction()
@@ -3252,6 +3270,14 @@ class Payment(SoftDeleteModel):
             return get_account('1001', 'Cash', 'asset', '1')
         return get_account('1010', 'Bank Account', 'asset', '1')
 
+    def _ledger_description(self):
+        if self.direction == 'paid' and self.expense_account_id:
+            return f"Expense: {self.expense_account.name} — {self.contact.name}"
+        return (
+            f"{'Advance' if self.is_advance else 'Payment'} "
+            f"{self.direction} from/to {self.contact.name}"
+        )
+
     def create_ledger_entry(self):
         """Create ledger entry for payment (with advance and discount support)."""
         entry = LedgerEntry.objects.create(
@@ -3260,7 +3286,7 @@ class Payment(SoftDeleteModel):
                       else 'advance_paid' if self.is_advance and self.direction == 'paid'
                       else 'payment',
             reference_id=self.id,
-            description=f"{'Advance' if self.is_advance else 'Payment'} {self.direction} from/to {self.contact.name}",
+            description=self._ledger_description(),
             total_amount=self.amount
         )
         
@@ -3288,7 +3314,11 @@ class Payment(SoftDeleteModel):
                     LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
                     LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=self.discount_amount)
         else:
-            if self.is_advance:
+            if self.expense_account_id:
+                # Direct expense: Dr Expense / Cr Cash|Bank — no vendor payable, no allocation.
+                LedgerLine.objects.create(ledger_entry=entry, account=self.expense_account, debit=self.amount, credit=0)
+                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=self.amount)
+            elif self.is_advance:
                 advance_acc = get_account('1014', 'Advance to Vendor', 'asset', '1')
                 LedgerLine.objects.create(ledger_entry=entry, account=advance_acc, contact=self.contact, debit=net_amount, credit=0)
                 LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
@@ -3322,7 +3352,7 @@ class Payment(SoftDeleteModel):
         entry.entry_type = new_entry_type
         entry.lines.all().delete()
         entry.date = self.date
-        entry.description = f"{'Advance' if self.is_advance else 'Payment'} {self.direction} from/to {self.contact.name}"
+        entry.description = self._ledger_description()
         entry.total_amount = self.amount
         entry.save()
         
@@ -3348,7 +3378,10 @@ class Payment(SoftDeleteModel):
                     LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
                     LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=self.discount_amount)
         else:
-            if self.is_advance:
+            if self.expense_account_id:
+                LedgerLine.objects.create(ledger_entry=entry, account=self.expense_account, debit=self.amount, credit=0)
+                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=self.amount)
+            elif self.is_advance:
                 advance_acc = get_account('1014', 'Advance to Vendor', 'asset', '1')
                 LedgerLine.objects.create(ledger_entry=entry, account=advance_acc, contact=self.contact, debit=net_amount, credit=0)
                 LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)

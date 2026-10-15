@@ -15,6 +15,7 @@ from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
 from .models import (
+    Account,
     BankAccount,
     BankTransaction,
     BlogCategory,
@@ -1526,7 +1527,7 @@ class PaymentForm(forms.ModelForm):
         fields = [
             'direction', 'contact', 'amount', 'date', 'method',
             'bank_account', 'upi_ref', 'reference', 'description',
-            'is_advance',
+            'is_advance', 'expense_account',
             'discount_amount', 'discount_type', 'discount_note',
         ]
         widgets = {
@@ -1539,6 +1540,7 @@ class PaymentForm(forms.ModelForm):
             'date': BS_DATE(),
             'method': BS_SELECT(),
             'bank_account': forms.Select(attrs={'class': 'form-select'}),
+            'expense_account': forms.Select(attrs={'class': 'form-select'}),
             'upi_ref': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'UPI TXN ID (PhonePe / GPay)',
@@ -1563,6 +1565,14 @@ class PaymentForm(forms.ModelForm):
         self.fields['contact'].required = True
 
         self.fields['bank_account'].queryset = BankAccount.objects.filter(is_active=True)
+
+        self.fields['expense_account'].queryset = (
+            Account.objects.filter(account_type='expense')
+            .select_related('group').order_by('group__code', 'name')
+        )
+        self.fields['expense_account'].empty_label = "— Not a direct expense (normal vendor payment) —"
+        self.fields['expense_account'].required = False
+        self.fields['expense_account'].label = "Expense Account (Rent, Salary, Bijli…)"
 
         self.fields['discount_amount'].required = False
         self.fields['discount_type'].required = False
@@ -1617,6 +1627,24 @@ class PaymentForm(forms.ModelForm):
                 self.add_error(
                     'direction',
                     f"'{contact.name}' is not a vendor. Please choose 'Received from Customer'.",
+                )
+
+        expense_account = cleaned_data.get('expense_account')
+        if expense_account:
+            if direction != 'paid':
+                self.add_error(
+                    'expense_account',
+                    "Expense account can only be used when direction is 'Paid to Supplier'.",
+                )
+            if cleaned_data.get('is_advance'):
+                self.add_error(
+                    'expense_account',
+                    "An advance to vendor cannot also be a direct expense.",
+                )
+            if (cleaned_data.get('discount_amount') or Decimal('0')) > 0:
+                self.add_error(
+                    'expense_account',
+                    "Discount cannot be combined with a direct expense payment.",
                 )
 
         return cleaned_data

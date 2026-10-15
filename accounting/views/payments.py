@@ -287,7 +287,7 @@ def payment_create(request, pk=None):
             with transaction.atomic():
                 payment = form.save()
 
-                if not payment.is_advance:
+                if not payment.is_advance and not payment.expense_account_id:
                     # Auto-allocate to target invoice (from ?invoice=)
                     if target_invoice and target_invoice.customer_id == payment.contact_id:
                         alloc_amt = min(payment.amount, target_invoice.balance_due)
@@ -438,7 +438,15 @@ def payment_update(request, pk):
                 # Reset allocations ONLY if flag was explicitly set
                 # (form JS sets it to '1' on submit)
                 reset_flag = request.POST.get('reset_allocations', '0') == '1'
-                if not payment.is_advance and reset_flag:
+
+                # A direct-expense payment never settles invoices; if it was
+                # converted to one, drop old allocations so invoice paid_amount
+                # doesn't keep crediting a payment that no longer exists there.
+                if payment.expense_account_id and payment.allocations.exists():
+                    for alloc in list(payment.allocations.all()):
+                        alloc.hard_delete()
+                    payment.update_invoices()
+                elif not payment.is_advance and not payment.expense_account_id and reset_flag:
                     # HARD delete — unique constraint (payment, invoice) does
                     # NOT respect soft-delete; soft rows would block re-creation.
                     for alloc in list(payment.allocations.all()):

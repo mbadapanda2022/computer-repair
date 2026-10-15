@@ -174,6 +174,35 @@
             </div>
         </div>
 
+        <!-- SECTION 3b: Direct Expense (paid only) -->
+        <div id="expense-account-section" class="mt-4">
+            <h6 class="text-primary border-bottom pb-2 mb-3">
+                <i class="bi bi-receipt me-2"></i>Direct Expense (Optional)
+            </h6>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="id_expense_account" class="form-label fw-semibold">Expense Account</label>
+                    <select name="expense_account" id="id_expense_account" class="form-select">
+                        <option value="">— Not a direct expense (normal vendor payment) —</option>
+                        {% for acc in form.fields.expense_account.queryset %}
+                            <option value="{{ acc.id }}" {% if form.expense_account.value|stringformat:"s" == acc.id|stringformat:"s" %}selected{% endif %}>
+                                {{ acc.name }} ({{ acc.group.name }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                    {% if form.expense_account.errors %}
+                        <div class="invalid-feedback d-block">{{ form.expense_account.errors|join:", " }}</div>
+                    {% endif %}
+                    <small class="text-muted d-block mt-1">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Rent, salary, bijli, staff ka kharcha — koi vendor bill nahi chahiye.
+                        Seedha <strong>Dr Expense / Cr Cash|Bank</strong> post hoga.
+                        Available only for "Paid to Supplier" payments.
+                    </small>
+                </div>
+            </div>
+        </div>
+
         <!-- SECTION 4: Allocate to Unpaid Invoices -->
         <div id="allocation-section" class="mt-4">
             <h6 class="text-primary border-bottom pb-2 mb-3">
@@ -279,6 +308,27 @@
     var netDisplay      = document.getElementById('net-amount-display');
     var unpaidContainer = document.getElementById('unpaid-invoices-container');
     var resetAllocFlag  = document.getElementById('reset_allocations');
+    var expenseSection  = document.getElementById('expense-account-section');
+    var expenseSelect   = document.getElementById('id_expense_account');
+    var allocationSection = document.getElementById('allocation-section');
+
+    // ============================================================
+    // HELPER: Expense account only for 'paid' direction; selecting one
+    // means no invoice allocation applies.
+    // ============================================================
+    function updateExpenseVisibility() {
+        var direction = directionSelect ? directionSelect.value : '';
+        if (expenseSection) {
+            expenseSection.classList.toggle('d-none', direction !== 'paid');
+        }
+        if (direction !== 'paid' && expenseSelect) {
+            expenseSelect.value = '';
+        }
+        if (allocationSection) {
+            var hasExpense = expenseSelect && expenseSelect.value;
+            allocationSection.classList.toggle('d-none', !!hasExpense);
+        }
+    }
 
     // ============================================================
     // HELPER: Set placeholder message
@@ -441,6 +491,7 @@
         if (directionSelect) {
             directionSelect.addEventListener('change', function() {
                 lastProcessedContact = null;
+                updateExpenseVisibility();
                 var c = contactSelect ? contactSelect.value : '';
                 if (c) {
                     loadUnpaidInvoices(c);
@@ -449,6 +500,11 @@
                 }
             });
         }
+
+        if (expenseSelect) {
+            expenseSelect.addEventListener('change', updateExpenseVisibility);
+        }
+        updateExpenseVisibility();
 
         function updateNetAmount() {
             var amount = parseFloat(amountInput ? amountInput.value : 0) || 0;
