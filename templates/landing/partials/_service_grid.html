@@ -1,0 +1,38 @@
+{% load static cloudinary_filters %}
+
+<div class="row g-4 service-grid">
+    {% for service in services %}
+        <div class="col-12 col-sm-6 col-lg-4">
+            <div class="service-card reveal" style="--sd: {{ forloop.counter0 }}">
+                <div class="service-media">
+                    {% if service.image %}
+                        <img src="{{ service.image.url|cloudinary_fill:'880x600' }}"
+                             alt="{{ service.title }}"
+                             onerror="this.style.visibility='hidden'"
+                             loading="{% if forloop.counter0 < 3 %}eager{% else %}lazy{% endif %}">
+                    {% elif service.icon %}
+                        <div class="service-media-fallback"><i class="bi {{ service.icon }}"></i></div>
+                    {% else %}
+                        <div class="service-media-fallback"><i class="bi bi-box-seam"></i></div>
+                    {% endif %}
+                    <div class="service-media-shade"></div>
+                    <h5 class="service-caption">{{ service.title }}</h5>
+                </div>
+                <div class="service-body">
+                    <p class="service-desc">{{ service.description|default:"Reliable service with quality parts and expert workmanship." }}</p>
+                    <a href="#contact" class="service-cta">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Ask for this service
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="col-12">
+            <div class="service-card text-center p-5">
+                <div class="service-media-fallback"><i class="bi bi-plus-circle"></i></div>
+                <h5 class="fw-bold mt-3">No Services Yet</h5>
+                <p class="text-muted mb-0">Please add some services from the management panel.</p>
+            </div>
+        </div>
+    {% endfor %}
+</div>
