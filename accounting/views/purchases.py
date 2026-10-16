@@ -966,7 +966,7 @@ def purchase_toggle_paid(request, pk):
                 "linked payment(s) instead of unmarking manually.",
             )
         else:
-            Purchase.objects.filter(pk=pk).update(paid=False)
+            Purchase.objects.filter(pk=pk).update(paid=False, paid_amount=Decimal('0'))
             messages.success(request, f"{purchase.purchase_number} marked unpaid.")
     else:
         Purchase.objects.filter(pk=pk).update(
