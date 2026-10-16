@@ -511,6 +511,9 @@ def bank_transaction_add(request, account_pk):
 
     if request.method == 'POST':
         form = BankTransactionForm(request.POST)
+        # Account comes from the URL — the modal never renders this field,
+        # so leaving it required made every submit fail validation silently.
+        del form.fields['bank_account']
         if form.is_valid():
             with transaction.atomic():
                 txn = form.save(commit=False)
@@ -557,9 +560,9 @@ def bank_transaction_add(request, account_pk):
                 })
     else:
         form = BankTransactionForm(initial={
-            'bank_account': account,
             'date': timezone.now().date(),
         })
+        del form.fields['bank_account']
 
     context = {'form': form, 'account': account}
     if is_htmx(request):
@@ -579,6 +582,8 @@ def bank_transaction_edit(request, pk):
 
     if request.method == 'POST':
         form = BankTransactionForm(request.POST, instance=txn)
+        # Account is fixed to the transaction's own bank — field isn't in the modal
+        del form.fields['bank_account']
         if form.is_valid():
             with transaction.atomic():
                 updated = form.save()
@@ -607,6 +612,7 @@ def bank_transaction_edit(request, pk):
                 })
     else:
         form = BankTransactionForm(instance=txn)
+        del form.fields['bank_account']
 
     context = {'form': form, 'account': account, 'txn': txn}
     if is_htmx(request):

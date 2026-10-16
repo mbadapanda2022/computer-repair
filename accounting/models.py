@@ -3102,7 +3102,7 @@ class BankAccount(SoftDeleteModel):
 
 class BankTransaction(SoftDeleteModel):
     TRANSACTION_TYPES = (('deposit', 'Deposit'), ('withdrawal', 'Withdrawal'))
-    SOURCE_TYPES = (('payment_received', 'Payment from Customer'), ('payment_made', 'Payment to Vendor'), ('transfer', 'Transfer'), ('interest', 'Interest'), ('bank_charge', 'Bank Charge'), ('manual', 'Manual Entry'))
+    SOURCE_TYPES = (('payment_received', 'Payment from Customer'), ('payment_made', 'Payment to Vendor'), ('transfer', 'Cash Deposit / Withdrawal (Contra)'), ('interest', 'Interest'), ('bank_charge', 'Bank Charge'), ('manual', 'Manual Entry'))
     bank_account = models.ForeignKey(BankAccount, on_delete=models.CASCADE, related_name='transactions')
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
     source_type = models.CharField(max_length=20, choices=SOURCE_TYPES, default='manual')

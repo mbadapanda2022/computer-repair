@@ -409,11 +409,13 @@
         var type = getContactType(value);
 
         if (directionSelect) {
-            if (type === 'customer' || type === 'both') {
+            if (type === 'customer') {
                 directionSelect.value = 'received';
             } else if (type === 'vendor') {
                 directionSelect.value = 'paid';
             }
+            // 'both' contacts (customer & vendor): keep the user's chosen
+            // direction — forcing 'received' hid their unpaid vendor bills.
         }
 
         loadUnpaidInvoices(value);

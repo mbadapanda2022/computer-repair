@@ -222,3 +222,98 @@ class CashBookTests(TestCase):
     def test_total_bank_balance_sums_active_accounts(self):
         self.upi_receipt('700.00')
         self.assertEqual(get_total_bank_balance(), Decimal('700.00'))
+
+
+@override_settings(
+    ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'],
+    SECURE_SSL_REDIRECT=False,
+)
+class BankTransactionModalTests(TestCase):
+    """Add/Edit Transaction modal — no bank_account field is rendered, so
+    the views must not require it (this silently blocked every submit)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = User.objects.create_user(
+            username='banktxn_staff', password='TestPass123!',
+            is_staff=True, is_active=True,
+        )
+
+    def setUp(self):
+        self.client = Client()
+        self.client.force_login(self.staff)
+        suffix = timezone.now().strftime('%H%M%S%f')[:8]
+        self.bank = BankAccount.objects.create(
+            name=f'BoB {suffix}', bank_name='Bank of Baroda',
+            account_type='savings', opening_balance=Decimal('0.00'),
+        )
+
+    def test_add_transaction_modal_post_saves_without_bank_account_field(self):
+        resp = self.client.post(
+            reverse('accounting:bank_transaction_add', args=[self.bank.pk]),
+            {
+                'transaction_type': 'deposit',
+                'source_type': 'transfer',  # cash deposit (contra)
+                'amount': '5800',
+                'date': str(timezone.localdate()),
+                'description': 'Cash deposit in BoB',
+                'reference': 'CONTRA-1',
+            },
+            headers={'hx-request': 'true'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('/bank/statement/', resp['HX-Redirect'])
+
+        txn = BankTransaction.objects.get(bank_account=self.bank)
+        self.assertEqual(txn.amount, Decimal('5800.00'))
+        self.assertEqual(txn.source_type, 'transfer')
+        self.bank.refresh_from_db()
+        self.assertEqual(self.bank.current_balance, Decimal('5800.00'))
+
+    def test_add_transaction_cash_contra_posts_both_ledger_sides(self):
+        self.client.post(
+            reverse('accounting:bank_transaction_add', args=[self.bank.pk]),
+            {
+                'transaction_type': 'deposit', 'source_type': 'transfer',
+                'amount': '5800', 'date': str(timezone.localdate()),
+            },
+            headers={'hx-request': 'true'},
+        )
+        self.assertEqual(account_balance(BANK), Decimal('5800.00'))
+        self.assertEqual(account_balance(CASH), Decimal('-5800.00'))
+
+    def test_add_transaction_still_validates_required_fields(self):
+        resp = self.client.post(
+            reverse('accounting:bank_transaction_add', args=[self.bank.pk]),
+            {'transaction_type': 'deposit', 'source_type': 'transfer'},
+            headers={'hx-request': 'true'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'invalid-feedback')
+        self.assertFalse(BankTransaction.objects.exists())
+
+    def test_edit_transaction_modal_post_saves(self):
+        txn = BankTransaction.objects.create(
+            bank_account=self.bank, transaction_type='deposit',
+            source_type='transfer', amount=Decimal('5800.00'),
+            date=timezone.localdate(),
+        )
+        resp = self.client.post(
+            reverse('accounting:bank_transaction_edit', args=[txn.pk]),
+            {
+                'transaction_type': 'deposit', 'source_type': 'manual',
+                'amount': '6000', 'date': str(timezone.localdate()),
+            },
+            headers={'hx-request': 'true'},
+        )
+        self.assertEqual(resp.status_code, 200)
+        txn.refresh_from_db()
+        self.assertEqual(txn.amount, Decimal('6000.00'))
+        self.assertEqual(txn.bank_account_id, self.bank.pk)
+
+    def test_cash_option_label_visible_in_source_choices(self):
+        labels = [label for value, label in BankTransaction.SOURCE_TYPES]
+        self.assertTrue(
+            any('Cash' in label for label in labels),
+            f'no cash-labelled source: {labels}',
+        )
