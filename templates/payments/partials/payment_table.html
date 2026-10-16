@@ -48,12 +48,19 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if payment.allocations.all or payment.advance_adjustments.all %}
+                            {% if payment.allocations.all or payment.advance_adjustments.all or payment.purchase_allocations.all %}
                                 {% for alloc in payment.allocations.all %}
                                     <a href="{% url 'accounting:invoice_detail' alloc.invoice.pk %}"
                                        class="badge bg-primary text-decoration-none mb-1"
                                        target="_blank" title="₹{{ alloc.amount|floatformat:2 }} applied">
                                         {{ alloc.invoice.invoice_number }}
+                                    </a>
+                                {% endfor %}
+                                {% for alloc in payment.purchase_allocations.all %}
+                                    <a href="{% url 'accounting:purchase_detail' alloc.purchase.pk %}"
+                                       class="badge bg-dark text-decoration-none mb-1"
+                                       target="_blank" title="₹{{ alloc.amount|floatformat:2 }} applied to vendor bill">
+                                        {{ alloc.purchase.purchase_number }}
                                     </a>
                                 {% endfor %}
                                 {% for adj in payment.advance_adjustments.all %}
@@ -72,7 +79,11 @@
                                     <i class="bi bi-tags"></i> {{ payment.expense_account.name }}
                                 </span>
                             {% else %}
-                                <span class="text-muted small">Direct</span>
+                                {% if payment.direction == 'paid' %}
+                                    <span class="text-muted small" title="Reduced the vendor's overall payable balance — open the purchase bill to apply it">Vs. Payable</span>
+                                {% else %}
+                                    <span class="text-muted small">Direct</span>
+                                {% endif %}
                             {% endif %}
                         </td>
                         <td>
@@ -219,6 +230,11 @@
                         {% for alloc in payment.allocations.all %}
                             <a href="{% url 'accounting:invoice_detail' alloc.invoice.pk %}" target="_blank"
                                class="badge bg-primary text-decoration-none">{{ alloc.invoice.invoice_number }}</a>
+                        {% endfor %}
+                    {% elif payment.purchase_allocations.all %}
+                        {% for alloc in payment.purchase_allocations.all %}
+                            <a href="{% url 'accounting:purchase_detail' alloc.purchase.pk %}" target="_blank"
+                               class="badge bg-dark text-decoration-none">{{ alloc.purchase.purchase_number }}</a>
                         {% endfor %}
                     {% elif payment.is_advance %}
                         <span class="badge bg-info text-dark">Advance</span>

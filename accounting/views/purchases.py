@@ -17,9 +17,9 @@ from django.urls import reverse
 
 from ..models import (
     Purchase, PurchaseItem, Product, Contact, CompanyProfile,
-    LedgerEntry,
+    LedgerEntry, Payment, PurchaseAllocation, BankAccount,
 )
-from ..forms import PurchaseForm, PurchaseItemForm, ProductForm
+from ..forms import PurchaseForm, PurchaseItemForm, ProductForm, PaymentForm
 from accounting.utils.notification_helpers import send_notification_to_staff
 from .utils import htmx_field_error_response, is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
@@ -51,13 +51,32 @@ def _safe_decimal(value, default=Decimal('0')):
 
 
 # ============================================================
-# HELPER: Sync session items from DB (edit mode)
+# HELPER: Session items are scoped PER PURCHASE (scope = pk, or 'new').
+# Earlier one global 'temp_purchase_items' key was shared by every bill:
+# items left over from creating/editing PO A silently leaked into PO B's
+# edit form — and submitting replaced B's items with A's (data corruption).
 # ============================================================
+def _items_session_key(scope):
+    return f'temp_purchase_items_{scope or "new"}'
+
+
+def _session_items(request, scope):
+    return request.session.get(_items_session_key(scope), [])
+
+
+def _set_session_items(request, scope, items):
+    request.session[_items_session_key(scope)] = items
+
+
 def sync_session_items(request, purchase=None):
-    """Load purchase items into session for edit mode."""
-    session_key = 'temp_purchase_items'
-    if purchase:
-        if session_key not in request.session or not request.session[session_key]:
+    """Load purchase items into (scoped) session for edit mode."""
+    scope = str(purchase.pk) if purchase and purchase.pk else 'new'
+    key = _items_session_key(scope)
+    if purchase and purchase.pk:
+        # Fresh GET → always re-seed from DB (bill may have changed elsewhere).
+        # POST (invalid re-render) → keep whatever the user was editing.
+        # First visit on POST without a seeded key → seed from DB as fallback.
+        if request.method == 'GET' or key not in request.session:
             items = []
             for item in purchase.items.select_related('product').all():
                 items.append({
@@ -70,8 +89,8 @@ def sync_session_items(request, purchase=None):
                     'is_office_use': item.is_office_use,
                     'db_item_id': item.id,
                 })
-            request.session[session_key] = items
-    return request.session.get(session_key, [])
+            request.session[key] = items
+    return request.session.get(key, [])
 
 
 # ============================================================
@@ -116,11 +135,10 @@ def get_paginated_purchases_context(request, queryset=None):
         contact_type__in=['vendor', 'both']
     ).order_by('name')
 
-    total_amount = queryset.aggregate(total=Sum('grand_total'))['total'] or Decimal('0')
-    total_paid = queryset.filter(paid=True).aggregate(
-        total=Sum('grand_total')
-    )['total'] or Decimal('0')
-    total_unpaid = total_amount - total_paid
+    totals = queryset.aggregate(total=Sum('grand_total'), paid=Sum('paid_amount'))
+    total_amount = totals['total'] or Decimal('0')
+    total_paid = totals['paid'] or Decimal('0')
+    total_unpaid = max(Decimal('0'), total_amount - total_paid)
 
     return {
         'purchases': page_obj.object_list,
@@ -282,11 +300,10 @@ def purchase_list_print(request):
     if date_to:
         queryset = queryset.filter(date__lte=date_to)
 
-    total_amount = queryset.aggregate(total=Sum('grand_total'))['total'] or Decimal('0')
-    total_paid = queryset.filter(paid=True).aggregate(
-        total=Sum('grand_total')
-    )['total'] or Decimal('0')
-    total_unpaid = total_amount - total_paid
+    totals = queryset.aggregate(total=Sum('grand_total'), paid=Sum('paid_amount'))
+    total_amount = totals['total'] or Decimal('0')
+    total_paid = totals['paid'] or Decimal('0')
+    total_unpaid = max(Decimal('0'), total_amount - total_paid)
 
     company = CompanyProfile.get_instance()
 
@@ -353,17 +370,17 @@ def purchase_list_excel(request):
     money_fmt = '#,##0.00'
 
     company = CompanyProfile.get_instance()
-    ws.merge_cells('A1:H1')
+    ws.merge_cells('A1:J1')
     ws['A1'] = f"{company.name or 'A1 Computer Solutions'} — Purchase List"
     ws['A1'].font = Font(bold=True, size=14, color="1F4E78")
     ws['A1'].alignment = center
 
-    ws.merge_cells('A2:H2')
+    ws.merge_cells('A2:J2')
     ws['A2'] = f"Generated: {timezone.now().strftime('%d-%m-%Y %H:%M')} | Total: {queryset.count()}"
     ws['A2'].alignment = center
 
     headers = ['Purchase #', 'Date', 'Vendor', 'Subtotal', 'Freight',
-               'Tax', 'Grand Total', 'Status']
+               'Tax', 'Grand Total', 'Paid', 'Outstanding', 'Status']
     for col, h in enumerate(headers, 1):
         c = ws.cell(row=4, column=col, value=h)
         c.font = header_font
@@ -376,8 +393,7 @@ def purchase_list_excel(request):
     total_paid = Decimal('0')
     for p in queryset:
         total_amt += p.grand_total
-        if p.paid:
-            total_paid += p.grand_total
+        total_paid += p.paid_amount
 
         ws.cell(row=row, column=1, value=p.purchase_number)
         ws.cell(row=row, column=2, value=p.date.strftime('%d-%m-%Y'))
@@ -386,11 +402,14 @@ def purchase_list_excel(request):
         ws.cell(row=row, column=5, value=float(p.freight_charge or 0)).number_format = money_fmt
         ws.cell(row=row, column=6, value=float(p.tax_amount)).number_format = money_fmt
         ws.cell(row=row, column=7, value=float(p.grand_total)).number_format = money_fmt
-        ws.cell(row=row, column=8, value='Paid' if p.paid else 'Unpaid')
+        ws.cell(row=row, column=8, value=float(p.paid_amount or 0)).number_format = money_fmt
+        ws.cell(row=row, column=9, value=float(p.balance_due)).number_format = money_fmt
+        status = p.settlement_status
+        ws.cell(row=row, column=10, value=status.capitalize())
 
-        for col in range(1, 9):
+        for col in range(1, 11):
             ws.cell(row=row, column=col).border = border
-            if col in (4, 5, 6, 7):
+            if col in (4, 5, 6, 7, 8, 9):
                 ws.cell(row=row, column=col).alignment = right
         row += 1
 
@@ -398,12 +417,16 @@ def purchase_list_excel(request):
     ws.cell(row=row, column=3, value='Totals').font = Font(bold=True)
     ws.cell(row=row, column=4, value=float(total_amt)).number_format = money_fmt
     ws.cell(row=row, column=4).font = Font(bold=True)
-    ws.cell(row=row, column=7, value=float(total_paid)).number_format = money_fmt
+    ws.cell(row=row, column=7, value=float(total_amt)).number_format = money_fmt
     ws.cell(row=row, column=7).font = Font(bold=True)
-    for col in range(1, 9):
+    ws.cell(row=row, column=8, value=float(total_paid)).number_format = money_fmt
+    ws.cell(row=row, column=8).font = Font(bold=True)
+    ws.cell(row=row, column=9, value=float(total_amt - total_paid)).number_format = money_fmt
+    ws.cell(row=row, column=9).font = Font(bold=True)
+    for col in range(1, 11):
         ws.cell(row=row, column=col).border = border
 
-    widths = [16, 14, 30, 14, 14, 14, 16, 12]
+    widths = [16, 14, 30, 14, 14, 14, 16, 14, 14, 12]
     for idx, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(idx)].width = w
     ws.freeze_panes = 'A5'
@@ -424,8 +447,8 @@ def purchase_list_excel(request):
 @csrf_protect
 @handle_errors(default_redirect='accounting:purchase_list')
 def purchase_create(request):
-    if 'temp_purchase_items' not in request.session:
-        request.session['temp_purchase_items'] = []
+    if 'temp_purchase_items_new' not in request.session:
+        request.session['temp_purchase_items_new'] = []
 
     template_name = (
         'purchases/partials/purchase_form_partial.html'
@@ -439,7 +462,7 @@ def purchase_create(request):
                 purchase = form.save(commit=False)
                 purchase.save()
 
-                for item_data in request.session.get('temp_purchase_items', []):
+                for item_data in _session_items(request, 'new'):
                     PurchaseItem.objects.create(
                         purchase=purchase,
                         product_id=item_data['product_id'],
@@ -449,7 +472,7 @@ def purchase_create(request):
                         is_office_use=item_data.get('is_office_use', False),
                     )
 
-                request.session['temp_purchase_items'] = []
+                _set_session_items(request, 'new', [])
                 purchase.calculate_totals()
                 purchase.save()  # triggers sync_purchase_ledger
 
@@ -484,7 +507,7 @@ def purchase_create(request):
             return redirect('accounting:purchase_detail', pk=purchase.pk)
 
         else:
-            items = request.session.get('temp_purchase_items', [])
+            items = _session_items(request, 'new')
             items_total = sum(
                 (_safe_decimal(i.get('line_total')) for i in items),
                 Decimal('0')
@@ -506,8 +529,8 @@ def purchase_create(request):
             return render(request, 'purchases/purchase_form.html', context)
 
     else:
-        form = PurchaseForm()
-        items = request.session.get('temp_purchase_items', [])
+        form = PurchaseForm(initial={'date': timezone.localdate()})
+        items = _session_items(request, 'new')
         items_total = sum(
             (_safe_decimal(i.get('line_total')) for i in items),
             Decimal('0')
@@ -532,7 +555,8 @@ def purchase_create(request):
 @handle_errors(default_redirect='accounting:purchase_list')
 def purchase_update(request, pk):
     purchase = get_object_or_404(Purchase.objects.select_related('vendor'), pk=pk)
-    sync_session_items(request, purchase)
+    items = sync_session_items(request, purchase)
+    scope = str(purchase.pk)
 
     template_name = (
         'purchases/partials/purchase_form_partial.html'
@@ -549,7 +573,7 @@ def purchase_update(request, pk):
                 purchase.items.all().delete()
 
                 # Create new items
-                for item_data in request.session.get('temp_purchase_items', []):
+                for item_data in _session_items(request, scope):
                     PurchaseItem.objects.create(
                         purchase=purchase,
                         product_id=item_data['product_id'],
@@ -559,9 +583,11 @@ def purchase_update(request, pk):
                         is_office_use=item_data.get('is_office_use', False),
                     )
 
-                request.session['temp_purchase_items'] = []
+                _set_session_items(request, scope, [])
                 purchase.calculate_totals()
                 purchase.save()
+                # Bill total may have changed — keep Paid flag honest
+                purchase.recalc_settlement()
 
             logger.info(
                 f"Purchase {purchase.purchase_number} updated "
@@ -581,7 +607,7 @@ def purchase_update(request, pk):
             return redirect('accounting:purchase_detail', pk=purchase.pk)
 
         else:
-            items = request.session.get('temp_purchase_items', [])
+            items = _session_items(request, scope)
             items_total = sum(
                 (_safe_decimal(i.get('line_total')) for i in items),
                 Decimal('0')
@@ -604,7 +630,7 @@ def purchase_update(request, pk):
 
     else:
         form = PurchaseForm(instance=purchase)
-        items = request.session.get('temp_purchase_items', [])
+        items = _session_items(request, scope)
         items_total = sum(
             (_safe_decimal(i.get('line_total')) for i in items),
             Decimal('0')
@@ -717,9 +743,10 @@ def add_purchase_item(request):
             'is_office_use': is_office,
         }
 
-        items = request.session.get('temp_purchase_items', [])
+        scope = request.POST.get('purchase_id', '').strip() or 'new'
+        items = _session_items(request, scope)
         items.append(item)
-        request.session['temp_purchase_items'] = items
+        _set_session_items(request, scope, items)
 
         items_total = sum(
             (_safe_decimal(i.get('line_total')) for i in items), Decimal('0')
@@ -739,12 +766,13 @@ def add_purchase_item(request):
 # ============================================================
 @csrf_protect
 def remove_purchase_item(request, index):
-    items = request.session.get('temp_purchase_items', [])
+    scope = request.POST.get('purchase_id', '').strip() or 'new'
+    items = _session_items(request, scope)
     try:
         idx = int(index)
         if 0 <= idx < len(items):
             items.pop(idx)
-            request.session['temp_purchase_items'] = items
+            _set_session_items(request, scope, items)
         else:
             return HttpResponse("Invalid index.", status=400)
     except (ValueError, IndexError):
@@ -764,11 +792,193 @@ def remove_purchase_item(request, index):
 # ============================================================
 def purchase_detail(request, pk):
     purchase = get_object_or_404(Purchase.objects.select_related('vendor'), pk=pk)
-    # Any linked payments (future-proof)
+
+    allocations = (
+        purchase.payment_allocations
+        .select_related('payment')
+        .order_by('-payment__date', '-id')
+    )
+
+    # Vendor payments that still have an un-applied remainder — one-click
+    # "Apply" here is what settles a bill paid before this feature existed.
+    vendor_payments = []
+    paid_payments = (
+        Payment.objects.filter(
+            contact=purchase.vendor,
+            direction='paid',
+            is_advance=False,
+            expense_account__isnull=True,
+        )
+        .prefetch_related('purchase_allocations')
+        .order_by('-date', '-id')
+    )
+    balance_due = purchase.balance_due
+    for p in paid_payments:
+        applied = sum((a.amount for a in p.purchase_allocations.all()), Decimal('0'))
+        remaining = p.net_amount - applied
+        if remaining >= Decimal('0.01') and balance_due > 0:
+            vendor_payments.append({
+                'payment': p,
+                'remaining': remaining,
+                'suggested': min(remaining, balance_due),
+            })
+
     context = {
         'purchase': purchase,
+        'allocations': allocations,
+        'vendor_payments': vendor_payments,
+        'balance_due': balance_due,
+        'bank_accounts': BankAccount.objects.filter(is_active=True).order_by('name'),
     }
     return render(request, 'purchases/purchase_detail.html', context)
+
+
+# ============================================================
+# PURCHASE SETTLEMENT — record a fresh payment against the bill
+# ============================================================
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:purchase_list')
+def purchase_record_payment(request, pk):
+    purchase = get_object_or_404(
+        Purchase.objects.select_related('vendor'), pk=pk
+    )
+
+    method = request.POST.get('method') or 'cash'
+    data = {
+        'direction': 'paid',
+        'contact': purchase.vendor_id,
+        'amount': request.POST.get('amount') or '0',
+        'date': request.POST.get('date') or timezone.localdate(),
+        'method': method,
+        'bank_account': request.POST.get('bank_account') or '',
+        'upi_ref': request.POST.get('upi_ref') or '',
+        'reference': request.POST.get('reference') or '',
+        'description': request.POST.get('description') or
+                       f"Payment against {purchase.purchase_number}",
+        'is_advance': '',
+        'expense_account': '',
+        'discount_amount': '0',
+        'discount_type': '',
+        'discount_note': '',
+    }
+    form = PaymentForm(data)
+    if not form.is_valid():
+        first_error = next((e[0] for e in form.errors.values() if e), None)
+        messages.error(request, first_error or "Could not record payment.")
+        return redirect('accounting:purchase_detail', pk=purchase.pk)
+
+    with transaction.atomic():
+        payment = form.save()
+        alloc_amt = min(payment.net_amount, purchase.balance_due)
+        if alloc_amt > 0:
+            PurchaseAllocation.objects.create(
+                payment=payment,
+                purchase=purchase,
+                amount=alloc_amt,
+            )
+        payment.update_purchases()
+
+    logger.info(
+        "Payment #%s recorded against %s by %s",
+        payment.pk, purchase.purchase_number, request.user.username,
+    )
+    messages.success(
+        request,
+        f"Payment of ₹{payment.amount} recorded against {purchase.purchase_number}."
+    )
+    return redirect('accounting:purchase_detail', pk=purchase.pk)
+
+
+# ============================================================
+# PURCHASE SETTLEMENT — apply an existing (unallocated) vendor payment
+# ============================================================
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:purchase_list')
+def purchase_apply_payment(request, pk):
+    purchase = get_object_or_404(Purchase, pk=pk)
+    payment = get_object_or_404(Payment, pk=request.POST.get('payment_id') or 0)
+
+    def _fail(msg):
+        messages.error(request, msg)
+        return redirect('accounting:purchase_detail', pk=purchase.pk)
+
+    if payment.direction != 'paid':
+        return _fail("Only 'Paid to Supplier' payments can settle a purchase bill.")
+    if payment.contact_id != purchase.vendor_id:
+        return _fail(f"Payment #{payment.pk} belongs to a different party.")
+    if payment.is_advance:
+        return _fail(
+            "This is an advance payment — advance is NOT auto-applied; "
+            "pay the balance against the bill with a normal payment instead."
+        )
+    if payment.expense_account_id:
+        return _fail("This payment is booked as a direct expense, not a vendor settlement.")
+
+    applied = sum(
+        (a.amount for a in payment.purchase_allocations.all()), Decimal('0')
+    )
+    remaining = payment.net_amount - applied
+    if remaining < Decimal('0.01'):
+        return _fail(f"Payment #{payment.pk} is fully applied already.")
+
+    requested = _safe_decimal(
+        request.POST.get('amount'), default=remaining
+    )
+    amount = min(requested, remaining, purchase.balance_due)
+    if amount <= 0:
+        return _fail("Nothing left to apply — this bill has no balance due.")
+
+    with transaction.atomic():
+        existing = payment.purchase_allocations.filter(purchase=purchase).first()
+        if existing:
+            existing.amount = (existing.amount + amount).quantize(Decimal('0.01'))
+            existing.save(update_fields=['amount'])
+        else:
+            PurchaseAllocation.objects.create(
+                payment=payment, purchase=purchase, amount=amount,
+            )
+        payment.update_purchases()
+
+    messages.success(
+        request,
+        f"Applied ₹{amount} from Payment #{payment.pk} to {purchase.purchase_number}."
+    )
+    return redirect('accounting:purchase_detail', pk=purchase.pk)
+
+
+# ============================================================
+# PURCHASE SETTLEMENT — manual mark paid / unpaid toggle
+# (for bills settled out-of-band; blocked while allocations exist)
+# ============================================================
+@csrf_protect
+@require_http_methods(["POST"])
+@handle_errors(default_redirect='accounting:purchase_list')
+def purchase_toggle_paid(request, pk):
+    purchase = get_object_or_404(Purchase, pk=pk)
+
+    if purchase.paid:
+        if purchase.payment_allocations.exists():
+            messages.error(
+                request,
+                "This bill is settled through payment allocations — delete the "
+                "linked payment(s) instead of unmarking manually.",
+            )
+        else:
+            Purchase.objects.filter(pk=pk).update(paid=False)
+            messages.success(request, f"{purchase.purchase_number} marked unpaid.")
+    else:
+        Purchase.objects.filter(pk=pk).update(
+            paid=True, paid_amount=purchase.grand_total
+        )
+        messages.success(
+            request,
+            f"{purchase.purchase_number} marked paid "
+            "(out-of-band settlement — ledger/vendor balance unchanged).",
+        )
+
+    return redirect('accounting:purchase_detail', pk=purchase.pk)
 
 
 # ============================================================

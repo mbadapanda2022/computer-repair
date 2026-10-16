@@ -8,7 +8,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, F
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
@@ -16,7 +16,7 @@ from django.urls import reverse
 
 from ..models import (
     Payment, BankTransaction, Contact, Invoice, PaymentAllocation,
-    CompanyProfile,
+    Purchase, PurchaseAllocation, CompanyProfile,
 )
 from ..forms import PaymentForm
 from .utils import is_htmx, htmx_response, redirect_to_staff
@@ -73,7 +73,7 @@ def _filter_payment_queryset(request):
     queryset = (
         Payment.objects
         .select_related('contact', 'bank_account', 'expense_account')
-        .prefetch_related('allocations__invoice')
+        .prefetch_related('allocations__invoice', 'purchase_allocations__purchase')
         .all()
         .order_by('-date', '-id')
     )
@@ -95,7 +95,8 @@ def _filter_payment_queryset(request):
             Q(upi_ref__icontains=params['search']) |
             Q(description__icontains=params['search']) |
             Q(expense_account__name__icontains=params['search']) |
-            Q(allocations__invoice__invoice_number__icontains=params['search'])
+            Q(allocations__invoice__invoice_number__icontains=params['search']) |
+            Q(purchase_allocations__purchase__purchase_number__icontains=params['search'])
         ).distinct()
     if params['direction']:
         queryset = queryset.filter(direction=params['direction'])
@@ -215,6 +216,64 @@ def _collect_allocations_from_post(request, payment, existing_invoice_ids=None):
     return made
 
 
+def get_unpaid_purchases_for_contact(contact):
+    """Vendor bills with a balance due for a vendor contact."""
+    if contact and contact.contact_type in ('vendor', 'both'):
+        return (
+            Purchase.objects
+            .filter(vendor=contact, paid_amount__lt=F('grand_total'))
+            .order_by('date', 'id')
+        )
+    return Purchase.objects.none()
+
+
+def _collect_purchase_allocations_from_post(request, payment, existing_purchase_ids=None):
+    """
+    Parse `purchase_alloc_<purchase_id>` fields from POST and create
+    PurchaseAllocation rows. Returns list of description strings.
+    """
+    made = []
+    skip_ids = set(existing_purchase_ids or [])
+    contact = payment.contact
+
+    for key, value in request.POST.items():
+        if not key.startswith('purchase_alloc_'):
+            continue
+        if not value or not value.strip():
+            continue
+
+        try:
+            p_id = int(key.replace('purchase_alloc_', ''))
+            amt = _safe_decimal(value, default=Decimal('0'))
+        except (ValueError, TypeError):
+            continue
+
+        if amt <= 0:
+            continue
+
+        try:
+            purchase = Purchase.objects.get(pk=p_id, vendor=contact)
+        except Purchase.DoesNotExist:
+            continue
+
+        if purchase.pk in skip_ids:
+            continue
+
+        alloc_amt = min(amt, purchase.balance_due)
+        if alloc_amt <= 0:
+            continue
+
+        PurchaseAllocation.objects.create(
+            payment=payment,
+            purchase=purchase,
+            amount=alloc_amt,
+        )
+        made.append(f"{purchase.purchase_number} Rs.{alloc_amt}")
+        skip_ids.add(purchase.pk)
+
+    return made
+
+
 # ============================================================
 # LIST
 # ============================================================
@@ -235,6 +294,7 @@ def payment_detail_modal(request, pk):
             'contact', 'bank_account', 'expense_account',
         ).prefetch_related(
             'allocations__invoice', 'advance_adjustments__invoice',
+            'purchase_allocations__purchase',
         ),
         pk=pk,
     )
@@ -242,6 +302,8 @@ def payment_detail_modal(request, pk):
         (a.amount for a in payment.allocations.all()), Decimal('0')
     ) + sum(
         (a.amount for a in payment.advance_adjustments.all()), Decimal('0')
+    ) + sum(
+        (a.amount for a in payment.purchase_allocations.all()), Decimal('0')
     )
     unallocated = payment.amount - allocated_total
     return render(request, 'payments/partials/payment_detail_modal.html', {
@@ -260,6 +322,7 @@ def payment_print(request, pk):
             'contact', 'bank_account', 'expense_account',
         ).prefetch_related(
             'allocations__invoice', 'advance_adjustments__invoice',
+            'purchase_allocations__purchase',
         ),
         pk=pk,
     )
@@ -349,10 +412,14 @@ def payment_list_excel(request):
     ws.row_dimensions[2].height = 25
 
     for row_idx, p in enumerate(queryset, start=3):
-        applied = ', '.join(
+        bill_parts = [
             f"{a.invoice.invoice_number}({a.amount})"
             for a in p.allocations.select_related('invoice').all()
-        ) or ', '.join(
+        ] + [
+            f"{a.purchase.purchase_number}({a.amount})"
+            for a in p.purchase_allocations.select_related('purchase').all()
+        ]
+        applied = ', '.join(bill_parts) or ', '.join(
             f"ADV:{a.invoice.invoice_number}({a.amount})"
             for a in p.advance_adjustments.select_related('invoice').all()
         )
@@ -408,12 +475,15 @@ def payment_list_excel(request):
 
 
 # ============================================================
-# LOAD UNPAID INVOICES (HTMX endpoint)
-# ============================================================@require_http_methods(["GET"])
+# LOAD UNPAID BILLS (HTMX endpoint) — customer invoices OR vendor purchase
+# bills, depending on payment direction.
+# ============================================================
+@require_http_methods(["GET"])
 def load_unpaid_invoices(request):
-    """Return partial HTML with unpaid invoices for a contact."""
+    """Return partial HTML with unpaid invoices/purchases for a contact."""
     contact_id = request.GET.get('contact', '').strip()
     direction = request.GET.get('direction', 'received').strip()
+    payment_pk = request.GET.get('payment', '').strip()
 
     if not contact_id:
         return HttpResponse('')
@@ -423,15 +493,34 @@ def load_unpaid_invoices(request):
     except (Contact.DoesNotExist, ValueError, TypeError):
         return HttpResponse('')
 
-    if direction == 'received':
-        unpaid_invoices = get_unpaid_invoices_for_contact(contact, 'received')
-    else:
-        unpaid_invoices = Invoice.objects.none()
+    payment = None
+    if payment_pk:
+        try:
+            payment = Payment.objects.get(pk=payment_pk)
+        except (Payment.DoesNotExist, ValueError, TypeError):
+            payment = None
 
-    return render(request, 'payments/partials/unpaid_invoices.html', {
+    if direction == 'received':
+        if payment:
+            unpaid = _unpaid_invoices_for_edit(payment)
+        else:
+            unpaid = get_unpaid_invoices_for_contact(contact, 'received')
+        return render(request, 'payments/partials/unpaid_invoices.html', {
+            'contact': contact,
+            'unpaid_invoices': unpaid,
+            'direction': direction,
+            'payment': payment,
+        })
+
+    if payment:
+        unpaid_purchases = _unpaid_purchases_for_edit(payment)
+    else:
+        unpaid_purchases = get_unpaid_purchases_for_contact(contact)
+    return render(request, 'payments/partials/unpaid_purchases.html', {
         'contact': contact,
-        'unpaid_invoices': unpaid_invoices,
+        'unpaid_purchases': unpaid_purchases,
         'direction': direction,
+        'payment': payment,
     })
 
 
@@ -455,6 +544,7 @@ def payment_create(request, pk=None):
     initial = {}
     contact_id = request.GET.get('contact')
     invoice_id = request.GET.get('invoice')
+    purchase_id = request.GET.get('purchase')
     if pk is not None and not invoice_id:
         invoice_id = pk
 
@@ -476,6 +566,17 @@ def payment_create(request, pk=None):
             initial['direction'] = 'received'
             initial['amount'] = target_invoice.balance_due
         except (Invoice.DoesNotExist, ValueError, TypeError):
+            pass
+
+    # Prefill from purchase bill (vendor settlement)
+    target_purchase = None
+    if purchase_id:
+        try:
+            target_purchase = Purchase.objects.select_related('vendor').get(pk=purchase_id)
+            initial['contact'] = target_purchase.vendor_id
+            initial['direction'] = 'paid'
+            initial['amount'] = target_purchase.balance_due
+        except (Purchase.DoesNotExist, ValueError, TypeError):
             pass
 
     # ============================================================
@@ -504,14 +605,36 @@ def payment_create(request, pk=None):
                                 f"{target_invoice.invoice_number} Rs.{alloc_amt}"
                             )
 
+                    # Auto-allocate to target purchase bill (from ?purchase=)
+                    if target_purchase and target_purchase.vendor_id == payment.contact_id:
+                        alloc_amt = min(payment.net_amount, target_purchase.balance_due)
+                        if alloc_amt > 0:
+                            PurchaseAllocation.objects.create(
+                                payment=payment,
+                                purchase=target_purchase,
+                                amount=alloc_amt,
+                            )
+                            allocation_summary.append(
+                                f"{target_purchase.purchase_number} Rs.{alloc_amt}"
+                            )
+
                     # Multi-invoice allocations from POST
                     allocation_summary += _collect_allocations_from_post(
                         request, payment,
                         existing_invoice_ids=[target_invoice.pk] if target_invoice else [],
                     )
 
+                    # Vendor bill allocations from POST
+                    allocation_summary += _collect_purchase_allocations_from_post(
+                        request, payment,
+                        existing_purchase_ids=(
+                            [target_purchase.pk] if target_purchase else []
+                        ),
+                    )
+
                     if allocation_summary:
                         payment.update_invoices()
+                        payment.update_purchases()
 
             logger.info(
                 "Payment #%s created by %s (Rs.%s %s). Allocations: %s",
@@ -569,10 +692,13 @@ def payment_create(request, pk=None):
         if is_htmx(request):
             pre_contact = None
             pre_unpaid = Invoice.objects.none()
+            pre_unpaid_purchases = Purchase.objects.none()
             try:
                 pre_contact = form.data.get('contact') and Contact.objects.get(pk=form.data.get('contact'))
                 if pre_contact and form.data.get('direction') == 'received':
                     pre_unpaid = get_unpaid_invoices_for_contact(pre_contact, 'received')
+                elif pre_contact and form.data.get('direction') == 'paid':
+                    pre_unpaid_purchases = get_unpaid_purchases_for_contact(pre_contact)
             except (Contact.DoesNotExist, ValueError, TypeError):
                 pass
 
@@ -580,8 +706,10 @@ def payment_create(request, pk=None):
                 'form': form,
                 'payment': None,
                 'target_invoice': target_invoice,
+                'target_purchase': target_purchase,
                 'pre_contact': pre_contact,
                 'unpaid_invoices': pre_unpaid,
+                'unpaid_purchases': pre_unpaid_purchases,
             })
             response['HX-Retarget'] = '#mainModalContent'
             return response
@@ -602,6 +730,7 @@ def payment_create(request, pk=None):
     # GET render
     # ============================================================
     unpaid_invoices = Invoice.objects.none()
+    unpaid_purchases = Purchase.objects.none()
     pre_contact = None
 
     initial_contact_id = form.initial.get('contact')
@@ -610,6 +739,8 @@ def payment_create(request, pk=None):
             pre_contact = Contact.objects.get(pk=initial_contact_id)
             if form.initial.get('direction') == 'received':
                 unpaid_invoices = get_unpaid_invoices_for_contact(pre_contact, 'received')
+            elif form.initial.get('direction') == 'paid':
+                unpaid_purchases = get_unpaid_purchases_for_contact(pre_contact)
         except (Contact.DoesNotExist, ValueError, TypeError):
             pass
 
@@ -617,7 +748,9 @@ def payment_create(request, pk=None):
         'form': form,
         'payment': None,
         'target_invoice': target_invoice,
+        'target_purchase': target_purchase,
         'unpaid_invoices': unpaid_invoices,
+        'unpaid_purchases': unpaid_purchases,
         'pre_contact': pre_contact,
     })
 
@@ -642,21 +775,41 @@ def payment_update(request, pk):
                 # (form JS sets it to '1' on submit)
                 reset_flag = request.POST.get('reset_allocations', '0') == '1'
 
-                # A direct-expense payment never settles invoices; if it was
-                # converted to one, drop old allocations so invoice paid_amount
-                # doesn't keep crediting a payment that no longer exists there.
-                if payment.expense_account_id and payment.allocations.exists():
+                # A direct-expense payment never settles invoices/bills; if it
+                # was converted to one, drop old allocations so paid_amounts
+                # don't keep crediting a payment that no longer lives there.
+                if payment.expense_account_id and (
+                    payment.allocations.exists() or payment.purchase_allocations.exists()
+                ):
+                    for alloc in list(payment.allocations.all()):
+                        alloc.hard_delete()
+                    for alloc in list(payment.purchase_allocations.all()):
+                        alloc.hard_delete()
+                    payment.update_invoices()
+                    payment.update_purchases()
+                elif payment.direction == 'received' and payment.purchase_allocations.exists():
+                    # A customer receipt cannot settle vendor bills
+                    for alloc in list(payment.purchase_allocations.all()):
+                        alloc.hard_delete()
+                    payment.update_purchases()
+                elif payment.direction == 'paid' and payment.allocations.exists():
+                    # A vendor payment cannot settle sales invoices
                     for alloc in list(payment.allocations.all()):
                         alloc.hard_delete()
                     payment.update_invoices()
                 elif not payment.is_advance and not payment.expense_account_id and reset_flag:
-                    # HARD delete — unique constraint (payment, invoice) does
-                    # NOT respect soft-delete; soft rows would block re-creation.
+                    # HARD delete — unique constraint (payment, invoice/purchase)
+                    # does NOT respect soft-delete; soft rows would block
+                    # re-creation.
                     for alloc in list(payment.allocations.all()):
+                        alloc.hard_delete()
+                    for alloc in list(payment.purchase_allocations.all()):
                         alloc.hard_delete()
 
                     _collect_allocations_from_post(request, payment)
+                    _collect_purchase_allocations_from_post(request, payment)
                     payment.update_invoices()
+                    payment.update_purchases()
 
             logger.info("Payment #%s updated by %s", pk, request.user.username)
 
@@ -690,10 +843,12 @@ def payment_update(request, pk):
         # Invalid form — re-render with full context
         if is_htmx(request):
             unpaid_invoices = _unpaid_invoices_for_edit(payment)
+            unpaid_purchases = _unpaid_purchases_for_edit(payment)
             response = render(request, 'payments/payment_form.html', {
                 'form': form,
                 'payment': payment,
                 'unpaid_invoices': unpaid_invoices,
+                'unpaid_purchases': unpaid_purchases,
                 'pre_contact': payment.contact,
             })
             response['HX-Retarget'] = '#mainModalContent'
@@ -704,14 +859,37 @@ def payment_update(request, pk):
 
     # GET: render edit form
     unpaid_invoices = _unpaid_invoices_for_edit(payment)
+    unpaid_purchases = _unpaid_purchases_for_edit(payment)
 
     return render(request, 'payments/payment_form.html', {
         'form': form,
         'payment': payment,
         'target_invoice': None,
         'unpaid_invoices': unpaid_invoices,
+        'unpaid_purchases': unpaid_purchases,
         'pre_contact': payment.contact,
     })
+
+
+def _unpaid_purchases_for_edit(payment):
+    """
+    Return vendor bills for the edit form:
+      - bills with a balance due for the vendor, PLUS
+      - already-allocated bills (even if fully settled)
+    """
+    if not payment.contact or payment.direction != 'paid':
+        return Purchase.objects.none()
+    if payment.is_advance or payment.expense_account_id:
+        return Purchase.objects.none()
+
+    allocated_ids = list(payment.purchase_allocations.values_list('purchase_id', flat=True))
+
+    return (
+        Purchase.objects
+        .filter(vendor=payment.contact)
+        .filter(Q(paid_amount__lt=F('grand_total')) | Q(pk__in=allocated_ids))
+        .order_by('date', 'id')
+    )
 
 
 def _unpaid_invoices_for_edit(payment):

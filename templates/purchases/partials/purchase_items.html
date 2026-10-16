@@ -85,6 +85,7 @@
                     <button type="button"
                             class="btn btn-sm btn-outline-danger"
                             hx-post="{{ remove_item_url }}"
+                            hx-include="#id_purchase_id"
                             hx-target="#purchase-items-container"
                             hx-swap="innerHTML"
                             title="Remove item">
@@ -211,10 +212,15 @@
             return;
         }
 
+        // Scope the session items to THIS purchase (empty → 'new' draft).
+        // Without it, items from another bill could leak into this one.
+        const purchaseIdEl = document.getElementById('id_purchase_id');
+
         htmx.ajax('POST', addUrl, {
             target: '#purchase-items-container',
             swap: 'innerHTML',
             values: {
+                purchase_id: purchaseIdEl ? purchaseIdEl.value : '',
                 product: pid,
                 quantity: qty.value || 1,
                 unit_price: price.value || 0,
@@ -263,6 +269,7 @@
             target: '#purchase-items-container',
             swap: 'innerHTML',
             values: {
+                purchase_id: (document.getElementById('id_purchase_id') || {}).value || '',
                 product: d.id,
                 quantity: 1,
                 unit_price: d.price || 0,

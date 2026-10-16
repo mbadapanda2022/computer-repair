@@ -203,20 +203,22 @@
             </div>
         </div>
 
-        <!-- SECTION 4: Allocate to Unpaid Invoices -->
+        <!-- SECTION 4: Allocate to Unpaid Invoices / Vendor Bills -->
         <div id="allocation-section" class="mt-4">
             <h6 class="text-primary border-bottom pb-2 mb-3">
-                <i class="bi bi-list-check me-2"></i>Allocate to Unpaid Invoices
+                <i class="bi bi-list-check me-2"></i>Allocate to Unpaid Invoices / Vendor Bills
                 <span class="text-muted small fw-normal">(optional)</span>
             </h6>
 
             <div id="unpaid-invoices-container">
-                {% if unpaid_invoices %}
+                {% if form.direction.value == 'paid' and pre_contact %}
+                    {% include 'payments/partials/unpaid_purchases.html' %}
+                {% elif unpaid_invoices %}
                     {% include 'payments/partials/unpaid_invoices.html' %}
                 {% else %}
                     <div class="alert alert-light border text-center py-4 mb-0">
                         <i class="bi bi-info-circle text-muted me-2"></i>
-                        Select a customer above to load their unpaid invoices.
+                        Select a customer / vendor above to load their unpaid invoices or bills.
                     </div>
                 {% endif %}
             </div>
@@ -311,6 +313,7 @@
     var expenseSection  = document.getElementById('expense-account-section');
     var expenseSelect   = document.getElementById('id_expense_account');
     var allocationSection = document.getElementById('allocation-section');
+    var paymentPk       = '{{ payment.pk|default:"" }}';
 
     // ============================================================
     // HELPER: Expense account only for 'paid' direction; selecting one
@@ -356,7 +359,7 @@
     }
 
     // ============================================================
-    // CORE: Load unpaid invoices via HTMX
+    // CORE: Load unpaid invoices (received) / vendor bills (paid) via HTMX
     // ============================================================
     function loadUnpaidInvoices(contactId) {
         if (contactId === undefined || contactId === null) {
@@ -366,11 +369,7 @@
         var direction = directionSelect ? directionSelect.value : '';
 
         if (!contactId) {
-            setPlaceholder('Select a customer above to load their unpaid invoices.');
-            return;
-        }
-        if (direction !== 'received') {
-            setPlaceholder('Invoice allocation is available only for "Received from Customer" payments.');
+            setPlaceholder('Select a customer / vendor above to load their unpaid invoices or bills.');
             return;
         }
 
@@ -378,11 +377,14 @@
         unpaidContainer.innerHTML =
             '<div class="text-center py-4">' +
             '<div class="spinner-border text-primary" role="status"></div>' +
-            '<p class="text-muted mt-2 mb-0">Loading unpaid invoices...</p>' +
+            '<p class="text-muted mt-2 mb-0">Loading unpaid bills...</p>' +
             '</div>';
 
         var url = '{% url "accounting:load_unpaid_invoices" %}?contact=' +
                   encodeURIComponent(contactId) + '&direction=' + direction;
+        if (paymentPk) {
+            url += '&payment=' + paymentPk;
+        }
 
         htmx.ajax('GET', url, {
             target: '#unpaid-invoices-container',
@@ -400,7 +402,7 @@
         lastProcessedContact = value;
 
         if (!value) {
-            setPlaceholder('Select a customer above to load their unpaid invoices.');
+            setPlaceholder('Select a customer / vendor above to load their unpaid invoices or bills.');
             return;
         }
 
@@ -414,12 +416,7 @@
             }
         }
 
-        var direction = directionSelect ? directionSelect.value : '';
-        if (direction === 'received') {
-            loadUnpaidInvoices(value);
-        } else {
-            setPlaceholder('Invoice allocation is available only for "Received from Customer" payments.');
-        }
+        loadUnpaidInvoices(value);
     }
 
     // ============================================================
@@ -526,10 +523,10 @@
             if (btn) btn.disabled = true;
         });
 
-        // Edit mode: prefill contact → auto load invoices
+        // Edit mode: prefill contact → auto load invoices / vendor bills
         var initialContact = contactSelect ? contactSelect.value : '';
         var initialDirection = directionSelect ? directionSelect.value : '';
-        if (initialContact && initialDirection === 'received') {
+        if (initialContact && (initialDirection === 'received' || initialDirection === 'paid')) {
             setTimeout(function() { loadUnpaidInvoices(initialContact); }, 100);
         }
     }

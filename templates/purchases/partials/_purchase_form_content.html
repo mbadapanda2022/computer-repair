@@ -68,7 +68,7 @@
                                 </label>
                                 <input type="date" name="date" id="id_date"
                                        class="form-control"
-                                       value="{{ form.date.value|default:''|date:'Y-m-d' }}">
+                                       value="{% if form.is_bound %}{{ form.date.value }}{% else %}{{ form.date.value|date:'Y-m-d' }}{% endif %}">
                                 <div id="field-date" class="invalid-feedback d-block">
                                     {{ form.date.errors|join:", " }}
                                 </div>
@@ -135,7 +135,7 @@
                                             <label for="id_discount_date" class="form-label small fw-semibold">Discount Date</label>
                                             <input type="date" name="discount_date" id="id_discount_date"
                                                    class="form-control"
-                                                   value="{{ form.discount_date.value|default:''|date:'Y-m-d' }}">
+                                                   value="{% if form.is_bound %}{{ form.discount_date.value }}{% else %}{{ form.discount_date.value|date:'Y-m-d' }}{% endif %}">
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label small fw-semibold">Recorded By</label>

@@ -96,11 +96,11 @@
             <h6 class="fw-bold text-dark mb-2">
                 <i class="bi bi-link-45deg me-2"></i>Settlement
             </h6>
-            {% if payment.allocations.all or payment.advance_adjustments.all %}
+            {% if payment.allocations.all or payment.advance_adjustments.all or payment.purchase_allocations.all %}
             <div class="table-responsive">
                 <table class="table table-sm table-bordered align-middle mb-1">
                     <thead class="table-light">
-                        <tr><th>Invoice</th><th>Invoice Date</th><th class="text-end">Amount Applied</th></tr>
+                        <tr><th>{% if payment.direction == 'paid' %}Purchase Bill{% else %}Invoice{% endif %}</th><th>Date</th><th class="text-end">Amount Applied</th></tr>
                     </thead>
                     <tbody>
                         {% for alloc in payment.allocations.all %}
@@ -122,6 +122,17 @@
                             </td>
                             <td>{{ adj.invoice.date|date:"d M Y" }}</td>
                             <td class="text-end fw-semibold">₹{{ adj.amount|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% for alloc in payment.purchase_allocations.all %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'accounting:purchase_detail' alloc.purchase.pk %}" target="_blank"
+                                   class="fw-bold text-decoration-none">{{ alloc.purchase.purchase_number }}</a>
+                                <span class="badge bg-secondary ms-1">Bill</span>
+                            </td>
+                            <td>{{ alloc.purchase.date|date:"d M Y" }}</td>
+                            <td class="text-end fw-semibold">₹{{ alloc.amount|floatformat:2 }}</td>
                         </tr>
                         {% endfor %}
                         <tr class="table-light">
@@ -148,8 +159,17 @@
             <div class="alert alert-info py-2 mb-0">
                 <i class="bi bi-arrow-up-right me-1"></i>
                 This amount sits in <strong>{{ payment.contact.name }}'s advance pool</strong>
-                and can be applied to an invoice from the invoice page ("Apply ₹__").
+                {% if payment.direction == 'paid' %}
+                    and can be settled against a future purchase bill from that bill's page.
+                {% else %}
+                    and can be applied to an invoice from the invoice page ("Apply ₹__").
+                {% endif %}
             </div>
+            {% elif payment.direction == 'paid' %}
+            <p class="text-muted small mb-0">
+                Not applied to any purchase bill — the payment reduced the vendor's overall payable balance.
+                Open the purchase bill to apply it ("Apply ₹__") or record a fresh payment there.
+            </p>
             {% else %}
             <p class="text-muted small mb-0">No invoice applied to this payment yet.</p>
             {% endif %}

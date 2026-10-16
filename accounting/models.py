@@ -1698,6 +1698,8 @@ class Purchase(SoftDeleteModel):
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     grand_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     paid = models.BooleanField(default=False)
+    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR,
+                                      help_text="Total of vendor payments applied to this bill")
     notes = models.TextField(blank=True)
     
     # Discount Audit Trail
@@ -1831,6 +1833,65 @@ class Purchase(SoftDeleteModel):
         self.grand_total = (discounted_subtotal + self.tax_amount + self.freight_charge).quantize(TAX_PRECISION)
         self.subtotal = self.subtotal.quantize(TAX_PRECISION)
         self.tax_amount = self.tax_amount.quantize(TAX_PRECISION)
+
+    @property
+    def balance_due(self):
+        return max(
+            Decimal('0'), (self.grand_total or 0) - (self.paid_amount or 0)
+        ).quantize(TAX_PRECISION)
+
+    @property
+    def settlement_status(self):
+        if self.paid or (self.grand_total > 0 and self.paid_amount >= self.grand_total):
+            return 'paid'
+        if self.paid_amount and self.paid_amount > 0:
+            return 'partial'
+        return 'unpaid'
+
+    def recalc_settlement(self):
+        """
+        Refresh paid_amount/paid from live PurchaseAllocation rows.
+
+        save(update_fields=...) is safe here: paid_amount/paid are NOT in
+        SYNC_TRIGGERS, so the ledger is never rebuilt (no recursion).
+        """
+        total = self.payment_allocations.aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+        self.paid_amount = total
+        if total >= self.grand_total and self.grand_total > 0:
+            self.paid = True
+        elif total > 0:
+            self.paid = False
+        else:
+            # total == 0: a manual "Mark Paid" (out-of-band settlement, no
+            # allocation rows ever created) must survive; but if this bill
+            # WAS settled by the system and the payment was deleted, unmark.
+            if PurchaseAllocation.all_objects.filter(purchase=self).exists():
+                self.paid = False
+        self.save(update_fields=['paid_amount', 'paid'])
+
+    @property
+    def whatsapp_share_url(self):
+        vendor = self.vendor
+        if not vendor or not vendor.phone:
+            return None
+        phone = ''.join(filter(str.isdigit, str(vendor.phone)))
+        if len(phone) == 10:
+            phone = '91' + phone
+        elif len(phone) < 10:
+            return None
+        from urllib.parse import quote
+        status = 'PAID' if self.settlement_status == 'paid' else f"Balance Rs.{self.balance_due:.2f}"
+        lines = [
+            f"Hi {vendor.name},",
+            f"Purchase bill {self.purchase_number} dated {self.date.strftime('%d %b %Y')} — A1 Computer Solutions.",
+            f"Total: Rs.{self.grand_total:.2f}",
+            f"Paid: Rs.{self.paid_amount:.2f}",
+            f"Status: {status}",
+            "Thank you.",
+        ]
+        return f"https://wa.me/{phone}?text={quote(chr(10).join(lines))}"
 
 
 class PurchaseItem(SoftDeleteModel):
@@ -3151,6 +3212,24 @@ class PaymentAllocation(SoftDeleteModel):
         return f"{self.payment.id} -> {self.invoice.invoice_number}: ₹{self.amount}"
 
 
+class PurchaseAllocation(SoftDeleteModel):
+    """
+    Track exactly how much of a vendor payment is applied to each purchase
+    bill. Does NOT touch the ledger — the payment itself already posted
+    Dr Vendor Payable / Cr Cash|Bank; this is the bill-level settlement link.
+    """
+    payment = models.ForeignKey('Payment', on_delete=models.CASCADE, related_name='purchase_allocations')
+    purchase = models.ForeignKey(Purchase, on_delete=models.PROTECT, related_name='payment_allocations')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
+
+    class Meta:
+        unique_together = [['payment', 'purchase']]
+        indexes = [models.Index(fields=['payment', 'purchase'])]
+
+    def __str__(self):
+        return f"{self.payment.id} -> {self.purchase.purchase_number}: ₹{self.amount}"
+
+
 class Payment(SoftDeleteModel):
     DIRECTION = (('paid', 'Paid to Supplier'), ('received', 'Received from Customer'))
     METHOD_CHOICES = (('cash', 'Cash'), ('bank', 'Bank Transfer'), ('upi', 'UPI'))
@@ -3258,6 +3337,13 @@ class Payment(SoftDeleteModel):
             ]
             if self.expense_account_id:
                 lines.append(f"Towards: {self.expense_account.name}")
+            purchase_allocs = list(self.purchase_allocations.select_related('purchase').all())
+            if purchase_allocs:
+                lines.append("Applied to:")
+                lines += [
+                    f"  - {a.purchase.purchase_number}: Rs.{a.amount:.2f}"
+                    for a in purchase_allocs
+                ]
             if self.description:
                 lines.append(f"Note: {self.description}")
         lines.append("Thank you.")
@@ -3306,6 +3392,9 @@ class Payment(SoftDeleteModel):
             # Update invoice statuses
             self.update_invoices()
 
+            # Update purchase bill settlement
+            self.update_purchases()
+
     def _trim_allocations_to_amount(self):
         """
         Trim allocations AND advance adjustments from the newest first
@@ -3317,6 +3406,8 @@ class Payment(SoftDeleteModel):
             self.allocations.select_related('invoice').order_by('-id')
         ) + list(
             self.advance_adjustments.select_related('invoice').order_by('-id')
+        ) + list(
+            self.purchase_allocations.select_related('purchase').order_by('-id')
         )
         rows.sort(key=lambda r: r.pk, reverse=True)
 
@@ -3336,6 +3427,12 @@ class Payment(SoftDeleteModel):
                 row.amount = (row.amount - excess).quantize(TAX_PRECISION)
                 row.save(update_fields=['amount'])
                 total -= excess
+
+        # Bills settled from this payment must reflect the trimmed amounts.
+        # (Invoice side is refreshed later by update_invoices().)
+        purchase_ids = {r.purchase_id for r in rows if isinstance(r, PurchaseAllocation)}
+        for p in Purchase.objects.filter(pk__in=purchase_ids):
+            p.recalc_settlement()
 
     def _get_account_name(self):
         """
@@ -3412,9 +3509,12 @@ class Payment(SoftDeleteModel):
                 LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
                 
                 if self.discount_amount > 0:
+                    # Bill ko full discount se kam karna hai: Dr Vendor Payable /
+                    # Cr Discount Received (advance branch jaisa). Peehle signs
+                    # ulti thi — vendor kam hi debit hota aur income expense ban jaati.
                     discount_acc = get_account('4011', 'Discount Received', 'income', '4')
-                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=0, credit=self.discount_amount)
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
+                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=self.discount_amount, credit=0)
+                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
 
     def update_ledger_entry(self):
         """Update existing ledger entry for this payment."""
@@ -3473,9 +3573,10 @@ class Payment(SoftDeleteModel):
                 LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=net_amount, credit=0)
                 LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
                 if self.discount_amount > 0:
+                    # Same as create path: Dr Vendor Payable / Cr Discount Received
                     discount_acc = get_account('4011', 'Discount Received', 'income', '4')
-                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=0, credit=self.discount_amount)
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
+                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=self.discount_amount, credit=0)
+                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
 
     def create_bank_transaction(self):
         # Cash never moves through a bank account — till me rehta hai.
@@ -3549,6 +3650,12 @@ class Payment(SoftDeleteModel):
                 else: inv.payment_status = 'unpaid'
                 inv.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
 
+    def update_purchases(self):
+        """Recalculate purchase bills settled by this payment (PurchaseAllocation rows)."""
+        for alloc in self.purchase_allocations.select_related('purchase').all():
+            if alloc.purchase_id:
+                alloc.purchase.recalc_settlement()
+
     def delete(self, *args, **kwargs):
         """
         Soft delete the payment and clean up ALL related records.
@@ -3579,6 +3686,11 @@ class Payment(SoftDeleteModel):
         )
         affected_invoice_ids = set(allocation_invoice_ids) | set(advance_invoice_ids)
 
+        # ── Capture purchase bill IDs too ──
+        affected_purchase_ids = list(
+            self.purchase_allocations.values_list('purchase_id', flat=True)
+        )
+
         # ── Capture ledger entry IDs (so we can clean their lines too) ──
         ledger_entry_ids = list(
             LedgerEntry.objects.filter(
@@ -3589,6 +3701,7 @@ class Payment(SoftDeleteModel):
 
         # ── Delete child records ──
         self.allocations.all().delete()
+        self.purchase_allocations.all().delete()
         # Per-instance so sync_advance_adjustment fires: invoice recalc +
         # settle-ledger cleanup (bulk queryset.delete() skips signals).
         for adj in list(AdvanceAdjustment.objects.filter(payment=self)):
@@ -3622,6 +3735,10 @@ class Payment(SoftDeleteModel):
             else:
                 inv.payment_status = 'unpaid'
             inv.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
+
+        # ── Recalculate affected purchase bills (allocations are gone) ──
+        for p in Purchase.objects.filter(pk__in=affected_purchase_ids):
+            p.recalc_settlement()
 
         # ── Recalculate contact balances ──
         if self.contact:
@@ -3828,6 +3945,19 @@ def sync_payment_allocation(sender, instance, **kwargs):
 
     if instance.payment:
         instance.payment.update_invoices()
+
+
+@receiver(post_save, sender=PurchaseAllocation)
+@receiver(post_delete, sender=PurchaseAllocation)
+def sync_purchase_allocation(sender, instance, **kwargs):
+    """Keep the affected purchase bill's settlement fields in sync."""
+    if instance.purchase_id:
+        try:
+            purchase = Purchase.all_objects.get(pk=instance.purchase_id)
+            if not purchase.is_deleted:
+                purchase.recalc_settlement()
+        except Purchase.DoesNotExist:
+            pass
 
 
 def _sync_advance_adjustment_state(instance):

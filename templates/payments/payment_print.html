@@ -104,7 +104,7 @@
     </div>
 </div>
 
-{% if payment.allocations.all or payment.advance_adjustments.all %}
+{% if payment.allocations.all or payment.advance_adjustments.all or payment.purchase_allocations.all %}
 <!-- APPLIED TO -->
 <table class="items">
     <thead>
@@ -127,6 +127,13 @@
             <td>{{ forloop.counter }}</td>
             <td>{{ adj.invoice.invoice_number }} (from advance) — {{ adj.invoice.date|date:"d M Y" }}</td>
             <td class="text-end">₹{{ adj.amount|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        {% for alloc in payment.purchase_allocations.all %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ alloc.purchase.purchase_number }} (purchase bill) — {{ alloc.purchase.date|date:"d M Y" }}</td>
+            <td class="text-end">₹{{ alloc.amount|floatformat:2 }}</td>
         </tr>
         {% endfor %}
     </tbody>
