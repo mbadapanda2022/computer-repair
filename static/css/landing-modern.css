@@ -1688,3 +1688,116 @@ main section.pb-5 { padding-bottom: 2.4rem !important; }
         transition-delay: 0s;
     }
 }
+
+/* ============================================================
+   FLOATING CONTACT WIDGET — WhatsApp + Call (bottom-right)
+   ============================================================ */
+.float-widget {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    z-index: 1040;
+}
+
+.float-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #fff;
+    text-decoration: none;
+    box-shadow: 0 6px 18px rgba(2, 6, 23, .28);
+    transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.float-btn:hover,
+.float-btn:focus-visible {
+    transform: translateY(-3px) scale(1.05);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(2, 6, 23, .36);
+}
+
+.float-btn-wa {
+    width: 58px;
+    height: 58px;
+    font-size: 1.75rem;
+    background: #25D366;
+}
+
+.float-btn-call {
+    width: 44px;
+    height: 44px;
+    font-size: 1.15rem;
+    background: linear-gradient(135deg, #0d6efd, #0a58ca);
+}
+
+.float-btn-wa .float-pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #25D366;
+    opacity: .5;
+    z-index: -1;
+    animation: floatPulse 2s ease-out infinite;
+}
+
+@keyframes floatPulse {
+    0%   { transform: scale(1); opacity: .5; }
+    70%  { transform: scale(1.45); opacity: 0; }
+    100% { transform: scale(1.45); opacity: 0; }
+}
+
+/* Hover label (desktop only) */
+.float-label {
+    position: absolute;
+    right: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%) translateX(8px);
+    white-space: nowrap;
+    background: rgba(2, 6, 23, .88);
+    color: #fff;
+    font-size: .82rem;
+    padding: .35rem .7rem;
+    border-radius: .55rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease, transform .22s ease;
+}
+
+@media (hover: hover) {
+    .float-btn:hover .float-label,
+    .float-btn:focus-visible .float-label {
+        opacity: 1;
+        transform: translateY(-50%) translateX(0);
+    }
+}
+
+/* Mobile: slightly smaller, keep clear of safe area */
+@media (max-width: 575.98px) {
+    .float-widget {
+        right: 14px;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    }
+    .float-btn-wa { width: 52px; height: 52px; font-size: 1.55rem; }
+    .float-btn-call { width: 40px; height: 40px; font-size: 1rem; }
+}
+
+/* Dark theme keeps shadows soft */
+html[data-bs-theme="dark"] .float-btn {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .float-btn-wa .float-pulse {
+        animation: none;
+        opacity: 0;
+    }
+    .float-btn {
+        transition: none;
+    }
+}

@@ -1,0 +1,19 @@
+{% if company.whatsapp_number or company.phone %}
+<div class="float-widget" aria-label="Contact us on WhatsApp or call">
+    {% if company.phone %}
+    <a class="float-btn float-btn-call" href="tel:{{ company.phone|cut:' '|cut:'-' }}"
+       aria-label="Call A1 Computer Solutions">
+        <i class="bi bi-telephone-fill" aria-hidden="true"></i>
+        <span class="float-label">Call us</span>
+    </a>
+    {% endif %}
+    <a class="float-btn float-btn-wa"
+       href="https://wa.me/{{ company.whatsapp_number|default:company.phone|cut:'+'|cut:' '|cut:'-'|cut:' ' }}?text=Hello%20A1%20Computer%20Solutions%2C%20I%20need%20help%20with%20my%20laptop%2Fprinter.%20Please%20share%20a%20quote."
+       target="_blank" rel="noopener noreferrer"
+       aria-label="Chat with us on WhatsApp">
+        <span class="float-pulse" aria-hidden="true"></span>
+        <i class="bi bi-whatsapp" aria-hidden="true"></i>
+        <span class="float-label">Chat on WhatsApp</span>
+    </a>
+</div>
+{% endif %}
