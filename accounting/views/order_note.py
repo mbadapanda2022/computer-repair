@@ -177,7 +177,6 @@ def order_note_excel(request):
         return toast_only_response(
             {'level': 'danger', 'message': 'Openpyxl library is not installed.'}, status=400)
 
-    totals = _totals(rows)
     company = CompanyProfile.get_instance()
     supplier = sheet.get('supplier', '')
 
@@ -187,7 +186,7 @@ def order_note_excel(request):
 
     header_font = Font(bold=True, color='FFFFFF', size=11)
     header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
-    thin = Side(style='thin', color='BFBFBF')
+    thin = Side(style='medium', color='808080')
     border = Border(left=thin, right=thin, top=thin, bottom=thin)
     center = Alignment(horizontal='center', vertical='center')
     right_a = Alignment(horizontal='right', vertical='center')
@@ -220,15 +219,30 @@ def order_note_excel(request):
 
     row = 6
     for idx, r in enumerate(rows, 1):
+        has_excl = r['price_excl'] is not None
+        has_incl = r['price_incl'] is not None
+        if r['price_src'] == 'incl' and has_incl:
+            excl_cell = f'=ROUND(G{row}/(1+E{row}/100),2)'
+            incl_cell = float(r['price_incl'])
+        elif has_excl:
+            excl_cell = float(r['price_excl'])
+            incl_cell = f'=ROUND(F{row}*(1+E{row}/100),2)'
+        elif has_incl:
+            excl_cell = f'=ROUND(G{row}/(1+E{row}/100),2)'
+            incl_cell = float(r['price_incl'])
+        else:
+            excl_cell = incl_cell = None
+        amount_cell = f'=ROUND(D{row}*G{row},2)' if (has_excl or has_incl) else None
+
         values = [
             idx,
             r['date'],
             r['product'],
-            float(r['qty']) if r['qty'] is not None else None,
+            float(r['qty']) if r['qty'] else None,
             float(r['tax']),
-            float(r['price_excl']) if r['price_excl'] is not None else None,
-            float(r['price_incl']) if r['price_incl'] is not None else None,
-            float(r['amount']) if r['amount'] is not None else None,
+            excl_cell,
+            incl_cell,
+            amount_cell,
             None, None,
         ]
         for col, v in enumerate(values, 1):
@@ -244,17 +258,20 @@ def order_note_excel(request):
                 start_color='FFF2CC', end_color='FFF2CC', fill_type='solid')
         row += 1
 
+    last = row - 1
     label_row = row
+    grand_row = label_row + 2
     ws.cell(row=label_row, column=3, value='Subtotal (Excl Tax)').font = Font(bold=True)
-    c = ws.cell(row=label_row, column=6, value=float(totals['subtotal_excl']))
+    c = ws.cell(row=label_row, column=6,
+                value=f'=ROUND(SUMPRODUCT(D6:D{last},F6:F{last}),2)')
     c.font = Font(bold=True); c.number_format = money_fmt; c.alignment = right_a
     ws.cell(row=label_row + 1, column=3, value='Total Tax').font = Font(bold=True)
-    c = ws.cell(row=label_row + 1, column=6, value=float(totals['tax_total']))
+    c = ws.cell(row=label_row + 1, column=6, value=f'=ROUND(H{grand_row}-F{label_row},2)')
     c.font = Font(bold=True); c.number_format = money_fmt; c.alignment = right_a
-    ws.cell(row=label_row + 2, column=3, value='GRAND TOTAL').font = Font(bold=True, size=12)
-    c = ws.cell(row=label_row + 2, column=8, value=float(totals['grand']))
+    ws.cell(row=grand_row, column=3, value='GRAND TOTAL').font = Font(bold=True, size=12)
+    c = ws.cell(row=grand_row, column=8, value=f'=ROUND(SUM(H6:H{last}),2)')
     c.font = Font(bold=True, size=12); c.number_format = money_fmt; c.alignment = right_a
-    for rr in (label_row, label_row + 1, label_row + 2):
+    for rr in (label_row, label_row + 1, grand_row):
         for col in range(1, 11):
             ws.cell(row=rr, column=col).border = border
 

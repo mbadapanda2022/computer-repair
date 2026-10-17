@@ -123,7 +123,7 @@ class OrderNoteTests(TestCase):
     def test_excel_export_returns_workbook_with_totals(self):
         rows = [
             {'product': 'Mouse', 'qty': '2', 'price_excl': '250'},
-            {'product': 'Keyboard', 'qty': '1', 'price_excl': '750'},
+            {'product': 'Keyboard', 'qty': '1', 'price_incl': '885', 'price_src': 'incl'},
         ]
         r = self.client.post(reverse('accounting:order_note_excel'), post_rows(rows))
         self.assertEqual(r.status_code, 200)
@@ -142,10 +142,18 @@ class OrderNoteTests(TestCase):
         # supplier-fill columns exist and are empty
         self.assertIn('Available', ws.cell(row=5, column=9).value)
         self.assertIsNone(ws.cell(row=6, column=9).value)
-        # grand total row: 2*(250*1.18) + 1*(750*1.18) = 590 + 885 = 1475
-        grand_cells = [c.value for row in ws.iter_rows() for c in row
-                       if c.value == 1475.0 or (isinstance(c.value, str) and c.value == 'GRAND TOTAL')]
-        self.assertTrue(grand_cells, 'GRAND TOTAL 1475 not found')
+        # LIVE formulas so Excel recalculates when the supplier edits rates
+        self.assertEqual(ws['F6'].value, 250)                       # typed excl stays a value
+        self.assertEqual(ws['G6'].value, '=ROUND(F6*(1+E6/100),2)') # incl derived by formula
+        self.assertEqual(ws['G7'].value, 885)                       # typed incl stays a value
+        self.assertEqual(ws['F7'].value, '=ROUND(G7/(1+E7/100),2)') # excl derived by formula
+        self.assertEqual(ws['H6'].value, '=ROUND(D6*G6,2)')          # amount by formula
+        self.assertEqual(ws['H7'].value, '=ROUND(D7*G7,2)')
+        self.assertEqual(ws['F8'].value, '=ROUND(SUMPRODUCT(D6:D7,F6:F7),2)')
+        self.assertEqual(ws['F9'].value, '=ROUND(H10-F8,2)')
+        self.assertEqual(ws['H10'].value, '=ROUND(SUM(H6:H7),2)')    # grand total
+        # every table cell carries a border
+        self.assertEqual(ws['I6'].border.left.style, 'medium')
 
     def test_excel_get_after_save_works(self):
         self.client.post(reverse('accounting:order_note'), post_rows([
