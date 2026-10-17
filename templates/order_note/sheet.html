@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Order Note — {{ company.name|default:"A1 Computer Solutions" }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-journal-text text-primary me-2"></i>Order Note
+                <span class="badge bg-warning text-dark align-middle ms-2">Temporary — not saved in accounts</span>
+            </h3>
+            <p class="text-muted small mt-1 mb-0">
+                Excel-style entry sheet for items to order from a supplier. Fill many rows at once,
+                download as Excel and send it on WhatsApp — the supplier can enter their rate &amp; availability
+                in the highlighted columns.
+            </p>
+        </div>
+    </div>
+
+    <form method="post" id="orderNoteForm" action="{% url 'accounting:order_note' %}">
+        {% csrf_token %}
+
+        <!-- Sheet header -->
+        <div class="card mb-3">
+            <div class="card-body py-3">
+                <div class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold">Supplier Name (free text)</label>
+                        <input type="text" name="supplier" class="form-control"
+                               placeholder="e.g. Luna Mahanta, ABC Distributors…" value="{{ supplier }}" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Note / Message for supplier</label>
+                        <input type="text" name="note" class="form-control"
+                               placeholder="e.g. Please fill rate and availability, urgent requirement" value="{{ note }}" autocomplete="off">
+                    </div>
+                    <div class="col-md-2 text-md-end">
+                        <small class="text-muted d-block">Tax % default</small>
+                        <span class="fw-semibold">18 (editable per row)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- The sheet -->
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle mb-0" id="orderSheet">
+                    <thead class="table-light">
+                        <tr class="text-center small">
+                            <th style="width:44px">Sr</th>
+                            <th style="width:140px">Date</th>
+                            <th style="min-width:220px">Product / Item</th>
+                            <th style="width:90px">Qty</th>
+                            <th style="width:80px">Tax %</th>
+                            <th style="width:130px">Price (Excl Tax)</th>
+                            <th style="width:130px">Price (Incl Tax)</th>
+                            <th style="width:130px">Amount</th>
+                            <th style="width:44px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="sheetBody">
+                        {% for r in rows %}
+                        <tr>
+                            <td class="text-center sr-cell fw-semibold text-muted">{{ forloop.counter }}</td>
+                            <td><input type="date" name="date[]" class="form-control form-control-sm border-0 bg-transparent" value="{{ r.date }}"></td>
+                            <td><input type="text" name="product[]" class="form-control form-control-sm border-0 bg-transparent" value="{{ r.product }}" autocomplete="off"></td>
+                            <td><input type="number" inputmode="decimal" step="any" name="qty[]" class="form-control form-control-sm text-end border-0 bg-transparent" value="{% if r.qty %}{{ r.qty }}{% endif %}" autocomplete="off"></td>
+                            <td><input type="number" inputmode="decimal" step="any" name="tax[]" class="form-control form-control-sm text-end border-0 bg-transparent cell-tax" value="{{ r.tax }}" autocomplete="off"></td>
+                            <td><input type="number" inputmode="decimal" step="any" name="price_excl[]" class="form-control form-control-sm text-end border-0 bg-transparent cell-excl" value="{{ r.price_excl }}" autocomplete="off"></td>
+                            <td><input type="number" inputmode="decimal" step="any" name="price_incl[]" class="form-control form-control-sm text-end border-0 bg-transparent cell-incl" value="{{ r.price_incl }}" autocomplete="off"></td>
+                            <td><input type="number" inputmode="decimal" step="any" name="amount[]" class="form-control form-control-sm text-end border-0 bg-transparent fw-semibold cell-amount" value="{{ r.amount }}" readonly autocomplete="off"></td>
+                            <td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 del-row" title="Delete row"><i class="bi bi-trash"></i></button><input type="hidden" name="price_src[]" class="cell-src" value="{{ r.price_src }}"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr class="small">
+                            <td colspan="3" class="text-end fw-semibold">Totals</td>
+                            <td class="text-end fw-semibold" id="totQty">0</td>
+                            <td></td>
+                            <td class="text-end fw-semibold" id="totExcl">0.00</td>
+                            <td></td>
+                            <td class="text-end fw-bold" id="totGrand">0.00</td>
+                            <td></td>
+                        </tr>
+                        <tr class="small">
+                            <td colspan="3" class="text-end text-muted">Subtotal (Excl Tax) = <span id="totSub">0.00</span> &nbsp;|&nbsp; Total Tax = <span id="totTax">0.00</span></td>
+                            <td colspan="6"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+            <button type="button" class="btn btn-outline-primary" id="addRowBtn">
+                <i class="bi bi-plus-lg me-1"></i>Add Row
+            </button>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save me-1"></i>Save Sheet
+            </button>
+            <button type="submit" class="btn btn-success"
+                    formaction="{% url 'accounting:order_note_excel' %}">
+                <i class="bi bi-file-earmark-excel me-1"></i>Download Excel (.xlsx)
+            </button>
+            <span class="text-muted small ms-2">Excel download also saves the sheet. Rows left fully empty are dropped.</span>
+        </div>
+    </form>
+
+    <form method="post" action="{% url 'accounting:order_note_clear' %}" class="mt-2"
+          onsubmit="return confirm('Clear the whole order note? This cannot be undone.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-x-circle me-1"></i>Clear / Discard Note
+        </button>
+    </form>
+</div>
+
+<script>
+(function () {
+    const body = document.getElementById('sheetBody');
+    const DEFAULT_TAX = 18;
+
+    function num(v) {
+        const n = parseFloat(v);
+        return isNaN(n) ? null : n;
+    }
+    function round2(n) {
+        return Math.round((n + Number.EPSILON) * 100) / 100;
+    }
+    function fmt(n) {
+        return (n === null || n === undefined || isNaN(n)) ? '' : String(round2(n));
+    }
+
+    function recalc(tr, changed) {
+        const excl = tr.querySelector('.cell-excl');
+        const incl = tr.querySelector('.cell-incl');
+        const tax = tr.querySelector('.cell-tax');
+        const qty = tr.querySelector('input[name="qty[]"]');
+        const amount = tr.querySelector('.cell-amount');
+        const src = tr.querySelector('.cell-src');
+
+        const t = num(tax.value);
+        const factor = 1 + ((t === null ? 0 : t) / 100);
+
+        if (changed === 'excl') {
+            src.value = 'excl';
+            const e = num(excl.value);
+            if (e !== null) incl.value = fmt(e * factor);
+        } else if (changed === 'incl') {
+            src.value = 'incl';
+            const i = num(incl.value);
+            if (i !== null) excl.value = fmt(i / factor);
+        } else if (changed === 'tax') {
+            if (src.value === 'incl') {
+                const i = num(incl.value);
+                if (i !== null) excl.value = fmt(i / factor);
+            } else {
+                const e = num(excl.value);
+                if (e !== null) incl.value = fmt(e * factor);
+            }
+        }
+
+        const q = num(qty.value);
+        const i = num(incl.value);
+        amount.value = (q !== null && i !== null) ? fmt(q * i) : '';
+        updateTotals();
+    }
+
+    function updateTotals() {
+        let qty = 0, sub = 0, grand = 0;
+        body.querySelectorAll('tr').forEach(tr => {
+            const q = num(tr.querySelector('input[name="qty[]"]').value) || 0;
+            const e = num(tr.querySelector('.cell-excl').value);
+            const a = num(tr.querySelector('.cell-amount').value) || 0;
+            qty += q;
+            if (e !== null) sub += q * e;
+            grand += a;
+        });
+        document.getElementById('totQty').textContent = fmt(qty);
+        document.getElementById('totSub').textContent = fmt(sub);
+        document.getElementById('totTax').textContent = fmt(grand - sub);
+        document.getElementById('totGrand').textContent = fmt(grand);
+    }
+
+    function renumber() {
+        body.querySelectorAll('tr').forEach((tr, i) => {
+            tr.querySelector('.sr-cell').textContent = i + 1;
+        });
+    }
+
+    function addRow(focus) {
+        const tr = document.createElement('tr');
+        const today = new Date().toISOString().slice(0, 10);
+        tr.innerHTML =
+            '<td class="text-center sr-cell fw-semibold text-muted"></td>' +
+            '<td><input type="date" name="date[]" class="form-control form-control-sm border-0 bg-transparent" value="' + today + '"></td>' +
+            '<td><input type="text" name="product[]" class="form-control form-control-sm border-0 bg-transparent" autocomplete="off"></td>' +
+            '<td><input type="number" inputmode="decimal" step="any" name="qty[]" class="form-control form-control-sm text-end border-0 bg-transparent" autocomplete="off"></td>' +
+            '<td><input type="number" inputmode="decimal" step="any" name="tax[]" class="form-control form-control-sm text-end border-0 bg-transparent cell-tax" value="' + DEFAULT_TAX + '" autocomplete="off"></td>' +
+            '<td><input type="number" inputmode="decimal" step="any" name="price_excl[]" class="form-control form-control-sm text-end border-0 bg-transparent cell-excl" autocomplete="off"></td>' +
+            '<td><input type="number" inputmode="decimal" step="any" name="price_incl[]" class="form-control form-control-sm text-end border-0 bg-transparent cell-incl" autocomplete="off"></td>' +
+            '<td><input type="number" inputmode="decimal" step="any" name="amount[]" class="form-control form-control-sm text-end border-0 bg-transparent fw-semibold cell-amount" readonly autocomplete="off"></td>' +
+            '<td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 del-row" title="Delete row"><i class="bi bi-trash"></i></button>' +
+            '<input type="hidden" name="price_src[]" class="cell-src" value="excl"></td>';
+        body.appendChild(tr);
+        renumber();
+        if (focus) tr.querySelector('input[name="product[]"]').focus();
+        return tr;
+    }
+
+    function lastRowHasContent() {
+        const rows = body.querySelectorAll('tr');
+        if (!rows.length) return false;
+        const last = rows[rows.length - 1];
+        return Array.from(last.querySelectorAll('input[type="text"],input[type="number"]'))
+            .some(inp => inp.value.trim() !== '');
+    }
+
+    body.addEventListener('input', function (e) {
+        const tr = e.target.closest('tr');
+        if (!tr) return;
+        if (e.target.matches('.cell-excl')) recalc(tr, 'excl');
+        else if (e.target.matches('.cell-incl')) recalc(tr, 'incl');
+        else if (e.target.matches('.cell-tax')) recalc(tr, 'tax');
+        else if (e.target.matches('input[name="qty[]"]')) recalc(tr, 'qty');
+        else updateTotals();
+
+        if ((e.target.matches('input[name="product[]"]') || e.target.matches('input[name="qty[]"]'))
+            && tr === body.lastElementChild && lastRowHasContent()) {
+            addRow(false);
+        }
+    });
+
+    body.addEventListener('click', function (e) {
+        const btn = e.target.closest('.del-row');
+        if (!btn) return;
+        const tr = btn.closest('tr');
+        tr.remove();
+        if (!body.children.length) addRow(false);
+        renumber();
+        updateTotals();
+    });
+
+    document.getElementById('addRowBtn').addEventListener('click', () => addRow(true));
+
+    if (!body.children.length) {
+        addRow(false);
+        addRow(false);
+        addRow(false);
+    } else {
+        body.querySelectorAll('tr').forEach(tr => {
+            const src = tr.querySelector('.cell-src');
+            if (!src.value) src.value = 'excl';
+            recalc(tr, 'none');
+        });
+    }
+    updateTotals();
+})();
+</script>
+{% endblock %}

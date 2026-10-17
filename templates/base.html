@@ -126,6 +126,13 @@
                         <span class="link-text">Payments</span>
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'accounting:order_note' %}"
+                    class="nav-link {% if 'order-note' in request.path %}active{% endif %}">
+                        <i class="bi bi-journal-text"></i>
+                        <span class="link-text">Order Note</span>
+                    </a>
+                </li>
 
                 <li class="nav-section-label">Inventory</li>
                 <li>

@@ -3,6 +3,7 @@ from django.contrib.auth import views as auth_views
 
 from .views import *
 from .views import contact_messages as message_views
+from .views import order_note as order_note_view
 from .views.auth import (
     unified_login_view,
     register_view,
@@ -105,6 +106,11 @@ urlpatterns = [
     path('purchases/validate-field/', purchases.validate_purchase_field, name='validate_purchase_field'),
     path('purchase/product-search/', purchases.purchase_product_search, name='purchase_product_search'),
     path('purchase/product-quick-add/', purchases.purchase_product_quick_add, name='purchase_product_quick_add'),
+
+    # ===== Temporary Order Note (session-based, no DB) =====
+    path('order-note/', order_note_view.order_note, name='order_note'),
+    path('order-note/clear/', order_note_view.order_note_clear, name='order_note_clear'),
+    path('order-note/export/excel/', order_note_view.order_note_excel, name='order_note_excel'),
 
     # ===== Repairs =====
     path('repairs/', repairs.repair_list, name='repair_list'),
