@@ -4662,3 +4662,62 @@ apply_repair_workflow(RepairJob)
 # (AUDIT C-3: invoice banne ke baad parts/services badalne se job ka amount
 #  aur invoice ka amount diverge ho jata tha)
 apply_invoice_consistency(RepairPart, RepairService)
+
+
+# ============================================================
+# WEBSITE VISITOR ANALYTICS
+# ============================================================
+
+class VisitorSession(models.Model):
+    """One visit by one anonymous visitor (gap > 30 min starts a new visit)."""
+    visitor_id = models.UUIDField(db_index=True,
+                                  help_text="Anonymous ID stored in a 1-year cookie; no name/personal data")
+    started_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    last_seen_at = models.DateTimeField(db_index=True)
+    entry_path = models.CharField(max_length=200)
+    exit_path = models.CharField(max_length=200, blank=True, default='')
+    referrer = models.CharField(max_length=250, blank=True, default='')
+    utm_source = models.CharField(max_length=100, blank=True, default='')
+    device_type = models.CharField(max_length=10, default='unknown')  # desktop/mobile/tablet/bot
+    browser = models.CharField(max_length=50, blank=True, default='')
+    os_name = models.CharField(max_length=50, blank=True, default='')
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [models.Index(fields=['visitor_id', 'last_seen_at'])]
+
+    def __str__(self):
+        return f"Visit {self.pk} ({self.started_at:%Y-%m-%d %H:%M}) {self.device_type}"
+
+    @property
+    def duration_seconds(self):
+        return max(0, int((self.last_seen_at - self.started_at).total_seconds()))
+
+    @property
+    def duration_display(self):
+        s = self.duration_seconds
+        if s < 60:
+            return f"{s}s" if s else "<1s"
+        m, sec = divmod(s, 60)
+        if m < 60:
+            return f"{m}m {sec}s" if sec else f"{m}m"
+        h, m = divmod(m, 60)
+        return f"{h}h {m}m"
+
+    @property
+    def pages_count(self):
+        return self.pageviews.count()
+
+
+class PageView(models.Model):
+    session = models.ForeignKey(VisitorSession, on_delete=models.CASCADE, related_name='pageviews')
+    path = models.CharField(max_length=200)
+    visited_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['visited_at']
+        indexes = [models.Index(fields=['session', 'visited_at'])]
+
+    def __str__(self):
+        return f"{self.path} @ {self.visited_at:%H:%M:%S}"

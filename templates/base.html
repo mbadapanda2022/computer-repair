@@ -52,6 +52,13 @@
                         <span class="link-text">Dashboard</span>
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'accounting:visitor_analytics' %}"
+                    class="nav-link {% if request.resolver_match.url_name == 'visitor_analytics' %}active{% endif %}">
+                        <i class="bi bi-people"></i>
+                        <span class="link-text">Visitors</span>
+                    </a>
+                </li>
 
                 <li class="nav-section-label">Operations</li>
                 <li>
@@ -398,6 +405,7 @@
     <script src="{% static 'django_ckeditor_5/dist/bundle.js' %}"></script>
     <script src="{% static 'js/app.js' %}"></script>
     <script src="{% static 'js/portal-shell.js' %}" defer></script>
+    <script src="{% static 'js/analytics-beacon.js' %}" defer></script>
     <!-- Convert Django Messages to Toasts -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {

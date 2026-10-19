@@ -57,6 +57,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
     'accounting.middleware.AccessControlMiddleware',
+    'accounting.analytics_middleware.AnalyticsRecordingMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = [

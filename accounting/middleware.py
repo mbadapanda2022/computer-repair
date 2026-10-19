@@ -45,6 +45,7 @@ class AccessControlMiddleware:
         'health_check',
         'post_list', 'category', 'tag', 'post_detail',
         'sitemap', 'robots_txt',
+        'analytics_ping',
     })
 
     PUBLIC_NAMESPACES = frozenset({'account', 'tracking'})
