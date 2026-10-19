@@ -56,8 +56,9 @@ def _normalize_phone(value: str) -> str:
 # ════════════════════════════════════════════════════════════
 class EmailOrPhoneBackend(ModelBackend):
     """
-    Authenticate using email, username, OR phone number.
-    Tried in this order: email -> username -> phone.
+    Supports login via email, username, OR phone number.
+    All matching accounts are collected; the password decides which one
+    is used (tolerates duplicate Contact/Email rows in real shop data).
     """
 
     def authenticate(self, request, username=None, password=None, **kwargs):
@@ -65,55 +66,56 @@ class EmailOrPhoneBackend(ModelBackend):
             return None
 
         login_input = username.strip()
-        user = None
-        matched_via = None
 
-        # ---- 1. Email (case-insensitive) ----
-        try:
-            user = User.objects.get(email__iexact=login_input)
-            matched_via = 'email'
-        except User.DoesNotExist:
-            pass
-        except User.MultipleObjectsReturned:
-            # Duplicate email in DB — fall through to username
-            logger.warning(
-                "Duplicate email detected in User table: %s",
-                _mask_username(login_input),
-            )
+        # Collect every account this input could refer to, then let the
+        # password decide. Earlier code picked ONE candidate (and .first()
+        # over duplicate Contact rows is unordered on Postgres), which made
+        # correct credentials fail intermittently.
+        candidates = []  # (user, matched_via), deduped by pk
+
+        def _add(user, via):
+            if any(u.pk == user.pk for u, _ in candidates):
+                return
+            candidates.append((user, via))
+
+        # ---- 1. Email (case-insensitive; tolerate duplicate emails) ----
+        for user in User.objects.filter(email__iexact=login_input).order_by('pk')[:5]:
+            _add(user, 'email')
 
         # ---- 2. Username (exact) ----
-        if user is None:
-            try:
-                user = User.objects.get(username=login_input)
-                matched_via = 'username'
-            except User.DoesNotExist:
-                pass
+        user = User.objects.filter(username=login_input).first()
+        if user is not None:
+            _add(user, 'username')
 
-        # ---- 3. Phone (via Contact) ----
-        if user is None:
+        # ---- 3. Phone (via Contact rows that have a portal account) ----
+        # Contact.save() normalises every phone to the last 10 digits and
+        # the field is unique, so an exact match on the normalised input is
+        # the correct lookup. Rows without a portal account must be skipped
+        # — picking one blindly made correct credentials fail.
+        phone_10 = _normalize_phone(login_input)
+        if phone_10:
             try:
                 from .models import Contact
-                phone_10 = _normalize_phone(login_input)
-                if phone_10:
-                    contact = (
-                        Contact.objects
-                        .filter(phone=phone_10)
-                        .select_related('user')
-                        .first()
-                    )
-                    if contact and contact.user:
-                        user = contact.user
-                        matched_via = 'phone'
+                contacts = (
+                    Contact.objects
+                    .filter(phone=phone_10)
+                    .exclude(user__isnull=True)
+                    .select_related('user')
+                    .order_by('pk')[:5]
+                )
+                for contact in contacts:
+                    _add(contact.user, 'phone')
             except Exception:
                 logger.exception("Phone-based authentication lookup failed")
 
         # ---- Authentication check ----
-        if user and user.check_password(password) and self.user_can_authenticate(user):
-            logger.info(
-                "Login OK | user=%s | via=%s | ip=%s",
-                user.username, matched_via, _get_client_ip(request),
-            )
-            return user
+        for user, matched_via in candidates:
+            if user.check_password(password) and self.user_can_authenticate(user):
+                logger.info(
+                    "Login OK | user=%s | via=%s | ip=%s",
+                    user.username, matched_via, _get_client_ip(request),
+                )
+                return user
 
         # ---- Failure ----
         logger.warning(

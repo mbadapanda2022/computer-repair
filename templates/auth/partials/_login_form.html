@@ -3,6 +3,8 @@
       hx-post="{% url 'accounting:login' %}" 
       hx-target="this" 
       hx-swap="outerHTML"
+      hx-sync="this:abort"
+      hx-disabled-elt="#login-btn"
       hx-indicator="#login-spinner">
     {% csrf_token %}
 

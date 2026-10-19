@@ -172,11 +172,10 @@ def unified_login_view(request):
         # ── Form validation ───────────────────────────────
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
-            user = authenticate(
-                request,
-                username=form.cleaned_data['username'],
-                password=form.cleaned_data['password'],
-            )
+            # AuthenticationForm.clean() already authenticated the user
+            # through the backends; calling authenticate() a second time
+            # doubled DB lookups and could disagree with the form's result.
+            user = form.get_user()
             if user is not None:
                 # ---- SUCCESS ----
                 _clear_login_attempts(request, username)

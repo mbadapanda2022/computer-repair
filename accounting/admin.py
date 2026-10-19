@@ -18,7 +18,7 @@ from .models import (
     FAQ, Testimonial, Service, EmailOTP,
     BankAccount, BankTransaction, PaymentAllocation, AdvanceAdjustment,
     Account, AccountGroup, AuditLog, RepairStatusLog, 
-    BlogCategory, BlogTag, BlogPost
+    BlogCategory, BlogTag, BlogPost, VisitorSession, PageView,
 )
 
 from .models import sync_invoice_ledger
@@ -1298,4 +1298,31 @@ class BlogPostAdmin(admin.ModelAdmin):
             'fields': ('views', 'reading_time', 'created_at', 'updated_at'),
         }),
     )
+
+@admin.register(VisitorSession)
+class VisitorSessionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'started_at', 'last_seen_at', 'device_type',
+                    'browser', 'os_name', 'entry_path', 'referrer')
+    list_filter = ('device_type', 'browser', 'os_name')
+    search_fields = ('entry_path', 'exit_path', 'referrer', 'visitor_id')
+    ordering = ('-started_at',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PageView)
+class PageViewAdmin(admin.ModelAdmin):
+    list_display = ('id', 'session', 'path', 'visited_at')
+    search_fields = ('path',)
+    ordering = ('-visited_at',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
