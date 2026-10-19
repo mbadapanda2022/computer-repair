@@ -197,6 +197,24 @@ def cookie_policy(request):
     return render(request, 'landing/cookie_policy.html', {'meta': meta})
 
 
+def terms_of_service(request):
+    company = CompanyProfile.get_instance()
+    meta = {
+        'title': 'Terms of Service | ' + (company.name or 'A1 Computer Solutions'),
+        'description': 'Terms governing repair, sales and service work at A1 Computer Solutions.',
+    }
+    return render(request, 'landing/terms_of_service.html', {'meta': meta})
+
+
+def return_policy(request):
+    company = CompanyProfile.get_instance()
+    meta = {
+        'title': 'Return & Refund Policy | ' + (company.name or 'A1 Computer Solutions'),
+        'description': 'Returns, replacements and refund process for products and repairs.',
+    }
+    return render(request, 'landing/return_policy.html', {'meta': meta})
+
+
 # ============================================================
 # SEO: robots.txt + dynamic sitemap.xml
 # ============================================================
@@ -210,6 +228,8 @@ def robots_txt(request):
         'Allow: /blog/',
         'Allow: /privacy-policy/',
         'Allow: /cookie-policy/',
+        'Allow: /terms-of-service/',
+        'Allow: /return-policy/',
         'Disallow: /customer/',
         'Disallow: /accounts/',
         'Disallow: /admin/',
@@ -246,6 +266,8 @@ def sitemap_xml(request):
     add(base + reverse('blog:post_list'), 'daily', '0.8')
     add(base + reverse('privacy_policy'), 'yearly', '0.3')
     add(base + reverse('cookie_policy'), 'yearly', '0.3')
+    add(base + reverse('terms_of_service'), 'yearly', '0.3')
+    add(base + reverse('return_policy'), 'yearly', '0.3')
 
     for post in (BlogPost.objects.published()
                  .only('slug', 'updated_at').order_by('-published_at')):

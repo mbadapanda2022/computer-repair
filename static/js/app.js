@@ -102,6 +102,11 @@
                 const data = JSON.parse(xhr.responseText);
                 if (data.error) msg = data.error;
                 else if (data.message) msg = data.message;
+            } else if (xhr.responseText && xhr.responseText.length < 300
+                       && !xhr.responseText.includes('<')) {
+                // Views return short plain-text reasons for 4xx responses
+                // (e.g. "Insufficient stock for ...")
+                msg = xhr.responseText.trim();
             }
         } catch (e) { /* ignore parse errors */ }
 

@@ -1,0 +1,91 @@
+{% extends 'base_public.html' %}
+{% load static %}
+{% block title %}Terms of Service – A1 Computer Solutions{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="display-5 fw-bold">Terms of Service</h1>
+            <p class="text-muted">Last updated: {% now "d M Y" %}</p>
+            <hr>
+            <p>
+                These terms govern the use of the website and the repair, sales and service
+                services provided by <strong>A1 Computer Solutions</strong>,
+                Pattanayak Complex, Sirajuddin Chowk, Keonjhar, Odisha – 758001.
+                By submitting a repair job, placing an order or using this website you agree to these terms.
+            </p>
+
+            <h4 class="mt-4">1. Services</h4>
+            <ul>
+                <li>Chip-level and board-level repair of laptops, desktops, printers and LED TVs.</li>
+                <li>Software installation, OS setup, data recovery, AMC and on-site support.</li>
+                <li>Sale of computer accessories, spares and refurbished equipment.</li>
+            </ul>
+
+            <h4 class="mt-4">2. Repair Estimates &amp; Authorisation</h4>
+            <ul>
+                <li>Every device is inspected and a written estimate (parts + labour) is shared before work starts.</li>
+                <li>Repair work begins only after your approval of the estimate, by WhatsApp, phone or the customer portal.</li>
+                <li>If a device is found to have additional faults during repair, work is stopped and a revised estimate is sent for approval.</li>
+                <li>Estimates are valid for 7 days. Unapproved jobs may be cancelled and a minimum labour/diagnosis charge may apply.</li>
+            </ul>
+
+            <h4 class="mt-4">3. Data &amp; Backup</h4>
+            <p>
+                Customers are solely responsible for taking a backup of their data before handing over a device.
+                A1 Computer Solutions is not liable for loss of data, software licences or settings during repair,
+                although we take reasonable care. You confirm that the device and its contents are lawful.
+            </p>
+
+            <h4 class="mt-4">4. Payment</h4>
+            <ul>
+                <li>Full payment is due at the time of collection unless a credit period was agreed in writing.</li>
+                <li>Advance payments are adjusted against the final invoice.</li>
+                <li>All prices are in Indian Rupees (₹) and inclusive of taxes wherever applicable; GST will be charged separately on B2B invoices.</li>
+            </ul>
+
+            <h4 class="mt-4">5. Warranty on Repairs</h4>
+            <ul>
+                <li>Repair warranty is <strong>15 to 90 days</strong> on the specific fault repaired, as printed on your job card / warranty card.</li>
+                <li>Warranty covers only the repaired component and labour for the same fault.</li>
+                <li>Warranty is void if the device is opened by any other technician, suffers liquid damage, physical abuse, power surges or incorrect usage after repair.</li>
+                <li>Replaced spare parts carry only the manufacturer's / supplier's warranty, passed on where available.</li>
+            </ul>
+
+            <h4 class="mt-4">6. Unclaimed Devices</h4>
+            <p>
+                Devices must be collected within 30 days of the "Ready for Delivery" notification.
+                After 60 days, storage charges may apply, and after 90 days the device may be treated as
+                abandoned and disposed of to recover outstanding dues.
+            </p>
+
+            <h4 class="mt-4">7. Liability</h4>
+            <p>
+                Our maximum liability for any device is limited to the amount actually paid for that repair or
+                product. We are not liable for indirect losses such as loss of business, income or data.
+            </p>
+
+            <h4 class="mt-4">8. Website &amp; Account Use</h4>
+            <ul>
+                <li>Customer portal accounts are personal; keep your login details confidential.</li>
+                <li>Do not attempt to access other users' records or disrupt the website. Unauthorised access may be reported.</li>
+                <li>Content on this site (text, images, logos) belongs to A1 Computer Solutions and may not be copied without permission.</li>
+            </ul>
+
+            <h4 class="mt-4">9. Governing Law</h4>
+            <p>These terms are governed by the laws of India. Any dispute is subject to the jurisdiction of courts at Keonjhar, Odisha.</p>
+
+            <p class="mt-4">
+                Questions? Contact us on
+                <a href="tel:7008601963">7008601963</a> /
+                <a href="https://wa.me/918895745441">WhatsApp</a> or
+                <a href="mailto:mbadapanda@gmail.com">mbadapanda@gmail.com</a>.
+                See also our <a href="{% url 'privacy_policy' %}">Privacy Policy</a>
+                and <a href="{% url 'return_policy' %}">Return &amp; Refund Policy</a>.
+            </p>
+            <hr>
+            <p class="text-muted small">&copy; {% now "Y" %} A1 Computer Solutions. All rights reserved.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

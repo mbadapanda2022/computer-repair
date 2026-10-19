@@ -685,11 +685,22 @@ class ContactForm(forms.ModelForm, HTMXValidationMixin):
         if not self.instance.pk and 'opening_balance_date' in self.fields:
             if not self.initial.get('opening_balance_date'):
                 self.fields['opening_balance_date'].initial = timezone.now().date()
+            # Field is required but the model default is 0 — pre-fill so a
+            # plain "Save" without touching the field doesn't fail validation.
+            if not self.initial.get('opening_balance'):
+                self.fields['opening_balance'].initial = Decimal('0')
+        if 'opening_balance' in self.fields:
+            self.fields['opening_balance'].required = False
 
         self.add_htmx_validation(
             validate_url=reverse('accounting:validate_accounting_contact_field'),
             include_id_field='contact_id',
         )
+
+    def clean_opening_balance(self):
+        # Model default is 0; an emptied input shouldn't block saving.
+        value = self.cleaned_data.get('opening_balance')
+        return value if value is not None else Decimal('0')
 
     def clean_phone(self):
         phone = (self.cleaned_data.get('phone') or '').strip()

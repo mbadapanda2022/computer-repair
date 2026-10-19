@@ -23,6 +23,8 @@ urlpatterns = [
     path('validate-contact-field/', landing_views.validate_contact_field, name='validate_contact_field'),
     path('privacy-policy/', landing_views.privacy_policy, name='privacy_policy'),
     path('cookie-policy/', landing_views.cookie_policy, name='cookie_policy'),
+    path('terms-of-service/', landing_views.terms_of_service, name='terms_of_service'),
+    path('return-policy/', landing_views.return_policy, name='return_policy'),
     
     path('blog/', include('accounting.blog_urls')),
 

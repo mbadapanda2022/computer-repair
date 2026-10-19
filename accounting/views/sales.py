@@ -159,10 +159,11 @@ def product_search(request):
     if len(q) < 2:
         return render(request, 'sales/partials/product_suggestions.html', {'products': []})
 
+    # Services are billable on invoices too (model only enforces stock for
+    # physical products), so they must appear in the autocomplete.
     products = Product.objects.filter(
         Q(name__icontains=q) | Q(hsn_code__icontains=q),
         is_active=True,
-        is_service=False
     )[:20]
 
     def relevance_score(p):
@@ -508,6 +509,22 @@ def add_invoice_item(request):
             return HttpResponse("Price cannot be negative.", status=400)
         if tax < 0 or tax > 100:
             return HttpResponse("Tax rate must be between 0 and 100.", status=400)
+
+        # Fail fast with a clear message instead of letting the whole invoice
+        # save blow up on the stock floor at Create time.
+        if not product.is_service:
+            already_in_cart = sum(
+                (_safe_decimal(i['quantity']) for i in request.session.get('temp_invoice_items', [])
+                 if str(i['product_id']) == str(product.id)),
+                Decimal('0')
+            )
+            needed = qty + already_in_cart
+            if product.current_stock < needed:
+                return HttpResponse(
+                    f"Insufficient stock for '{product.name}': "
+                    f"available {product.current_stock}, needed {needed}.",
+                    status=400
+                )
 
         line_total = (qty * price * (1 + tax / 100)).quantize(Decimal('0.01'))
 

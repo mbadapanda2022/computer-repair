@@ -1,0 +1,68 @@
+{% extends 'base_public.html' %}
+{% load static %}
+{% block title %}Return &amp; Refund Policy – A1 Computer Solutions{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="display-5 fw-bold">Return &amp; Refund Policy</h1>
+            <p class="text-muted">Last updated: {% now "d M Y" %}</p>
+            <hr>
+            <p>
+                This policy explains how returns, replacements and refunds are handled by
+                <strong>A1 Computer Solutions</strong>, Keonjhar, Odisha.
+            </p>
+
+            <h4 class="mt-4">1. Products Purchased In-Store / Online</h4>
+            <ul>
+                <li>Physical products (accessories, spares, systems) may be returned within <strong>7 days of purchase</strong>.</li>
+                <li>The product must be unused, undamaged, complete with all accessories, packing and the original bill.</li>
+                <li>Products sold as "refurbished" or "as-is / spotted" are not eligible for return unless a defect is found within 48 hours of purchase.</li>
+                <li>Software, licences, AMCs and services once activated/delivered are not returnable.</li>
+            </ul>
+
+            <h4 class="mt-4">2. Manufacturing Defects</h4>
+            <p>
+                Defective products are replaced or repaired under the manufacturer's warranty.
+                We pass on the full manufacturer warranty available in India and help you with the
+                claim process. If a replacement piece is unavailable, a refund of the product value
+                (excluding labour and service charges) will be issued.
+            </p>
+
+            <h4 class="mt-4">3. Repairs</h4>
+            <ul>
+                <li>If the reported fault reappears within the warranty period printed on your job card, we recheck and repair it free of charge.</li>
+                <li>If we are unable to fix a device, <strong>no repair charge is taken</strong>; only diagnosis charges (if informed and approved in advance) apply.</li>
+                <li>Wrong or unnecessary part replacement found on our side will be corrected and refunded.</li>
+            </ul>
+
+            <h4 class="mt-4">4. Refund Process &amp; Timelines</h4>
+            <ul>
+                <li>Returns must be initiated by WhatsApp/call/visit with your bill number.</li>
+                <li>After inspection and approval, refunds are processed within <strong>5–7 working days</strong>.</li>
+                <li>Refunds are credited to the original payment method (UPI/bank) or paid in cash against the bill, wherever applicable.</li>
+                <li>Advance payments for jobs that are cancelled before work starts are refunded in full.</li>
+            </ul>
+
+            <h4 class="mt-4">5. Non-Refundable Items</h4>
+            <ul>
+                <li>Labour / service charges for work already completed.</li>
+                <li>Data recovery attempts (charged for effort; success is never guaranteed).</li>
+                <li>Products damaged by liquid ingress, physical damage, over-voltage or unauthorised repair attempts.</li>
+            </ul>
+
+            <h4 class="mt-4">6. Contact</h4>
+            <p>
+                For any return or refund request, reach us at
+                <a href="tel:7008601963">7008601963</a> /
+                <a href="https://wa.me/918895745441">WhatsApp</a> or
+                <a href="mailto:mbadapanda@gmail.com">mbadapanda@gmail.com</a>.
+                Related pages: <a href="{% url 'privacy_policy' %}">Privacy Policy</a>,
+                <a href="{% url 'terms_of_service' %}">Terms of Service</a>.
+            </p>
+            <hr>
+            <p class="text-muted small">&copy; {% now "Y" %} A1 Computer Solutions. All rights reserved.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
