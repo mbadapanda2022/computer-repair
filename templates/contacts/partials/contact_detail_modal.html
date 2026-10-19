@@ -44,7 +44,7 @@
                             <tr>
                                 <td class="text-muted">Opening Balance</td>
                                 <td class="fw-bold {% if contact.opening_balance > 0 %}text-success{% elif contact.opening_balance < 0 %}text-danger{% endif %}">
-                                    ₹{{ contact.opening_balance|floatformat:2 }}
+                                    ₹{{ contact.opening_balance|rupee }}
                                     {% if contact.opening_balance_date %}
                                         <small class="text-muted d-block">as on {{ contact.opening_balance_date|date:"d M Y" }}</small>
                                     {% endif %}
@@ -53,25 +53,25 @@
                             <tr>
                                 <td class="text-muted">Receivable</td>
                                 <td class="fw-bold {% if contact.receivable_balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                    ₹{{ contact.receivable_balance|floatformat:2 }}
+                                    ₹{{ contact.receivable_balance|rupee }}
                                 </td>
                             </tr>
                             <tr>
                                 <td class="text-muted">Payable</td>
                                 <td class="fw-bold {% if contact.payable_balance >= 0 %}text-warning{% else %}text-danger{% endif %}">
-                                    ₹{{ contact.payable_balance|floatformat:2 }}
+                                    ₹{{ contact.payable_balance|rupee }}
                                 </td>
                             </tr>
                             <tr class="table-active">
                                 <td class="fw-bold">Net Position</td>
                                 <td class="fw-bold {% if contact.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                    ₹{{ contact.balance|floatformat:2 }}
+                                    ₹{{ contact.balance|rupee }}
                                 </td>
                             </tr>
                             <tr>
                                 <td class="text-muted">Advance</td>
                                 <td class="fw-bold {% if contact.advance_balance >= 0 %}text-info{% else %}text-danger{% endif %}">
-                                    ₹{{ contact.advance_balance|floatformat:2 }}
+                                    ₹{{ contact.advance_balance|rupee }}
                                 </td>
                             </tr>
                         </table>
@@ -90,9 +90,9 @@
                     <div class="card-body py-3">
                         <small class="text-muted d-block">Invoices</small>
                         <h4 class="mb-0 text-primary fw-bold">{{ invoice_count }}</h4>
-                        <small class="text-muted">₹{{ total_invoiced|floatformat:2 }} total</small>
+                        <small class="text-muted">₹{{ total_invoiced|rupee }} total</small>
                         {% if total_due > 0 %}
-                            <br><small class="text-danger">Due: ₹{{ total_due|floatformat:2 }}</small>
+                            <br><small class="text-danger">Due: ₹{{ total_due|rupee }}</small>
                         {% endif %}
                     </div>
                 </div>
@@ -113,7 +113,7 @@
                     <div class="card-body py-3">
                         <small class="text-muted d-block">Purchases</small>
                         <h4 class="mb-0 text-warning fw-bold">{{ purchase_count }}</h4>
-                        <small class="text-muted">₹{{ total_purchased|floatformat:2 }} total</small>
+                        <small class="text-muted">₹{{ total_purchased|rupee }} total</small>
                     </div>
                 </div>
             </div>
@@ -125,7 +125,7 @@
                 <div class="card border-0 bg-info bg-opacity-10">
                     <div class="card-body py-2">
                         <small class="text-muted d-block">Payments Received</small>
-                        <strong class="text-success">₹{{ total_received|floatformat:2 }}</strong>
+                        <strong class="text-success">₹{{ total_received|rupee }}</strong>
                     </div>
                 </div>
             </div>
@@ -133,7 +133,7 @@
                 <div class="card border-0 bg-danger bg-opacity-10">
                     <div class="card-body py-2">
                         <small class="text-muted d-block">Payments Paid</small>
-                        <strong class="text-danger">₹{{ total_paid|floatformat:2 }}</strong>
+                        <strong class="text-danger">₹{{ total_paid|rupee }}</strong>
                     </div>
                 </div>
             </div>

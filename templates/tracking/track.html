@@ -326,13 +326,13 @@
             {% if repair.invoice %}
             <div class="info-row">
                 <span class="k">Cancellation / Diagnosis Charge</span>
-                <span class="v">₹{{ repair.invoice.grand_total|floatformat:2 }}</span>
+                <span class="v">₹{{ repair.invoice.grand_total|rupee }}</span>
             </div>
             <div class="info-row">
                 <span class="k">Payment Status</span>
                 <span class="v">
                     {% if repair.invoice.balance_due > 0 %}
-                        <span class="pay-badge pay-partial">Balance due ₹{{ repair.invoice.balance_due|floatformat:2 }}</span>
+                        <span class="pay-badge pay-partial">Balance due ₹{{ repair.invoice.balance_due|rupee }}</span>
                     {% else %}
                         <span class="pay-badge pay-paid">Paid</span>
                     {% endif %}
@@ -408,7 +408,7 @@
         <div class="panel">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                    <div style="font-size:1.5rem;font-weight:800;color:var(--tk-navy);">₹{{ repair.estimated_cost|floatformat:2 }}</div>
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--tk-navy);">₹{{ repair.estimated_cost|rupee }}</div>
                     <div style="font-size:.82rem;color:var(--tk-muted);">Estimated repair cost</div>
                 </div>
                 <div class="text-end">
@@ -429,7 +429,7 @@
         <div class="panel">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
-                    <div style="font-size:1.5rem;font-weight:800;color:var(--tk-green);">₹{{ advance_paid|floatformat:2 }}</div>
+                    <div style="font-size:1.5rem;font-weight:800;color:var(--tk-green);">₹{{ advance_paid|rupee }}</div>
                     <div style="font-size:.82rem;color:var(--tk-muted);">Advance received for this repair</div>
                 </div>
                 <span class="pay-badge pay-paid"><i class="bi bi-check-circle me-1"></i>Advance Received</span>
@@ -503,9 +503,9 @@
             <div class="line-row">
                 <div>
                     <div class="lname"><i class="bi bi-cpu me-1" style="color:var(--tk-blue);"></i>{{ part.product.name }}</div>
-                    <div class="lsub">{{ part.quantity }} × ₹{{ part.unit_price|floatformat:2 }}</div>
+                    <div class="lsub">{{ part.quantity }} × ₹{{ part.unit_price|rupee }}</div>
                 </div>
-                <div class="lamt">₹{{ part.line_total|floatformat:2 }}</div>
+                <div class="lamt">₹{{ part.line_total|rupee }}</div>
             </div>
             {% endfor %}
             {% for svc in repair.services.all %}
@@ -514,24 +514,24 @@
                     <div class="lname"><i class="bi bi-wrench-adjustable me-1" style="color:var(--tk-cyan);"></i>{{ svc.product.name }}</div>
                     {% if svc.description %}<div class="lsub">{{ svc.description }}</div>{% endif %}
                 </div>
-                <div class="lamt">₹{{ svc.line_total|floatformat:2 }}</div>
+                <div class="lamt">₹{{ svc.line_total|rupee }}</div>
             </div>
             {% endfor %}
 
             {% if repair.invoice %}
             <div class="line-total">
                 <span>Parts + Service Subtotal</span>
-                <span>₹{{ repair.final_amount|floatformat:2 }}</span>
+                <span>₹{{ repair.final_amount|rupee }}</span>
             </div>
             {% if repair.invoice.tax_amount %}
             <div class="line-row" style="border-bottom:none;">
                 <div class="lname">GST / Tax</div>
-                <div class="lamt">₹{{ repair.invoice.tax_amount|floatformat:2 }}</div>
+                <div class="lamt">₹{{ repair.invoice.tax_amount|rupee }}</div>
             </div>
             {% endif %}
             <div class="line-total grand">
                 <span>Total Payable</span>
-                <span>₹{{ repair.invoice.grand_total|floatformat:2 }}</span>
+                <span>₹{{ repair.invoice.grand_total|rupee }}</span>
             </div>
             <div class="payment-strip">
                 <div class="pay-tile">
@@ -540,7 +540,7 @@
                 </div>
                 <div class="pay-tile">
                     <div class="k">Paid</div>
-                    <div class="v">₹{{ repair.invoice.paid_amount|floatformat:2 }}</div>
+                    <div class="v">₹{{ repair.invoice.paid_amount|rupee }}</div>
                 </div>
                 <div class="pay-tile">
                     <div class="k">Balance Due</div>
@@ -554,7 +554,7 @@
             {% else %}
             <div class="line-total grand">
                 <span>Total (Parts + Service)</span>
-                <span>₹{{ repair.final_amount|floatformat:2 }}</span>
+                <span>₹{{ repair.final_amount|rupee }}</span>
             </div>
             {% endif %}
         </div>

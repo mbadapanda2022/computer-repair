@@ -25,9 +25,9 @@
                 <td>
                     <span class="badge bg-secondary">{{ acc.get_account_type_display }}</span>
                 </td>
-                <td class="text-end">₹{{ acc.opening_balance|floatformat:2 }}</td>
+                <td class="text-end">₹{{ acc.opening_balance|rupee }}</td>
                 <td class="text-end fw-bold {% if acc.current_balance < 0 %}text-danger{% else %}text-success{% endif %}">
-                    ₹{{ acc.current_balance|floatformat:2 }}
+                    ₹{{ acc.current_balance|rupee }}
                 </td>
                 <td class="text-center">
                     <div class="dropdown">

@@ -47,7 +47,7 @@
                             </span>
                         </td>
 
-                        <td class="text-end fw-bold">₹{{ journal.total_amount|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ journal.total_amount|rupee }}</td>
                         <td>{{ journal.description|truncatechars:40 }}</td>
                         <td class="text-center">
                     {% empty %}

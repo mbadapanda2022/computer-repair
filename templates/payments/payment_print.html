@@ -73,7 +73,7 @@
             via {{ payment.get_method_display }}{% if payment.bank_account %} — {{ payment.bank_account.name }}{% elif payment.method != 'cash' %} — Bank{% else %} — Cash{% endif %}
         </div>
     </div>
-    <div class="amount">₹{{ payment.amount|floatformat:2 }}</div>
+    <div class="amount">₹{{ payment.amount|rupee }}</div>
 </div>
 <div class="in-words">
     {{ payment.amount|number_to_words_inr }}{% if payment.discount_amount > 0 %} (Net after discount: Rs.{{ payment.net_amount|floatformat:2 }}){% endif %}
@@ -119,21 +119,21 @@
         <tr>
             <td>{{ forloop.counter }}</td>
             <td>{{ alloc.invoice.invoice_number }} — {{ alloc.invoice.date|date:"d M Y" }}</td>
-            <td class="text-end">₹{{ alloc.amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ alloc.amount|rupee }}</td>
         </tr>
         {% endfor %}
         {% for adj in payment.advance_adjustments.all %}
         <tr>
             <td>{{ forloop.counter }}</td>
             <td>{{ adj.invoice.invoice_number }} (from advance) — {{ adj.invoice.date|date:"d M Y" }}</td>
-            <td class="text-end">₹{{ adj.amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ adj.amount|rupee }}</td>
         </tr>
         {% endfor %}
         {% for alloc in payment.purchase_allocations.all %}
         <tr>
             <td>{{ forloop.counter }}</td>
             <td>{{ alloc.purchase.purchase_number }} (purchase bill) — {{ alloc.purchase.date|date:"d M Y" }}</td>
-            <td class="text-end">₹{{ alloc.amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ alloc.amount|rupee }}</td>
         </tr>
         {% endfor %}
     </tbody>

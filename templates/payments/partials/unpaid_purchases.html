@@ -24,8 +24,8 @@
                         </a>
                     </td>
                     <td class="text-nowrap small">{{ p.date|date:"d M Y" }}</td>
-                    <td class="text-end">₹{{ p.grand_total|floatformat:2 }}</td>
-                    <td class="text-end text-danger fw-bold">₹{{ p.balance_due|floatformat:2 }}</td>
+                    <td class="text-end">₹{{ p.grand_total|rupee }}</td>
+                    <td class="text-end text-danger fw-bold">₹{{ p.balance_due|rupee }}</td>
                     <td class="text-end">
                         <input type="number"
                                class="form-control form-control-sm text-end purchase-allocation-input"

@@ -200,24 +200,27 @@ def invoice_create(request):
     if request.method == 'POST':
         form = InvoiceForm(request.POST)
         if form.is_valid():
-            invoice = form.save(commit=False)
-            invoice.save()  # Save to get an ID
-
             temp_items = request.session.get('temp_invoice_items', [])
-            for item_data in temp_items:
-                InvoiceItem.objects.create(
-                    invoice=invoice,
-                    product_id=item_data['product_id'],
-                    quantity=Decimal(item_data['quantity']),
-                    unit_price=Decimal(item_data['unit_price']),
-                    tax_rate=Decimal(item_data['tax_rate']),
-                    description=item_data.get('description', '')
-                )
-            request.session['temp_invoice_items'] = []
+            # All DB writes in one transaction: a bad item mid-loop must not
+            # leave an orphan invoice with partial items/stock movements.
+            with transaction.atomic():
+                invoice = form.save(commit=False)
+                invoice.save()  # Save to get an ID
 
-            # Calculate totals and save again (this will also sync ledger)
-            invoice.calculate_totals()
-            invoice.save()  # This calls sync_invoice_ledger automatically
+                for item_data in temp_items:
+                    InvoiceItem.objects.create(
+                        invoice=invoice,
+                        product_id=item_data['product_id'],
+                        quantity=Decimal(item_data['quantity']),
+                        unit_price=Decimal(item_data['unit_price']),
+                        tax_rate=Decimal(item_data['tax_rate']),
+                        description=item_data.get('description', '')
+                    )
+
+                # Calculate totals and save again (this will also sync ledger)
+                invoice.calculate_totals()
+                invoice.save()  # This calls sync_invoice_ledger automatically
+            request.session['temp_invoice_items'] = []
 
             logger.info(f"Invoice {invoice.invoice_number} created by {request.user.username}")
 
@@ -288,23 +291,26 @@ def invoice_update(request, pk):
     if request.method == 'POST':
         form = InvoiceForm(request.POST, instance=invoice)
         if form.is_valid():
-            invoice = form.save(commit=False)
-            # Delete existing items
-            invoice.items.all().delete()
-            # Create new items from session
-            for item_data in request.session.get('temp_invoice_items', []):
-                InvoiceItem.objects.create(
-                    invoice=invoice,
-                    product_id=item_data['product_id'],
-                    quantity=Decimal(item_data['quantity']),
-                    unit_price=Decimal(item_data['unit_price']),
-                    tax_rate=Decimal(item_data['tax_rate']),
-                    description=item_data.get('description', '')
-                )
-            request.session['temp_invoice_items'] = []
+            # Delete-recreate + totals in one transaction: a mid-loop failure
+            # must not destroy the existing invoice's items/stock movements.
+            with transaction.atomic():
+                invoice = form.save(commit=False)
+                # Delete existing items
+                invoice.items.all().delete()
+                # Create new items from session
+                for item_data in request.session.get('temp_invoice_items', []):
+                    InvoiceItem.objects.create(
+                        invoice=invoice,
+                        product_id=item_data['product_id'],
+                        quantity=Decimal(item_data['quantity']),
+                        unit_price=Decimal(item_data['unit_price']),
+                        tax_rate=Decimal(item_data['tax_rate']),
+                        description=item_data.get('description', '')
+                    )
 
-            invoice.calculate_totals()
-            invoice.save()  # This syncs ledger automatically
+                invoice.calculate_totals()
+                invoice.save()  # This syncs ledger automatically
+            request.session['temp_invoice_items'] = []
 
             logger.info(f"Invoice {invoice.invoice_number} updated by {request.user.username}")
 
@@ -702,8 +708,9 @@ def invoice_list_print(request):
     if date_to:
         queryset = queryset.filter(date__lte=date_to)
 
-    # Materialise list once — avoids re-evaluation
-    invoices_list = list(queryset)
+    # Materialise list once — avoids re-evaluation.
+    # Capped: unfiltered whole-table dumps OOM the 512 MB free-tier dyno.
+    invoices_list = list(queryset[:5000])
 
     # ============================================================
     # Batch-prefetch linked RepairJobs for the FULL list.

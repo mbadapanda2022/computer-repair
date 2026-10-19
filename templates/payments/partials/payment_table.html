@@ -42,9 +42,9 @@
                             {% endif %}
                         </td>
                         <td class="text-end fw-semibold text-nowrap">
-                            ₹{{ payment.amount|floatformat:2 }}
+                            ₹{{ payment.amount|rupee }}
                             {% if payment.discount_amount > 0 %}
-                                <br><small class="text-muted">Disc ₹{{ payment.discount_amount|floatformat:2 }} · Net ₹{{ payment.net_amount|floatformat:2 }}</small>
+                                <br><small class="text-muted">Disc ₹{{ payment.discount_amount|rupee }} · Net ₹{{ payment.net_amount|rupee }}</small>
                             {% endif %}
                         </td>
                         <td>
@@ -52,21 +52,21 @@
                                 {% for alloc in payment.allocations.all %}
                                     <a href="{% url 'accounting:invoice_detail' alloc.invoice.pk %}"
                                        class="badge bg-primary text-decoration-none mb-1"
-                                       target="_blank" title="₹{{ alloc.amount|floatformat:2 }} applied">
+                                       target="_blank" title="₹{{ alloc.amount|rupee }} applied">
                                         {{ alloc.invoice.invoice_number }}
                                     </a>
                                 {% endfor %}
                                 {% for alloc in payment.purchase_allocations.all %}
                                     <a href="{% url 'accounting:purchase_detail' alloc.purchase.pk %}"
                                        class="badge bg-dark text-decoration-none mb-1"
-                                       target="_blank" title="₹{{ alloc.amount|floatformat:2 }} applied to vendor bill">
+                                       target="_blank" title="₹{{ alloc.amount|rupee }} applied to vendor bill">
                                         {{ alloc.purchase.purchase_number }}
                                     </a>
                                 {% endfor %}
                                 {% for adj in payment.advance_adjustments.all %}
                                     <a href="{% url 'accounting:invoice_detail' adj.invoice.pk %}"
                                        class="badge bg-info text-dark text-decoration-none mb-1"
-                                       target="_blank" title="₹{{ adj.amount|floatformat:2 }} from advance">
+                                       target="_blank" title="₹{{ adj.amount|rupee }} from advance">
                                         ADV → {{ adj.invoice.invoice_number }}
                                     </a>
                                 {% endfor %}
@@ -191,11 +191,11 @@
                     <tr>
                         <th colspan="3" class="text-end">Totals →</th>
                         <th class="text-end">
-                            ₹{{ total_amount|floatformat:2 }}
+                            ₹{{ total_amount|rupee }}
                             <small class="text-muted d-block fw-normal">
-                                <span class="text-success">+₹{{ total_received|floatformat:2 }}</span>
+                                <span class="text-success">+₹{{ total_received|rupee }}</span>
                                 /
-                                <span class="text-danger">−₹{{ total_paid|floatformat:2 }}</span>
+                                <span class="text-danger">−₹{{ total_paid|rupee }}</span>
                             </small>
                         </th>
                         <th colspan="5"></th>
@@ -217,7 +217,7 @@
                     </div>
                     <div class="text-end">
                         <div class="fw-bold fs-6 {% if payment.direction == 'received' %}text-success{% else %}text-danger{% endif %}">
-                            ₹{{ payment.amount|floatformat:2 }}
+                            ₹{{ payment.amount|rupee }}
                         </div>
                         <small class="text-muted">{{ payment.get_method_display }}</small>
                     </div>

@@ -114,10 +114,10 @@
                 {% if item.description %}<br><small style="color:#666;">{{ item.description }}</small>{% endif %}
             </td>
             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
-            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+            <td class="text-end">₹{{ item.unit_price|rupee }}</td>
             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
-            <td class="text-end">₹{{ item.tax_amount|floatformat:2 }}</td>
-            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+            <td class="text-end">₹{{ item.tax_amount|rupee }}</td>
+            <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
         </tr>
         {% empty %}
         <tr><td colspan="7" class="text-center" style="padding:20px;">No items in this invoice.</td></tr>
@@ -126,30 +126,30 @@
     <tfoot>
         <tr class="total-row">
             <td colspan="6" class="text-end">Subtotal</td>
-            <td class="text-end">₹{{ invoice.subtotal|floatformat:2 }}</td>
+            <td class="text-end">₹{{ invoice.subtotal|rupee }}</td>
         </tr>
         {% if invoice.discount_amount > 0 %}
         <tr class="total-row">
             <td colspan="6" class="text-end" style="color: #dc3545;">Discount</td>
-            <td class="text-end" style="color: #dc3545;">−₹{{ invoice.discount_amount|floatformat:2 }}</td>
+            <td class="text-end" style="color: #dc3545;">−₹{{ invoice.discount_amount|rupee }}</td>
         </tr>
         {% endif %}
         <tr class="total-row">
             <td colspan="6" class="text-end">Tax Amount</td>
-            <td class="text-end">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ invoice.tax_amount|rupee }}</td>
         </tr>
         <tr class="grand-total">
             <td colspan="6" class="text-end">GRAND TOTAL</td>
-            <td class="text-end">₹{{ invoice.grand_total|floatformat:2 }}</td>
+            <td class="text-end">₹{{ invoice.grand_total|rupee }}</td>
         </tr>
         {% if invoice.paid_amount > 0 %}
         <tr class="total-row">
             <td colspan="6" class="text-end">Paid</td>
-            <td class="text-end" style="color: #198754;">₹{{ invoice.paid_amount|floatformat:2 }}</td>
+            <td class="text-end" style="color: #198754;">₹{{ invoice.paid_amount|rupee }}</td>
         </tr>
         <tr class="total-row" style="background: #f8d7da;">
             <td colspan="6" class="text-end">Balance Due</td>
-            <td class="text-end" style="color: #dc3545;">₹{{ invoice.balance_due|floatformat:2 }}</td>
+            <td class="text-end" style="color: #dc3545;">₹{{ invoice.balance_due|rupee }}</td>
         </tr>
         {% endif %}
     </tfoot>
@@ -159,12 +159,12 @@
 {% if invoice.gst_type != 'non_gst' and invoice.tax_amount > 0 %}
 <div class="gst-breakup">
     {% if invoice.gst_type == 'intrastate' %}
-        <div class="item"><span class="label">CGST:</span><span class="value">₹{{ gst_breakup.cgst|floatformat:2 }}</span></div>
-        <div class="item"><span class="label">SGST:</span><span class="value">₹{{ gst_breakup.sgst|floatformat:2 }}</span></div>
+        <div class="item"><span class="label">CGST:</span><span class="value">₹{{ gst_breakup.cgst|rupee }}</span></div>
+        <div class="item"><span class="label">SGST:</span><span class="value">₹{{ gst_breakup.sgst|rupee }}</span></div>
     {% elif invoice.gst_type == 'interstate' %}
-        <div class="item"><span class="label">IGST:</span><span class="value">₹{{ gst_breakup.igst|floatformat:2 }}</span></div>
+        <div class="item"><span class="label">IGST:</span><span class="value">₹{{ gst_breakup.igst|rupee }}</span></div>
     {% else %}
-        <div class="item"><span class="label">Total Tax:</span><span class="value">₹{{ invoice.tax_amount|floatformat:2 }}</span></div>
+        <div class="item"><span class="label">Total Tax:</span><span class="value">₹{{ invoice.tax_amount|rupee }}</span></div>
     {% endif %}
 </div>
 {% endif %}

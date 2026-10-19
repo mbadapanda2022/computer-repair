@@ -9,7 +9,7 @@
     <h4 class="fw-bold">{{ product.name }}</h4>
     <p class="text-muted">
         <span class="badge bg-secondary">{{ product.get_unit_display }}</span>
-        <span class="badge bg-success">₹{{ product.selling_price|floatformat:2 }}</span>
+        <span class="badge bg-success">₹{{ product.selling_price|rupee }}</span>
     </p>
     <div class="alert alert-success">
         <i class="bi bi-check-circle"></i> Product has been created successfully!

@@ -66,7 +66,7 @@
                             {% endif %}
                         </td>
                         <td class="text-end fw-bold">
-                            ₹{{ job.display_amount|floatformat:2 }}
+                            ₹{{ job.display_amount|rupee }}
                             {% if job.is_invoiced %}
                                 <br><small class="text-muted fw-normal" style="font-size:0.7rem;">
                                     <i class="bi bi-receipt"></i> Invoiced
@@ -154,7 +154,7 @@
                         <th colspan="7" class="text-end">
                             Total (excl. cancelled)
                         </th>
-                        <th class="text-end fw-bold">₹{{ filtered_total|floatformat:2 }}</th>
+                        <th class="text-end fw-bold">₹{{ filtered_total|rupee }}</th>
                         <th></th>
                     </tr>
                 </tfoot>

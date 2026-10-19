@@ -216,8 +216,8 @@
                     {% endif %}
                 </td>
                 <td class="text-center">{{ part.quantity }}</td>
-                <td class="text-end">₹{{ part.unit_price|floatformat:2 }}</td>
-                <td class="text-end fw-bold">₹{{ part.line_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ part.unit_price|rupee }}</td>
+                <td class="text-end fw-bold">₹{{ part.line_total|rupee }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -245,7 +245,7 @@
                         <span style="font-size:7pt; color:#6c757d;">— {{ service.description }}</span>
                     {% endif %}
                 </td>
-                <td class="text-end fw-bold">₹{{ service.line_total|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ service.line_total|rupee }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -257,17 +257,17 @@
         <tbody>
             <tr>
                 <td style="width:70%;" class="fw-bold text-end">Parts Total</td>
-                <td class="text-end">₹{{ parts_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ parts_total|rupee }}</td>
             </tr>
             {% if services %}
             <tr>
                 <td class="fw-bold text-end">Services Total</td>
-                <td class="text-end">₹{{ services_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ services_total|rupee }}</td>
             </tr>
             {% endif %}
             <tr class="total-row">
                 <td class="fw-bold text-end">Base Amount (pre-tax)</td>
-                <td class="text-end fw-bold">₹{{ repair.base_amount|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ repair.base_amount|rupee }}</td>
             </tr>
 
             {% if repair.is_invoiced %}
@@ -278,13 +278,13 @@
                         Against Invoice {{ repair.invoice.invoice_number }}
                     </div>
                 </td>
-                <td class="text-end amount fw-bold">₹{{ repair.invoice.grand_total|floatformat:2 }}</td>
+                <td class="text-end amount fw-bold">₹{{ repair.invoice.grand_total|rupee }}</td>
             </tr>
             {% else %}
             <tr class="grand-total">
                 <td class="fw-bold text-end" style="font-size:10pt;">Final Amount</td>
                 <td class="text-end amount" style="font-size:12pt; font-weight:700;">
-                    ₹{{ repair.final_amount|floatformat:2 }}
+                    ₹{{ repair.final_amount|rupee }}
                 </td>
             </tr>
             {% endif %}
@@ -294,7 +294,7 @@
     {% if repair.estimated_cost and repair.estimated_cost > 0 %}
     <div class="estimate-status-bar">
         <span class="label">
-            <strong>Original Estimate:</strong> ₹{{ repair.estimated_cost|floatformat:2 }}
+            <strong>Original Estimate:</strong> ₹{{ repair.estimated_cost|rupee }}
         </span>
         <span class="badge-print {{ repair.estimate_status }}">
             {{ repair.get_estimate_status_display }}

@@ -57,9 +57,9 @@
             <tr>
                 <td>{{ item.product_name }}</td>
                 <td class="text-center">{{ item.quantity }}</td>
-                <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                 <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
-                <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
                 <td class="text-center">
                     <button type="button"
                             class="btn btn-sm btn-outline-danger remove-item-btn"
@@ -82,7 +82,7 @@
         <tfoot class="table-light fw-bold">
             <tr>
                 <td colspan="4" class="text-end">Total</td>
-                <td class="text-end">₹{{ items_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ items_total|rupee }}</td>
                 <td></td>
             </tr>
         </tfoot>

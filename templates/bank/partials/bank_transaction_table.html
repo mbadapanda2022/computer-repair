@@ -32,7 +32,7 @@
                         <td>{{ txn.description|default:"—" }}</td>
                         <td><small class="text-muted">{{ txn.reference|default:"—" }}</small></td>
                         <td class="text-end fw-bold {% if txn.transaction_type == 'deposit' %}text-success{% else %}text-danger{% endif %}">
-                            {% if txn.transaction_type == 'deposit' %}+{% else %}−{% endif %}₹{{ txn.amount|floatformat:2 }}
+                            {% if txn.transaction_type == 'deposit' %}+{% else %}−{% endif %}₹{{ txn.amount|rupee }}
                         </td>
                         <td class="text-center">
                             <button class="btn btn-sm btn-outline-warning"

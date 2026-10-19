@@ -24,9 +24,9 @@
                         <td class="text-center">
                             <span class="badge bg-secondary">{{ purchase.items.count }}</span>
                         </td>
-                        <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">₹{{ purchase.grand_total|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ purchase.subtotal|rupee }}</td>
+                        <td class="text-end">₹{{ purchase.tax_amount|rupee }}</td>
+                        <td class="text-end fw-bold">₹{{ purchase.grand_total|rupee }}</td>
                         <td>
                             <span class="badge {% if purchase.paid %}bg-success{% else %}bg-warning text-dark{% endif %}">
                                 {% if purchase.paid %}Paid{% else %}Unpaid{% endif %}
@@ -65,7 +65,7 @@
                 <tfoot class="table-light">
                     <tr>
                         <th colspan="5" class="text-end">Total →</th>
-                        <th class="text-end fw-bold">₹{{ total_amount|floatformat:2 }}</th>
+                        <th class="text-end fw-bold">₹{{ total_amount|rupee }}</th>
                         <th colspan="2"></th>
                     </tr>
                 </tfoot>

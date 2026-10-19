@@ -53,15 +53,15 @@
 <div class="summary-cards">
     <div class="summary-card primary">
         <div class="label">Total Purchases</div>
-        <div class="value">₹{{ total_amount|floatformat:2 }}</div>
+        <div class="value">₹{{ total_amount|rupee }}</div>
     </div>
     <div class="summary-card success">
         <div class="label">Paid</div>
-        <div class="value">₹{{ total_paid|floatformat:2 }}</div>
+        <div class="value">₹{{ total_paid|rupee }}</div>
     </div>
     <div class="summary-card danger">
         <div class="label">Unpaid</div>
-        <div class="value">₹{{ total_unpaid|floatformat:2 }}</div>
+        <div class="value">₹{{ total_unpaid|rupee }}</div>
     </div>
 </div>
 
@@ -88,10 +88,10 @@
             <td class="text-center" style="font-family: monospace; font-size: 8pt;">
                 {{ p.vendor.gstin|default:"—" }}
             </td>
-            <td class="text-end">₹{{ p.subtotal|floatformat:2 }}</td>
-            <td class="text-end">{% if p.freight_charge > 0 %}₹{{ p.freight_charge|floatformat:2 }}{% else %}—{% endif %}</td>
-            <td class="text-end">₹{{ p.tax_amount|floatformat:2 }}</td>
-            <td class="text-end fw-bold">₹{{ p.grand_total|floatformat:2 }}</td>
+            <td class="text-end">₹{{ p.subtotal|rupee }}</td>
+            <td class="text-end">{% if p.freight_charge > 0 %}₹{{ p.freight_charge|rupee }}{% else %}—{% endif %}</td>
+            <td class="text-end">₹{{ p.tax_amount|rupee }}</td>
+            <td class="text-end fw-bold">₹{{ p.grand_total|rupee }}</td>
             <td class="text-center">{% if p.paid %}Paid{% else %}Unpaid{% endif %}</td>
         </tr>
         {% empty %}
@@ -101,9 +101,9 @@
     <tfoot>
         <tr>
             <td colspan="4" class="text-end">Totals →</td>
-            <td class="text-end">₹{{ total_amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ total_amount|rupee }}</td>
             <td colspan="2"></td>
-            <td class="text-end">Paid: ₹{{ total_paid|floatformat:2 }}</td>
+            <td class="text-end">Paid: ₹{{ total_paid|rupee }}</td>
             <td></td>
         </tr>
     </tfoot>

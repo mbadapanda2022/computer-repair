@@ -41,13 +41,13 @@
                             <strong>Opening Balance</strong>
                             {% if date_from %}<br><small class="text-muted">carried forward as on {{ date_from }}</small>{% endif %}
                         </td>
-                        <td class="text-end">{% if opening_recv > 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">{% if opening_recv < 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
-                        <td class="text-end">{% if opening_pay < 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">{% if opening_pay > 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">₹{{ opening_recv|floatformat:2 }}</td>
+                        <td class="text-end">{% if opening_recv > 0 %}₹{{ opening_recv|rupee }}{% endif %}</td>
+                        <td class="text-end">{% if opening_recv < 0 %}₹{{ opening_recv|rupee }}{% endif %}</td>
+                        <td class="text-end">₹{{ opening_recv|rupee }}</td>
+                        <td class="text-end">{% if opening_pay < 0 %}₹{{ opening_pay|rupee }}{% endif %}</td>
+                        <td class="text-end">{% if opening_pay > 0 %}₹{{ opening_pay|rupee }}{% endif %}</td>
+                        <td class="text-end">₹{{ opening_pay|rupee }}</td>
+                        <td class="text-end fw-bold">₹{{ opening_recv|rupee }}</td>
                     </tr>
                     {% endif %}
 
@@ -108,24 +108,24 @@
                                 </small>
                             </div>
                         </td>
-                        <td class="text-end">{% if row.recv_dr %}₹{{ row.recv_dr|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">{% if row.recv_cr %}₹{{ row.recv_cr|floatformat:2 }}{% endif %}</td>
+                        <td class="text-end">{% if row.recv_dr %}₹{{ row.recv_dr|rupee }}{% endif %}</td>
+                        <td class="text-end">{% if row.recv_cr %}₹{{ row.recv_cr|rupee }}{% endif %}</td>
                         <td class="text-end small text-muted">
                             {% if search %}
                                 <i class="bi bi-eye-slash"></i>
                             {% else %}
-                                ₹{{ row.running_recv|floatformat:2 }}
+                                ₹{{ row.running_recv|rupee }}
                             {% endif %}
                         </td>
-                        <td class="text-end">{% if row.pay_dr %}₹{{ row.pay_dr|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">{% if row.pay_cr %}₹{{ row.pay_cr|floatformat:2 }}{% endif %}</td>
+                        <td class="text-end">{% if row.pay_dr %}₹{{ row.pay_dr|rupee }}{% endif %}</td>
+                        <td class="text-end">{% if row.pay_cr %}₹{{ row.pay_cr|rupee }}{% endif %}</td>
                         <td class="text-end fw-bold">
                             {% if search %}
                                 <span class="text-muted" title="Balance hidden during search">
                                     <i class="bi bi-eye-slash"></i>
                                 </span>
                             {% else %}
-                                ₹{{ row.running_pay|floatformat:2 }}
+                                ₹{{ row.running_pay|rupee }}
                             {% endif %}
                         </td>
                         <td class="text-center fw-bold {% if row.net >= 0 %}text-success{% else %}text-danger{% endif %}">
@@ -134,7 +134,7 @@
                                     <i class="bi bi-eye-slash"></i>
                                 </span>
                             {% else %}
-                                ₹{{ row.net|floatformat:2 }}
+                                ₹{{ row.net|rupee }}
                             {% endif %}
                         </td>
                     </tr>
@@ -155,24 +155,24 @@
                             <strong>Opening Balance</strong>
                             {% if date_from %}<br><small class="text-muted">carried forward as on {{ date_from }}</small>{% endif %}
                         </td>
-                        <td class="text-end">{% if opening_recv > 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">{% if opening_recv < 0 %}₹{{ opening_recv|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
-                        <td class="text-end">{% if opening_pay < 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">{% if opening_pay > 0 %}₹{{ opening_pay|floatformat:2 }}{% endif %}</td>
-                        <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">₹{{ opening_recv|floatformat:2 }}</td>
+                        <td class="text-end">{% if opening_recv > 0 %}₹{{ opening_recv|rupee }}{% endif %}</td>
+                        <td class="text-end">{% if opening_recv < 0 %}₹{{ opening_recv|rupee }}{% endif %}</td>
+                        <td class="text-end">₹{{ opening_recv|rupee }}</td>
+                        <td class="text-end">{% if opening_pay < 0 %}₹{{ opening_pay|rupee }}{% endif %}</td>
+                        <td class="text-end">{% if opening_pay > 0 %}₹{{ opening_pay|rupee }}{% endif %}</td>
+                        <td class="text-end">₹{{ opening_pay|rupee }}</td>
+                        <td class="text-end fw-bold">₹{{ opening_recv|rupee }}</td>
                     </tr>
                     {% endif %}
                 </tbody>
                 <tfoot class="table-secondary fw-bold">
                     <tr>
                         <td colspan="2" class="text-end">Period Totals →</td>
-                        <td class="text-end">₹{{ total_recv_dr|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ total_recv_cr|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ total_recv_dr|rupee }}</td>
+                        <td class="text-end">₹{{ total_recv_cr|rupee }}</td>
                         <td></td>
-                        <td class="text-end">₹{{ total_pay_dr|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ total_pay_cr|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ total_pay_dr|rupee }}</td>
+                        <td class="text-end">₹{{ total_pay_cr|rupee }}</td>
                         <td></td>
                         <td></td>
                     </tr>
@@ -182,21 +182,21 @@
                             {% if search %}
                                 <strong class="text-muted">—</strong>
                             {% else %}
-                                <strong>₹{{ closing_recv|floatformat:2 }}</strong>
+                                <strong>₹{{ closing_recv|rupee }}</strong>
                             {% endif %}
                         </td>
                         <td colspan="3" class="text-end text-warning">
                             {% if search %}
                                 <strong class="text-muted">—</strong>
                             {% else %}
-                                <strong>₹{{ closing_pay|floatformat:2 }}</strong>
+                                <strong>₹{{ closing_pay|rupee }}</strong>
                             {% endif %}
                         </td>
                         <td class="text-center {% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
                             {% if search %}
                                 <strong class="text-muted"><i class="bi bi-eye-slash"></i></strong>
                             {% else %}
-                                <strong>₹{{ net_position|floatformat:2 }}</strong>
+                                <strong>₹{{ net_position|rupee }}</strong>
                             {% endif %}
                         </td>
                     </tr>
@@ -223,7 +223,7 @@
                             Opening Balance
                             {% if opening_as_on_date %}<small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>{% endif %}
                         </td>
-                        <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ opening_pay|rupee }}</td>
                     </tr>
                     {% endif %}
 
@@ -251,10 +251,10 @@
                             </div>
                         </td>
                         <td class="text-end fw-semibold">
-                            {% if row.pay_dr > 0 %}₹{{ row.pay_dr|floatformat:2 }}{% else %}—{% endif %}
+                            {% if row.pay_dr > 0 %}₹{{ row.pay_dr|rupee }}{% else %}—{% endif %}
                         </td>
                         <td class="text-end fw-semibold">
-                            {% if row.pay_cr > 0 %}₹{{ row.pay_cr|floatformat:2 }}{% else %}—{% endif %}
+                            {% if row.pay_cr > 0 %}₹{{ row.pay_cr|rupee }}{% else %}—{% endif %}
                         </td>
                         <td class="text-end fw-bold">
                             {% if search %}
@@ -262,7 +262,7 @@
                                     <i class="bi bi-eye-slash"></i>
                                 </span>
                             {% else %}
-                                ₹{{ row.running_pay|floatformat:2 }}
+                                ₹{{ row.running_pay|rupee }}
                             {% endif %}
                         </td>
                     </tr>
@@ -278,8 +278,8 @@
                     {% if statement_rows %}
                     <tr class="table-light fw-bold">
                         <td colspan="2" class="text-end">Period Totals</td>
-                        <td class="text-end">₹{{ total_pay_dr|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ total_pay_cr|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ total_pay_dr|rupee }}</td>
+                        <td class="text-end">₹{{ total_pay_cr|rupee }}</td>
                         <td class="text-end">—</td>
                     </tr>
                     <tr class="table-warning fw-bold">
@@ -288,7 +288,7 @@
                             {% if search %}
                                 <span class="text-muted">—</span>
                             {% else %}
-                                ₹{{ closing_pay|floatformat:2 }}
+                                ₹{{ closing_pay|rupee }}
                             {% endif %}
                         </td>
                     </tr>
@@ -301,7 +301,7 @@
                             Opening Balance
                             {% if opening_as_on_date %}<small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>{% endif %}
                         </td>
-                        <td class="text-end">₹{{ opening_pay|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ opening_pay|rupee }}</td>
                     </tr>
                     {% endif %}
                 </tbody>
@@ -328,7 +328,7 @@
                             Opening Balance
                             {% if opening_as_on_date %}<small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>{% endif %}
                         </td>
-                        <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ opening_recv|rupee }}</td>
                         <td></td>
                     </tr>
                     {% endif %}
@@ -348,10 +348,10 @@
                             </div>
                         </td>
                         <td class="text-end fw-semibold">
-                            {% if row.recv_dr > 0 %}₹{{ row.recv_dr|floatformat:2 }}{% else %}—{% endif %}
+                            {% if row.recv_dr > 0 %}₹{{ row.recv_dr|rupee }}{% else %}—{% endif %}
                         </td>
                         <td class="text-end fw-semibold">
-                            {% if row.recv_cr > 0 %}₹{{ row.recv_cr|floatformat:2 }}{% else %}—{% endif %}
+                            {% if row.recv_cr > 0 %}₹{{ row.recv_cr|rupee }}{% else %}—{% endif %}
                         </td>
                         <td class="text-end fw-bold">
                             {% if search %}
@@ -359,7 +359,7 @@
                                     <i class="bi bi-eye-slash"></i>
                                 </span>
                             {% else %}
-                                ₹{{ row.running_recv|floatformat:2 }}
+                                ₹{{ row.running_recv|rupee }}
                             {% endif %}
                         </td>
                         <td class="text-center">
@@ -395,8 +395,8 @@
                     {% if statement_rows %}
                     <tr class="table-light fw-bold">
                         <td colspan="2" class="text-end">Period Totals</td>
-                        <td class="text-end">₹{{ total_recv_dr|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ total_recv_cr|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ total_recv_dr|rupee }}</td>
+                        <td class="text-end">₹{{ total_recv_cr|rupee }}</td>
                         <td class="text-end">—</td>
                         <td></td>
                     </tr>
@@ -406,7 +406,7 @@
                             {% if search %}
                                 <span class="text-muted">—</span>
                             {% else %}
-                                ₹{{ closing_recv|floatformat:2 }}
+                                ₹{{ closing_recv|rupee }}
                             {% endif %}
                         </td>
                         <td></td>
@@ -420,7 +420,7 @@
                             Opening Balance
                             {% if opening_as_on_date %}<small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>{% endif %}
                         </td>
-                        <td class="text-end">₹{{ opening_recv|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ opening_recv|rupee }}</td>
                         <td></td>
                     </tr>
                     {% endif %}

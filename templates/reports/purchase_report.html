@@ -42,7 +42,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Total Amount</small>
-                        <h5 class="mb-0 fw-bold">₹{{ total|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold">₹{{ total|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -55,7 +55,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Total Tax</small>
-                        <h5 class="mb-0 fw-bold">₹{{ total_tax|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold">₹{{ total_tax|rupee }}</h5>
                     </div>
                 </div>
             </div>

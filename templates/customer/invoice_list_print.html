@@ -58,15 +58,15 @@
     <div class="summary-cards">
         <div class="summary-card primary">
             <div class="label">Total Invoiced</div>
-            <div class="value">₹{{ total_invoiced|floatformat:2 }}</div>
+            <div class="value">₹{{ total_invoiced|rupee }}</div>
         </div>
         <div class="summary-card success">
             <div class="label">Total Paid</div>
-            <div class="value">₹{{ total_paid|floatformat:2 }}</div>
+            <div class="value">₹{{ total_paid|rupee }}</div>
         </div>
         <div class="summary-card danger">
             <div class="label">Balance Due</div>
-            <div class="value">₹{{ total_due|floatformat:2 }}</div>
+            <div class="value">₹{{ total_due|rupee }}</div>
         </div>
     </div>
 
@@ -102,9 +102,9 @@
                         —
                     {% endif %}
                 </td>
-                <td class="text-end">₹{{ inv.grand_total|floatformat:2 }}</td>
-                <td class="text-end">₹{{ inv.paid_amount|floatformat:2 }}</td>
-                <td class="text-end">₹{{ inv.balance_due|floatformat:2 }}</td>
+                <td class="text-end">₹{{ inv.grand_total|rupee }}</td>
+                <td class="text-end">₹{{ inv.paid_amount|rupee }}</td>
+                <td class="text-end">₹{{ inv.balance_due|rupee }}</td>
                 <td>{{ inv.get_payment_status_display }}</td>
             </tr>
             {% empty %}
@@ -115,9 +115,9 @@
         <tfoot>
             <tr>
                 <td colspan="4" class="text-end">Totals →</td>
-                <td class="text-end">₹{{ total_invoiced|floatformat:2 }}</td>
-                <td class="text-end">₹{{ total_paid|floatformat:2 }}</td>
-                <td class="text-end">₹{{ total_due|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_invoiced|rupee }}</td>
+                <td class="text-end">₹{{ total_paid|rupee }}</td>
+                <td class="text-end">₹{{ total_due|rupee }}</td>
                 <td></td>
             </tr>
         </tfoot>

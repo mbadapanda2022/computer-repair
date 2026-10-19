@@ -26,10 +26,10 @@
                             </a>
                         </td>
                         <td>{{ inv.customer.name }}</td>
-                        <td class="text-end">₹{{ inv.subtotal|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ inv.discount_amount|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ inv.tax_amount|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">₹{{ inv.grand_total|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ inv.subtotal|rupee }}</td>
+                        <td class="text-end">₹{{ inv.discount_amount|rupee }}</td>
+                        <td class="text-end">₹{{ inv.tax_amount|rupee }}</td>
+                        <td class="text-end fw-bold">₹{{ inv.grand_total|rupee }}</td>
                         <td>
                             <span class="badge 
                                 {% if inv.payment_status == 'paid' %}bg-success

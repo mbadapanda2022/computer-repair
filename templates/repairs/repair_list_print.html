@@ -187,7 +187,7 @@
         <small style="color: #6c757d;">
             📅 Generated: {% now "d M Y, h:i A" %} | 
             📊 Total Jobs: <strong>{{ jobs|length }}</strong> | 
-            💰 Total Amount: <strong>₹{{ total_amount|floatformat:2 }}</strong>
+            💰 Total Amount: <strong>₹{{ total_amount|rupee }}</strong>
         </small>
     </div>
 
@@ -229,7 +229,7 @@
                         —
                     {% endif %}
                 </td>
-                <td class="text-end fw-bold">₹{{ job.final_amount|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ job.final_amount|rupee }}</td>
             </tr>
             {% empty %}
             <tr>
@@ -246,7 +246,7 @@
         <tfoot>
             <tr class="summary-row">
                 <td colspan="7" class="text-end fw-bold">Total Amount</td>
-                <td class="text-end fw-bold">₹{{ total_amount|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ total_amount|rupee }}</td>
             </tr>
         </tfoot>
     </table>

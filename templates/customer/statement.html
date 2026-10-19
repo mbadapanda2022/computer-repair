@@ -86,7 +86,7 @@
                         Opening Balance (B/F)
                     </div>
                     <div class="fw-bold fs-5 text-dark">
-                        ₹{{ opening_net|abs_filter|floatformat:2 }}
+                        ₹{{ opening_net|abs_filter|rupee }}
                         {% if opening_net > 0 %}
                             <small class="badge bg-success-subtle text-success">Dr</small>
                         {% elif opening_net < 0 %}
@@ -113,14 +113,14 @@
                         Billed / Purchased
                     </div>
                     <div class="fw-bold fs-5 text-success">
-                        + ₹{{ period_billed|floatformat:2 }}
+                        + ₹{{ period_billed|rupee }}
                     </div>
                     <div class="text-muted" style="font-size: 0.7rem;">
                         Invoices raised this period
                     </div>
                     <div class="text-muted" style="font-size: 0.7rem;">
                         {% if period_purchased > 0 %}
-                            Orders: ₹{{ period_purchased|floatformat:2 }}
+                            Orders: ₹{{ period_purchased|rupee }}
                         {% else %}&nbsp;{% endif %}
                     </div>
                 </div>
@@ -131,14 +131,14 @@
                         Received / Paid
                     </div>
                     <div class="fw-bold fs-5 text-danger">
-                        − ₹{{ period_received|floatformat:2 }}
+                        − ₹{{ period_received|rupee }}
                     </div>
                     <div class="text-muted" style="font-size: 0.7rem;">
                         Payments received this period
                     </div>
                     <div class="text-muted" style="font-size: 0.7rem;">
                         {% if period_paid > 0 %}
-                            Paid: ₹{{ period_paid|floatformat:2 }}
+                            Paid: ₹{{ period_paid|rupee }}
                         {% else %}&nbsp;{% endif %}
                     </div>
                 </div>
@@ -149,7 +149,7 @@
                         Balance Now
                     </div>
                     <div class="fw-bold fs-5 {% if net_position >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        ₹{{ net_position|abs_filter|floatformat:2 }}
+                        ₹{{ net_position|abs_filter|rupee }}
                         {% if net_position > 0 %}
                             <small class="badge bg-success-subtle text-success">Dr</small>
                         {% elif net_position < 0 %}

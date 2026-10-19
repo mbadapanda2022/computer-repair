@@ -58,7 +58,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Opening Balance</small>
-                        <h5 class="mb-0 fw-bold">₹{{ opening_balance|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold">₹{{ opening_balance|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -71,7 +71,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Total Debit</small>
-                        <h5 class="mb-0 fw-bold">₹{{ total_debit|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold">₹{{ total_debit|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -84,7 +84,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Total Credit</small>
-                        <h5 class="mb-0 fw-bold">₹{{ total_credit|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold">₹{{ total_credit|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -97,7 +97,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block">Closing Balance</small>
-                        <h5 class="mb-0 fw-bold">₹{{ closing_balance|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold">₹{{ closing_balance|rupee }}</h5>
                     </div>
                 </div>
             </div>

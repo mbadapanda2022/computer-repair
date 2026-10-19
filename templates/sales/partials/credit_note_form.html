@@ -29,8 +29,8 @@
                     <strong>Customer:</strong> {{ invoice.customer.name }}
                 </div>
                 <div class="col-md-6">
-                    <strong>Invoice Total:</strong> ₹{{ invoice.grand_total|floatformat:2 }}<br>
-                    <strong>Paid:</strong> ₹{{ invoice.paid_amount|floatformat:2 }}
+                    <strong>Invoice Total:</strong> ₹{{ invoice.grand_total|rupee }}<br>
+                    <strong>Paid:</strong> ₹{{ invoice.paid_amount|rupee }}
                 </div>
             </div>
         </div>
@@ -118,7 +118,7 @@
                                    data-max="{{ item.quantity }}"
                                    disabled>
                         </td>
-                        <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                         <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
                     </tr>
                     {% endfor %}

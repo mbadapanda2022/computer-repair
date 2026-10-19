@@ -106,7 +106,7 @@ class TrackingAdvanceVisibilityTests(TestCase):
         page = self.track_page()
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, 'Advance Payment')
-        self.assertContains(page, '₹1000.00')
+        self.assertContains(page, '₹1,000.00')
 
     def test_advance_applied_to_invoice_shown(self):
         invoice = self.make_invoice()
@@ -126,7 +126,7 @@ class TrackingAdvanceVisibilityTests(TestCase):
         )
         page = self.track_page()
         # applied 400 (invoice) + remaining 600 (unapplied) = 1000
-        self.assertContains(page, '₹1000.00')
+        self.assertContains(page, '₹1,000.00')
 
     def test_soft_deleted_adjustment_falls_back_to_unapplied(self):
         invoice = self.make_invoice()

@@ -44,9 +44,9 @@
                                 </span>
                             {% endif %}
                         </td>
-                        <td class="text-end fw-semibold">₹{{ invoice.grand_total|floatformat:2 }}</td>
-                        <td class="text-end text-success">₹{{ invoice.paid_amount|floatformat:2 }}</td>
-                        <td class="text-end text-danger">₹{{ invoice.balance_due|floatformat:2 }}</td>
+                        <td class="text-end fw-semibold">₹{{ invoice.grand_total|rupee }}</td>
+                        <td class="text-end text-success">₹{{ invoice.paid_amount|rupee }}</td>
+                        <td class="text-end text-danger">₹{{ invoice.balance_due|rupee }}</td>
                         <td>
                             <span class="badge
                                 {% if invoice.payment_status == 'paid' %}bg-success

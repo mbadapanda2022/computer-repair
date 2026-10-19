@@ -343,7 +343,8 @@ def payment_print(request, pk):
 @handle_errors(default_redirect='accounting:payment_list')
 def payment_list_print(request):
     queryset, params = _filter_payment_queryset(request)
-    payments = list(queryset)
+    # Cap: unfiltered whole-table dumps OOM the 512 MB free-tier dyno.
+    payments = list(queryset[:5000])
     company = CompanyProfile.get_instance()
 
     total_received = sum(
@@ -372,6 +373,9 @@ def payment_list_excel(request):
     from openpyxl.utils import get_column_letter
 
     queryset, params = _filter_payment_queryset(request)
+    queryset = queryset.prefetch_related(
+        'advance_adjustments__invoice'
+    ).order_by('-date', '-id')[:5000]
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -923,7 +927,10 @@ def payment_delete(request, pk):
     amount = payment.amount
     direction = payment.direction
 
-    payment.delete()  # model-level cleanup
+    # Model cleanup re-adjusts invoices/purchases/ledger across tables —
+    # must be one all-or-nothing unit.
+    with transaction.atomic():
+        payment.delete()  # model-level cleanup
     logger.info("Payment #%s deleted by %s", pk, request.user.username)
 
     # Notify staff AFTER delete

@@ -33,14 +33,14 @@
                                 <br><small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ purchase.vendor.phone }}</small>
                             {% endif %}
                         </td>
-                        <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ purchase.subtotal|rupee }}</td>
                         <td class="text-end">
                             {% if purchase.freight_charge > 0 %}
-                                ₹{{ purchase.freight_charge|floatformat:2 }}
+                                ₹{{ purchase.freight_charge|rupee }}
                             {% else %}—{% endif %}
                         </td>
-                        <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">₹{{ purchase.grand_total|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ purchase.tax_amount|rupee }}</td>
+                        <td class="text-end fw-bold">₹{{ purchase.grand_total|rupee }}</td>
                         <td>
                             {% if purchase.settlement_status == 'paid' %}
                                 <span class="badge bg-success">
@@ -130,17 +130,17 @@
                 <tfoot class="table-light fw-bold">
                     <tr>
                         <td colspan="6" class="text-end">Total →</td>
-                        <td class="text-end">₹{{ total_amount|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ total_amount|rupee }}</td>
                         <td colspan="2"></td>
                     </tr>
                     <tr class="small">
                         <td colspan="6" class="text-end fw-normal">Paid (applied) →</td>
-                        <td class="text-end text-success">₹{{ total_paid|floatformat:2 }}</td>
+                        <td class="text-end text-success">₹{{ total_paid|rupee }}</td>
                         <td colspan="2"></td>
                     </tr>
                     <tr class="small">
                         <td colspan="6" class="text-end fw-normal">Outstanding →</td>
-                        <td class="text-end text-danger">₹{{ total_unpaid|floatformat:2 }}</td>
+                        <td class="text-end text-danger">₹{{ total_unpaid|rupee }}</td>
                         <td colspan="2"></td>
                     </tr>
                 </tfoot>

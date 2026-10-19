@@ -11,7 +11,7 @@
             onmousedown="event.preventDefault();">
         <div class="d-flex justify-content-between align-items-center">
             <strong>{{ product.name }}</strong>
-            <small class="text-muted">₹{{ product.selling_price|floatformat:2 }}</small>
+            <small class="text-muted">₹{{ product.selling_price|rupee }}</small>
         </div>
         <small class="text-muted">
             HSN: {{ product.hsn_code|default:"N/A" }}

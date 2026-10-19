@@ -83,14 +83,14 @@
         <div class="mb-0">
             <i class="bi bi-cash-coin me-1"></i>
             <strong>{{ invoice.customer.name }}</strong> has
-            <strong>₹{{ unapplied_advance|floatformat:2 }} unapplied advance</strong>.
+            <strong>₹{{ unapplied_advance|rupee }} unapplied advance</strong>.
             Applying it will reduce the balance due to
-            <strong>₹{{ advance_balance_after_apply|floatformat:2 }}</strong>.
+            <strong>₹{{ advance_balance_after_apply|rupee }}</strong>.
         </div>
         <form method="post" action="{% url 'accounting:invoice_apply_advance' invoice.pk %}" class="mb-0">
             {% csrf_token %}
             <button type="submit" class="btn btn-warning fw-bold">
-                <i class="bi bi-check-circle me-1"></i>Apply ₹{{ advance_apply_amount|floatformat:2 }} to this invoice
+                <i class="bi bi-check-circle me-1"></i>Apply ₹{{ advance_apply_amount|rupee }} to this invoice
             </button>
         </form>
     </div>
@@ -183,36 +183,36 @@
                     <table class="table table-sm table-borderless mb-0">
                         <tr>
                             <td>Subtotal</td>
-                            <td class="text-end">₹{{ invoice.subtotal|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ invoice.subtotal|rupee }}</td>
                         </tr>
                         {% if invoice.discount_amount > 0 %}
                         <tr>
                             <td class="text-danger">Discount</td>
-                            <td class="text-end text-danger">−₹{{ invoice.discount_amount|floatformat:2 }}</td>
+                            <td class="text-end text-danger">−₹{{ invoice.discount_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr>
                             <td>Tax Amount</td>
-                            <td class="text-end">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ invoice.tax_amount|rupee }}</td>
                         </tr>
                         <tr class="border-top">
                             <td class="fw-bold">Grand Total</td>
-                            <td class="text-end fw-bold fs-5 text-primary">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                            <td class="text-end fw-bold fs-5 text-primary">₹{{ invoice.grand_total|rupee }}</td>
                         </tr>
                         <tr>
                             <td class="text-success">Paid</td>
-                            <td class="text-end text-success fw-bold">₹{{ invoice.paid_amount|floatformat:2 }}</td>
+                            <td class="text-end text-success fw-bold">₹{{ invoice.paid_amount|rupee }}</td>
                         </tr>
                         {% if advance_applied_total > 0 %}
                         <tr>
                             <td class="text-muted small ps-3">incl. advance applied</td>
-                            <td class="text-end text-muted small">₹{{ advance_applied_total|floatformat:2 }}</td>
+                            <td class="text-end text-muted small">₹{{ advance_applied_total|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr class="border-top">
                             <td class="fw-bold">Balance Due</td>
                             <td class="text-end fw-bold fs-5 {% if invoice.balance_due > 0 %}text-danger{% else %}text-success{% endif %}">
-                                ₹{{ invoice.balance_due|floatformat:2 }}
+                                ₹{{ invoice.balance_due|rupee }}
                             </td>
                         </tr>
                     </table>
@@ -224,16 +224,16 @@
                         {% if invoice.gst_type == 'intrastate' %}
                         <tr>
                             <td>CGST (9%)</td>
-                            <td class="text-end">₹{{ invoice.tax_amount|divide:2|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ invoice.tax_amount|divide:2|rupee }}</td>
                         </tr>
                         <tr>
                             <td>SGST (9%)</td>
-                            <td class="text-end">₹{{ invoice.tax_amount|divide:2|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ invoice.tax_amount|divide:2|rupee }}</td>
                         </tr>
                         {% elif invoice.gst_type == 'interstate' %}
                         <tr>
                             <td>IGST (18%)</td>
-                            <td class="text-end">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ invoice.tax_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                     </table>
@@ -286,10 +286,10 @@
                                 {% endif %}
                             </td>
                             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
-                            <td class="text-end">₹{{ item.tax_amount|floatformat:2 }}</td>
-                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.tax_amount|rupee }}</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
                         </tr>
                         {% empty %}
                         <tr><td colspan="7" class="text-center text-muted py-4">No items.</td></tr>
@@ -298,21 +298,21 @@
                     <tfoot class="table-light">
                         <tr>
                             <td colspan="6" class="text-end">Subtotal</td>
-                            <td class="text-end">₹{{ invoice.subtotal|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ invoice.subtotal|rupee }}</td>
                         </tr>
                         {% if invoice.discount_amount > 0 %}
                         <tr>
                             <td colspan="6" class="text-end text-danger">Discount</td>
-                            <td class="text-end text-danger">−₹{{ invoice.discount_amount|floatformat:2 }}</td>
+                            <td class="text-end text-danger">−₹{{ invoice.discount_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr>
                             <td colspan="6" class="text-end">Tax Amount</td>
-                            <td class="text-end">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ invoice.tax_amount|rupee }}</td>
                         </tr>
                         <tr class="table-primary fw-bold">
                             <td colspan="6" class="text-end">Grand Total</td>
-                            <td class="text-end fs-5">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                            <td class="text-end fs-5">₹{{ invoice.grand_total|rupee }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -357,7 +357,7 @@
                                 {% if adj.notes %}· {{ adj.notes }}{% endif %}
                             </td>
                             <td class="small">{{ adj.date|date:"d M Y" }}</td>
-                            <td class="text-end fw-bold text-success">₹{{ adj.amount|floatformat:2 }}</td>
+                            <td class="text-end fw-bold text-success">₹{{ adj.amount|rupee }}</td>
                             <td class="text-end">
                                 <form method="post" action="{% url 'accounting:invoice_unapply_advance' invoice.pk %}" class="d-inline">
                                     {% csrf_token %}
@@ -383,7 +383,7 @@
             <span><i class="bi bi-arrow-return-left text-warning me-1"></i>Credit Notes</span>
             <div>
                 <span class="badge bg-warning text-dark">
-                    Total: ₹{{ invoice.credit_note_total|floatformat:2 }}
+                    Total: ₹{{ invoice.credit_note_total|rupee }}
                 </span>
                 {% if invoice.is_fully_returned %}
                     <span class="badge bg-danger ms-1">Fully Returned</span>
@@ -415,7 +415,7 @@
                             </td>
                             <td>{{ cn.date|date:"d M Y" }}</td>
                             <td><span class="badge bg-secondary">{{ cn.get_reason_display }}</span></td>
-                            <td class="text-end fw-bold text-danger">−₹{{ cn.total_amount|floatformat:2 }}</td>
+                            <td class="text-end fw-bold text-danger">−₹{{ cn.total_amount|rupee }}</td>
                             <td class="text-center">
                                 <a href="{% url 'accounting:credit_note_print' cn.pk %}"
                                    class="btn btn-sm btn-outline-info" target="_blank">
@@ -428,7 +428,7 @@
                     <tfoot class="table-light">
                         <tr>
                             <td colspan="3" class="text-end"><strong>Net Invoice Value</strong></td>
-                            <td class="text-end fw-bold text-primary">₹{{ invoice.net_amount|floatformat:2 }}</td>
+                            <td class="text-end fw-bold text-primary">₹{{ invoice.net_amount|rupee }}</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -482,12 +482,12 @@
                 </div>
                 <div class="col-md-3">
                     <div class="text-muted">Receivable Balance</div>
-                    <div class="fw-bold text-danger">₹{{ invoice.customer.receivable_balance|floatformat:2 }}</div>
+                    <div class="fw-bold text-danger">₹{{ invoice.customer.receivable_balance|rupee }}</div>
                 </div>
                 {% if invoice.customer.advance_balance > 0 %}
                 <div class="col-md-3">
                     <div class="text-muted">Advance Paid</div>
-                    <div class="fw-bold text-success">₹{{ invoice.customer.advance_balance|floatformat:2 }}</div>
+                    <div class="fw-bold text-success">₹{{ invoice.customer.advance_balance|rupee }}</div>
                 </div>
                 {% endif %}
             </div>

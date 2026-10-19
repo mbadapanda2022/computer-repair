@@ -1,8 +1,41 @@
 # accounting/templatetags/math_filters.py
 from django import template
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 register = template.Library()
+
+
+def _indian_groups(int_str):
+    """'1234567' -> '12,34,567' (lakh/crore grouping)."""
+    if len(int_str) <= 3:
+        return int_str
+    head, tail = int_str[:-3], int_str[-3:]
+    parts = []
+    while len(head) > 2:
+        parts.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        parts.insert(0, head)
+    return ','.join(parts) + ',' + tail
+
+
+@register.filter
+def rupee(value):
+    """
+    Format an amount with Indian digit grouping and 2 decimals.
+    Usage: {{ job.final_amount|rupee }}  ->  4,50,000.00
+    (Template adds the ₹ symbol itself.)
+    """
+    if value in (None, ''):
+        return '0.00'
+    try:
+        d = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    except (InvalidOperation, ValueError, TypeError):
+        return str(value)
+    sign = '-' if d < 0 else ''
+    plain = f'{abs(d):.2f}'
+    int_part, dec_part = plain.split('.')
+    return f'{sign}{_indian_groups(int_part)}.{dec_part}'
 
 
 @register.filter

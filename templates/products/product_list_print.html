@@ -64,7 +64,7 @@
     </div>
     <div class="summary-card success">
         <div class="label">Total Stock Value</div>
-        <div class="value">₹{{ total_stock_value|floatformat:2 }}</div>
+        <div class="value">₹{{ total_stock_value|rupee }}</div>
     </div>
 </div>
 
@@ -93,8 +93,8 @@
             <td class="text-center">
                 {% if p.is_service %}Service{% else %}Product{% endif %}
             </td>
-            <td class="text-end">₹{{ p.purchase_price|floatformat:2 }}</td>
-            <td class="text-end fw-bold">₹{{ p.selling_price|floatformat:2 }}</td>
+            <td class="text-end">₹{{ p.purchase_price|rupee }}</td>
+            <td class="text-end fw-bold">₹{{ p.selling_price|rupee }}</td>
             <td class="text-center">{{ p.tax_rate|floatformat:0 }}%</td>
             <td class="text-center">
                 {% if p.is_service %}—{% else %}{{ p.current_stock|floatformat:0 }}{% endif %}

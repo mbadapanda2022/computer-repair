@@ -31,10 +31,10 @@
                         </td>
                         <td class="text-nowrap">{{ invoice.date|date:"d M Y" }}</td>
                         <td>{{ invoice.customer.name }}</td>
-                        <td class="text-end fw-bold">₹{{ invoice.grand_total|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ invoice.grand_total|rupee }}</td>
                         <td class="text-end">
                             {% if invoice.balance_due > 0 %}
-                                <span class="text-danger fw-bold">₹{{ invoice.balance_due|floatformat:2 }}</span>
+                                <span class="text-danger fw-bold">₹{{ invoice.balance_due|rupee }}</span>
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
@@ -126,7 +126,7 @@
                 <tfoot class="table-light">
                     <tr>
                         <th colspan="3" class="text-end">Total</th>
-                        <th class="text-end fw-bold">₹{{ total_sales|floatformat:2 }}</th>
+                        <th class="text-end fw-bold">₹{{ total_sales|rupee }}</th>
                         <th colspan="3"></th>
                     </tr>
                 </tfoot>

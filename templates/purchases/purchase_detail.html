@@ -130,37 +130,37 @@
                     <table class="table table-sm table-borderless mb-0">
                         <tr>
                             <td>Subtotal</td>
-                            <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.subtotal|rupee }}</td>
                         </tr>
                         {% if purchase.discount_amount > 0 %}
                         <tr>
                             <td class="text-danger">Discount</td>
-                            <td class="text-end text-danger">−₹{{ purchase.discount_amount|floatformat:2 }}</td>
+                            <td class="text-end text-danger">−₹{{ purchase.discount_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                         {% if purchase.freight_charge > 0 %}
                         <tr>
                             <td>Freight / Transport</td>
-                            <td class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.freight_charge|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr>
                             <td>Tax Amount</td>
-                            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|rupee }}</td>
                         </tr>
                         <tr class="border-top">
                             <td class="fw-bold">Grand Total</td>
-                            <td class="text-end fw-bold fs-5 text-primary">₹{{ purchase.grand_total|floatformat:2 }}</td>
+                            <td class="text-end fw-bold fs-5 text-primary">₹{{ purchase.grand_total|rupee }}</td>
                         </tr>
                         {% if purchase.paid_amount > 0 %}
                         <tr>
                             <td class="text-success">Paid (bills applied)</td>
-                            <td class="text-end text-success">₹{{ purchase.paid_amount|floatformat:2 }}</td>
+                            <td class="text-end text-success">₹{{ purchase.paid_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr class="border-top">
                             <td class="fw-bold">Balance Due</td>
-                            <td class="text-end fw-bold {% if balance_due > 0 %}text-danger{% else %}text-success{% endif %}">₹{{ balance_due|floatformat:2 }}</td>
+                            <td class="text-end fw-bold {% if balance_due > 0 %}text-danger{% else %}text-success{% endif %}">₹{{ balance_due|rupee }}</td>
                         </tr>
                     </table>
 
@@ -171,16 +171,16 @@
                         {% if purchase.gst_type == 'intrastate' %}
                         <tr>
                             <td>CGST (9%)</td>
-                            <td class="text-end">₹{{ purchase.tax_amount|divide:2|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|divide:2|rupee }}</td>
                         </tr>
                         <tr>
                             <td>SGST (9%)</td>
-                            <td class="text-end">₹{{ purchase.tax_amount|divide:2|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|divide:2|rupee }}</td>
                         </tr>
                         {% elif purchase.gst_type == 'interstate' %}
                         <tr>
                             <td>IGST (18%)</td>
-                            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                     </table>
@@ -195,10 +195,10 @@
         <div class="card-header bg-light fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
             <span><i class="bi bi-cash-coin me-1"></i>Payment &amp; Settlement</span>
             <span class="small text-muted">
-                Paid <strong class="text-success">₹{{ purchase.paid_amount|floatformat:2 }}</strong>
-                of <strong>₹{{ purchase.grand_total|floatformat:2 }}</strong>
+                Paid <strong class="text-success">₹{{ purchase.paid_amount|rupee }}</strong>
+                of <strong>₹{{ purchase.grand_total|rupee }}</strong>
                 {% if balance_due > 0 %}
-                    · Balance <strong class="text-danger">₹{{ balance_due|floatformat:2 }}</strong>
+                    · Balance <strong class="text-danger">₹{{ balance_due|rupee }}</strong>
                 {% endif %}
             </span>
         </div>
@@ -222,7 +222,7 @@
                             </td>
                             <td class="small">{{ alloc.payment.date|date:"d M Y" }}</td>
                             <td class="small">{{ alloc.payment.get_method_display }}</td>
-                            <td class="text-end fw-semibold">₹{{ alloc.amount|floatformat:2 }}</td>
+                            <td class="text-end fw-semibold">₹{{ alloc.amount|rupee }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -308,9 +308,9 @@
                                                 hx-target="#mainModalContent">
                                             Payment #{{ vp.payment.pk }}
                                         </button>
-                                        — ₹{{ vp.payment.amount|floatformat:2 }}
+                                        — ₹{{ vp.payment.amount|rupee }}
                                         ({{ vp.payment.date|date:"d M Y" }}, {{ vp.payment.get_method_display }})
-                                        <div class="text-muted">Unapplied: ₹{{ vp.remaining|floatformat:2 }}</div>
+                                        <div class="text-muted">Unapplied: ₹{{ vp.remaining|rupee }}</div>
                                     </div>
                                     <div class="d-flex gap-1 align-items-center">
                                         <input type="number" name="amount" step="0.01" min="0.01"
@@ -399,10 +399,10 @@
                             </td>
                             <td class="text-center"><small>{{ item.product.hsn_code|default:"—" }}</small></td>
                             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
-                            <td class="text-end">₹{{ item.tax_amount|floatformat:2 }}</td>
-                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.tax_amount|rupee }}</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
                         </tr>
                         {% empty %}
                         <tr><td colspan="8" class="text-center text-muted py-4">No items.</td></tr>
@@ -411,27 +411,27 @@
                     <tfoot class="table-light">
                         <tr>
                             <td colspan="7" class="text-end">Subtotal</td>
-                            <td class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.subtotal|rupee }}</td>
                         </tr>
                         {% if purchase.discount_amount > 0 %}
                         <tr>
                             <td colspan="7" class="text-end text-danger">Discount</td>
-                            <td class="text-end text-danger">−₹{{ purchase.discount_amount|floatformat:2 }}</td>
+                            <td class="text-end text-danger">−₹{{ purchase.discount_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                         {% if purchase.freight_charge > 0 %}
                         <tr>
                             <td colspan="7" class="text-end">Freight</td>
-                            <td class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.freight_charge|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr>
                             <td colspan="7" class="text-end">Tax Amount</td>
-                            <td class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ purchase.tax_amount|rupee }}</td>
                         </tr>
                         <tr class="table-primary fw-bold">
                             <td colspan="7" class="text-end">Grand Total</td>
-                            <td class="text-end fs-5">₹{{ purchase.grand_total|floatformat:2 }}</td>
+                            <td class="text-end fs-5">₹{{ purchase.grand_total|rupee }}</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -486,12 +486,12 @@
                 </div>
                 <div class="col-md-3">
                     <div class="text-muted">Payable Balance</div>
-                    <div class="fw-bold text-danger">₹{{ purchase.vendor.payable_balance|floatformat:2 }}</div>
+                    <div class="fw-bold text-danger">₹{{ purchase.vendor.payable_balance|rupee }}</div>
                 </div>
                 {% if purchase.vendor.advance_balance > 0 %}
                 <div class="col-md-3">
                     <div class="text-muted">Advance Paid</div>
-                    <div class="fw-bold text-success">₹{{ purchase.vendor.advance_balance|floatformat:2 }}</div>
+                    <div class="fw-bold text-success">₹{{ purchase.vendor.advance_balance|rupee }}</div>
                 </div>
                 {% endif %}
             </div>

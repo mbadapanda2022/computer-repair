@@ -803,17 +803,17 @@ def repair_update(request, pk):
 
     if request.method == 'POST':
         old_status = job.status
-        form = RepairJobForm(request.POST, instance=job)
+        form = RepairJobForm(request.POST, instance=job, actor=request.user)
 
         if form.is_valid():
             # ── 1. Save atomically ──
-            # Model.save() auto-recalculates final_amount and fires its
-            # own status-change notification when status differs.
+            # form.save(commit=True) status ko state machine (change_status)
+            # se guzarata hai — guards + timeline dates + history + notify.
+            if (form.cleaned_data.get('status') == 'delivered'
+                    and not form.cleaned_data.get('delivery_date')):
+                form.cleaned_data['delivery_date'] = timezone.now().date()
             with transaction.atomic():
-                job = form.save(commit=False)
-                if job.status == 'delivered' and not job.delivery_date:
-                    job.delivery_date = timezone.now().date()
-                job.save()
+                job = form.save()
 
             # ── 2. Notify only for non-status edits ──
             # (Status changes are already notified by RepairJob.save().)
@@ -1286,6 +1286,7 @@ def add_repair_part(request, pk):
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect
+@require_http_methods(["POST", "DELETE"])
 @handle_errors(default_redirect='accounting:repair_list')
 def remove_repair_part(request, part_pk):
     part = get_object_or_404(
@@ -1427,6 +1428,7 @@ def add_repair_service(request, pk):
 
 @login_required
 @csrf_protect
+@require_http_methods(["POST", "DELETE"])
 @handle_errors(default_redirect='accounting:repair_list')
 def remove_repair_service(request, service_pk):
     """Remove a service from the repair job."""
@@ -2115,6 +2117,12 @@ def staff_approve_estimate(request, pk):
         remarks = request.POST.get('remarks', '').strip()
 
         with transaction.atomic():
+            # Row lock + re-check: portal se concurrent decision se parity toot-ti hai
+            repair = RepairJob.objects.select_for_update().get(pk=pk)
+            if repair.estimate_status == 'approved':
+                messages.warning(request, "This estimate is already approved.")
+                return redirect('accounting:repair_detail', pk=repair.pk)
+
             # Estimate fields pehle save karo (status ko chhue bina)
             repair.estimate_status = 'approved'
             repair.estimate_decided_at = None
@@ -2179,14 +2187,21 @@ def staff_estimate_hold(request, pk):
         source = request.POST.get('source', 'staff_phone')
         remarks = (request.POST.get('remarks') or '').strip()
 
-        repair.estimate_status = 'on_hold'
-        repair.estimate_decided_at = timezone.now()
-        repair.approval_source = source
-        repair.approval_remarks = remarks or 'Estimate placed on hold'
-        repair.save(update_fields=[
-            'estimate_status', 'estimate_decided_at',
-            'approval_source', 'approval_remarks',
-        ])
+        with transaction.atomic():
+            # Row lock + re-check against concurrent approve
+            repair = RepairJob.objects.select_for_update().get(pk=pk)
+            if repair.estimate_status == 'approved':
+                messages.warning(request, "Approved estimate ko hold nahi kar sakte.")
+                return redirect('accounting:repair_detail', pk=repair.pk)
+
+            repair.estimate_status = 'on_hold'
+            repair.estimate_decided_at = timezone.now()
+            repair.approval_source = source
+            repair.approval_remarks = remarks or 'Estimate placed on hold'
+            repair.save(update_fields=[
+                'estimate_status', 'estimate_decided_at',
+                'approval_source', 'approval_remarks',
+            ])
 
         _safe_notify(
             repair.customer,
@@ -2230,6 +2245,12 @@ def staff_estimate_reject(request, pk):
         raw_charge = (request.POST.get('cancel_charge') or '').strip()
 
         with transaction.atomic():
+            # Row lock + re-check against concurrent approve
+            repair = RepairJob.objects.select_for_update().get(pk=pk)
+            if repair.estimate_status == 'approved':
+                messages.warning(request, "Approved estimate ko reject nahi kar sakte.")
+                return redirect('accounting:repair_detail', pk=repair.pk)
+
             repair.estimate_status = 'rejected'
             repair.estimate_decided_at = timezone.now()
             repair.approval_source = source
@@ -2345,7 +2366,7 @@ def export_repairs_excel(request):
         RepairJob.objects
         .select_related('customer', 'invoice', 'estimate_approved_by')
         .order_by('-created_at')
-        .prefetch_related('parts')
+        .prefetch_related('parts', 'services')
     )
 
     # ── Filters ──
@@ -2494,7 +2515,10 @@ def export_repairs_excel(request):
     if status_filter: filter_parts.append(f"Status: {status_filter}")
     if date_from: filter_parts.append(f"From: {date_from}")
     if date_to: filter_parts.append(f"To: {date_to}")
-    filter_parts.append(f"Total: {queryset.count()}")
+    total_jobs = queryset.count()
+    filter_parts.append(f"Total: {total_jobs}")
+    if total_jobs > 5000:
+        filter_parts.append("Export capped at first 5000 rows — apply date filters for the rest")
     ws['A4'] = " | ".join(filter_parts)
     ws['A4'].font = Font(size=10, italic=True, color="555555")
     ws['A4'].alignment = center
@@ -2517,7 +2541,7 @@ def export_repairs_excel(request):
     total_parts = Decimal('0')
     total_final = Decimal('0')
 
-    for job in queryset:
+    for job in queryset[:5000]:
         parts_qs = list(job.parts.all())
         parts_total = sum((p.line_total for p in parts_qs), Decimal('0'))
         # Labour/services total
@@ -2862,10 +2886,18 @@ def quick_update_repair(request, pk):
     est = request.POST.get('estimated_cost', '').strip()
     if est:
         try:
-            job.estimated_cost = Decimal(est)
-            update_fields.append('estimated_cost')
+            value = Decimal(est)
         except (InvalidOperation, ValueError, TypeError):
-            pass
+            value = None
+        if value is not None and value < 0:
+            return toast_only_response(
+                {'level': 'danger',
+                 'message': 'Estimated cost cannot be negative.'},
+                status=400,
+            )
+        if value is not None:
+            job.estimated_cost = value
+            update_fields.append('estimated_cost')
     elif 'estimated_cost' in request.POST:
         job.estimated_cost = None
         update_fields.append('estimated_cost')

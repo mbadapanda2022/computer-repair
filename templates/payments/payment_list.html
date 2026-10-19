@@ -40,7 +40,7 @@
                     </div>
                     <div class="overflow-hidden">
                         <small class="text-muted d-block text-uppercase fw-semibold">Received</small>
-                        <h5 class="mb-0 fw-bold text-success text-truncate">₹{{ total_received|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-success text-truncate">₹{{ total_received|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -53,7 +53,7 @@
                     </div>
                     <div class="overflow-hidden">
                         <small class="text-muted d-block text-uppercase fw-semibold">Paid</small>
-                        <h5 class="mb-0 fw-bold text-danger text-truncate">₹{{ total_paid|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-danger text-truncate">₹{{ total_paid|rupee }}</h5>
                     </div>
                 </div>
             </div>

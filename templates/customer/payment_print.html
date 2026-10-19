@@ -147,7 +147,7 @@
                     {% if payment.allocations.all %}
                         {% for alloc in payment.allocations.all %}
                             {{ alloc.invoice.invoice_number }}
-                            <small class="text-muted">(₹{{ alloc.amount|floatformat:2 }})</small>{% if not forloop.last %}, {% endif %}
+                            <small class="text-muted">(₹{{ alloc.amount|rupee }})</small>{% if not forloop.last %}, {% endif %}
                         {% endfor %}
                     {% elif payment.is_advance %}
                         <span class="badge badge-advance">Advance</span>
@@ -156,11 +156,11 @@
                     {% endif %}
                     {% if payment.discount_amount and payment.discount_amount > 0 %}
                         <br><small class="text-danger">
-                            Discount: ₹{{ payment.discount_amount|floatformat:2 }}
+                            Discount: ₹{{ payment.discount_amount|rupee }}
                         </small>
                     {% endif %}
                 </td>
-                <td class="text-end fw-bold">₹{{ payment.amount|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ payment.amount|rupee }}</td>
                 <td>
                     <span class="badge 
                         {% if payment.method == 'cash' %}badge-cash
@@ -189,7 +189,7 @@
             {% if payments %}
             <tr class="summary-row">
                 <td colspan="2" class="text-end">Total</td>
-                <td class="text-end fw-bold">₹{{ total_amount|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ total_amount|rupee }}</td>
                 <td colspan="3"></td>
             </tr>
             {% endif %}

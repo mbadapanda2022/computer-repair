@@ -54,10 +54,10 @@
                         <tr>
                             <td>{{ acc.account }}</td>
                             <td class="text-end">
-                                {% if acc.debit > 0 %}₹{{ acc.debit|floatformat:2 }}{% else %}—{% endif %}
+                                {% if acc.debit > 0 %}₹{{ acc.debit|rupee }}{% else %}—{% endif %}
                             </td>
                             <td class="text-end">
-                                {% if acc.credit > 0 %}₹{{ acc.credit|floatformat:2 }}{% else %}—{% endif %}
+                                {% if acc.credit > 0 %}₹{{ acc.credit|rupee }}{% else %}—{% endif %}
                             </td>
                         </tr>
                         {% empty %}
@@ -72,8 +72,8 @@
                     <tfoot class="table-light fw-bold">
                         <tr>
                             <td>Total</td>
-                            <td class="text-end">₹{{ total_dr|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ total_cr|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ total_dr|rupee }}</td>
+                            <td class="text-end">₹{{ total_cr|rupee }}</td>
                         </tr>
                         {% if total_dr == total_cr %}
                         <tr class="table-success">
@@ -81,7 +81,7 @@
                         </tr>
                         {% else %}
                         <tr class="table-danger">
-                            <td colspan="3" class="text-center">❌ Difference: ₹{{ total_dr|floatformat:2 }}</td>
+                            <td colspan="3" class="text-center">❌ Difference: ₹{{ total_dr|rupee }}</td>
                         </tr>
                         {% endif %}
                     </tfoot>

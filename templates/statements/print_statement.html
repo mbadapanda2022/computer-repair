@@ -99,9 +99,9 @@
                         <br><span style="font-size:9pt; color:#6c757d;">{{ line.action|truncatechars:80 }}</span>
                     {% endif %}
                 </td>
-                <td class="text-end">{% if line.debit > 0 %}₹{{ line.debit|floatformat:2 }}{% else %}—{% endif %}</td>
-                <td class="text-end">{% if line.credit > 0 %}₹{{ line.credit|floatformat:2 }}{% else %}—{% endif %}</td>
-                <td class="text-end fw-bold">₹{{ line.balance|floatformat:2 }}</td>
+                <td class="text-end">{% if line.debit > 0 %}₹{{ line.debit|rupee }}{% else %}—{% endif %}</td>
+                <td class="text-end">{% if line.credit > 0 %}₹{{ line.credit|rupee }}{% else %}—{% endif %}</td>
+                <td class="text-end fw-bold">₹{{ line.balance|rupee }}</td>
             </tr>
             {% empty %}
             <tr><td colspan="5" class="text-center">No transactions found.</td></tr>
@@ -109,16 +109,16 @@
             {% if statement_lines %}
             <tr class="summary-row">
                 <td colspan="2" class="text-end">Totals</td>
-                <td class="text-end">₹{{ dr_total|floatformat:2 }}</td>
-                <td class="text-end">₹{{ cr_total|floatformat:2 }}</td>
-                <td class="text-end">₹{{ closing|floatformat:2 }}</td>
+                <td class="text-end">₹{{ dr_total|rupee }}</td>
+                <td class="text-end">₹{{ cr_total|rupee }}</td>
+                <td class="text-end">₹{{ closing|rupee }}</td>
             </tr>
             <tr class="closing-row">
                 <td colspan="4" class="text-end">
                     Closing Balance
                     {% if closing_as_on_date %}(as on {{ closing_as_on_date|date:"d M Y" }}){% endif %}
                 </td>
-                <td class="text-end" style="font-size: 12pt;">₹{{ closing|floatformat:2 }}</td>
+                <td class="text-end" style="font-size: 12pt;">₹{{ closing|rupee }}</td>
             </tr>
             {% endif %}
         </tbody>

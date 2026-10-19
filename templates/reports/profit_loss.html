@@ -3,6 +3,12 @@
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
+    {% if report_error %}
+    <div class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <div>Report generate nahi ho paya — neeche dikh rahe sab numbers <strong>real nahi hain</strong> (sirf 0 placeholder hain). Dobara try karein ya date filter change karein.</div>
+    </div>
+    {% endif %}
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>
             <h3 class="fw-semibold mb-0">
@@ -52,20 +58,20 @@
                     <table class="table table-sm mb-0">
                         <tr>
                             <td>Sales Revenue</td>
-                            <td class="text-end">₹{{ sales_total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ sales_total|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Repair Income (Labour)</td>
-                            <td class="text-end">₹{{ repair_income|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ repair_income|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Less: Direct Expenses <span class="text-muted small">(Purchases, Wages, Carriage…)</span></td>
-                            <td class="text-end text-danger">− ₹{{ total_direct_expenses|floatformat:2 }}</td>
+                            <td class="text-end text-danger">− ₹{{ total_direct_expenses|rupee }}</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Gross Profit</td>
                             <td class="text-end {% if gross_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                ₹{{ gross_profit|floatformat:2 }}
+                                ₹{{ gross_profit|rupee }}
                             </td>
                         </tr>
                     </table>
@@ -84,20 +90,20 @@
                     <table class="table table-sm mb-0">
                         <tr>
                             <td>Gross Profit b/d</td>
-                            <td class="text-end">₹{{ gross_profit|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ gross_profit|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Add: Other Income</td>
-                            <td class="text-end">₹{{ other_income_total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ other_income_total|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Less: Indirect Expenses <span class="text-muted small">(Rent, Salary, Electricity…)</span></td>
-                            <td class="text-end text-danger">− ₹{{ total_indirect_expenses|floatformat:2 }}</td>
+                            <td class="text-end text-danger">− ₹{{ total_indirect_expenses|rupee }}</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Net Profit</td>
                             <td class="text-end {% if net_profit >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                ₹{{ net_profit|floatformat:2 }}
+                                ₹{{ net_profit|rupee }}
                             </td>
                         </tr>
                     </table>
@@ -113,11 +119,11 @@
             <table class="table table-sm mb-0">
                 <tr>
                     <td>Total Income (Sales + Repair + Other)</td>
-                    <td class="text-end">₹{{ total_income|floatformat:2 }}</td>
+                    <td class="text-end">₹{{ total_income|rupee }}</td>
                 </tr>
                 <tr>
                     <td>Total Expenses (Direct + Indirect)</td>
-                    <td class="text-end">₹{{ total_expenses|floatformat:2 }}</td>
+                    <td class="text-end">₹{{ total_expenses|rupee }}</td>
                 </tr>
             </table>
         </div>

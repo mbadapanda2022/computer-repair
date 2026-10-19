@@ -14,10 +14,10 @@
             {% for alloc in payment_allocations %}
             <tr>
                 <td>{{ alloc.payment.date|date:"d M Y" }}</td>
-                <td class="fw-bold">₹{{ alloc.payment.amount|floatformat:2 }}</td>
+                <td class="fw-bold">₹{{ alloc.payment.amount|rupee }}</td>
                 <td>{{ alloc.payment.get_method_display }}</td>
                 <td>{{ alloc.payment.reference|default:"—" }}</td>
-                <td>₹{{ alloc.amount|floatformat:2 }}</td>
+                <td>₹{{ alloc.amount|rupee }}</td>
             </tr>
             {% empty %}
             <tr><td colspan="5" class="text-center text-muted py-2">No payments recorded yet.</td></tr>

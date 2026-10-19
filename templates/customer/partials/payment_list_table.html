@@ -24,7 +24,7 @@
                                     <a href="{% url 'customer:customer_invoice_detail' alloc.invoice.id %}" class="text-decoration-none">
                                         {{ alloc.invoice.invoice_number }}
                                     </a>
-                                    <small class="text-muted">(₹{{ alloc.amount|floatformat:2 }})</small>
+                                    <small class="text-muted">(₹{{ alloc.amount|rupee }})</small>
                                     {% if not forloop.last %}, {% endif %}
                                 {% endfor %}
                             {% elif payment.is_advance %}
@@ -36,11 +36,11 @@
                             {% endif %}
                             {% if payment.discount_amount and payment.discount_amount > 0 %}
                                 <br><small class="text-danger">
-                                    <i class="bi bi-tag"></i> Discount: ₹{{ payment.discount_amount|floatformat:2 }}
+                                    <i class="bi bi-tag"></i> Discount: ₹{{ payment.discount_amount|rupee }}
                                 </small>
                             {% endif %}
                         </td>
-                        <td class="text-end fw-bold">₹{{ payment.amount|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ payment.amount|rupee }}</td>
                         <td>
                             <span class="badge 
                                 {% if payment.method == 'cash' %}bg-success

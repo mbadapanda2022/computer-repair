@@ -14,7 +14,7 @@
         <div class="alert alert-info">
             <strong>Repair:</strong> {{ repair.job_number }}<br>
             <strong>Device:</strong> {{ repair.device_model }}<br>
-            <strong>Estimated Cost:</strong> ₹{{ repair.estimated_cost|floatformat:2 }}
+            <strong>Estimated Cost:</strong> ₹{{ repair.estimated_cost|rupee }}
         </div>
         
         <div class="mb-3">

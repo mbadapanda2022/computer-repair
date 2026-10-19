@@ -110,38 +110,38 @@
                         {% endif %}
                     </td>
                     <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
-                    <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                    <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                     <td class="text-end">
                         {% if item.tax_rate > 0 %}{{ item.tax_rate }}%{% else %}—{% endif %}
                     </td>
-                    <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                    <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
                 </tr>
                 {% endfor %}
 
                 <tr class="total-row">
                     <td colspan="4" class="text-end">Subtotal</td>
-                    <td colspan="2" class="text-end">₹{{ purchase.subtotal|floatformat:2 }}</td>
+                    <td colspan="2" class="text-end">₹{{ purchase.subtotal|rupee }}</td>
                 </tr>
                 {% if purchase.discount_amount > 0 %}
                 <tr class="total-row">
                     <td colspan="4" class="text-end text-danger">Discount</td>
-                    <td colspan="2" class="text-end text-danger">−₹{{ purchase.discount_amount|floatformat:2 }}</td>
+                    <td colspan="2" class="text-end text-danger">−₹{{ purchase.discount_amount|rupee }}</td>
                 </tr>
                 {% endif %}
                 {% if purchase.freight_charge > 0 %}
                 <tr class="total-row">
                     <td colspan="4" class="text-end">Freight</td>
-                    <td colspan="2" class="text-end">₹{{ purchase.freight_charge|floatformat:2 }}</td>
+                    <td colspan="2" class="text-end">₹{{ purchase.freight_charge|rupee }}</td>
                 </tr>
                 {% endif %}
                 <tr class="total-row">
                     <td colspan="4" class="text-end">Tax</td>
-                    <td colspan="2" class="text-end">₹{{ purchase.tax_amount|floatformat:2 }}</td>
+                    <td colspan="2" class="text-end">₹{{ purchase.tax_amount|rupee }}</td>
                 </tr>
                 <tr class="grand-total">
                     <td colspan="4" class="text-end" style="font-size:10pt;">Grand Total</td>
                     <td colspan="2" class="text-end" style="font-size:12pt; font-weight:700;">
-                        ₹{{ purchase.grand_total|floatformat:2 }}
+                        ₹{{ purchase.grand_total|rupee }}
                     </td>
                 </tr>
             </tbody>
@@ -160,20 +160,20 @@
             <tr>
                 <td style="border: 1px solid #dee2e6; padding: 3px 8px;">CGST (9%)</td>
                 <td class="text-end" style="border: 1px solid #dee2e6; padding: 3px 8px;">
-                    ₹{{ purchase.tax_amount|divide:2|floatformat:2 }}
+                    ₹{{ purchase.tax_amount|divide:2|rupee }}
                 </td>
             </tr>
             <tr>
                 <td style="border: 1px solid #dee2e6; padding: 3px 8px;">SGST (9%)</td>
                 <td class="text-end" style="border: 1px solid #dee2e6; padding: 3px 8px;">
-                    ₹{{ purchase.tax_amount|divide:2|floatformat:2 }}
+                    ₹{{ purchase.tax_amount|divide:2|rupee }}
                 </td>
             </tr>
             {% elif purchase.gst_type == 'interstate' %}
             <tr>
                 <td style="border: 1px solid #dee2e6; padding: 3px 8px;">IGST (18%)</td>
                 <td class="text-end" style="border: 1px solid #dee2e6; padding: 3px 8px;">
-                    ₹{{ purchase.tax_amount|floatformat:2 }}
+                    ₹{{ purchase.tax_amount|rupee }}
                 </td>
             </tr>
             {% endif %}

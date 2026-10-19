@@ -62,11 +62,11 @@
                         {% for row in aging_data %}
                         <tr>
                             <td>{{ row.name }}</td>
-                            <td class="text-end">₹{{ row.range_0_30|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ row.range_31_60|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ row.range_61_90|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ row.range_90_plus|floatformat:2 }}</td>
-                            <td class="text-end fw-bold">₹{{ row.total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ row.range_0_30|rupee }}</td>
+                            <td class="text-end">₹{{ row.range_31_60|rupee }}</td>
+                            <td class="text-end">₹{{ row.range_61_90|rupee }}</td>
+                            <td class="text-end">₹{{ row.range_90_plus|rupee }}</td>
+                            <td class="text-end fw-bold">₹{{ row.total|rupee }}</td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -80,11 +80,11 @@
                     <tfoot class="table-light fw-bold">
                         <tr>
                             <td>Total</td>
-                            <td class="text-end">₹{{ totals.0_30|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ totals.31_60|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ totals.61_90|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ totals.90_plus|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ totals.total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ totals.0_30|rupee }}</td>
+                            <td class="text-end">₹{{ totals.31_60|rupee }}</td>
+                            <td class="text-end">₹{{ totals.61_90|rupee }}</td>
+                            <td class="text-end">₹{{ totals.90_plus|rupee }}</td>
+                            <td class="text-end">₹{{ totals.total|rupee }}</td>
                         </tr>
                     </tfoot>
                 </table>

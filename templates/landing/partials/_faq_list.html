@@ -1,4 +1,4 @@
-<div id="faq-list" class="accordion" id="faqAccordion">
+<div id="faqAccordion" class="accordion">
     {% for faq in faqs %}
     <div class="accordion-item">
         <h2 class="accordion-header">
@@ -25,7 +25,7 @@
                     </button>
                     <button class="btn btn-sm btn-outline-danger" 
                             hx-delete="{% url 'accounting:faq_delete' faq.pk %}"
-                            hx-target="#faq-list"
+                            hx-target="#faqAccordion"
                             hx-swap="outerHTML"
                             hx-confirm="Are you sure you want to delete this FAQ?">
                         <i class="bi bi-trash"></i>

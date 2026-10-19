@@ -23,8 +23,8 @@
                     {% endif %}
                 </td>
                 <td class="text-center">{{ part.quantity }}</td>
-                <td class="text-end">₹{{ part.unit_price|floatformat:2 }}</td>
-                <td class="text-end fw-bold">₹{{ part.line_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ part.unit_price|rupee }}</td>
+                <td class="text-end fw-bold">₹{{ part.line_total|rupee }}</td>
                 <td class="text-center">
                     {% if not job.is_invoiced %}
                         <button type="button"
@@ -91,19 +91,19 @@
         <tfoot class="table-light fw-bold">
             <tr>
                 <td colspan="4" class="text-end">Parts Total (pre-tax)</td>
-                <td class="text-end">₹{{ parts_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ parts_total|rupee }}</td>
                 <td></td>
             </tr>
             {% if services %}
             <tr>
                 <td colspan="4" class="text-end">Services Total (pre-tax)</td>
-                <td class="text-end">₹{{ services_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ services_total|rupee }}</td>
                 <td></td>
             </tr>
             {% endif %}
             <tr style="border-top: 2px solid #dee2e6;">
                 <td colspan="4" class="text-end">Base Amount</td>
-                <td class="text-end">₹{{ job.base_amount|floatformat:2 }}</td>
+                <td class="text-end">₹{{ job.base_amount|rupee }}</td>
                 <td></td>
             </tr>
 
@@ -115,7 +115,7 @@
                         (incl. tax — as billed)
                     </small>
                 </td>
-                <td class="text-end fs-5">₹{{ job.display_amount|floatformat:2 }}</td>
+                <td class="text-end fs-5">₹{{ job.display_amount|rupee }}</td>
                 <td></td>
             </tr>
             <tr>
@@ -131,7 +131,7 @@
             {% else %}
             <tr class="table-primary">
                 <td colspan="4" class="text-end fs-6">Est. Final (pre-tax)</td>
-                <td class="text-end fs-5">₹{{ job.base_amount|floatformat:2 }}</td>
+                <td class="text-end fs-5">₹{{ job.base_amount|rupee }}</td>
                 <td></td>
             </tr>
             {% endif %}

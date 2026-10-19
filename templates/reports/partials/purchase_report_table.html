@@ -25,9 +25,9 @@
                             </a>
                         </td>
                         <td>{{ pur.vendor.name }}</td>
-                        <td class="text-end">₹{{ pur.subtotal|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ pur.tax_amount|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">₹{{ pur.grand_total|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ pur.subtotal|rupee }}</td>
+                        <td class="text-end">₹{{ pur.tax_amount|rupee }}</td>
+                        <td class="text-end fw-bold">₹{{ pur.grand_total|rupee }}</td>
                         <td>
                             <span class="badge {% if pur.paid %}bg-success{% else %}bg-warning{% endif %}">
                                 {% if pur.paid %}Paid{% else %}Unpaid{% endif %}

@@ -37,7 +37,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block text-uppercase fw-semibold">Total Purchases</small>
-                        <h5 class="mb-0 fw-bold">₹{{ total_amount|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold">₹{{ total_amount|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -50,7 +50,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block text-uppercase fw-semibold">Paid</small>
-                        <h5 class="mb-0 fw-bold text-success">₹{{ total_paid|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-success">₹{{ total_paid|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -63,7 +63,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block text-uppercase fw-semibold">Unpaid Balance</small>
-                        <h5 class="mb-0 fw-bold text-danger">₹{{ total_unpaid|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-danger">₹{{ total_unpaid|rupee }}</h5>
                     </div>
                 </div>
             </div>

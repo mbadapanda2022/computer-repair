@@ -58,19 +58,19 @@
 <div class="summary">
     <div class="summary-card primary">
         <div class="label">Opening Balance</div>
-        <div class="value">₹{{ opening_balance|floatformat:2 }}</div>
+        <div class="value">₹{{ opening_balance|rupee }}</div>
     </div>
     <div class="summary-card success">
         <div class="label">Total Deposits</div>
-        <div class="value">₹{{ total_deposit|floatformat:2 }}</div>
+        <div class="value">₹{{ total_deposit|rupee }}</div>
     </div>
     <div class="summary-card danger">
         <div class="label">Total Withdrawals</div>
-        <div class="value">₹{{ total_withdrawal|floatformat:2 }}</div>
+        <div class="value">₹{{ total_withdrawal|rupee }}</div>
     </div>
     <div class="summary-card info">
         <div class="label">Closing Balance</div>
-        <div class="value">₹{{ closing_balance|floatformat:2 }}</div>
+        <div class="value">₹{{ closing_balance|rupee }}</div>
     </div>
 </div>
 
@@ -89,16 +89,16 @@
         <tr style="background:#eef2f7; font-weight:bold;">
             <td class="text-center">—</td>
             <td colspan="4">Opening Balance</td>
-            <td class="text-end">₹{{ opening_balance|floatformat:2 }}</td>
+            <td class="text-end">₹{{ opening_balance|rupee }}</td>
         </tr>
         {% for line in statement_lines %}
         <tr>
             <td>{{ line.date|date:"d-m-Y" }}</td>
             <td>{{ line.description }}</td>
             <td>{% if line.reference != '-' %}{{ line.reference }}{% else %}—{% endif %}</td>
-            <td class="text-end">{% if line.deposit > 0 %}₹{{ line.deposit|floatformat:2 }}{% else %}—{% endif %}</td>
-            <td class="text-end">{% if line.withdrawal > 0 %}₹{{ line.withdrawal|floatformat:2 }}{% else %}—{% endif %}</td>
-            <td class="text-end">₹{{ line.balance|floatformat:2 }}</td>
+            <td class="text-end">{% if line.deposit > 0 %}₹{{ line.deposit|rupee }}{% else %}—{% endif %}</td>
+            <td class="text-end">{% if line.withdrawal > 0 %}₹{{ line.withdrawal|rupee }}{% else %}—{% endif %}</td>
+            <td class="text-end">₹{{ line.balance|rupee }}</td>
         </tr>
         {% empty %}
         <tr><td colspan="6" class="text-center" style="padding:20px;">No transactions found.</td></tr>
@@ -107,9 +107,9 @@
     <tfoot>
         <tr>
             <td colspan="3" class="text-end">Totals →</td>
-            <td class="text-end">₹{{ total_deposit|floatformat:2 }}</td>
-            <td class="text-end">₹{{ total_withdrawal|floatformat:2 }}</td>
-            <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
+            <td class="text-end">₹{{ total_deposit|rupee }}</td>
+            <td class="text-end">₹{{ total_withdrawal|rupee }}</td>
+            <td class="text-end">₹{{ closing_balance|rupee }}</td>
         </tr>
     </tfoot>
 </table>

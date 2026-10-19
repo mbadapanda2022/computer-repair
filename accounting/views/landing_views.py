@@ -293,7 +293,7 @@ def debug_cloudinary(request):
 def service_list_partial(request):
     """Return partial HTML for service list (for HTMX refresh)"""
     services = Service.objects.all().order_by('order', 'created_at')
-    html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+    html = render_to_string('landing/partials/_service_list.html', {'services': services, 'include_controls': True}, request=request)
     return HttpResponse(html)
 
 
@@ -306,7 +306,7 @@ def service_create(request):
             service = form.save()
             if is_htmx(request):
                 services = Service.objects.all().order_by('order', 'created_at')
-                html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+                html = render_to_string('landing/partials/_service_list.html', {'services': services, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': f'Service "{service.title}" created successfully.'},
@@ -331,7 +331,7 @@ def service_edit(request, pk):
             form.save()
             if is_htmx(request):
                 services = Service.objects.all().order_by('order', 'created_at')
-                html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+                html = render_to_string('landing/partials/_service_list.html', {'services': services, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': f'Service "{service.title}" updated successfully.'},
@@ -355,7 +355,7 @@ def service_delete(request, pk):
     service.delete()
     if is_htmx(request):
         services = Service.objects.all().order_by('order', 'created_at')
-        html = render_to_string('landing/partials/_service_list.html', {'services': services}, request=request)
+        html = render_to_string('landing/partials/_service_list.html', {'services': services, 'include_controls': True}, request=request)
         response = HttpResponse(html)
         response['HX-Trigger'] = json.dumps({
             'showToast': {'level': 'success', 'message': f'Service "{title}" deleted successfully.'}
@@ -371,7 +371,7 @@ def service_delete(request, pk):
 def testimonial_list_partial(request):
     """Return partial HTML for testimonial list"""
     testimonials = Testimonial.objects.all().order_by('order', '-created_at')
-    html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+    html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials, 'include_controls': True}, request=request)
     return HttpResponse(html)
 
 
@@ -384,7 +384,7 @@ def testimonial_create(request):
             testimonial = form.save()
             if is_htmx(request):
                 testimonials = Testimonial.objects.all().order_by('order', '-created_at')
-                html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+                html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': f'Testimonial from "{testimonial.customer_name}" created.'},
@@ -408,7 +408,7 @@ def testimonial_edit(request, pk):
             form.save()
             if is_htmx(request):
                 testimonials = Testimonial.objects.all().order_by('order', '-created_at')
-                html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+                html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': 'Testimonial updated successfully.'},
@@ -431,7 +431,7 @@ def testimonial_delete(request, pk):
     testimonial.delete()
     if is_htmx(request):
         testimonials = Testimonial.objects.all().order_by('order', '-created_at')
-        html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials}, request=request)
+        html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials, 'include_controls': True}, request=request)
         response = HttpResponse(html)
         response['HX-Trigger'] = json.dumps({
             'showToast': {'level': 'success', 'message': f'Testimonial from "{name}" deleted.'}
@@ -447,7 +447,7 @@ def testimonial_delete(request, pk):
 def faq_list_partial(request):
     """Return partial HTML for FAQ list"""
     faqs = FAQ.objects.all().order_by('order', 'created_at')
-    html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+    html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs, 'include_controls': True}, request=request)
     return HttpResponse(html)
 
 
@@ -460,7 +460,7 @@ def faq_create(request):
             faq = form.save()
             if is_htmx(request):
                 faqs = FAQ.objects.all().order_by('order', 'created_at')
-                html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+                html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': 'FAQ added successfully.'},
@@ -484,7 +484,7 @@ def faq_edit(request, pk):
             form.save()
             if is_htmx(request):
                 faqs = FAQ.objects.all().order_by('order', 'created_at')
-                html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+                html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': 'FAQ updated successfully.'},
@@ -506,7 +506,7 @@ def faq_delete(request, pk):
     faq.delete()
     if is_htmx(request):
         faqs = FAQ.objects.all().order_by('order', 'created_at')
-        html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs}, request=request)
+        html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs, 'include_controls': True}, request=request)
         response = HttpResponse(html)
         response['HX-Trigger'] = json.dumps({
             'showToast': {'level': 'success', 'message': 'FAQ deleted successfully.'}

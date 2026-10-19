@@ -53,15 +53,15 @@
     <div class="summary-cards">
         <div class="summary-card primary">
             <div class="label">Total Amount</div>
-            <div class="value">₹{{ total_amount|floatformat:2 }}</div>
+            <div class="value">₹{{ total_amount|rupee }}</div>
         </div>
         <div class="summary-card success">
             <div class="label">Total Paid</div>
-            <div class="value">₹{{ total_paid|floatformat:2 }}</div>
+            <div class="value">₹{{ total_paid|rupee }}</div>
         </div>
         <div class="summary-card danger">
             <div class="label">Unpaid</div>
-            <div class="value">₹{{ total_unpaid|floatformat:2 }}</div>
+            <div class="value">₹{{ total_unpaid|rupee }}</div>
         </div>
     </div>
 
@@ -83,9 +83,9 @@
                 <td><strong>{{ p.purchase_number }}</strong></td>
                 <td>{{ p.date|date:"d M Y" }}</td>
                 <td class="text-center">{{ p.item_count }}</td>
-                <td class="text-end">₹{{ p.subtotal|floatformat:2 }}</td>
-                <td class="text-end">₹{{ p.tax_amount|floatformat:2 }}</td>
-                <td class="text-end">₹{{ p.grand_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ p.subtotal|rupee }}</td>
+                <td class="text-end">₹{{ p.tax_amount|rupee }}</td>
+                <td class="text-end">₹{{ p.grand_total|rupee }}</td>
                 <td>{% if p.paid %}Paid{% else %}Unpaid{% endif %}</td>
             </tr>
             {% empty %}
@@ -96,7 +96,7 @@
         <tfoot>
             <tr>
                 <td colspan="5" class="text-end">Total →</td>
-                <td class="text-end">₹{{ total_amount|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_amount|rupee }}</td>
                 <td></td>
             </tr>
         </tfoot>

@@ -36,7 +36,7 @@
                         {% else %}
                             (Service)
                         {% endif %}
-                        — ₹{{ product.selling_price|floatformat:2 }}
+                        — ₹{{ product.selling_price|rupee }}
                     </option>
                 {% endfor %}
             </select>

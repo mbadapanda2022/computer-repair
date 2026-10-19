@@ -54,15 +54,15 @@
 <div class="summary-cards">
     <div class="summary-card primary">
         <div class="label">Total Sales</div>
-        <div class="value">₹{{ total_sales|floatformat:2 }}</div>
+        <div class="value">₹{{ total_sales|rupee }}</div>
     </div>
     <div class="summary-card success">
         <div class="label">Received</div>
-        <div class="value">₹{{ total_received|floatformat:2 }}</div>
+        <div class="value">₹{{ total_received|rupee }}</div>
     </div>
     <div class="summary-card danger">
         <div class="label">Unpaid</div>
-        <div class="value">₹{{ total_unpaid|floatformat:2 }}</div>
+        <div class="value">₹{{ total_unpaid|rupee }}</div>
     </div>
 </div>
 
@@ -85,9 +85,9 @@
             <td><strong>{{ inv.invoice_number }}</strong></td>
             <td>{{ inv.date|date:"d-m-Y" }}</td>
             <td>{{ inv.customer.name }}</td>
-            <td class="text-end">₹{{ inv.grand_total|floatformat:2 }}</td>
-            <td class="text-end">₹{{ inv.paid_amount|floatformat:2 }}</td>
-            <td class="text-end">₹{{ inv.balance_due|floatformat:2 }}</td>
+            <td class="text-end">₹{{ inv.grand_total|rupee }}</td>
+            <td class="text-end">₹{{ inv.paid_amount|rupee }}</td>
+            <td class="text-end">₹{{ inv.balance_due|rupee }}</td>
             <td>{{ inv.get_gst_type_display }}</td>
             <td class="text-center">{{ inv.get_payment_status_display }}</td>
         </tr>
@@ -98,9 +98,9 @@
     <tfoot>
         <tr>
             <td colspan="3" class="text-end">Totals →</td>
-            <td class="text-end">₹{{ total_sales|floatformat:2 }}</td>
-            <td class="text-end">₹{{ total_received|floatformat:2 }}</td>
-            <td class="text-end">₹{{ total_unpaid|floatformat:2 }}</td>
+            <td class="text-end">₹{{ total_sales|rupee }}</td>
+            <td class="text-end">₹{{ total_received|rupee }}</td>
+            <td class="text-end">₹{{ total_unpaid|rupee }}</td>
             <td colspan="2"></td>
         </tr>
     </tfoot>

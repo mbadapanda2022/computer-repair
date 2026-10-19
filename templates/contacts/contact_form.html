@@ -155,10 +155,10 @@
                     <i class="bi bi-info-circle me-1"></i>Auto-calculated from ledger (read-only)
                 </small>
                 <div class="d-flex gap-3 flex-wrap">
-                    <div><strong>Receivable:</strong> ₹{{ contact.receivable_balance|floatformat:2 }}</div>
-                    <div><strong>Payable:</strong> ₹{{ contact.payable_balance|floatformat:2 }}</div>
-                    <div><strong>Net:</strong> ₹{{ contact.balance|floatformat:2 }}</div>
-                    <div><strong>Advance:</strong> ₹{{ contact.advance_balance|floatformat:2 }}</div>
+                    <div><strong>Receivable:</strong> ₹{{ contact.receivable_balance|rupee }}</div>
+                    <div><strong>Payable:</strong> ₹{{ contact.payable_balance|rupee }}</div>
+                    <div><strong>Net:</strong> ₹{{ contact.balance|rupee }}</div>
+                    <div><strong>Advance:</strong> ₹{{ contact.advance_balance|rupee }}</div>
                 </div>
             </div>
         {% endif %}

@@ -183,12 +183,12 @@
             {% if job.cancellation_charge and job.invoice %}
                 <div class="small mt-1">
                     <i class="bi bi-receipt me-1"></i>
-                    Cancellation charge ₹{{ job.cancellation_charge|floatformat:2 }} —
+                    Cancellation charge ₹{{ job.cancellation_charge|rupee }} —
                     <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}" class="fw-bold">
                         view invoice {{ job.invoice.invoice_number }}
                     </a>
                     {% if job.invoice.balance_due > 0 %}
-                        <span class="badge bg-warning text-dark">Balance due ₹{{ job.invoice.balance_due|floatformat:2 }}</span>
+                        <span class="badge bg-warning text-dark">Balance due ₹{{ job.invoice.balance_due|rupee }}</span>
                     {% else %}
                         <span class="badge bg-success">Paid</span>
                     {% endif %}
@@ -548,13 +548,13 @@
                         <div class="col-6">
                             <div class="p-3 bg-light rounded-3 text-center">
                                 <small class="text-muted d-block">Parts (pre-tax)</small>
-                                <span class="fw-bold fs-5">₹{{ job.parts_total|floatformat:2 }}</span>
+                                <span class="fw-bold fs-5">₹{{ job.parts_total|rupee }}</span>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="p-3 bg-light rounded-3 text-center">
                                 <small class="text-muted d-block">Services (pre-tax)</small>
-                                <span class="fw-bold fs-5">₹{{ job.services_total|floatformat:2 }}</span>
+                                <span class="fw-bold fs-5">₹{{ job.services_total|rupee }}</span>
                             </div>
                         </div>
                     </div>
@@ -565,7 +565,7 @@
                         <small class="d-block opacity-75">
                             <i class="bi bi-receipt me-1"></i>Invoiced Amount (incl. tax)
                         </small>
-                        <span class="fw-bold fs-3">₹{{ job.display_amount|floatformat:2 }}</span>
+                        <span class="fw-bold fs-3">₹{{ job.display_amount|rupee }}</span>
                         <div class="mt-1">
                             <a href="{% url 'accounting:invoice_detail' job.invoice.pk %}"
                                class="text-white text-decoration-underline small">
@@ -575,12 +575,12 @@
                     </div>
                     <div class="d-flex justify-content-between small text-muted mb-1">
                         <span>Base Amount (pre-tax)</span>
-                        <span>₹{{ job.base_amount|floatformat:2 }}</span>
+                        <span>₹{{ job.base_amount|rupee }}</span>
                     </div>
                     {% else %}
                     <div class="p-3 bg-primary text-white rounded-3 text-center mb-2">
                         <small class="d-block opacity-75">Estimated Final (pre-tax)</small>
-                        <span class="fw-bold fs-3">₹{{ job.base_amount|floatformat:2 }}</span>
+                        <span class="fw-bold fs-3">₹{{ job.base_amount|rupee }}</span>
                         <div class="small mt-1 opacity-75">GST will be added on invoice</div>
                     </div>
                     {% endif %}
@@ -590,8 +590,8 @@
                         <div class="alert alert-info py-2 px-3 small mt-2 mb-0">
                             <i class="bi bi-info-circle me-1"></i>
                             <strong>Note:</strong> Invoiced amount differs from repair-side
-                            tracking (₹{{ job.base_amount|floatformat:2 }} pre-tax vs
-                            ₹{{ job.invoiced_amount|floatformat:2 }} billed).<br>
+                            tracking (₹{{ job.base_amount|rupee }} pre-tax vs
+                            ₹{{ job.invoiced_amount|rupee }} billed).<br>
                             <span class="text-muted">
                                 This is normal — extra items or services added during invoicing.
                             </span>
@@ -603,17 +603,17 @@
                         <hr>
                         <div class="d-flex justify-content-between small mb-1">
                             <span class="text-muted">Original Estimate</span>
-                            <span class="fw-bold">₹{{ job.estimated_cost|floatformat:2 }}</span>
+                            <span class="fw-bold">₹{{ job.estimated_cost|rupee }}</span>
                         </div>
                         {% if job.final_amount and job.estimated_cost %}
                         <div class="d-flex justify-content-between small mb-1">
                             <span class="text-muted">Actual (base)</span>
-                            <span class="fw-bold">₹{{ job.base_amount|floatformat:2 }}</span>
+                            <span class="fw-bold">₹{{ job.base_amount|rupee }}</span>
                         </div>
                         <div class="d-flex justify-content-between small">
                             <span class="text-muted">Difference</span>
                             <span class="fw-bold {% if estimate_diff > 0 %}text-danger{% elif estimate_diff < 0 %}text-success{% else %}text-muted{% endif %}">
-                                {% if estimate_diff > 0 %}+{% endif %}₹{{ estimate_diff|floatformat:2 }}
+                                {% if estimate_diff > 0 %}+{% endif %}₹{{ estimate_diff|rupee }}
                             </span>
                         </div>
                         {% endif %}
@@ -856,9 +856,9 @@
                                 {% endif %}
                             </td>
                             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
-                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -871,21 +871,21 @@
                     <tfoot class="table-light fw-bold">
                         <tr>
                             <td colspan="5" class="text-end">Subtotal</td>
-                            <td class="text-end">₹{{ job.invoice.subtotal|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ job.invoice.subtotal|rupee }}</td>
                         </tr>
                         {% if job.invoice.discount_amount > 0 %}
                         <tr>
                             <td colspan="5" class="text-end text-danger">Discount</td>
-                            <td class="text-end text-danger">−₹{{ job.invoice.discount_amount|floatformat:2 }}</td>
+                            <td class="text-end text-danger">−₹{{ job.invoice.discount_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr>
                             <td colspan="5" class="text-end">Tax</td>
-                            <td class="text-end">₹{{ job.invoice.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ job.invoice.tax_amount|rupee }}</td>
                         </tr>
                         <tr class="table-success">
                             <td colspan="5" class="text-end">Grand Total</td>
-                            <td class="text-end fs-5">₹{{ job.invoice.grand_total|floatformat:2 }}</td>
+                            <td class="text-end fs-5">₹{{ job.invoice.grand_total|rupee }}</td>
                         </tr>
                     </tfoot>
                 </table>

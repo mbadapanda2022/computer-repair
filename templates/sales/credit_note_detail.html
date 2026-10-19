@@ -78,11 +78,11 @@
                 <div class="card-header bg-light fw-bold">Amount</div>
                 <div class="card-body">
                     <table class="table table-sm table-borderless mb-0">
-                        <tr><td>Subtotal</td><td class="text-end">₹{{ credit_note.subtotal|floatformat:2 }}</td></tr>
-                        <tr><td>Tax</td><td class="text-end">₹{{ credit_note.tax_amount|floatformat:2 }}</td></tr>
+                        <tr><td>Subtotal</td><td class="text-end">₹{{ credit_note.subtotal|rupee }}</td></tr>
+                        <tr><td>Tax</td><td class="text-end">₹{{ credit_note.tax_amount|rupee }}</td></tr>
                         <tr class="border-top">
                             <td class="fw-bold">Total Credit</td>
-                            <td class="text-end fw-bold fs-4 text-warning">₹{{ credit_note.total_amount|floatformat:2 }}</td>
+                            <td class="text-end fw-bold fs-4 text-warning">₹{{ credit_note.total_amount|rupee }}</td>
                         </tr>
                     </table>
                 </div>
@@ -113,10 +113,10 @@
                             <td class="text-center text-muted">{{ forloop.counter }}</td>
                             <td>{{ item.product.name }}</td>
                             <td class="text-center">{{ item.quantity_returned|floatformat:2 }}</td>
-                            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
-                            <td class="text-end">₹{{ item.tax_amount|floatformat:2 }}</td>
-                            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ item.tax_amount|rupee }}</td>
+                            <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
                         </tr>
                         {% empty %}
                         <tr><td colspan="7" class="text-center text-muted py-4">No items.</td></tr>
@@ -125,15 +125,15 @@
                     <tfoot class="table-light">
                         <tr>
                             <td colspan="6" class="text-end">Subtotal</td>
-                            <td class="text-end">₹{{ credit_note.subtotal|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ credit_note.subtotal|rupee }}</td>
                         </tr>
                         <tr>
                             <td colspan="6" class="text-end">Tax</td>
-                            <td class="text-end">₹{{ credit_note.tax_amount|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ credit_note.tax_amount|rupee }}</td>
                         </tr>
                         <tr class="table-warning fw-bold">
                             <td colspan="6" class="text-end">Total Credit</td>
-                            <td class="text-end fs-5">₹{{ credit_note.total_amount|floatformat:2 }}</td>
+                            <td class="text-end fs-5">₹{{ credit_note.total_amount|rupee }}</td>
                         </tr>
                     </tfoot>
                 </table>

@@ -105,6 +105,9 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'accounting.context_processors.company_profile',
             ],
+            'builtins': [
+                'accounting.templatetags.math_filters',
+            ],
         },
     },
 ]
@@ -138,6 +141,15 @@ if DATABASE_URL:
 
     DATABASES = {"default": _db_config}
 else:
+    if not DEBUG:
+        # Render sets DATABASE_URL; if it's missing/typo'd we must NOT
+        # silently boot on ephemeral SQLite — every write would be lost
+        # on restart while the site looks healthy.
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            "DATABASE_URL is not set but DEBUG=False. Refusing to run "
+            "production against throwaway SQLite."
+        )
     # Local development
     DATABASES = {
         "default": {

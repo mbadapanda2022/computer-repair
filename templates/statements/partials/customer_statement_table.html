@@ -24,7 +24,7 @@
                                 <small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>
                             {% endif %}
                         </td>
-                        <td class="text-end">₹{{ opening|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ opening|rupee }}</td>
                         <td></td>
                     </tr>
                     {% endif %}
@@ -50,12 +50,12 @@
                             {% endif %}
                         </td>
                         <td class="text-end {% if line.debit > 0 %}fw-bold{% endif %}">
-                            {% if line.debit > 0 %}₹{{ line.debit|floatformat:2 }}{% else %}—{% endif %}
+                            {% if line.debit > 0 %}₹{{ line.debit|rupee }}{% else %}—{% endif %}
                         </td>
                         <td class="text-end {% if line.credit > 0 %}fw-bold{% endif %}">
-                            {% if line.credit > 0 %}₹{{ line.credit|floatformat:2 }}{% else %}—{% endif %}
+                            {% if line.credit > 0 %}₹{{ line.credit|rupee }}{% else %}—{% endif %}
                         </td>
-                        <td class="text-end fw-bold">₹{{ line.balance|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ line.balance|rupee }}</td>
                         <td class="text-center">
                             {% if line.invoice_id %}
                                 <a href="{% url 'accounting:invoice_detail' line.invoice_id %}" 
@@ -90,7 +90,7 @@
                                 <small class="text-muted">(as on {{ opening_as_on_date|date:"d M Y" }})</small>
                             {% endif %}
                         </td>
-                        <td class="text-end">₹{{ opening|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ opening|rupee }}</td>
                         <td></td>
                     </tr>
                     {% endif %}
@@ -99,9 +99,9 @@
                     {% if statement_lines %}
                     <tr class="table-light fw-bold">
                         <td colspan="2" class="text-end">Totals</td>
-                        <td class="text-end">₹{{ dr_total|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ cr_total|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ closing|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ dr_total|rupee }}</td>
+                        <td class="text-end">₹{{ cr_total|rupee }}</td>
+                        <td class="text-end">₹{{ closing|rupee }}</td>
                         <td></td>
                     </tr>
                     <tr class="table-primary fw-bold">
@@ -111,7 +111,7 @@
                                 <small>(as on {{ closing_as_on_date|date:"d M Y" }})</small>
                             {% endif %}
                         </td>
-                        <td class="text-end fs-6">₹{{ closing|floatformat:2 }}</td>
+                        <td class="text-end fs-6">₹{{ closing|rupee }}</td>
                         <td></td>
                     </tr>
                     {% endif %}

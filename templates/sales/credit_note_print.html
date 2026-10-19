@@ -97,25 +97,25 @@
             <td class="text-center">{{ forloop.counter }}</td>
             <td>{{ item.product.name }}</td>
             <td class="text-center">{{ item.quantity_returned|floatformat:2 }}</td>
-            <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+            <td class="text-end">₹{{ item.unit_price|rupee }}</td>
             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
-            <td class="text-end">₹{{ item.tax_amount|floatformat:2 }}</td>
-            <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+            <td class="text-end">₹{{ item.tax_amount|rupee }}</td>
+            <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
         </tr>
         {% endfor %}
     </tbody>
     <tfoot>
         <tr>
             <td colspan="6" class="text-end">Subtotal</td>
-            <td class="text-end">₹{{ credit_note.subtotal|floatformat:2 }}</td>
+            <td class="text-end">₹{{ credit_note.subtotal|rupee }}</td>
         </tr>
         <tr>
             <td colspan="6" class="text-end">Tax</td>
-            <td class="text-end">₹{{ credit_note.tax_amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ credit_note.tax_amount|rupee }}</td>
         </tr>
         <tr class="grand-total">
             <td colspan="6" class="text-end">CREDIT TOTAL</td>
-            <td class="text-end">₹{{ credit_note.total_amount|floatformat:2 }}</td>
+            <td class="text-end">₹{{ credit_note.total_amount|rupee }}</td>
         </tr>
     </tfoot>
 </table>

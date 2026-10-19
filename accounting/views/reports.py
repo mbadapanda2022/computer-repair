@@ -636,9 +636,10 @@ def profit_loss(request):
         return render(request, 'reports/profit_loss.html', context)
         
     except Exception as e:
-        logger.error(f"Profit/Loss report error: {e}")
+        logger.error(f"Profit/Loss report error: {e}", exc_info=True)
         messages.error(request, "Unable to generate profit/loss report.")
         return render(request, 'reports/profit_loss.html', {
+            'report_error': True,
             'sales_total': 0, 'purchase_total': 0,
             'repair_income': 0, 'other_income_total': 0,
             'total_income': 0,

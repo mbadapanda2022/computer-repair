@@ -25,7 +25,7 @@
         <div class="alert alert-light border">
             <strong>Repair:</strong> {{ repair.job_number }}<br>
             <strong>Device:</strong> {{ repair.device_model }}<br>
-            <strong>Estimated Cost:</strong> ₹{{ repair.estimated_cost|floatformat:2 }}<br>
+            <strong>Estimated Cost:</strong> ₹{{ repair.estimated_cost|rupee }}<br>
             <strong>Current Status:</strong>
             <span class="badge bg-secondary">{{ repair.get_status_display }}</span>
             <strong>Estimate:</strong>

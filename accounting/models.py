@@ -75,6 +75,7 @@ class SoftDeleteQuerySet(models.QuerySet):
             'Purchase',
             'Invoice',
             'CreditNote',
+            'BankTransaction',
         ):
             count = 0
             for obj in self.filter(is_deleted=False):
@@ -116,6 +117,7 @@ class SoftDeleteQuerySet(models.QuerySet):
             'RepairJob', 'RepairPart', 'RepairService',
             'Invoice', 'InvoiceItem', 'Purchase', 'PurchaseItem',
             'CreditNote', 'CreditNoteItem', 'Payment',
+            'BankTransaction',
         ):
             count = 0
             for obj in list(self.filter(is_deleted=True)):
@@ -379,7 +381,7 @@ class CompanyProfile(SoftDeleteModel):
         validators=POSITIVE_VALIDATOR,
         help_text="Service/labour ka fallback GST %. Khali = product ka rate.",
     )
-    financial_year_start = models.DateField(default=timezone.now)
+    financial_year_start = models.DateField(default=timezone.localdate)
     state = models.CharField(max_length=100, blank=True)
     tagline = models.CharField(max_length=255, blank=True, default="Expert chip-level repair, sales, and service for all brands.")
     hero_image = models.ImageField(upload_to='company_hero/', blank=True, null=True)
@@ -511,7 +513,7 @@ class LedgerEntry(SoftDeleteModel):
         ('payment', 'Payment (Legacy)'),
         ('receipt', 'Receipt (Legacy)'),
     )
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     entry_type = models.CharField(max_length=20, choices=ENTRY_TYPE)
     journal_type = models.CharField(max_length=20, choices=JOURNAL_TYPES, blank=True, null=True)
     reference_id = models.PositiveIntegerField(blank=True, null=True)
@@ -954,6 +956,18 @@ class StockMovement(SoftDeleteModel):
                 )
             self.soft_delete()
 
+    def restore(self, *args, **kwargs):
+        """Soft-deleted movement wapas laao — delete() ka mirror.
+
+        Stock re-apply khud `save()` me ho jata hai: restore() ke dauraan
+        `StockMovement.objects.get` (deleted row exclude karta hai) →
+        old_qty=0 → delta=quantity → `current_stock + quantity`. Isliye
+        yahan koi extra F() update NAHI karna — warna double-count.
+        """
+        if not self.is_deleted:
+            return
+        super().restore(*args, **kwargs)
+
 
 # ============================================================
 # 8. ADVANCE PAYMENT & SETTLEMENT
@@ -963,7 +977,7 @@ class AdvanceAdjustment(SoftDeleteModel):
     payment = models.ForeignKey('Payment', on_delete=models.CASCADE, related_name='advance_adjustments')
     invoice = models.ForeignKey('Invoice', on_delete=models.CASCADE, related_name='advance_adjustments')
     amount = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1106,7 +1120,7 @@ class Invoice(SoftDeleteModel):
 
     invoice_number = models.CharField(max_length=50, unique=True, editable=False)
     customer = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='sales_invoices', limit_choices_to={'contact_type__in': ['customer', 'both']})
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     due_date = models.DateField(blank=True, null=True)
     gst_type = models.CharField(max_length=12, choices=GST_TYPE, default='regular')
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
@@ -1271,6 +1285,7 @@ class Invoice(SoftDeleteModel):
     def has_credit_notes(self):
         return self.credit_notes.exists()
 
+    @transaction.atomic
     def save(self, *args, **kwargs):
         if not self.invoice_number:
             prefix = CompanyProfile.get_instance().invoice_prefix or "INV"
@@ -1301,6 +1316,19 @@ class Invoice(SoftDeleteModel):
             if self.customer:
                 self.customer.recalc_balance()
                 self.customer.recalc_advance_balance()
+
+    def restore(self):
+        """Invoice restore = soft-delete cleanup ka mirror (audit bug: restored
+        invoice khaali aata tha). Pehle items restore (har item apna stock
+        re-deduct karta hai), phir header flag — Invoice.save totals + ledger +
+        contact recalc khud chala leta hai kyunki items ab exist karte hain."""
+        if self.is_deleted:
+            with transaction.atomic():
+                for item in InvoiceItem.all_objects.filter(
+                    invoice=self, is_deleted=True,
+                ).order_by('pk'):
+                    item.restore()
+                super().restore()
 
     def calculate_totals(self):
         if not self.pk:
@@ -1374,6 +1402,16 @@ class Invoice(SoftDeleteModel):
                 # (payment, invoice) unique_together hai — jo advance pehle se
                 # is invoice par settle hai us par dobara row create mat karo.
                 if AdvanceAdjustment.objects.filter(payment=pay, invoice=self).exists():
+                    continue
+                # Payment row-lock + re-read of settled amount UNDER the lock:
+                # bina iske do concurrent invoices ek hi advance ka same
+                # unapplied amount padh kar use double-spend kar sakte the.
+                pay = Payment.objects.select_for_update().get(pk=pay.pk)
+                settled = AdvanceAdjustment.objects.filter(
+                    payment=pay,
+                ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+                avail = (pay.amount - settled).quantize(TAX_PRECISION)
+                if avail <= 0:
                     continue
                 take = min(avail, remaining_due)
                 AdvanceAdjustment.objects.create(
@@ -1472,8 +1510,31 @@ class InvoiceItem(SoftDeleteModel):
                 and not self.product.is_service
                 and not self.stock_already_deducted):
 
+            ct = ContentType.objects.get_for_model(self)
+            movement = StockMovement.all_objects.filter(
+                source_content_type=ct, source_object_id=self.pk,
+            ).first()
+            already_deducted = (
+                abs(movement.quantity)
+                if (movement is not None and not movement.is_deleted)
+                else Decimal('0')
+            )
+            additional = Decimal(str(self.quantity)) - already_deducted
+            if additional > 0:
+                # Product row-lock: do concurrent invoice items ek hi
+                # available_stock padh kar dono pass na ho jayein (TOCTOU
+                # oversell → negative stock).
+                locked = Product.objects.select_for_update().get(
+                    pk=self.product_id,
+                )
+                if locked.current_stock < additional:
+                    raise ValidationError(
+                        f"Insufficient stock for '{locked.name}': "
+                        f"available {locked.current_stock}, needed {additional}."
+                    )
+
             StockMovement.all_objects.update_or_create(
-                source_content_type=ContentType.objects.get_for_model(self),
+                source_content_type=ct,
                 source_object_id=self.pk,
                 defaults={
                     'product': self.product,
@@ -1518,8 +1579,17 @@ class InvoiceItem(SoftDeleteModel):
                 'balance_due', 'payment_status',
             ])
 
-            # ── Re-sync the ledger ──
-            sync_invoice_ledger(invoice)
+            # ── Re-sync the ledger (deferred during repair resync, same
+            # guard as Invoice.save — else a ledger failure would roll back
+            # the resync's line edits) ──
+            try:
+                from .repair_workflow import ledger_sync_deferred
+                _defer_ledger = ledger_sync_deferred()
+            except Exception:
+                _defer_ledger = False
+
+            if not _defer_ledger:
+                sync_invoice_ledger(invoice)
 
             if invoice.customer:
                 invoice.customer.recalc_balance()
@@ -1690,7 +1760,7 @@ class Purchase(SoftDeleteModel):
     
     purchase_number = models.CharField(max_length=50, unique=True, editable=False)
     vendor = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='purchases', limit_choices_to={'contact_type__in': ['vendor', 'both']})
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     gst_type = models.CharField(max_length=12, choices=PURCHASE_GST_TYPE, default='regular')
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
@@ -1731,6 +1801,7 @@ class Purchase(SoftDeleteModel):
             models.Index(fields=['discount_date']),
         ]
         
+    @transaction.atomic
     def delete(self, *args, **kwargs):
         """
         Override soft-delete to also clean up ledger entries + items.
@@ -1815,6 +1886,19 @@ class Purchase(SoftDeleteModel):
             if self.vendor:
                 self.vendor.recalc_balance()
 
+    def restore(self):
+        """Purchase restore = delete() ka mirror: pehle items (stock re-apply),
+        phir header. Header save update_fields se aata hai jo ledger sync skip
+        karta hai, isliye totals+ledger explicitly dobara sync karte hain."""
+        if self.is_deleted:
+            with transaction.atomic():
+                for item in PurchaseItem.all_objects.filter(
+                    purchase=self, is_deleted=True,
+                ).order_by('pk'):
+                    item.restore()
+                super().restore()
+                self.calculate_totals()
+                self.save(update_fields=['subtotal', 'tax_amount', 'grand_total'])
 
     def calculate_totals(self):
         items = self.items.all()
@@ -2073,7 +2157,7 @@ class CreditNote(SoftDeleteModel):
         Contact, on_delete=models.PROTECT,
         related_name='credit_notes',
     )
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     reason = models.CharField(max_length=30, choices=REASON_CHOICES)
     notes = models.TextField(blank=True)
 
@@ -2147,6 +2231,19 @@ class CreditNote(SoftDeleteModel):
                     f"CN ledger sync failed for {self.credit_note_number}: {e}",
                     exc_info=True,
                 )
+
+    def restore(self):
+        """CreditNote restore = delete ka mirror: items wapas (stock return
+        re-apply), phir header, phir ek plain save() — CN.save ka ledger sync
+        sirf update_fields=None wale save par chalta hai."""
+        if self.is_deleted:
+            with transaction.atomic():
+                for item in CreditNoteItem.all_objects.filter(
+                    credit_note=self, is_deleted=True,
+                ).order_by('pk'):
+                    item.restore()
+                super().restore()
+                self.save()
 
     def calculate_totals(self):
         """Sum up items to compute header totals."""
@@ -2559,12 +2656,24 @@ class RepairJob(SoftDeleteModel):
     def can_be_invoiced(self):
         return not self.invoice and self.status in ('ready', 'delivered')
 
-    def calculate_final_amount(self):
+    def _compute_final_amount(self):
+        """
+        SINGLE source of truth for final_amount (audit bug C-3 follow-up):
+        invoiced job ka amount invoice.grand_total hai (tax/discount ke saath,
+        resync_invoice ke set se match); bina invoice ke parts+services total.
+        """
+        if self.invoice_id:
+            inv_total = Invoice.objects.filter(
+                pk=self.invoice_id
+            ).values_list('grand_total', flat=True).first()
+            if inv_total is not None:
+                return inv_total
         parts_total = self.parts.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
         services_total = self.services.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
-        self.final_amount = (
-            parts_total + services_total
-        ).quantize(TAX_PRECISION)
+        return (parts_total + services_total).quantize(TAX_PRECISION)
+
+    def calculate_final_amount(self):
+        self.final_amount = self._compute_final_amount()
         self.save(update_fields=['final_amount'])
         return self.final_amount
     
@@ -2641,18 +2750,10 @@ class RepairJob(SoftDeleteModel):
                 if not self.delivery_date:
                     self.delivery_date = today
 
-        # Recalculate final_amount — parts + services + legacy labour
+        # Recalculate final_amount — invoiced jobs: invoice grand_total;
+        # otherwise parts + services (see _compute_final_amount).
         if self.pk:
-            parts_total = self.parts.aggregate(
-                total=Sum('line_total')
-            )['total'] or Decimal('0')
-            services_total = self.services.aggregate(
-                total=Sum('line_total')
-            )['total'] or Decimal('0')
-            # Legacy labour shamil nahi — labour ab RepairService lines me.
-            self.final_amount = (
-                parts_total + services_total
-            ).quantize(TAX_PRECISION)
+            self.final_amount = self._compute_final_amount()
 
         # Ensure auto-stamped fields are included in update_fields
         update_fields = kwargs.get('update_fields')
@@ -2692,6 +2793,7 @@ class RepairJob(SoftDeleteModel):
                 logger.error(f"Notification error for job {self.job_number}: {notif_error}")
                 
                 
+    @transaction.atomic
     def delete(self, *args, **kwargs):
         """
         Delete repair AND its parts/services (reversing stock via RepairPart.delete).
@@ -2813,8 +2915,30 @@ class RepairPart(SoftDeleteModel):
         super().save(*args, **kwargs)
 
         if not self.is_deleted and not self.product.is_service:
+            ct = ContentType.objects.get_for_model(self)
+            movement = StockMovement.all_objects.filter(
+                source_content_type=ct, source_object_id=self.pk,
+            ).first()
+            already_deducted = (
+                abs(movement.quantity)
+                if (movement is not None and not movement.is_deleted)
+                else Decimal('0')
+            )
+            additional = Decimal(self.quantity) - already_deducted
+            if additional > 0:
+                # Row-lock + floor check (TOCTOU oversell se bachne ke liye)
+                locked = Product.objects.select_for_update().get(
+                    pk=self.product_id,
+                )
+                if locked.current_stock < additional:
+                    raise ValidationError(
+                        f"Insufficient stock for '{locked.name}': "
+                        f"available {locked.current_stock}, "
+                        f"needed {additional}."
+                    )
+
             StockMovement.all_objects.update_or_create(
-                source_content_type=ContentType.objects.get_for_model(self),
+                source_content_type=ct,
                 source_object_id=self.pk,
                 defaults={
                     'product': self.product,
@@ -3107,7 +3231,7 @@ class BankTransaction(SoftDeleteModel):
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
     source_type = models.CharField(max_length=20, choices=SOURCE_TYPES, default='manual')
     amount = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     description = models.CharField(max_length=200, blank=True)
     reference = models.CharField(max_length=100, blank=True)
     
@@ -3237,7 +3361,7 @@ class Payment(SoftDeleteModel):
     direction = models.CharField(max_length=10, choices=DIRECTION)
     contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='payments')
     amount = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.localdate)
     method = models.CharField(max_length=10, choices=METHOD_CHOICES, default='cash')
     bank_account = models.ForeignKey(BankAccount, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
     upi_ref = models.CharField(max_length=100, blank=True)

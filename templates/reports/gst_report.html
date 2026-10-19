@@ -46,7 +46,7 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
                     <h6 class="text-muted">Total Sales Tax</h6>
-                    <h4 class="fw-bold text-primary">₹{{ total_sales_tax|floatformat:2 }}</h4>
+                    <h4 class="fw-bold text-primary">₹{{ total_sales_tax|rupee }}</h4>
                     <small class="text-muted">{{ sales_count }} invoices</small>
                 </div>
             </div>
@@ -55,7 +55,7 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
                     <h6 class="text-muted">Input Credit (Purchase)</h6>
-                    <h4 class="fw-bold text-success">₹{{ total_purchase_tax|floatformat:2 }}</h4>
+                    <h4 class="fw-bold text-success">₹{{ total_purchase_tax|rupee }}</h4>
                     <small class="text-muted">{{ purchase_count }} purchases</small>
                 </div>
             </div>
@@ -64,7 +64,7 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-body text-center">
                     <h6 class="text-muted">CGST</h6>
-                    <h4 class="fw-bold text-warning">₹{{ cgst|floatformat:2 }}</h4>
+                    <h4 class="fw-bold text-warning">₹{{ cgst|rupee }}</h4>
                 </div>
             </div>
         </div>
@@ -73,7 +73,7 @@
                 <div class="card-body text-center">
                     <h6 class="text-muted">Net GST Payable</h6>
                     <h4 class="fw-bold {% if net_gst > 0 %}text-danger{% else %}text-success{% endif %}">
-                        ₹{{ net_gst|floatformat:2 }}
+                        ₹{{ net_gst|rupee }}
                     </h4>
                 </div>
             </div>
@@ -89,19 +89,19 @@
                     <table class="table table-sm">
                         <tr>
                             <td>CGST Collected</td>
-                            <td class="text-end fw-bold">₹{{ cgst|floatformat:2 }}</td>
+                            <td class="text-end fw-bold">₹{{ cgst|rupee }}</td>
                         </tr>
                         <tr>
                             <td>SGST Collected</td>
-                            <td class="text-end fw-bold">₹{{ sgst|floatformat:2 }}</td>
+                            <td class="text-end fw-bold">₹{{ sgst|rupee }}</td>
                         </tr>
                         <tr>
                             <td>IGST Collected</td>
-                            <td class="text-end fw-bold">₹{{ igst|floatformat:2 }}</td>
+                            <td class="text-end fw-bold">₹{{ igst|rupee }}</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Total Sales Tax</td>
-                            <td class="text-end">₹{{ total_sales_tax|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ total_sales_tax|rupee }}</td>
                         </tr>
                     </table>
                 </div>
@@ -114,15 +114,15 @@
                     <table class="table table-sm">
                         <tr>
                             <td>Total Sales Tax (Output)</td>
-                            <td class="text-end">₹{{ total_sales_tax|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ total_sales_tax|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Less: Input Credit (Purchase Tax)</td>
-                            <td class="text-end">(₹{{ total_purchase_tax|floatformat:2 }})</td>
+                            <td class="text-end">(₹{{ total_purchase_tax|rupee }})</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Net GST Payable</td>
-                            <td class="text-end">₹{{ net_gst|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ net_gst|rupee }}</td>
                         </tr>
                     </table>
                 </div>

@@ -35,7 +35,7 @@
                     <option value="{{ service.id }}"
                             data-price="{{ service.selling_price }}"
                             {% if form.product.value|stringformat:"s" == service.id|stringformat:"s" %}selected{% endif %}>
-                        {{ service.name }} — ₹{{ service.selling_price|floatformat:2 }}
+                        {{ service.name }} — ₹{{ service.selling_price|rupee }}
                     </option>
                 {% endfor %}
             </select>

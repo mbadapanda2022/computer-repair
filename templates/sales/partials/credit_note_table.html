@@ -36,7 +36,7 @@
                                 {{ cn.get_reason_display }}
                             </span>
                         </td>
-                        <td class="text-end fw-bold text-danger">−₹{{ cn.total_amount|floatformat:2 }}</td>
+                        <td class="text-end fw-bold text-danger">−₹{{ cn.total_amount|rupee }}</td>
                         <td class="text-center">
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
@@ -98,7 +98,7 @@
                 <tfoot class="table-light">
                     <tr>
                         <th colspan="5" class="text-end">Total Credited</th>
-                        <th class="text-end text-danger">−₹{{ total_amount|floatformat:2 }}</th>
+                        <th class="text-end text-danger">−₹{{ total_amount|rupee }}</th>
                         <th></th>
                     </tr>
                 </tfoot>

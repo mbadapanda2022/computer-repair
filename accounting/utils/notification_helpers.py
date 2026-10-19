@@ -143,7 +143,10 @@ def _send_notification_email(user, title, message, link):
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
             html_message=html_message,
-            fail_silently=True,
+            # fail_silently=True would DROP the email with no log line when
+            # creds are missing/SMTP is down. Raise instead: the except below
+            # logs it and the request still completes.
+            fail_silently=False,
         )
     except Exception:
         logger.exception(

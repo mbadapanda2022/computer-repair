@@ -44,12 +44,11 @@
             'dark': 'bg-dark text-white',
         }[level] || 'bg-secondary text-white';
 
-        const titleHtml = title ? `<strong class="me-2">${title}</strong>` : '';
         const toastHTML = `
         <div id="${toastId}" class="toast align-items-center ${bgClass} border-0 shadow-lg"
              role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
             <div class="d-flex align-items-center">
-                <div class="toast-body">${titleHtml}${message}</div>
+                <div class="toast-body"><strong class="me-2 toast-title d-none"></strong><span class="toast-message"></span></div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto"
                         data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
@@ -57,6 +56,13 @@
         toastContainer.insertAdjacentHTML('beforeend', toastHTML);
         const toastEl = document.getElementById(toastId);
         if (!toastEl) return;
+        // User-supplied text must go through textContent, never innerHTML (XSS).
+        const titleEl = toastEl.querySelector('.toast-title');
+        if (title) {
+            titleEl.textContent = title;
+            titleEl.classList.remove('d-none');
+        }
+        toastEl.querySelector('.toast-message').textContent = message;
         const toast = new bootstrap.Toast(toastEl, { delay: 5000, autohide: true, animation: true });
         toast.show();
         toastEl.addEventListener('hidden.bs.toast', () => {

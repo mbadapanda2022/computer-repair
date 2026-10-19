@@ -21,7 +21,7 @@
                         <br><small class="text-muted">{{ service.description }}</small>
                     {% endif %}
                 </td>
-                <td class="text-end fw-bold">₹{{ service.line_total|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ service.line_total|rupee }}</td>
                 <td class="text-center">
                     {% if not job.is_invoiced %}
                         <button type="button"
@@ -51,7 +51,7 @@
         <tfoot class="table-light fw-bold">
             <tr>
                 <td colspan="2" class="text-end">Services Total</td>
-                <td class="text-end">₹{{ services_total|floatformat:2 }}</td>
+                <td class="text-end">₹{{ services_total|rupee }}</td>
                 <td></td>
             </tr>
         </tfoot>

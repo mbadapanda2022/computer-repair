@@ -12,7 +12,7 @@
     <div class="modal-body">
         <div class="text-center mb-4">
             <h2 class="fw-bold {% if payment.direction == 'received' %}text-success{% else %}text-danger{% endif %} mb-1">
-                ₹{{ payment.amount|floatformat:2 }}
+                ₹{{ payment.amount|rupee }}
             </h2>
             <div class="d-flex justify-content-center gap-2 flex-wrap">
                 <span class="badge bg-secondary">{{ payment.get_method_display }}</span>
@@ -78,13 +78,13 @@
                             {% endif %}
                             {% if payment.discount_amount > 0 %}
                             <tr><td class="text-muted">Discount</td>
-                                <td class="text-danger">− ₹{{ payment.discount_amount|floatformat:2 }}
+                                <td class="text-danger">− ₹{{ payment.discount_amount|rupee }}
                                     {% if payment.discount_type %}
                                         <small class="text-muted d-block">{{ payment.get_discount_type_display }}</small>
                                     {% endif %}
                                 </td></tr>
                             <tr class="table-success"><td class="fw-bold">Net Amount</td>
-                                <td class="fw-bold">₹{{ payment.net_amount|floatformat:2 }}</td></tr>
+                                <td class="fw-bold">₹{{ payment.net_amount|rupee }}</td></tr>
                             {% endif %}
                         </table>
                     </div>
@@ -110,7 +110,7 @@
                                    class="fw-bold text-decoration-none">{{ alloc.invoice.invoice_number }}</a>
                             </td>
                             <td>{{ alloc.invoice.date|date:"d M Y" }}</td>
-                            <td class="text-end fw-semibold">₹{{ alloc.amount|floatformat:2 }}</td>
+                            <td class="text-end fw-semibold">₹{{ alloc.amount|rupee }}</td>
                         </tr>
                         {% endfor %}
                         {% for adj in payment.advance_adjustments.all %}
@@ -121,7 +121,7 @@
                                 <span class="badge bg-info text-dark ms-1">Advance</span>
                             </td>
                             <td>{{ adj.invoice.date|date:"d M Y" }}</td>
-                            <td class="text-end fw-semibold">₹{{ adj.amount|floatformat:2 }}</td>
+                            <td class="text-end fw-semibold">₹{{ adj.amount|rupee }}</td>
                         </tr>
                         {% endfor %}
                         {% for alloc in payment.purchase_allocations.all %}
@@ -132,17 +132,17 @@
                                 <span class="badge bg-secondary ms-1">Bill</span>
                             </td>
                             <td>{{ alloc.purchase.date|date:"d M Y" }}</td>
-                            <td class="text-end fw-semibold">₹{{ alloc.amount|floatformat:2 }}</td>
+                            <td class="text-end fw-semibold">₹{{ alloc.amount|rupee }}</td>
                         </tr>
                         {% endfor %}
                         <tr class="table-light">
                             <td colspan="2" class="text-end fw-bold">Total Applied</td>
-                            <td class="text-end fw-bold">₹{{ allocated_total|floatformat:2 }}</td>
+                            <td class="text-end fw-bold">₹{{ allocated_total|rupee }}</td>
                         </tr>
                         {% if unallocated > 0 %}
                         <tr>
                             <td colspan="2" class="text-end text-muted">Unallocated (stays in party account)</td>
-                            <td class="text-end text-muted">₹{{ unallocated|floatformat:2 }}</td>
+                            <td class="text-end text-muted">₹{{ unallocated|rupee }}</td>
                         </tr>
                         {% endif %}
                     </tbody>

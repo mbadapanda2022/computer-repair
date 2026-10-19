@@ -38,11 +38,11 @@
                         <td><code>{{ product.hsn_code|default:"—" }}</code></td>
                         <td>
                             {% if product.is_service %}
-                                <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
+                                <strong>₹{{ product.selling_price|rupee }}</strong>
                             {% else %}
-                                <small class="text-muted">₹{{ product.purchase_price|floatformat:2 }}</small>
+                                <small class="text-muted">₹{{ product.purchase_price|rupee }}</small>
                                 <span class="text-muted">/</span>
-                                <strong>₹{{ product.selling_price|floatformat:2 }}</strong>
+                                <strong>₹{{ product.selling_price|rupee }}</strong>
                             {% endif %}
                         </td>
                         <td>

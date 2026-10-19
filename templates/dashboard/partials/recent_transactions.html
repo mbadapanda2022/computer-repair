@@ -35,7 +35,7 @@
                         {% else %}bg-danger{% endif %} me-2">
                         {{ invoice.get_payment_status_display }}
                     </span>
-                    <span class="fw-bold">₹{{ invoice.grand_total|floatformat:2 }}</span>
+                    <span class="fw-bold">₹{{ invoice.grand_total|rupee }}</span>
                     <small class="text-muted ms-2">{{ invoice.date|date:"d M" }}</small>
                 </div>
             </li>
@@ -91,7 +91,7 @@
                     <span class="fw-bold
                         {% if payment.direction == 'received' %}text-success{% else %}text-danger{% endif %}">
                         {% if payment.direction == 'received' %}+{% else %}-{% endif %}
-                        ₹{{ payment.amount|floatformat:2 }}
+                        ₹{{ payment.amount|rupee }}
                     </span>
                     <small class="text-muted ms-2">{{ payment.date|date:"d M" }}</small>
                 </div>

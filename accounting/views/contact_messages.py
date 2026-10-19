@@ -6,6 +6,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_protect
+from django.views.decorators.http import require_POST
 from django.db.models import Q
 from django.utils import timezone
 
@@ -60,6 +61,7 @@ def message_detail(request, pk):
 
 
 @csrf_protect
+@require_POST
 @handle_errors(default_redirect='accounting:message_list')
 def message_mark_status(request, pk):
     """Mark message status (read, replied, spam)."""
@@ -81,6 +83,7 @@ def message_mark_status(request, pk):
 
 
 @csrf_protect
+@require_POST
 @handle_errors(default_redirect='accounting:message_list')
 def message_delete(request, pk):
     """Delete a contact message."""

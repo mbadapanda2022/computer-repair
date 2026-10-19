@@ -38,7 +38,7 @@
                         {% endif %}
                     </td>
                     <td class="text-center">{{ item.quantity }}</td>
-                    <td class="text-end">₹{{ item.unit_price }}</td>
+                    <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                     <td class="text-end">{% if effective_gst == 'non_gst' %}0%{% else %}{{ item.tax_rate }}%{% endif %}</td>
                     <td class="text-end fw-bold">₹{% if effective_gst == 'non_gst' %}{{ item.unit_price|multiply:item.quantity|floatformat:2 }}{% else %}{{ item.line_total }}{% endif %}</td>
                     <td class="text-center">
@@ -67,17 +67,17 @@
             <tfoot class="table-light">
                 <tr>
                     <td colspan="5" class="text-end small">Subtotal:</td>
-                    <td class="text-end fw-bold">₹{{ subtotal|floatformat:2 }}</td>
+                    <td class="text-end fw-bold">₹{{ subtotal|rupee }}</td>
                     <td></td>
                 </tr>
                 <tr>
                     <td colspan="5" class="text-end small">Tax:</td>
-                    <td class="text-end fw-bold">₹{{ tax_total|floatformat:2 }}</td>
+                    <td class="text-end fw-bold">₹{{ tax_total|rupee }}</td>
                     <td></td>
                 </tr>
                 <tr class="table-success">
                     <td colspan="5" class="text-end fw-bold">Total:</td>
-                    <td class="text-end fw-bold fs-6">₹{{ grand_total|floatformat:2 }}</td>
+                    <td class="text-end fw-bold fs-6">₹{{ grand_total|rupee }}</td>
                     <td></td>
                 </tr>
             </tfoot>

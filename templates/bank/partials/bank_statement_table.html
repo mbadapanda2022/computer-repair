@@ -25,7 +25,7 @@
                         <td></td>
                         <td class="text-end"></td>
                         <td class="text-end"></td>
-                        <td class="text-end">₹{{ opening_balance|floatformat:2 }}</td>
+                        <td class="text-end">₹{{ opening_balance|rupee }}</td>
                         <td></td>
                     </tr>
                     {% endif %}
@@ -45,12 +45,12 @@
                             {% else %}—{% endif %}
                         </td>
                         <td class="text-end text-success fw-semibold">
-                            {% if line.deposit > 0 %}₹{{ line.deposit|floatformat:2 }}{% else %}—{% endif %}
+                            {% if line.deposit > 0 %}₹{{ line.deposit|rupee }}{% else %}—{% endif %}
                         </td>
                         <td class="text-end text-danger fw-semibold">
-                            {% if line.withdrawal > 0 %}₹{{ line.withdrawal|floatformat:2 }}{% else %}—{% endif %}
+                            {% if line.withdrawal > 0 %}₹{{ line.withdrawal|rupee }}{% else %}—{% endif %}
                         </td>
-                        <td class="text-end fw-bold">₹{{ line.balance|floatformat:2 }}</td>
+                        <td class="text-end fw-bold">₹{{ line.balance|rupee }}</td>
                         <td class="text-center">
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
@@ -88,9 +88,9 @@
                 <tfoot class="table-secondary fw-bold">
                     <tr>
                         <td colspan="3" class="text-end">Period Totals →</td>
-                        <td class="text-end text-success">₹{{ total_deposit|floatformat:2 }}</td>
-                        <td class="text-end text-danger">₹{{ total_withdrawal|floatformat:2 }}</td>
-                        <td class="text-end">₹{{ closing_balance|floatformat:2 }}</td>
+                        <td class="text-end text-success">₹{{ total_deposit|rupee }}</td>
+                        <td class="text-end text-danger">₹{{ total_withdrawal|rupee }}</td>
+                        <td class="text-end">₹{{ closing_balance|rupee }}</td>
                         <td></td>
                     </tr>
                 </tfoot>

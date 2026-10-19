@@ -50,11 +50,11 @@
             <table class="table table-sm table-borderless mb-0">
                 <tr>
                     <td class="text-muted" style="width:45%">Purchase Price</td>
-                    <td class="fw-bold">₹{{ product.purchase_price|floatformat:2 }}</td>
+                    <td class="fw-bold">₹{{ product.purchase_price|rupee }}</td>
                 </tr>
                 <tr>
                     <td class="text-muted">Selling Price</td>
-                    <td class="fw-bold text-success">₹{{ product.selling_price|floatformat:2 }}</td>
+                    <td class="fw-bold text-success">₹{{ product.selling_price|rupee }}</td>
                 </tr>
                 <tr>
                     <td class="text-muted">Tax Rate</td>

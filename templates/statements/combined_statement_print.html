@@ -137,7 +137,7 @@
   <div class="snapshot-card opening">
     <div class="snapshot-label">Opening Balance (B/F)</div>
     <div class="snapshot-value">
-      ₹{{ opening_net|abs_filter|floatformat:2 }}
+      ₹{{ opening_net|abs_filter|rupee }}
       {% if opening_net > 0 %}<span class="dr-badge">Dr</span>
       {% elif opening_net < 0 %}<span class="cr-badge">Cr</span>{% endif %}
     </div>
@@ -147,22 +147,22 @@
   </div>
   <div class="snapshot-card billed">
     <div class="snapshot-label">Billed / Purchased</div>
-    <div class="snapshot-value" style="color:#198754;">+ ₹{{ period_billed|floatformat:2 }}</div>
+    <div class="snapshot-value" style="color:#198754;">+ ₹{{ period_billed|rupee }}</div>
     <div style="font-size:8.5px; color:#666;">
-      {% if period_purchased > 0 %}Orders: ₹{{ period_purchased|floatformat:2 }}{% else %}&nbsp;{% endif %}
+      {% if period_purchased > 0 %}Orders: ₹{{ period_purchased|rupee }}{% else %}&nbsp;{% endif %}
     </div>
   </div>
   <div class="snapshot-card received">
     <div class="snapshot-label">Received / Paid</div>
-    <div class="snapshot-value" style="color:#dc3545;">− ₹{{ period_received|floatformat:2 }}</div>
+    <div class="snapshot-value" style="color:#dc3545;">− ₹{{ period_received|rupee }}</div>
     <div style="font-size:8.5px; color:#666;">
-      {% if period_paid > 0 %}Paid: ₹{{ period_paid|floatformat:2 }}{% else %}&nbsp;{% endif %}
+      {% if period_paid > 0 %}Paid: ₹{{ period_paid|rupee }}{% else %}&nbsp;{% endif %}
     </div>
   </div>
   <div class="snapshot-card closing">
     <div class="snapshot-label">Closing Balance (C/F)</div>
     <div class="snapshot-value">
-      ₹{{ net_position|abs_filter|floatformat:2 }}
+      ₹{{ net_position|abs_filter|rupee }}
       {% if net_position > 0 %}<span class="dr-badge">Dr</span>
       {% elif net_position < 0 %}<span class="cr-badge">Cr</span>{% endif %}
     </div>
@@ -208,7 +208,7 @@
       <td class="text-end">—</td>
       <td class="text-end">—</td>
       <td class="text-end">
-        ₹{{ opening_net|abs_filter|floatformat:2 }}
+        ₹{{ opening_net|abs_filter|rupee }}
         {% if opening_net > 0 %}<span class="dr-badge">Dr</span>
         {% elif opening_net < 0 %}<span class="cr-badge">Cr</span>{% endif %}
       </td>
@@ -235,13 +235,13 @@
         {% if row.reference %}{{ row.reference }}{% else %}—{% endif %}
       </td>
       <td class="text-end">
-        {% if row.debit_amount > 0 %}₹{{ row.debit_amount|floatformat:2 }}{% endif %}
+        {% if row.debit_amount > 0 %}₹{{ row.debit_amount|rupee }}{% endif %}
       </td>
       <td class="text-end">
-        {% if row.credit_amount > 0 %}₹{{ row.credit_amount|floatformat:2 }}{% endif %}
+        {% if row.credit_amount > 0 %}₹{{ row.credit_amount|rupee }}{% endif %}
       </td>
       <td class="text-end">
-        ₹{{ row.net|abs_filter|floatformat:2 }}
+        ₹{{ row.net|abs_filter|rupee }}
         {% if row.net > 0 %}<span class="dr-badge">Dr</span>
         {% elif row.net < 0 %}<span class="cr-badge">Cr</span>{% endif %}
       </td>
@@ -257,8 +257,8 @@
   <tfoot>
     <tr class="total-row">
       <td colspan="3" class="text-end">Period Totals →</td>
-      <td class="text-end">₹{{ total_debit|floatformat:2 }}</td>
-      <td class="text-end">₹{{ total_credit|floatformat:2 }}</td>
+      <td class="text-end">₹{{ total_debit|rupee }}</td>
+      <td class="text-end">₹{{ total_credit|rupee }}</td>
       <td></td>
     </tr>
     <tr class="closing-row">
@@ -267,7 +267,7 @@
         {% if date_to %}<span style="font-size:8.5px; color:#666;">(as on {{ date_to }})</span>{% endif %}
       </td>
       <td class="text-end">
-        ₹{{ net_position|abs_filter|floatformat:2 }}
+        ₹{{ net_position|abs_filter|rupee }}
         {% if net_position > 0 %}<span class="dr-badge">Dr</span>
         {% elif net_position < 0 %}<span class="cr-badge">Cr</span>{% endif %}
       </td>
@@ -285,9 +285,9 @@
   <strong>Verify:</strong> Opening Balance + Total Debits − Total Credits = Closing Balance.
   <br><br>
   {% if net_position > 0 %}
-    <strong>{{ contact.name }} owes us ₹{{ net_position|floatformat:2 }}.</strong>
+    <strong>{{ contact.name }} owes us ₹{{ net_position|rupee }}.</strong>
   {% elif net_position < 0 %}
-    <strong>We owe {{ contact.name }} ₹{{ net_position|abs_filter|floatformat:2 }}.</strong>
+    <strong>We owe {{ contact.name }} ₹{{ net_position|abs_filter|rupee }}.</strong>
   {% else %}
     <strong>Account is fully settled.</strong>
   {% endif %}

@@ -91,7 +91,7 @@
                     {% endif %}
                 </td>
                 <td class="text-end">
-                    ₹{{ repair.display_amount|floatformat:2 }}
+                    ₹{{ repair.display_amount|rupee }}
                     {% if repair.is_invoiced %}
                         <span class="invoiced-label">Invoiced</span>
                     {% else %}
@@ -108,7 +108,7 @@
         <tfoot>
             <tr class="total-row">
                 <th colspan="6" class="text-end">Total Amount (excl. cancelled)</th>
-                <th class="text-end fw-bold">₹{{ total_amount|default:0|floatformat:2 }}</th>
+                <th class="text-end fw-bold">₹{{ total_amount|default:0|rupee }}</th>
             </tr>
         </tfoot>
     </table>

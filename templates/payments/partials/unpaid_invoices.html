@@ -5,7 +5,7 @@
     {% if contact.advance_balance > 0 %}
     <div class="alert alert-info py-2 small mb-2">
         <i class="bi bi-info-circle me-1"></i>
-        {{ contact.name }} has <strong>₹{{ contact.advance_balance|floatformat:2 }} unapplied advance</strong>.
+        {{ contact.name }} has <strong>₹{{ contact.advance_balance|rupee }} unapplied advance</strong>.
         The "Due" below already has any applied advance deducted — this is a
         <em>balance payment</em>, not a fresh advance. Do not re-enter the advance here.
         Tip: apply the advance from the invoice page first for an accurate Due.
@@ -33,8 +33,8 @@
                         </a>
                     </td>
                     <td class="text-nowrap small">{{ inv.date|date:"d M Y" }}</td>
-                    <td class="text-end">₹{{ inv.grand_total|floatformat:2 }}</td>
-                    <td class="text-end text-danger fw-bold">₹{{ inv.balance_due|floatformat:2 }}</td>
+                    <td class="text-end">₹{{ inv.grand_total|rupee }}</td>
+                    <td class="text-end text-danger fw-bold">₹{{ inv.balance_due|rupee }}</td>
                     <td class="text-end">
                         <input type="number"
                                class="form-control form-control-sm text-end allocation-input"

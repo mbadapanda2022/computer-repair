@@ -16,7 +16,7 @@
         </div>
         <div class="text-end">
             <small class="text-muted d-block text-uppercase fw-semibold">Cash in Hand Right Now</small>
-            <h4 class="fw-bold text-success mb-0">₹{{ cash_in_hand_now|floatformat:2 }}</h4>
+            <h4 class="fw-bold text-success mb-0">₹{{ cash_in_hand_now|rupee }}</h4>
         </div>
     </div>
 
@@ -26,7 +26,7 @@
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-secondary">
                 <div class="card-body">
                     <small class="text-muted d-block text-uppercase fw-semibold">Opening Balance</small>
-                    <h5 class="mb-0 fw-bold">₹{{ opening_balance|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold">₹{{ opening_balance|rupee }}</h5>
                 </div>
             </div>
         </div>
@@ -34,7 +34,7 @@
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
                 <div class="card-body">
                     <small class="text-muted d-block text-uppercase fw-semibold">Cash In</small>
-                    <h5 class="mb-0 fw-bold text-success">₹{{ total_in|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold text-success">₹{{ total_in|rupee }}</h5>
                 </div>
             </div>
         </div>
@@ -42,7 +42,7 @@
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
                 <div class="card-body">
                     <small class="text-muted d-block text-uppercase fw-semibold">Cash Out</small>
-                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_out|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_out|rupee }}</h5>
                 </div>
             </div>
         </div>
@@ -50,7 +50,7 @@
             <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
                 <div class="card-body">
                     <small class="text-muted d-block text-uppercase fw-semibold">Closing Balance</small>
-                    <h5 class="mb-0 fw-bold text-primary">₹{{ closing_balance|floatformat:2 }}</h5>
+                    <h5 class="mb-0 fw-bold text-primary">₹{{ closing_balance|rupee }}</h5>
                 </div>
             </div>
         </div>

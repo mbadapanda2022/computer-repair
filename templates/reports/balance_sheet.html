@@ -48,23 +48,23 @@
                     <table class="table table-sm">
                         <tr>
                             <td>Cash</td>
-                            <td class="text-end">₹{{ cash_balance|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ cash_balance|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Bank Accounts</td>
-                            <td class="text-end">₹{{ bank_balance|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ bank_balance|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Accounts Receivable</td>
-                            <td class="text-end">₹{{ ar_total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ ar_total|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Inventory</td>
-                            <td class="text-end">₹{{ inventory_value|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ inventory_value|rupee }}</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Total Assets</td>
-                            <td class="text-end">₹{{ total_assets|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ total_assets|rupee }}</td>
                         </tr>
                     </table>
                 </div>
@@ -81,23 +81,23 @@
                     <table class="table table-sm">
                         <tr>
                             <td>Accounts Payable</td>
-                            <td class="text-end">₹{{ ap_total|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ ap_total|rupee }}</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Total Liabilities</td>
-                            <td class="text-end">₹{{ total_liabilities|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ total_liabilities|rupee }}</td>
                         </tr>
                         <tr>
                             <td>Net Profit</td>
-                            <td class="text-end">₹{{ net_profit|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ net_profit|rupee }}</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Total Equity</td>
-                            <td class="text-end">₹{{ total_equity|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ total_equity|rupee }}</td>
                         </tr>
                         <tr class="table-light fw-bold">
                             <td>Total Liabilities + Equity</td>
-                            <td class="text-end">₹{{ total_liabilities_equity|floatformat:2 }}</td>
+                            <td class="text-end">₹{{ total_liabilities_equity|rupee }}</td>
                         </tr>
                         {% if difference == 0 %}
                         <tr class="table-success">
@@ -105,7 +105,7 @@
                         </tr>
                         {% else %}
                         <tr class="table-danger">
-                            <td colspan="2" class="text-center">❌ Difference: ₹{{ difference|floatformat:2 }}</td>
+                            <td colspan="2" class="text-center">❌ Difference: ₹{{ difference|rupee }}</td>
                         </tr>
                         {% endif %}
                     </table>

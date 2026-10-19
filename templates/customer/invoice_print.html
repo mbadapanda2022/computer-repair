@@ -488,37 +488,37 @@
                     {% endif %}
                 </td>
                 <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
-                <td class="text-end">₹{{ item.unit_price|floatformat:2 }}</td>
+                <td class="text-end">₹{{ item.unit_price|rupee }}</td>
                 <td class="text-end">
                     {% if item.tax_rate > 0 %}
                         <span style="font-size:7pt;">{{ item.tax_rate }}%</span>
-                        <br><span style="font-size:7pt; color:#6c757d;">₹{{ item.tax_amount|floatformat:2 }}</span>
+                        <br><span style="font-size:7pt; color:#6c757d;">₹{{ item.tax_amount|rupee }}</span>
                     {% else %}
                         <span class="text-muted">—</span>
                     {% endif %}
                 </td>
-                <td class="text-end fw-bold">₹{{ item.line_total|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
             </tr>
             {% endfor %}
             <!-- Totals -->
             <tr class="total-row">
                 <td colspan="4" class="text-end fw-bold">Subtotal</td>
-                <td colspan="2" class="text-end">₹{{ invoice.subtotal|floatformat:2 }}</td>
+                <td colspan="2" class="text-end">₹{{ invoice.subtotal|rupee }}</td>
             </tr>
             {% if invoice.discount_amount > 0 %}
             <tr class="total-row">
                 <td colspan="4" class="text-end fw-bold text-danger">Discount</td>
-                <td colspan="2" class="text-end text-danger">-₹{{ invoice.discount_amount|floatformat:2 }}</td>
+                <td colspan="2" class="text-end text-danger">-₹{{ invoice.discount_amount|rupee }}</td>
             </tr>
             {% endif %}
             <tr class="total-row">
                 <td colspan="4" class="text-end fw-bold">Tax</td>
-                <td colspan="2" class="text-end">₹{{ invoice.tax_amount|floatformat:2 }}</td>
+                <td colspan="2" class="text-end">₹{{ invoice.tax_amount|rupee }}</td>
             </tr>
             <tr class="grand-total">
                 <td colspan="4" class="text-end fw-bold" style="font-size:10pt;">Grand Total</td>
                 <td colspan="2" class="text-end amount" style="font-size:12pt; font-weight:700;">
-                    ₹{{ invoice.grand_total|floatformat:2 }}
+                    ₹{{ invoice.grand_total|rupee }}
                 </td>
             </tr>
         </tbody>
@@ -537,26 +537,26 @@
         {% if invoice.gst_type == 'intrastate' %}
             <div class="gst-item">
                 <span class="label">CGST (9%)</span>
-                <span class="value">₹{{ gst_breakup.cgst|floatformat:2 }}</span>
+                <span class="value">₹{{ gst_breakup.cgst|rupee }}</span>
             </div>
             <div class="gst-item">
                 <span class="label">SGST (9%)</span>
-                <span class="value">₹{{ gst_breakup.sgst|floatformat:2 }}</span>
+                <span class="value">₹{{ gst_breakup.sgst|rupee }}</span>
             </div>
         {% elif invoice.gst_type == 'interstate' %}
             <div class="gst-item">
                 <span class="label">IGST (18%)</span>
-                <span class="value">₹{{ gst_breakup.igst|floatformat:2 }}</span>
+                <span class="value">₹{{ gst_breakup.igst|rupee }}</span>
             </div>
         {% else %}
             <div class="gst-item">
                 <span class="label">Total Tax</span>
-                <span class="value">₹{{ invoice.tax_amount|floatformat:2 }}</span>
+                <span class="value">₹{{ invoice.tax_amount|rupee }}</span>
             </div>
         {% endif %}
         <div class="gst-item fw-bold">
             <span class="label">Grand Total</span>
-            <span class="value">₹{{ invoice.grand_total|floatformat:2 }}</span>
+            <span class="value">₹{{ invoice.grand_total|rupee }}</span>
         </div>
     </div>
     {% endif %}

@@ -7,8 +7,8 @@
             <div class="stat-icon"><i class="bi bi-currency-rupee" aria-hidden="true"></i></div>
             <div class="flex-grow-1 min-width-0">
                 <p class="stat-label">Today's Sales</p>
-                <p class="stat-value text-primary">₹{{ today_sales|floatformat:2 }}</p>
-                <p class="stat-foot">Month: ₹{{ month_sales|floatformat:2 }}</p>
+                <p class="stat-value text-primary">₹{{ today_sales|rupee }}</p>
+                <p class="stat-foot">Month: ₹{{ month_sales|rupee }}</p>
             </div>
         </a>
     </div>
@@ -79,8 +79,8 @@
             <div class="stat-icon"><i class="bi bi-cash-stack" aria-hidden="true"></i></div>
             <div class="flex-grow-1 min-width-0">
                 <p class="stat-label">Today's Receipts</p>
-                <p class="stat-value text-primary">₹{{ total_payments_today|floatformat:2 }}</p>
-                <p class="stat-foot">All-time: ₹{{ total_paid_amount|floatformat:2 }}</p>
+                <p class="stat-value text-primary">₹{{ total_payments_today|rupee }}</p>
+                <p class="stat-foot">All-time: ₹{{ total_paid_amount|rupee }}</p>
             </div>
         </a>
     </div>
@@ -91,7 +91,7 @@
             <div class="stat-icon tone-danger"><i class="bi bi-hourglass-split" aria-hidden="true"></i></div>
             <div class="flex-grow-1 min-width-0">
                 <p class="stat-label">Total Due</p>
-                <p class="stat-value text-danger">₹{{ total_due_amount|floatformat:2 }}</p>
+                <p class="stat-value text-danger">₹{{ total_due_amount|rupee }}</p>
                 <p class="stat-foot">Outstanding balance</p>
             </div>
         </a>
@@ -103,7 +103,7 @@
             <div class="stat-icon tone-success"><i class="bi bi-cash" aria-hidden="true"></i></div>
             <div class="flex-grow-1 min-width-0">
                 <p class="stat-label">Cash in Hand</p>
-                <p class="stat-value text-success">₹{{ cash_in_hand|floatformat:2 }}</p>
+                <p class="stat-value text-success">₹{{ cash_in_hand|rupee }}</p>
                 <p class="stat-foot">Open Cash Book</p>
             </div>
         </a>
@@ -115,7 +115,7 @@
             <div class="stat-icon tone-info"><i class="bi bi-bank" aria-hidden="true"></i></div>
             <div class="flex-grow-1 min-width-0">
                 <p class="stat-label">Bank Balance</p>
-                <p class="stat-value text-primary">₹{{ bank_balance|floatformat:2 }}</p>
+                <p class="stat-value text-primary">₹{{ bank_balance|rupee }}</p>
                 <p class="stat-foot">All bank accounts</p>
             </div>
         </a>

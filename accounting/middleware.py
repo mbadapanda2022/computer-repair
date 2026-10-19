@@ -134,7 +134,18 @@ class AccessControlMiddleware:
             )
             return self._redirect_customer()
 
-        # 10. Everything else
+        # 10. CKEditor upload endpoint — staff only (otherwise any portal
+        # customer can hit the image-upload API and abuse media storage).
+        if path.startswith('/ckeditor5/'):
+            if request.user.is_staff:
+                return self.get_response(request)
+            logger.info(
+                "Non-staff blocked (ckeditor) | user=%s | path=%s",
+                request.user.username, path,
+            )
+            return self._redirect_customer()
+
+        # 11. Everything else
         return self.get_response(request)
 
     @staticmethod

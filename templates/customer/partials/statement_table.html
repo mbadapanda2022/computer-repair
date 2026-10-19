@@ -32,8 +32,8 @@
                         <br><small class="text-muted">carried forward as on {{ date_from }}</small>
                     {% endif %}
                     <br><small class="text-secondary">
-                        {% if opening_net > 0 %}(you owed us ₹{{ opening_net|floatformat:2 }} at start)
-                        {% elif opening_net < 0 %}(we owed you ₹{{ opening_net|abs_filter|floatformat:2 }} at start)
+                        {% if opening_net > 0 %}(you owed us ₹{{ opening_net|rupee }} at start)
+                        {% elif opening_net < 0 %}(we owed you ₹{{ opening_net|abs_filter|rupee }} at start)
                         {% else %}(settled){% endif %}
                     </small>
                 </td>
@@ -41,7 +41,7 @@
                 <td class="text-end text-muted">—</td>
                 <td class="text-end text-muted">—</td>
                 <td class="text-end fw-bold">
-                    ₹{{ opening_net|abs_filter|floatformat:2 }}
+                    ₹{{ opening_net|abs_filter|rupee }}
                     {% if opening_net > 0 %}<span class="badge bg-success-subtle text-success ms-1">Dr</span>
                     {% elif opening_net < 0 %}<span class="badge bg-warning-subtle text-warning ms-1">Cr</span>
                     {% else %}<span class="badge bg-secondary-subtle text-secondary ms-1">—</span>{% endif %}
@@ -112,10 +112,10 @@
                     {% endif %}
                 </td>
                 <td class="text-end">
-                    {% if row.debit_amount > 0 %}₹{{ row.debit_amount|floatformat:2 }}{% endif %}
+                    {% if row.debit_amount > 0 %}₹{{ row.debit_amount|rupee }}{% endif %}
                 </td>
                 <td class="text-end">
-                    {% if row.credit_amount > 0 %}₹{{ row.credit_amount|floatformat:2 }}{% endif %}
+                    {% if row.credit_amount > 0 %}₹{{ row.credit_amount|rupee }}{% endif %}
                 </td>
                 <td class="text-end fw-semibold">
                     {% if search %}
@@ -123,7 +123,7 @@
                             <i class="bi bi-eye-slash small"></i>
                         </span>
                     {% else %}
-                        ₹{{ row.net|abs_filter|floatformat:2 }}
+                        ₹{{ row.net|abs_filter|rupee }}
                         {% if row.net > 0 %}<span class="badge bg-success-subtle text-success ms-1">Dr</span>
                         {% elif row.net < 0 %}<span class="badge bg-warning-subtle text-warning ms-1">Cr</span>
                         {% else %}<span class="badge bg-secondary-subtle text-secondary ms-1">—</span>{% endif %}
@@ -143,8 +143,8 @@
             {% if page_obj.number == page_obj.paginator.num_pages and not search %}
             <tr class="table-secondary fw-bold">
                 <td colspan="3" class="text-end">Period Totals →</td>
-                <td class="text-end">₹{{ total_debit|floatformat:2 }}</td>
-                <td class="text-end">₹{{ total_credit|floatformat:2 }}</td>
+                <td class="text-end">₹{{ total_debit|rupee }}</td>
+                <td class="text-end">₹{{ total_credit|rupee }}</td>
                 <td></td>
             </tr>
             <tr class="table-info fw-bold">
@@ -153,7 +153,7 @@
                     {% if date_to %}<small class="text-muted">(as on {{ date_to }})</small>{% endif %}
                 </td>
                 <td class="text-end fs-6">
-                    ₹{{ net_position|abs_filter|floatformat:2 }}
+                    ₹{{ net_position|abs_filter|rupee }}
                     {% if net_position > 0 %}<span class="badge bg-success-subtle text-success ms-1">Dr</span>
                     {% elif net_position < 0 %}<span class="badge bg-warning-subtle text-warning ms-1">Cr</span>
                     {% else %}<span class="badge bg-secondary-subtle text-secondary ms-1">—</span>{% endif %}
@@ -171,7 +171,7 @@
                 <td class="text-muted small">—</td>
                 <td class="text-end text-muted">—</td>
                 <td class="text-end text-muted">—</td>
-                <td class="text-end fw-bold">₹{{ opening_net|abs_filter|floatformat:2 }}</td>
+                <td class="text-end fw-bold">₹{{ opening_net|abs_filter|rupee }}</td>
             </tr>
             {% endif %}
         </tbody>

@@ -240,4 +240,4 @@ class AdvanceSettlementTests(TestCase):
         )
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, 'unapplied advance')
-        self.assertContains(page, 'Apply ₹1000.00 to this invoice')
+        self.assertContains(page, 'Apply ₹1,000.00 to this invoice')

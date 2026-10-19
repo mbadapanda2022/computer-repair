@@ -48,7 +48,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block text-uppercase fw-semibold">Total Opening</small>
-                        <h5 class="mb-0 fw-bold text-success">₹{{ total_opening|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-success">₹{{ total_opening|rupee }}</h5>
                     </div>
                 </div>
             </div>
@@ -61,7 +61,7 @@
                     </div>
                     <div>
                         <small class="text-muted d-block text-uppercase fw-semibold">Total Current</small>
-                        <h5 class="mb-0 fw-bold text-info">₹{{ total_current|floatformat:2 }}</h5>
+                        <h5 class="mb-0 fw-bold text-info">₹{{ total_current|rupee }}</h5>
                     </div>
                 </div>
             </div>

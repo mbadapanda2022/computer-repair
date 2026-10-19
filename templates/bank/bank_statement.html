@@ -31,7 +31,7 @@
         <div class="card border-0 shadow-sm border-start border-4 border-primary h-100">
             <div class="card-body">
                 <small class="text-muted text-uppercase fw-semibold">Opening</small>
-                <h5 class="mb-0 fw-bold">₹{{ opening_balance|floatformat:2 }}</h5>
+                <h5 class="mb-0 fw-bold">₹{{ opening_balance|rupee }}</h5>
             </div>
         </div>
     </div>
@@ -39,7 +39,7 @@
         <div class="card border-0 shadow-sm border-start border-4 border-success h-100">
             <div class="card-body">
                 <small class="text-muted text-uppercase fw-semibold">Deposits</small>
-                <h5 class="mb-0 fw-bold text-success">₹{{ total_deposit|floatformat:2 }}</h5>
+                <h5 class="mb-0 fw-bold text-success">₹{{ total_deposit|rupee }}</h5>
             </div>
         </div>
     </div>
@@ -47,7 +47,7 @@
         <div class="card border-0 shadow-sm border-start border-4 border-danger h-100">
             <div class="card-body">
                 <small class="text-muted text-uppercase fw-semibold">Withdrawals</small>
-                <h5 class="mb-0 fw-bold text-danger">₹{{ total_withdrawal|floatformat:2 }}</h5>
+                <h5 class="mb-0 fw-bold text-danger">₹{{ total_withdrawal|rupee }}</h5>
             </div>
         </div>
     </div>
@@ -56,7 +56,7 @@
             <div class="card-body">
                 <small class="text-muted text-uppercase fw-semibold">Closing</small>
                 <h5 class="mb-0 fw-bold {% if closing_balance < 0 %}text-danger{% else %}text-info{% endif %}">
-                    ₹{{ closing_balance|floatformat:2 }}
+                    ₹{{ closing_balance|rupee }}
                 </h5>
             </div>
         </div>

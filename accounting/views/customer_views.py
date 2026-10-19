@@ -886,6 +886,12 @@ def repair_estimate_approve(request, pk):
         return redirect('customer:customer_repair_detail', pk=repair.pk)
 
     with transaction.atomic():
+        # Row lock + re-check: staff can approve/reject concurrently.
+        repair = RepairJob.objects.select_for_update().get(pk=pk)
+        if repair.estimate_status == 'approved':
+            messages.warning(request, "This estimate is already approved.")
+            return redirect('customer:customer_repair_detail', pk=repair.pk)
+
         repair.estimate_status = 'approved'
         repair.estimate_approved_at = timezone.now()
         repair.estimate_approved_by = request.user
@@ -941,8 +947,15 @@ def repair_estimate_hold(request, pk):
         messages.warning(request, "This estimate is already approved.")
         return redirect('customer:customer_repair_detail', pk=repair.pk)
 
-    repair.estimate_status = 'on_hold'
-    repair.save(update_fields=['estimate_status'])
+    with transaction.atomic():
+        # Row lock + re-check: decision must not clobber a concurrent approve.
+        repair = RepairJob.objects.select_for_update().get(pk=pk)
+        if repair.estimate_status == 'approved':
+            messages.warning(request, "This estimate is already approved.")
+            return redirect('customer:customer_repair_detail', pk=repair.pk)
+
+        repair.estimate_status = 'on_hold'
+        repair.save(update_fields=['estimate_status'])
 
     send_notification_to_staff(
         title=f"Estimate On Hold: {repair.job_number}",
@@ -978,8 +991,15 @@ def repair_estimate_reject(request, pk):
         messages.warning(request, "This estimate is already approved.")
         return redirect('customer:customer_repair_detail', pk=repair.pk)
 
-    repair.estimate_status = 'rejected'
-    repair.save(update_fields=['estimate_status'])
+    with transaction.atomic():
+        # Row lock + re-check: decision must not clobber a concurrent approve.
+        repair = RepairJob.objects.select_for_update().get(pk=pk)
+        if repair.estimate_status == 'approved':
+            messages.warning(request, "This estimate is already approved.")
+            return redirect('customer:customer_repair_detail', pk=repair.pk)
+
+        repair.estimate_status = 'rejected'
+        repair.save(update_fields=['estimate_status'])
 
     send_notification_to_staff(
         title=f"Estimate Rejected: {repair.job_number}",
@@ -1749,7 +1769,9 @@ def email_change_verify(request):
                     ),
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[new_email],
-                    fail_silently=True,
+                    # raise-on-failure so the except below logs it
+                    # (fail_silently=True drops the email with no trace)
+                    fail_silently=False,
                 )
             except Exception:
                 logger.exception("Email change confirmation email failed")

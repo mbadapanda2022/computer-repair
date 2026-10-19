@@ -41,7 +41,7 @@
                     <tr><td class="text-muted">Total Repairs</td>
                         <td class="fw-bold">{{ total_repairs|default:"0" }}</td></tr>
                     <tr><td class="text-muted">Total Payments</td>
-                        <td class="fw-bold text-success">₹{{ total_payments|floatformat:2 }}</td></tr>
+                        <td class="fw-bold text-success">₹{{ total_payments|rupee }}</td></tr>
                     <tr><td class="text-muted">Last Login</td>
                         <td class="fw-bold">{{ request.user.last_login|date:"d M Y, H:i"|default:"First Login" }}</td></tr>
                 </table>

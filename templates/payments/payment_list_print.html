@@ -75,8 +75,8 @@
             <td class="text-center">{{ p.pk }}</td>
             <td class="{% if p.direction == 'received' %}received{% else %}paid{% endif %}">{{ p.get_direction_display }}</td>
             <td>{{ p.contact.name }}</td>
-            <td class="text-end">₹{{ p.amount|floatformat:2 }}</td>
-            <td class="text-end">{% if p.discount_amount > 0 %}₹{{ p.discount_amount|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td class="text-end">₹{{ p.amount|rupee }}</td>
+            <td class="text-end">{% if p.discount_amount > 0 %}₹{{ p.discount_amount|rupee }}{% else %}—{% endif %}</td>
             <td>{{ p.get_method_display }}</td>
             <td style="font-size:7.5pt;">{{ p.upi_ref|default:p.reference|default:"—" }}</td>
             <td>{% if p.bank_account %}{{ p.bank_account.name }}{% else %}Cash{% endif %}</td>
@@ -92,12 +92,12 @@
     <tfoot>
         <tr>
             <td colspan="4" class="text-end">Received Total</td>
-            <td class="text-end received">₹{{ total_received|floatformat:2 }}</td>
+            <td class="text-end received">₹{{ total_received|rupee }}</td>
             <td colspan="6"></td>
         </tr>
         <tr>
             <td colspan="4" class="text-end">Paid Total</td>
-            <td class="text-end paid">₹{{ total_paid|floatformat:2 }}</td>
+            <td class="text-end paid">₹{{ total_paid|rupee }}</td>
             <td colspan="6"></td>
         </tr>
         <tr>
