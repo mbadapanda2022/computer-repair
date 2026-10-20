@@ -150,9 +150,11 @@ class VisitorAnalyticsPageTests(TestCase):
         resp = self.client.get('/analytics/visitors/')
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Website Visitors')
-        self.assertContains(resp, 'Active right now')
-        session = resp.context['sessions'][0]
+        self.assertContains(resp, 'People on the site right now')
+        session = resp.context['session_rows'][0]['s']
         self.assertEqual(session.num_pages, 2)
+        self.assertContains(resp, 'How to read the table below')
+        self.assertContains(resp, 'Website home')
 
     def test_days_filter_param(self):
         self.client.force_login(self.staff)
@@ -160,6 +162,33 @@ class VisitorAnalyticsPageTests(TestCase):
         self.assertEqual(resp.context['days'], 7)
         resp = self.client.get('/analytics/visitors/?days=bogus')
         self.assertEqual(resp.context['days'], 30)
+
+
+class SourceDisplayTests(TestCase):
+    def _session(self, **kw):
+        defaults = dict(visitor_id=uuid.uuid4(),
+                        last_seen_at=timezone.now(), entry_path='/')
+        defaults.update(kw)
+        return VisitorSession.objects.create(**defaults)
+
+    def test_google_referrer(self):
+        s = self._session(referrer='https://www.google.com/search?q=repair')
+        self.assertEqual(s.source_display, 'Google Search')
+
+    def test_utm_whatsapp(self):
+        s = self._session(utm_source='whatsapp')
+        self.assertEqual(s.source_display, 'WhatsApp')
+
+    def test_direct(self):
+        s = self._session()
+        self.assertEqual(s.source_display, 'Typed the address / direct')
+
+    def test_friendly_path(self):
+        from .views.analytics import friendly_path
+        self.assertEqual(friendly_path('/'), 'Website home')
+        self.assertEqual(friendly_path('/privacy-policy/'), 'Privacy Policy')
+        self.assertEqual(friendly_path('/blog/my-first-post/'),
+                         'Blog › My First Post')
 
 
 class UserAgentParserTests(TestCase):

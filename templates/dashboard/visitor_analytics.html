@@ -10,84 +10,84 @@
                 <span class="title-chip"><i class="bi bi-people" aria-hidden="true"></i></span>
                 Website Visitors
             </h1>
-            <p class="page-sub">Who visited the site, when they arrived, which pages they saw, and when they left.</p>
+            <p class="page-sub">Every line below is one person's visit to your website — when they came, how long they stayed, and when they left.</p>
         </div>
         <div class="page-actions">
             <div class="btn-group" role="group" aria-label="Date range">
-                <a href="?days=7" class="btn btn-sm {% if days == 7 %}btn-primary{% else %}btn-outline-primary{% endif %}">7 days</a>
-                <a href="?days=30" class="btn btn-sm {% if days == 30 %}btn-primary{% else %}btn-outline-primary{% endif %}">30 days</a>
-                <a href="?days=90" class="btn btn-sm {% if days == 90 %}btn-primary{% else %}btn-outline-primary{% endif %}">90 days</a>
+                <a href="?days=7" class="btn btn-sm {% if days == 7 %}btn-primary{% else %}btn-outline-primary{% endif %}">Last 7 days</a>
+                <a href="?days=30" class="btn btn-sm {% if days == 30 %}btn-primary{% else %}btn-outline-primary{% endif %}">Last 30 days</a>
+                <a href="?days=90" class="btn btn-sm {% if days == 90 %}btn-primary{% else %}btn-outline-primary{% endif %}">Last 90 days</a>
             </div>
         </div>
     </div>
 
     <!-- ══════════ SUMMARY CARDS ══════════ -->
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-3">
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small text-uppercase">Active right now</div>
+                    <div class="text-muted small text-uppercase">People on the site right now</div>
                     <div class="fs-2 fw-bold {% if active_now %}text-success{% endif %}">{{ active_now }}</div>
-                    <div class="small text-muted">seen in last 5 min</div>
+                    <div class="small text-muted">visited a page in the last 5 minutes</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small text-uppercase">Today</div>
+                    <div class="text-muted small text-uppercase">Visits today</div>
                     <div class="fs-2 fw-bold">{{ today_visits }}</div>
-                    <div class="small text-muted">{{ today_unique }} unique visitor{{ today_unique|pluralize }}</div>
+                    <div class="small text-muted">by {{ today_unique }} separate visitor{{ today_unique|pluralize }}</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small text-uppercase">Last 7 days</div>
+                    <div class="text-muted small text-uppercase">Visits this week</div>
                     <div class="fs-2 fw-bold">{{ week_visits }}</div>
-                    <div class="small text-muted">{{ week_unique }} unique visitor{{ week_unique|pluralize }}</div>
+                    <div class="small text-muted">by {{ week_unique }} separate visitor{{ week_unique|pluralize }}</div>
                 </div>
             </div>
         </div>
         <div class="col-6 col-lg-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small text-uppercase">Avg visit time (7d)</div>
+                    <div class="text-muted small text-uppercase">Average time spent per visit</div>
                     <div class="fs-2 fw-bold">{{ avg_duration_display }}</div>
-                    <div class="small text-muted">arrival to leave</div>
+                    <div class="small text-muted">from arrival to leaving (this week)</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
+    <div class="row g-3 mb-3">
         <!-- ══════════ DAILY CHART ══════════ -->
         <div class="col-lg-8">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Daily visits</div>
+                <div class="card-header bg-white fw-semibold">Visitors each day <span class="text-muted fw-normal small">(bars = total visits, line = different people)</span></div>
                 <div class="card-body">
                     {% if daily %}
                     <canvas id="visitsChart" height="120"></canvas>
                     {% else %}
-                    <div class="text-muted text-center py-5">No visits recorded yet in this range.</div>
+                    <div class="text-muted text-center py-5">No visits recorded yet in this period.</div>
                     {% endif %}
                 </div>
             </div>
         </div>
 
-        <!-- ══════════ TOP PAGES ══════════ -->
+        <!-- ══════════ MOST SEEN PAGES ══════════ -->
         <div class="col-lg-4">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white fw-semibold">Most viewed pages ({{ days }}d)</div>
+                <div class="card-header bg-white fw-semibold">Pages people opened most <span class="text-muted fw-normal small">(last {{ days }} days)</span></div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-sm mb-0 align-middle">
                             <tbody>
                             {% for p in top_pages %}
                                 <tr>
-                                    <td class="ps-3 text-break"><code class="small">{{ p.path }}</code></td>
-                                    <td class="pe-3 text-end text-muted small">{{ p.views }}</td>
+                                    <td class="ps-3" title="{{ p.raw }}">{{ p.page }}</td>
+                                    <td class="pe-3 text-end text-muted small">{{ p.views }} view{{ p.views|pluralize }}</td>
                                 </tr>
                             {% empty %}
                                 <tr><td class="text-muted p-3">No page views yet.</td></tr>
@@ -100,51 +100,67 @@
         </div>
     </div>
 
+    <!-- ══════════ HOW TO READ ══════════ -->
+    <div class="alert border-0 shadow-sm mb-3" style="background:#eef5ff">
+        <div class="fw-semibold mb-1"><i class="bi bi-question-circle me-1"></i>How to read the table below</div>
+        <div class="small">
+            Each row is <strong>one visit by one person</strong>.
+            <strong>Came at</strong> = when they opened your website ·
+            <strong>Left at</strong> = when we last saw them active (updates live while they browse) ·
+            <strong>Time stayed</strong> = how long the visit lasted ·
+            <strong>Pages seen</strong> = how many pages they opened ·
+            <strong>First page → last page</strong> = where they entered and what they were viewing at the end ·
+            <strong>How they found us</strong> = Google, WhatsApp, Instagram etc., or "direct" if they typed the address ·
+            <strong>Device</strong> = which browser and operating system they used.
+            The short code under "Visitor" is an anonymous number — it never shows names, phone numbers or accounts.
+        </div>
+    </div>
+
     <!-- ══════════ VISITS TABLE ══════════ -->
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white fw-semibold">
-            Visits — last {{ days }} days (showing up to 500)
+            All visits — last {{ days }} days {% if session_rows|length >= 500 %}(showing latest 500){% endif %}
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Visitor</th>
+                            <th>Visitor<br><span class="text-muted fw-normal small">(anonymous code)</span></th>
                             <th>Came at</th>
                             <th>Left at</th>
-                            <th>Duration</th>
-                            <th>Pages</th>
-                            <th>Entry → Exit</th>
-                            <th>Source</th>
+                            <th>Time stayed</th>
+                            <th>Pages seen</th>
+                            <th>First page → last page</th>
+                            <th>How they found us</th>
                             <th>Device</th>
                         </tr>
                     </thead>
                     <tbody>
-                    {% for s in sessions %}
+                    {% for row in session_rows %}
                         <tr>
-                            <td><code class="small text-muted">{{ s.visitor_id|slice:":8" }}</code></td>
-                            <td class="small">{{ s.started_at|date:"d M Y, H:i" }}</td>
-                            <td class="small">{{ s.last_seen_at|date:"d M Y, H:i" }}</td>
-                            <td class="small">{{ s.duration_display }}</td>
-                            <td class="small">{{ s.num_pages }}</td>
-                            <td class="small text-break">
-                                <code>{{ s.entry_path }}</code>
-                                {% if s.exit_path and s.exit_path != s.entry_path %}
-                                    <span class="text-muted">→</span> <code>{{ s.exit_path }}</code>
+                            <td><code class="small text-muted">{{ row.s.visitor_id|slice:":8" }}</code></td>
+                            <td class="small text-nowrap">{{ row.s.started_at|date:"d M Y, h:i A" }}</td>
+                            <td class="small text-nowrap">{{ row.s.last_seen_at|date:"d M Y, h:i A" }}</td>
+                            <td class="small fw-semibold">{{ row.s.duration_display }}</td>
+                            <td class="small">{{ row.s.num_pages }}</td>
+                            <td class="small">
+                                {{ row.entry }}
+                                {% if row.exit and row.exit != row.entry %}
+                                    <span class="text-muted">→</span> {{ row.exit }}
                                 {% endif %}
                             </td>
-                            <td class="small text-break">
-                                {% if s.utm_source %}<span class="badge bg-info text-dark">{{ s.utm_source }}</span>
-                                {% elif s.referrer %}<span class="text-truncate d-inline-block" style="max-width:180px" title="{{ s.referrer }}">{{ s.referrer }}</span>
-                                {% else %}<span class="text-muted">Direct</span>{% endif %}
+                            <td class="small" title="{{ row.s.referrer }}">
+                                {% if row.s.utm_source %}<span class="badge bg-info text-dark">{{ row.s.source_display }}</span>
+                                {% else %}{{ row.s.source_display }}{% endif %}
                             </td>
                             <td class="small text-nowrap">
-                                <i class="bi {% if s.device_type == 'mobile' %}bi-phone{% elif s.device_type == 'tablet' %}bi-tablet{% else %}bi-laptop{% endif %} me-1"></i>{{ s.browser }} / {{ s.os_name }}
+                                <i class="bi {% if row.s.device_type == 'mobile' %}bi-phone{% elif row.s.device_type == 'tablet' %}bi-tablet{% else %}bi-laptop{% endif %} me-1"></i>
+                                {{ row.s.browser }}{% if row.s.os_name %} · {{ row.s.os_name }}{% endif %}
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="8" class="text-muted p-4 text-center">No visits yet — they will appear here as people browse the site.</td></tr>
+                        <tr><td colspan="8" class="text-muted p-4 text-center">No visits yet in this period — they will appear here as people browse the site.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
@@ -154,7 +170,7 @@
 
     <p class="text-muted small mt-3 mb-4">
         <i class="bi bi-shield-check me-1"></i>
-        Analytics are anonymous: visitors are identified only by a random cookie ID, never linked to accounts, invoices or contacts.
+        This counter is fully anonymous and belongs to our own website — no Google, no outside company sees this data, and it is never linked to customer accounts, invoices or contacts.
     </p>
 </div>
 {% endblock %}
@@ -178,7 +194,7 @@
                 },
                 {
                     type: 'line',
-                    label: 'Unique visitors',
+                    label: 'Different people',
                     data: [{% for d in daily %}{{ d.unique }}{% if not forloop.last %},{% endif %}{% endfor %}],
                     borderColor: '#198754',
                     tension: 0.3,

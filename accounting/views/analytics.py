@@ -18,6 +18,15 @@ from ..models import VisitorSession, PageView
 logger = logging.getLogger(__name__)
 
 
+def friendly_path(path):
+    """'/' → 'Website home'; '/blog/my-post/' → 'Blog › My Post'."""
+    if path == '/':
+        return 'Website home'
+    parts = [p.replace('-', ' ').strip().title()
+             for p in path.strip('/').split('/') if p]
+    return ' › '.join(parts[:3]) if parts else path
+
+
 @csrf_exempt
 def visitor_ping(request):
     """POST /analytics/ping/ — marks the visitor's current visit as active now.
@@ -92,19 +101,28 @@ def visitor_analytics(request):
     )
     daily = list(daily)
 
-    top_pages = (
-        PageView.objects
-        .filter(visited_at__gte=timezone.now() - timedelta(days=days))
-        .values('path')
-        .annotate(views=Count('id'))
-        .order_by('-views')[:10]
-    )
+    top_pages = [
+        {'page': friendly_path(p['path']), 'raw': p['path'],
+         'views': p['views']}
+        for p in (
+            PageView.objects
+            .filter(visited_at__gte=timezone.now() - timedelta(days=days))
+            .values('path')
+            .annotate(views=Count('id'))
+            .order_by('-views')[:10]
+        )
+    ]
 
-    sessions = (
+    sessions = list(
         _sessions_window(days)
         .annotate(num_pages=Count('pageviews'))
         .order_by('-started_at')[:500]
     )
+    session_rows = [{
+        's': s,
+        'entry': friendly_path(s.entry_path),
+        'exit': friendly_path(s.exit_path),
+    } for s in sessions]
 
     context = {
         'days': days,
@@ -117,6 +135,6 @@ def visitor_analytics(request):
             last_seen_at__gte=now - timedelta(minutes=5)).count(),
         'daily': daily,
         'top_pages': top_pages,
-        'sessions': sessions,
+        'session_rows': session_rows,
     }
     return render(request, 'dashboard/visitor_analytics.html', context)

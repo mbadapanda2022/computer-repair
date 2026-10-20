@@ -49,9 +49,10 @@
         {% endif %}
     </div>
 
-    {% if form.non_field_errors %}
+    {% if login_error or form.non_field_errors %}
         <div class="alert alert-danger py-2">
-            {% for err in form.non_field_errors %}<span>{{ err }}</span>{% endfor %}
+            {% if login_error %}{{ login_error }}
+            {% else %}{% for err in form.non_field_errors %}<span>{{ err }}</span>{% endfor %}{% endif %}
         </div>
     {% endif %}
 

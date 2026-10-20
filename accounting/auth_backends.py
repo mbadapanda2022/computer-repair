@@ -82,8 +82,12 @@ class EmailOrPhoneBackend(ModelBackend):
         for user in User.objects.filter(email__iexact=login_input).order_by('pk')[:5]:
             _add(user, 'email')
 
-        # ---- 2. Username (exact) ----
+        # ---- 2. Username (exact, then case-insensitive fallback so
+        # 'admin' still finds 'Admin' — users don't remember casing) ----
         user = User.objects.filter(username=login_input).first()
+        if user is None and login_input:
+            user = User.objects.filter(
+                username__iexact=login_input).order_by('pk').first()
         if user is not None:
             _add(user, 'username')
 

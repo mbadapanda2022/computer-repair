@@ -98,3 +98,31 @@ class StaffLoginStillWorksTests(TestCase):
         })
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn('sessionid', client.cookies)
+
+
+class FriendlyLoginErrorsTests(TestCase):
+    """No more generic 'enter a correct username and password' —
+    the page must say exactly what went wrong."""
+
+    def test_wrong_password_says_password_mismatch(self):
+        User.objects.create_user('friendly_user', password='Right#2026',
+                                 is_active=True)
+        resp = Client().post('/login/', {
+            'username': 'friendly_user', 'password': 'nope',
+        })
+        self.assertContains(resp, 'The password does not match')
+
+    def test_unknown_account_says_not_found(self):
+        resp = Client().post('/login/', {
+            'username': '9998887776', 'password': 'whatever1',
+        })
+        self.assertContains(resp, 'could not find an account')
+
+
+class UsernameCaseInsensitiveTests(TestCase):
+    def test_username_casing_does_not_break_login(self):
+        User.objects.create_user('ShopAdmin', password='Case#2026',
+                                 is_staff=True, is_active=True)
+        got = authenticate(None, username='shopadmin', password='Case#2026')
+        self.assertIsNotNone(got)
+        self.assertEqual(got.username, 'ShopAdmin')

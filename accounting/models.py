@@ -4709,6 +4709,36 @@ class VisitorSession(models.Model):
     def pages_count(self):
         return self.pageviews.count()
 
+    @property
+    def source_display(self):
+        """Human-readable 'how they found us' label."""
+        known = [
+            ('google', 'Google Search'), ('youtube', 'YouTube'),
+            ('wa.me', 'WhatsApp'), ('whatsapp', 'WhatsApp'),
+            ('instagram', 'Instagram'), ('facebook', 'Facebook'),
+            ('sharechat', 'ShareChat'), ('twitter', 'X / Twitter'),
+            ('t.co', 'X / Twitter'), ('linkedin', 'LinkedIn'),
+            ('bing', 'Bing'), ('chatgpt', 'ChatGPT'), ('openai', 'ChatGPT'),
+        ]
+        if self.utm_source:
+            value = self.utm_source.lower()
+            for key, label in known:
+                if key in value:
+                    return label
+            return self.utm_source.replace('-', ' ').replace('_', ' ').title()
+        if not self.referrer:
+            return 'Typed the address / direct'
+        host = ''
+        try:
+            from urllib.parse import urlparse
+            host = (urlparse(self.referrer).hostname or '').lower()
+        except Exception:
+            return self.referrer[:40]
+        for key, label in known:
+            if key in host:
+                return label
+        return host
+
 
 class PageView(models.Model):
     session = models.ForeignKey(VisitorSession, on_delete=models.CASCADE, related_name='pageviews')

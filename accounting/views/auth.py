@@ -116,6 +116,46 @@ def _clear_login_attempts(request, identifier: str) -> None:
     cache.delete(_rate_key(request, identifier))
 
 
+def _diagnose_login_failure(login_input: str) -> str:
+    """Plain-language reason instead of Django's generic error, so users
+    know what to fix. Account-existence detail is acceptable on this shop
+    portal (the signup form already validates numbers the same way)."""
+    from django.contrib.auth import get_user_model
+    from ..auth_backends import _normalize_phone
+    User = get_user_model()
+    li = (login_input or '').strip()
+    if not li:
+        return 'Please enter your email or mobile number and password.'
+
+    found = list(User.objects.filter(email__iexact=li)[:2])
+    u = User.objects.filter(username__iexact=li).first()
+    if u:
+        found.append(u)
+    phone_10 = _normalize_phone(li)
+    if phone_10:
+        from ..models import Contact
+        for c in (Contact.objects.filter(phone=phone_10)
+                  .exclude(user__isnull=True)
+                  .select_related('user')[:3]):
+            found.append(c.user)
+
+    unique = {u.pk: u for u in found}.values()
+    if not unique:
+        return (
+            'We could not find an account for this email/mobile. '
+            'Use the number or email you registered with, or create an account.'
+        )
+    if all(not u.is_active for u in unique):
+        return (
+            'This account is not activated yet. Please complete the OTP/'
+            'email verification, or use Forgot Password to reset.'
+        )
+    return (
+        'The password does not match our records for this account. '
+        'Passwords are case-sensitive — or use Forgot Password to reset it.'
+    )
+
+
 def _clear_otp_session(request) -> None:
     """Remove all pending OTP/signup session keys."""
     for key in (SK_PENDING_USER_ID, SK_PENDING_EMAIL,
@@ -176,40 +216,42 @@ def unified_login_view(request):
             # through the backends; calling authenticate() a second time
             # doubled DB lookups and could disagree with the form's result.
             user = form.get_user()
-            if user is not None:
-                # ---- SUCCESS ----
-                _clear_login_attempts(request, username)
-                login(request, user, backend=AUTH_BACKEND)
-                logger.info(
-                    "User logged in | user=%s | staff=%s | ip=%s",
-                    user.username, user.is_staff, _get_client_ip(request),
-                )
-                messages.success(
-                    request,
-                    f"Welcome back, {user.get_full_name() or user.username}!",
-                )
-                return _redirect_after_login(request, user, htmx)
+            # ---- SUCCESS ----
+            _clear_login_attempts(request, username)
+            login(request, user, backend=AUTH_BACKEND)
+            logger.info(
+                "User logged in | user=%s | staff=%s | ip=%s",
+                user.username, user.is_staff, _get_client_ip(request),
+            )
+            messages.success(
+                request,
+                f"Welcome back, {user.get_full_name() or user.username}!",
+            )
+            return _redirect_after_login(request, user, htmx)
 
-            # ---- Wrong credentials ----
+        # ---- Login failed: tell the user WHY, in plain words ----
+        if username:
             _record_failed_login(request, username)
+        reason = _diagnose_login_failure(username)
 
-        # ---- Form invalid OR auth failed ----
         if htmx:
             response = render(
-                request, 'auth/partials/_login_form.html', {'form': form},
+                request, 'auth/partials/_login_form.html',
+                {'form': form, 'login_error': reason},
             )
-            errors = []
-            for field_errors in form.errors.values():
-                errors.extend(field_errors)
-            msg = ' '.join(errors) or 'Invalid email/mobile or password.'
             response['HX-Trigger'] = json.dumps({
-                'showToast': {'level': 'danger', 'message': msg},
+                'showToast': {'level': 'danger', 'message': reason},
             })
             return response
     else:
         form = AuthenticationForm()
 
-    return render(request, 'auth/unified_login.html', {'form': form})
+    reason = ''
+    if request.method == 'POST':
+        reason = _diagnose_login_failure(username)
+
+    return render(request, 'auth/unified_login.html',
+                  {'form': form, 'login_error': reason})
 
 
 def _redirect_after_login(request, user, htmx):
