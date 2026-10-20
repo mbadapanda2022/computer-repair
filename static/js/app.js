@@ -553,6 +553,122 @@
     });
 
     // ================================================================
+    // STAFF QUICK KEYS — Tally-style single-key navigation
+    // (press ? anywhere for the full list; sidebar shows the key on
+    // every item it covers)
+    // ================================================================
+    const QUICK_KEYS = {
+        'd': ['/dashboard/', 'Dashboard'],
+        'w': ['/analytics/visitors/', 'Visitors'],
+        'a': ['/sales/create/', 'New Invoice'],
+        's': ['/sales/', 'Sales / Invoices'],
+        'q': ['/credit-notes/', 'Credit Notes'],
+        'b': ['/purchases/create/', 'New Purchase'],
+        'u': ['/purchases/', 'Purchases'],
+        'p': ['/payments/create/', 'New Payment'],
+        'l': ['/payments/', 'Payments'],
+        'r': ['/repairs/create/', 'New Repair'],
+        'o': ['/repairs/', 'Repairs'],
+        'j': ['/journals/create/', 'New Journal'],
+        'k': ['/cash-book/', 'Cash Book'],
+        'g': ['/bank/accounts/', 'Bank Accounts'],
+        'c': ['/contacts/', 'Contacts'],
+        'i': ['/products/', 'Inventory'],
+        't': ['/stock/dashboard/', 'Stock Dashboard'],
+        'h': ['/stock/adjustment/', 'Stock History'],
+        'n': ['/notifications/', 'Notifications'],
+        'e': ['/settings/', 'Settings'],
+        'm': ['/messages/', 'Messages'],
+    };
+    const COMBO_KEYS = {
+        '/': 'Open search',
+        'Ctrl+K': 'Open search',
+        'Ctrl+Shift+S': 'Collapse / expand sidebar',
+        'Ctrl+Shift+T': 'Switch light / dark theme',
+        'Esc': 'Close any popup',
+    };
+
+    if (hasStaffSidebar) {
+        // Small key badge on every sidebar item that has a shortcut
+        const keyByUrl = {};
+        Object.keys(QUICK_KEYS).forEach(function (key) {
+            keyByUrl[QUICK_KEYS[key][0]] = key;
+        });
+        document.querySelectorAll('#sidebar a.nav-link').forEach(function (a) {
+            const key = keyByUrl[a.getAttribute('href')];
+            if (!key) return;
+            const badge = document.createElement('kbd');
+            badge.className = 'sidebar-key';
+            badge.textContent = key.toUpperCase();
+            badge.setAttribute('aria-hidden', 'true');
+            a.appendChild(badge);
+        });
+
+        function openQuickKeyHelp() {
+            let modalEl = document.getElementById('quickKeyHelp');
+            if (!modalEl) {
+                modalEl = document.createElement('div');
+                modalEl.id = 'quickKeyHelp';
+                modalEl.className = 'modal fade';
+                modalEl.tabIndex = -1;
+                modalEl.setAttribute('aria-hidden', 'true');
+                const rows = Object.keys(QUICK_KEYS).map(function (key) {
+                    return '<tr><td><kbd>' + key.toUpperCase() + '</kbd></td><td>' +
+                        QUICK_KEYS[key][1] + '</td></tr>';
+                }).join('');
+                const comboRows = Object.keys(COMBO_KEYS).map(function (key) {
+                    return '<tr><td><kbd>' + key + '</kbd></td><td>' +
+                        COMBO_KEYS[key] + '</td></tr>';
+                }).join('');
+                modalEl.innerHTML =
+                    '<div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">' +
+                    '<div class="modal-header py-2"><h6 class="modal-title"><i class="bi bi-keyboard me-2"></i>Keyboard Shortcuts</h6>' +
+                    '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>' +
+                    '<div class="modal-body"><div class="row g-4">' +
+                    '<div class="col-6"><div class="text-muted small text-uppercase mb-2">Go to / open (press the key)</div>' +
+                    '<table class="table table-sm mb-0 quick-key-table"><tbody>' + rows + '</tbody></table></div>' +
+                    '<div class="col-6"><div class="text-muted small text-uppercase mb-2">Other keys</div>' +
+                    '<table class="table table-sm mb-0 quick-key-table"><tbody>' + comboRows + '</tbody></table>' +
+                    '<div class="alert alert-info small mt-3 mb-0">Short keys work only when you are <b>not typing</b> in a field. Press <kbd>?</kbd> anytime to open this list.</div></div>' +
+                    '</div></div></div></div>';
+                document.body.appendChild(modalEl);
+            }
+            new bootstrap.Modal(modalEl).show();
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+                      t.tagName === 'SELECT' || t.isContentEditable)) return;
+            // Never jump pages while a popup is open — Esc closes it first.
+            if (document.querySelector('.modal.show')) return;
+
+            if (e.key === '?') {
+                e.preventDefault();
+                openQuickKeyHelp();
+                return;
+            }
+            if (e.key === '/') {
+                const input = document.getElementById('global-search-input');
+                const wrapper = document.getElementById('global-search-wrapper');
+                if (input && wrapper) {
+                    e.preventDefault();
+                    wrapper.classList.remove('search-closed');
+                    input.focus();
+                    input.select();
+                }
+                return;
+            }
+            const entry = QUICK_KEYS[e.key.toLowerCase()];
+            if (entry) {
+                e.preventDefault();
+                window.location.href = entry[0];
+            }
+        });
+    }
+
+    // ================================================================
     // NOTIFICATION COUNT REFRESH
     // ================================================================
     // Fired by mark-read / mark-all-read / delete actions via HTMX

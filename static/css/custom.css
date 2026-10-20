@@ -1049,4 +1049,44 @@ body.sidebar-resizing {
         margin-left: 0;
     }
 }
+
+/* ================================================================
+   STAFF QUICK KEYS - sidebar kbd badges + shortcut help table
+   ================================================================ */
+#sidebar kbd.sidebar-key {
+    margin-left: auto;
+    padding: 1px 6px;
+    font-size: 0.68rem;
+    font-family: inherit;
+    opacity: 0.55;
+    background: rgba(128, 128, 128, 0.18);
+    border: 1px solid rgba(128, 128, 128, 0.35);
+    border-radius: 4px;
+}
+
+#sidebar .nav-link:hover kbd.sidebar-key,
+#sidebar .nav-link.active kbd.sidebar-key {
+    opacity: 1;
+}
+
+#sidebar.collapsed kbd.sidebar-key {
+    display: none;
+}
+
+[data-bs-theme="dark"] #sidebar kbd.sidebar-key {
+    background: rgba(255, 255, 255, 0.10);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.quick-key-table td {
+    vertical-align: middle;
+}
+
+.quick-key-table td:first-child {
+    width: 3.2rem;
+}
+
+.quick-key-table kbd {
+    padding: 2px 7px;
+    font-size: 0.75rem;
 }
