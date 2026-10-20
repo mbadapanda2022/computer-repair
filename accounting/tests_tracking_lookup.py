@@ -12,11 +12,14 @@ from __future__ import annotations
 from decimal import Decimal
 from urllib.parse import parse_qs, urlparse
 
+from django.core import signing
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
 from accounting.models import Contact, RepairJob
-from accounting.utils.tracking import verify_tracking_token
+from accounting.utils.tracking import (
+    TRACK_SALT, generate_tracking_token, verify_tracking_token,
+)
 
 
 @override_settings(
@@ -55,6 +58,26 @@ class RepairLookupTests(TestCase):
         page = self.client.get('/tracking/repair/%s/' % token)
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, self.job.job_number)
+
+    def test_token_is_whatsapp_safe_no_colons(self):
+        # WhatsApp linkifier truncates URLs at ':', which made tracking
+        # links clicked from WhatsApp 404. Tokens must be colon-free.
+        token = generate_tracking_token(self.job)
+        self.assertNotIn(':', token)
+        self.assertIn('.', token)
+        page = self.client.get('/tracking/repair/%s/' % token)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, self.job.job_number)
+
+    def test_legacy_colon_tokens_still_work(self):
+        # Messages already delivered to customers carry ':'-separated
+        # tokens; they must keep verifying.
+        legacy = signing.dumps({'job_id': self.job.pk}, salt=TRACK_SALT,
+                               compress=True)
+        self.assertIn(':', legacy)
+        self.assertEqual(verify_tracking_token(legacy), self.job.pk)
+        page = self.client.get('/tracking/repair/%s/' % legacy)
+        self.assertEqual(page.status_code, 200)
 
     def test_lowercase_job_number_works(self):
         r = self.lookup(self.job.job_number.lower(), self.phone)
