@@ -2650,6 +2650,11 @@ class RepairJob(SoftDeleteModel):
         digits = ''.join(filter(str.isdigit, str(self.customer.phone)))
         if len(digits) == 10:
             return '91' + digits
+        if len(digits) == 11 and digits.startswith('0'):
+            # Locally dialled format 0XXXXXXXXXX — drop trunk prefix.
+            return '91' + digits[1:]
+        if len(digits) in (12, 13) and digits.startswith('91'):
+            return digits
         return digits if len(digits) > 10 else ''
 
     @property

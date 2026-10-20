@@ -1,11 +1,12 @@
 {% load static %}
-
+{% spaceless %}
 <form method="post"
       hx-post="{% url 'accounting:send_estimate_to_customer' job.pk %}"
       hx-target="#mainModalContent"
       hx-swap="innerHTML"
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
       id="sendEstimateForm">
+{% endspaceless %}
 
     {% csrf_token %}
 
@@ -18,29 +19,88 @@
 
     <div class="modal-body">
 
-        <!-- Estimate Preview -->
+        <!-- Job summary -->
         <div class="alert alert-light border">
             <div class="row g-2">
-                <div class="col-6">
+                <div class="col-6 col-md-3">
                     <small class="text-muted d-block">Customer</small>
                     <strong>{{ job.customer.name }}</strong>
                 </div>
-                <div class="col-6">
+                <div class="col-6 col-md-3">
                     <small class="text-muted d-block">Device</small>
                     <strong>{{ job.device_model }}</strong>
                 </div>
-                <div class="col-6">
+                <div class="col-6 col-md-3">
                     <small class="text-muted d-block">Job #</small>
                     <strong>{{ job.job_number }}</strong>
                 </div>
-                <div class="col-6">
-                    <small class="text-muted d-block">Estimated Cost</small>
-                    <strong class="text-success fs-5">₹{{ job.estimated_cost|rupee }}</strong>
+                <div class="col-6 col-md-3">
+                    <small class="text-muted d-block">Customer Approves For</small>
+                    <strong class="text-success fs-5 d-block">₹{{ job.estimated_cost|rupee }}</strong>
+                    {% if parts or services %}
+                        <small class="text-muted">Itemised subtotal ₹{{ parts_total|add:services_total|floatformat:2 }}</small>
+                    {% endif %}
                 </div>
             </div>
+            {% if job.issue_description %}
+                <hr class="my-2">
+                <small class="text-muted d-block">Reported Issue</small>
+                <div class="small">{{ job.issue_description|truncatechars:160 }}</div>
+            {% endif %}
+            {% if job.diagnosis_report or job.action_taken %}
+                <hr class="my-2">
+                {% if job.diagnosis_report %}
+                    <small class="text-muted d-block">What we found</small>
+                    <div class="small mb-1">{{ job.diagnosis_report|truncatechars:140 }}</div>
+                {% endif %}
+                {% if job.action_taken %}
+                    <small class="text-muted d-block">Proposed action</small>
+                    <div class="small">{{ job.action_taken|truncatechars:140 }}</div>
+                {% endif %}
+            {% endif %}
         </div>
 
-        <!-- Send Method -->
+        <!-- Parts / services the customer will see -->
+        {% if parts or services %}
+        <div class="mb-3">
+            <div class="fw-semibold small mb-1"><i class="bi bi-list-ul me-1"></i>Estimate Breakup</div>
+            <table class="table table-sm small mb-0 align-middle">
+                <thead class="table-light">
+                    <tr><th>Item</th><th class="text-center">Qty</th><th class="text-end">Amount (₹)</th></tr>
+                </thead>
+                <tbody>
+                    {% for part in parts %}
+                    <tr>
+                        <td>{{ part.product.name }}</td>
+                        <td class="text-center">{{ part.quantity }}</td>
+                        <td class="text-end">{{ part.line_total|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% for service in services %}
+                    <tr>
+                        <td>{{ service.product.name }} <span class="badge bg-info text-dark">Service</span></td>
+                        <td class="text-center">1</td>
+                        <td class="text-end">{{ service.line_total|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="fw-bold">
+                        <td colspan="2">Parts ₹{{ parts_total|floatformat:2 }} + Service ₹{{ services_total|floatformat:2 }}</td>
+                        <td class="text-end">Approve: ₹{{ job.estimated_cost|rupee }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-warning small py-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            No parts/services added yet — the message will show a single-line estimate only.
+            Add items on this page first for a proper customer breakup.
+        </div>
+        {% endif %}
+
+        <!-- Send method -->
         <div class="mb-3">
             <label class="form-label fw-semibold">Send Via</label>
             <div class="d-flex gap-3 flex-wrap">
@@ -53,15 +113,15 @@
                 </div>
                 <div class="form-check">
                     <input class="form-check-input" type="radio" name="method" id="methodWhatsapp" value="whatsapp"
-                           {% if not job.customer.phone %}disabled{% endif %}>
+                           {% if not job.customer_whatsapp_target %}disabled{% endif %}>
                     <label class="form-check-label" for="methodWhatsapp">
                         <i class="bi bi-whatsapp text-success"></i> WhatsApp
-                        {% if not job.customer.phone %}<span class="badge bg-secondary ms-1">No phone</span>{% endif %}
+                        {% if not job.customer_whatsapp_target %}<span class="badge bg-secondary ms-1">No valid phone</span>{% endif %}
                     </label>
                 </div>
                 <div class="form-check">
                     <input class="form-check-input" type="radio" name="method" id="methodBoth" value="both"
-                           {% if not job.customer.email or not job.customer.phone %}disabled{% endif %}>
+                           {% if not job.customer.email or not job.customer_whatsapp_target %}disabled{% endif %}>
                     <label class="form-check-label" for="methodBoth">
                         <i class="bi bi-send text-info"></i> Both
                     </label>
@@ -69,28 +129,37 @@
             </div>
             <small class="text-muted d-block mt-2">
                 <i class="bi bi-info-circle me-1"></i>
-                A notification is always sent to the customer portal.
+                A portal notification is always sent; WhatsApp/Email follow the option above.
             </small>
         </div>
 
-        <!-- Custom Message -->
+        <!-- Message the customer will actually receive -->
         <div class="mb-3">
             <label for="id_message" class="form-label fw-semibold">
-                Custom Message <span class="text-muted fw-normal">(optional)</span>
+                Message to Customer
+                <span class="text-muted fw-normal">(auto-written — edit if you like)</span>
             </label>
-            <textarea name="message" id="id_message" rows="3" class="form-control"
-                      placeholder="Leave blank to use default message"></textarea>
-            <small class="text-muted">
-                Default: "Repair estimate for your [device] is ₹[amount]. Please review and approve."
-            </small>
+            <textarea name="message" id="id_message" rows="10" class="form-control font-monospace"
+                      style="font-size:0.82rem;">{{ default_message }}</textarea>
+            <div class="d-flex justify-content-between align-items-center mt-1">
+                <small class="text-muted">
+                    Blank = send the standard message. WhatsApp link opens with exactly this text.
+                </small>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="resetEstimateMsg">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to default
+                </button>
+            </div>
         </div>
 
         <!-- Warning -->
         <div class="alert alert-info small mb-0">
             <i class="bi bi-lightbulb me-1"></i>
-            Customer will be able to <strong>Approve / Hold / Reject</strong> from their portal.
+            Customer can <strong>Approve / Hold / Reject</strong> from their portal, or simply
+            reply <strong>APPROVE / HOLD / REJECT</strong> on WhatsApp — record their choice with
+            the estimate buttons on this page.
         </div>
 
+        {{ default_message|json_script:"estimateDefaultMessage" }}
     </div>
 
     <div class="modal-footer">
@@ -104,3 +173,16 @@
         </button>
     </div>
 </form>
+
+<script>
+(function () {
+    var resetBtn = document.getElementById('resetEstimateMsg');
+    var ta = document.getElementById('id_message');
+    var defEl = document.getElementById('estimateDefaultMessage');
+    if (resetBtn && ta && defEl) {
+        resetBtn.addEventListener('click', function () {
+            ta.value = JSON.parse(defEl.textContent);
+        });
+    }
+})();
+</script>

@@ -2696,6 +2696,87 @@ def export_repairs_excel(request):
 # ════════════════════════════════════════════════════════════
 # 16. SEND ESTIMATE TO CUSTOMER
 # ════════════════════════════════════════════════════════════
+def _flatten(text, limit=220):
+    """Collapse whitespace and truncate — for quoting long textareas in
+    a chat message the customer reads on a phone."""
+    if not text:
+        return ''
+    flat = ' '.join(str(text).split())
+    return flat if len(flat) <= limit else flat[:limit - 1].rstrip() + '…'
+
+
+def _estimate_default_message(job, request, parts, services,
+                              parts_total, services_total):
+    """Self-contained estimate text the customer can decide from WITHOUT
+    opening the portal: shop, device, issue, diagnosis, breakup, total,
+    terms, and both ways to reply (portal buttons or WhatsApp reply)."""
+    from ..utils.tracking import generate_tracking_url
+
+    company = CompanyProfile.get_instance()
+    lines = [
+        f"*{company.name} — Repair Estimate*",
+        '',
+        f"Hello {job.customer.name if job.customer else 'Customer'},",
+        '',
+        f"*Device:* {job.device_model}",
+        f"*Job No:* {job.job_number}",
+    ]
+    if job.date_in:
+        lines.append(f"*Date:* {job.date_in.strftime('%d %b %Y')}")
+    issue = _flatten(job.issue_description, 300)
+    if issue:
+        lines.append(f"*Reported Issue:* {issue}")
+    diagnosis = _flatten(job.diagnosis_report)
+    if diagnosis:
+        lines.append(f"*What we found:* {diagnosis}")
+    action = _flatten(job.action_taken)
+    if action:
+        lines.append(f"*Proposed action:* {action}")
+
+    if parts or services:
+        lines += ['', '*Estimate Breakup*']
+        for p in parts:
+            lines.append(
+                f"\u2022 {p.product.name} x{p.quantity} — Rs.{p.line_total:.2f}")
+        for s in services:
+            desc = _flatten(s.description, 80)
+            label = f"\u2022 {s.product.name}"
+            if desc:
+                label += f" ({desc})"
+            lines.append(f"{label} — Rs.{s.line_total:.2f}")
+        lines.append(f"Parts Total: Rs.{parts_total:.2f}")
+        lines.append(f"Service Total: Rs.{services_total:.2f}")
+
+    subtotal = parts_total + services_total
+    total = job.estimated_cost or Decimal('0')
+    lines.append('')
+    total_line = f"*Grand Total (Estimate): Rs.{total:.2f}*"
+    if parts or services:
+        if subtotal != total:
+            total_line += ' (inclusive of all charges)'
+    lines.append(total_line)
+
+    lines += [
+        '',
+        '*Please note*',
+        '\u2022 This is an estimate. If additional issues are found during '
+        'the repair the final amount may change — we will ask again first.',
+        '\u2022 Repair work starts only after your approval.',
+        '\u2022 Device data is not covered — please keep a backup.',
+        '',
+        '*How to reply*',
+        f"1. Open the link below and tap Approve / Hold / Reject:\n"
+        f"{request.build_absolute_uri(reverse('customer:customer_repair_detail', args=[job.pk]))}",
+        '2. Or simply reply APPROVE / HOLD / REJECT here on WhatsApp.',
+        f"Live status (no login needed): {generate_tracking_url(job, request)}",
+        '',
+        f"— {company.name}",
+    ]
+    if company.phone:
+        lines.append(f"Contact: {company.phone}")
+    return '\n'.join(lines)
+
+
 @login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
@@ -2718,27 +2799,51 @@ def send_estimate_to_customer(request, pk):
             status=400,
         )
 
+    parts = list(job.parts.select_related('product').all())
+    services = list(job.services.select_related('product').all())
+    parts_total = job.parts_total
+    services_total = job.services_total
+    default_message = _estimate_default_message(
+        job, request, parts, services, parts_total, services_total)
+
     if request.method == 'GET':
         return render(request, 'repairs/partials/send_estimate_modal.html', {
             'job': job,
+            'parts': parts,
+            'services': services,
+            'parts_total': parts_total,
+            'services_total': services_total,
+            'default_message': default_message,
         })
 
     method = (request.POST.get('method') or 'email').strip()
+
+    # Re-sending an estimate (e.g. after staff revises the cost) must reopen
+    # the customer's Approve/Hold/Reject card, which only renders for
+    # estimate_status == 'pending'.
+    if job.estimate_status in ('on_hold', 'rejected') and not job.is_invoiced:
+        job.estimate_status = 'pending'
+        job.estimate_decided_at = None
+        job.save(update_fields=['estimate_status', 'estimate_decided_at',
+                                'updated_at'])
     custom_message = (request.POST.get('message') or '').strip()
 
-    if not custom_message:
-        custom_message = (
-            f"Repair estimate for your {job.device_model} (Job: {job.job_number}) "
-            f"is ₹{job.estimated_cost:.2f}. Please review and approve/reject "
-            f"from your customer portal."
-        )
+    portal_url = request.build_absolute_uri(
+        reverse('customer:customer_repair_detail', args=[job.pk]))
+    if custom_message:
+        # Staff-edited text is sent as typed, plus the portal link so the
+        # customer always has the Approve/Hold/Reject buttons one tap away.
+        message_body = f"{custom_message}\n\nApprove/Hold/Reject: {portal_url}"
+    else:
+        message_body = default_message
 
     sent_channels = []
+    skipped = []
 
     notif = _safe_notify(
         job.customer,
         title=f"Repair Estimate Ready: {job.job_number}",
-        message=custom_message,
+        message=message_body,
         link=reverse('customer:customer_repair_detail', args=[job.pk]),
         notif_type='warning',
         category='repairs',
@@ -2746,34 +2851,51 @@ def send_estimate_to_customer(request, pk):
     )
     if notif is not None:
         sent_channels.append('Notification')
-    if method in ('email', 'both') and job.customer.email:
-        sent_channels.append('Email')
+    if method in ('email', 'both'):
+        if job.customer.email:
+            sent_channels.append('Email')
+        else:
+            skipped.append('email (customer has no email on file)')
 
     whatsapp_url = None
-    if method in ('whatsapp', 'both') and job.customer.phone:
-        view_link = request.build_absolute_uri(
-            reverse('customer:customer_repair_detail', args=[job.pk])
-        )
-        full_text = f"{custom_message}\n\nView: {view_link}"
-        whatsapp_url = (
-            f"https://wa.me/91{job.customer.phone}"
-            f"?text={urllib.parse.quote(full_text)}"
-        )
-        sent_channels.append('WhatsApp')
+    if method in ('whatsapp', 'both'):
+        target = job.customer_whatsapp_target
+        if target:
+            whatsapp_url = (
+                f"https://wa.me/{target}"
+                f"?text={urllib.parse.quote(message_body)}"
+            )
+            sent_channels.append('WhatsApp')
+        else:
+            skipped.append('WhatsApp (no valid phone on file)')
 
     logger.info(
-        "Estimate sent | job=%s | customer=%s | via=%s",
-        job.job_number, job.customer.name, ', '.join(sent_channels) or 'none',
+        "Estimate sent | job=%s | customer=%s | via=%s | skipped=%s",
+        job.job_number, job.customer.name,
+        ', '.join(sent_channels) or 'none', ', '.join(skipped) or 'none',
     )
 
     response = HttpResponse()
+    if sent_channels:
+        toast = {
+            'level': 'success' if not skipped else 'warning',
+            'message': (
+                f'Estimate sent via {", ".join(sent_channels)}.'
+                + (f' Skipped: {", ".join(skipped)}.' if skipped else '')
+            ),
+            'title': 'Estimate Sent',
+        }
+    else:
+        toast = {
+            'level': 'warning',
+            'message': 'Estimate saved to the customer portal, but '
+                       + (', '.join(skipped) if skipped
+                          else 'no channel was available') + '.',
+            'title': 'Sent to Portal Only',
+        }
     trigger = {
         'closeModal': '',
-        'showToast': {
-            'level': 'success',
-            'message': f'Estimate sent via {", ".join(sent_channels) or "portal"}.',
-            'title': 'Estimate Sent',
-        },
+        'showToast': toast,
     }
     if whatsapp_url:
         trigger['openWhatsApp'] = whatsapp_url
