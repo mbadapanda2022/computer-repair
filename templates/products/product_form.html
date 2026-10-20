@@ -91,7 +91,7 @@
                        class="form-control {% if form.purchase_price.errors %}is-invalid{% endif %}"
                        value="{{ form.purchase_price.value|default:'0' }}"
                        hx-get="{% url 'accounting:validate_product_field' %}"
-                       hx-trigger="blur change"
+                       hx-trigger="blur, change"
                        hx-target="#field-purchase_price"
                        hx-swap="innerHTML"
                        hx-include="#id_purchase_price">
@@ -107,7 +107,7 @@
                        class="form-control {% if form.selling_price.errors %}is-invalid{% endif %}"
                        value="{{ form.selling_price.value|default:'0' }}"
                        hx-get="{% url 'accounting:validate_product_field' %}"
-                       hx-trigger="blur change"
+                       hx-trigger="blur, change"
                        hx-target="#field-selling_price"
                        hx-swap="innerHTML"
                        hx-include="#id_selling_price, #id_purchase_price">
@@ -121,7 +121,7 @@
                        class="form-control {% if form.tax_rate.errors %}is-invalid{% endif %}"
                        value="{{ form.tax_rate.value|default:'18' }}"
                        hx-get="{% url 'accounting:validate_product_field' %}"
-                       hx-trigger="blur change"
+                       hx-trigger="blur, change"
                        hx-target="#field-tax_rate"
                        hx-swap="innerHTML"
                        hx-include="#id_tax_rate">
@@ -153,7 +153,7 @@
                        class="form-control {% if form.current_stock.errors %}is-invalid{% endif %}"
                        value="{{ form.current_stock.value|default:'0' }}"
                        hx-get="{% url 'accounting:validate_product_field' %}"
-                       hx-trigger="blur change"
+                       hx-trigger="blur, change"
                        hx-target="#field-current_stock"
                        hx-swap="innerHTML"
                        hx-include="#id_current_stock, #id_is_service">
@@ -167,7 +167,7 @@
                        class="form-control {% if form.low_stock_threshold.errors %}is-invalid{% endif %}"
                        value="{{ form.low_stock_threshold.value|default:'5' }}"
                        hx-get="{% url 'accounting:validate_product_field' %}"
-                       hx-trigger="blur change"
+                       hx-trigger="blur, change"
                        hx-target="#field-low_stock_threshold"
                        hx-swap="innerHTML"
                        hx-include="#id_low_stock_threshold">

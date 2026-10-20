@@ -39,3 +39,27 @@ class QuickKeyAssetTests(SimpleTestCase):
                 depth -= 1
                 self.assertGreaterEqual(depth, 0, 'stray } at top level')
         self.assertEqual(depth, 0)
+
+    def test_all_hx_trigger_specs_are_valid_syntax(self):
+        # 'blur change' (space instead of comma) makes htmx throw
+        # htmx:syntax:error and silently drops the trigger entirely.
+        templates = (Path(__file__).resolve().parent.parent
+                     / 'templates').rglob('*.html')
+        modifiers = {'once', 'changed', 'eat'}
+        bad = []
+        for tpl in templates:
+            html = tpl.read_text(encoding='utf-8')
+            for m in re.finditer(r'hx-trigger="([^"]*)"', html):
+                for spec in m.group(1).split(','):
+                    words = spec.split()
+                    if not words:
+                        bad.append((str(tpl), spec))
+                        continue
+                    head = words[0]
+                    if head == 'every':          # polling: every 30s
+                        continue
+                    for w in words[1:]:
+                        if ':' not in w and w not in modifiers:
+                            bad.append((str(tpl), spec))
+                            break
+        self.assertEqual(bad, [], f'malformed hx-trigger values: {bad}')

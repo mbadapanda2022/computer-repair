@@ -114,7 +114,7 @@
                                        class="form-control"
                                        value="{{ form.device_model.value|default:'' }}"
                                        hx-get="{% url 'accounting:validate_repair_field' %}"
-                                       hx-trigger="blur change"
+                                       hx-trigger="blur, change"
                                        hx-target="#field-device_model"
                                        hx-swap="innerHTML"
                                        hx-include="#id_device_model, #id_repair_id">
