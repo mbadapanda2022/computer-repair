@@ -126,3 +126,19 @@ class UsernameCaseInsensitiveTests(TestCase):
         got = authenticate(None, username='shopadmin', password='Case#2026')
         self.assertIsNotNone(got)
         self.assertEqual(got.username, 'ShopAdmin')
+
+
+class HtmxQueueIsolationTests(TestCase):
+    """The username field's live-validation request must NOT share the
+    form's hx-sync queue: htmx inherits hx-sync from ancestors, so a
+    delayed validation request (keyup delay:500ms) firing after the login
+    POST started would ABORT the in-flight login — intermittent 'correct
+    password rejected' for fast clickers."""
+
+    def test_validation_input_has_own_sync_queue(self):
+        html = Client().get('/login/').content.decode()
+        # The form keeps its double-submit guard...
+        self.assertIn('hx-sync="this:abort"', html)
+        # ...but the validation input drops onto its own queue.
+        input_tag = html[html.index('id_username'):html.index('username-errors')]
+        self.assertIn('hx-sync="this:drop"', input_tag)

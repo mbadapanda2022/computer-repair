@@ -16,6 +16,7 @@
                placeholder="Enter your email or phone"
                hx-get="{% url 'accounting:validate_login_field' %}?field=username" 
                hx-trigger="blur, keyup changed delay:500ms" 
+               hx-sync="this:drop"
                hx-target="#username-errors" 
                hx-swap="innerHTML"
                hx-include="[name='username']"
