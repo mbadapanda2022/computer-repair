@@ -7,7 +7,9 @@ Staff page: website visitor analytics. Public endpoint: visit "ping"
 import logging
 from datetime import timedelta
 
-from django.http import JsonResponse, HttpResponseNotAllowed
+from django.http import (
+    HttpResponse, JsonResponse, HttpResponseNotAllowed,
+)
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -47,14 +49,16 @@ def visitor_ping(request):
     try:
         visitor_id = uuid.UUID(request.COOKIES.get(VISITOR_COOKIE, ''))
     except (ValueError, AttributeError, TypeError):
-        return JsonResponse({'ok': False}, status=404)
+        # Staff/bot browsers send the beacon without a visitor cookie —
+        # 204 keeps their consoles clean without logging a visit.
+        return HttpResponse(status=204)
 
     gap = timezone.now() - timedelta(minutes=30)
     session = VisitorSession.objects.filter(
         visitor_id=visitor_id, last_seen_at__gte=gap,
     ).order_by('-last_seen_at').first()
     if not session:
-        return JsonResponse({'ok': False}, status=404)
+        return HttpResponse(status=204)
 
     session.last_seen_at = timezone.now()
     session.save(update_fields=['last_seen_at'])

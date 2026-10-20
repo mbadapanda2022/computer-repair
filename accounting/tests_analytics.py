@@ -117,9 +117,9 @@ class VisitorPingTests(TestCase):
     def test_ping_get_not_allowed(self):
         self.assertEqual(self.client.get('/analytics/ping/').status_code, 405)
 
-    def test_ping_without_session_404(self):
+    def test_ping_without_session_204(self):
         VisitorSession.objects.all().delete()
-        self.assertEqual(self._ping().status_code, 404)
+        self.assertEqual(self._ping().status_code, 204)
 
 
 class VisitorAnalyticsPageTests(TestCase):
