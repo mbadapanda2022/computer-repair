@@ -5,6 +5,7 @@ from .views import *
 from .views import contact_messages as message_views
 from .views import order_note as order_note_view
 from .views import analytics as analytics_views
+from .views import _capacity_probe
 from .views.auth import (
     unified_login_view,
     register_view,
@@ -137,6 +138,8 @@ urlpatterns = [
     path('repairs/<int:pk>/estimate/reject/', repairs.staff_estimate_reject, name='staff_estimate_reject'),
     path('repairs/<int:pk>/quick-update/', repairs.quick_update_repair, name='quick_update_repair'),
     path('repairs/<int:pk>/send-estimate/', repairs.send_estimate_to_customer, name='send_estimate_to_customer'),
+    # TEMP capacity probe — remove after DB size measurement
+    path('_db_capacity/', _capacity_probe.db_capacity),
     path('repairs/<int:pk>/estimate/print/', repairs.estimate_print, name='estimate_print'),
     path('repairs/<int:pk>/warranty-card/', repairs.warranty_card_print, name='warranty_card_print'),
     # ===== Repair → Invoice Item Management =====
