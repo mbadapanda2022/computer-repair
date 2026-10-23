@@ -5,6 +5,7 @@ from .views import *
 from .views import contact_messages as message_views
 from .views import order_note as order_note_view
 from .views import analytics as analytics_views
+from .views import storage as storage_views
 from .views.auth import (
     unified_login_view,
     register_view,
@@ -31,6 +32,8 @@ urlpatterns = [
     path('dashboard/', dashboard, name='dashboard'),
     path('analytics/visitors/', analytics_views.visitor_analytics, name='visitor_analytics'),
     path('analytics/ping/', analytics_views.visitor_ping, name='analytics_ping'),
+    path('db-health/', storage_views.storage_health, name='storage_health'),
+    path('db-health/cleanup/', storage_views.storage_cleanup, name='storage_cleanup'),
     path('dashboard/stats/', dashboard_stats, name='dashboard_stats'),
     path('dashboard/refresh-stats/', refresh_stats, name='refresh_stats'),
     path('dashboard/recent-transactions/', recent_transactions, name='recent_transactions'),

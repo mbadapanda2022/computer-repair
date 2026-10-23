@@ -4675,8 +4675,7 @@ apply_invoice_consistency(RepairPart, RepairService)
 
 class VisitorSession(models.Model):
     """One visit by one anonymous visitor (gap > 30 min starts a new visit)."""
-    visitor_id = models.UUIDField(db_index=True,
-                                  help_text="Anonymous ID stored in a 1-year cookie; no name/personal data")
+    visitor_id = models.UUIDField(db_index=True, help_text="Anonymous ID stored in a 1-year cookie; no name/personal data")
     started_at = models.DateTimeField(auto_now_add=True, db_index=True)
     last_seen_at = models.DateTimeField(db_index=True)
     entry_path = models.CharField(max_length=200)
@@ -4756,3 +4755,16 @@ class PageView(models.Model):
 
     def __str__(self):
         return f"{self.path} @ {self.visited_at:%H:%M:%S}"
+
+
+class StorageSnapshot(models.Model):
+    """One row per storage_watchdog run — DB size history for the
+    Database Health page. Old rows are pruned by the watchdog itself."""
+    db_bytes = models.BigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.created_at:%Y-%m-%d} {self.db_bytes / 1048576:.1f} MB"

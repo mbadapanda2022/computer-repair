@@ -250,6 +250,13 @@
                         <span class="link-text">Settings</span>
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'accounting:storage_health' %}"
+                    class="nav-link {% if request.resolver_match.url_name == 'storage_health' %}active{% endif %}">
+                        <i class="bi bi-database-check"></i>
+                        <span class="link-text">Database Health</span>
+                    </a>
+                </li>
             </ul>
 
             <!-- Signed-in user card -->

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">
+                <span class="title-chip"><i class="bi bi-database-check" aria-hidden="true"></i></span>
+                Database Health
+            </h1>
+            <p class="page-sub">How much space your database is using, what is safe to clean up, and alerts before the free limit is reached.</p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'accounting:storage_health' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </a>
+        </div>
+    </div>
+
+    <!-- ══════════ STORAGE USAGE ══════════ -->
+    <div class="row g-3 mb-3">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">Storage used</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-baseline mb-2">
+                        <span class="fs-4 fw-bold">{{ db_size_display }}</span>
+                        <span class="text-muted">of {{ quota_display }} free plan quota</span>
+                    </div>
+                    <div class="progress" style="height: 1.5rem;" role="progressbar"
+                         aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar bg-{{ band }}" style="width: {% if pct < 1 %}1{% else %}{{ pct|floatformat:1 }}{% endif %}%;">
+                            {{ pct|floatformat:1 }}%
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 small text-muted">
+                        <span>{{ free_display }} still free</span>
+                        <span>Alert email is sent to admins at {{ alert_pct|floatformat:0 }}% usage</span>
+                    </div>
+                    {% if last_check %}
+                    <div class="small text-muted mt-2">
+                        <i class="bi bi-stopwatch"></i>
+                        Watchdog last checked: {{ last_check.created_at|date:"d M Y, H:i" }} UTC
+                        (runs daily via the scheduled job)
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info small mt-3 mb-0">
+                        <i class="bi bi-info-circle"></i>
+                        No watchdog history yet. Once the daily <code>storage_watchdog</code>
+                        cron job runs on Render, daily size snapshots will appear below.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">Growth forecast</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="text-muted small text-uppercase">Average growth per day (last 30 days)</div>
+                        <div class="fs-3 fw-bold">{{ daily_growth_display }}</div>
+                    </div>
+                    {% if days_to_full %}
+                    <div>
+                        <div class="text-muted small text-uppercase">Projected time until quota is full</div>
+                        <div class="fs-3 fw-bold {% if days_to_full < 90 %}text-danger{% elif days_to_full < 365 %}text-warning{% endif %}">
+                            {% if days_to_full > 365 %}~{{ years_to_full }} years{% else %}~{{ days_to_full }} days{% endif %}
+                        </div>
+                        <div class="small text-muted">If nothing is ever cleaned up.</div>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">Not enough recent activity to forecast growth.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ SAFE CLEANUP ══════════ -->
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">
+                        <i class="bi bi-broom text-primary"></i> Safe Cleanup
+                        <span class="text-muted fw-normal small">— frees space without touching the books</span>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>What</th>
+                                    <th>Why it is safe to delete</th>
+                                    <th class="text-end">Ready to clean</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for p in previews %}
+                                <tr>
+                                    <td class="fw-semibold">{{ p.label }}</td>
+                                    <td class="small text-muted">{{ p.desc }}</td>
+                                    <td class="text-end">
+                                        <span class="badge bg-{% if p.count %}secondary{% else%}light text-dark{% endif %} fs-6">{{ p.count }} {{ p.unit }}</span>
+                                        {% if p.extra %}<div class="small text-muted">{{ p.extra }}</div>{% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <form method="post" action="{% url 'accounting:storage_cleanup' %}" class="d-inline"
+                                              onsubmit="return confirm('Delete old “{{ p.label }}” rows now? This cannot be undone, but the books and records are not affected.');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="category" value="{{ p.key }}">
+                                            <input type="hidden" name="confirm" value="DELETE">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    {% if not p.count %}disabled{% endif %}>
+                                                <i class="bi bi-trash"></i> Clean up
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="4" class="text-center text-muted py-4">No cleanup categories defined.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-white small text-muted">
+                    <i class="bi bi-shield-check text-success"></i>
+                    Invoices, payments, ledger entries, repairs, customers and their estimates can
+                    <strong>never</strong> be deleted from this page — it only removes temporary
+                    technical data.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        {% if tables %}
+        <!-- ══════════ BIGGEST TABLES ══════════ -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">Biggest tables</div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light"><tr><th>Table</th><th class="text-end">Size (incl. indexes)</th></tr></thead>
+                            <tbody>
+                            {% for name, size in tables %}
+                                <tr>
+                                    <td class="font-monospace small">{{ name }}</td>
+                                    <td class="text-end small">{{ size }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- ══════════ SNAPSHOT HISTORY ══════════ -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">Daily size history <span class="text-muted fw-normal small">(last 30 checks)</span></div>
+                <div class="card-body p-0">
+                    {% if snapshots %}
+                    <div class="table-responsive" style="max-height: 320px;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light"><tr><th>When (UTC)</th><th class="text-end">Database size</th></tr></thead>
+                            <tbody>
+                            {% for s in snapshots %}
+                                <tr>
+                                    <td class="small">{{ s.created_at|date:"d M Y H:i" }}</td>
+                                    <td class="text-end small">{{ s.size_display }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-muted text-center py-5">No snapshots recorded yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════ KEEPING THE FREE DATABASE ALIVE ══════════ -->
+    <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-life-preserver text-primary"></i> How this database stays safe on the free plan
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <h6 class="text-primary">1. Never paused or deleted</h6>
+                            <p class="small text-muted mb-0">
+                                Supabase <strong>pauses</strong> free projects after 7 days without
+                                traffic and <strong>deletes</strong> them after 30 days paused. The
+                                daily <code>storage_watchdog</code> job (Render Cron) touches the
+                                database every day, so the project never sleeps — and it also takes
+                                the size snapshot you see above.
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-primary">2. Warning before the limit</h6>
+                            <p class="small text-muted mb-0">
+                                When usage crosses {{ alert_pct|floatformat:0 }}%, the watchdog
+                                emails the admins (once per week at most) with exact steps: run Safe
+                                Cleanup, take a backup, or upgrade. Free quota is {{ quota_display }};
+                                Supabase Pro is about $25/month with 8&nbsp;GB if you ever need it.
+                            </p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-primary">3. Backups</h6>
+                            <p class="small text-muted mb-0">
+                                Free plan does not keep automatic backups. Take one any time from
+                                Staff Portal → <a href="{% url 'accounting:backup_database' %}">Backup &amp; Restore</a>,
+                                or download a SQL dump from the Supabase dashboard
+                                (Database → Backups / SQL Editor).
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
