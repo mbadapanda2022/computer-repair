@@ -7,12 +7,15 @@ from .models import CompanyProfile
 
 
 def fix_url(url):
-    """Fix malformed Cloudinary URLs (https:/ -> https://)"""
+    """Repair malformed Cloudinary URLs (https:/ -> https://).
+
+    Idempotent: only adds the missing slash — already-correct URLs are
+    left untouched (the old pattern matched `https://` too and produced
+    `https:///`, which browsers cannot resolve).
+    """
     if not url:
         return url
-    url = re.sub(r'^https:/', 'https://', url)
-    url = re.sub(r'^http:/', 'http://', url)  # safety
-    return url
+    return re.sub(r'^(https?):/([^/])', r'\1://\2', url)
 
 
 def company_profile(request):

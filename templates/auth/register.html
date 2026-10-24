@@ -1,7 +1,7 @@
 {% extends 'base_public.html' %}
 {% load static %}
 
-{% block title %}Register – A1 Computer Solutions{% endblock %}
+{% block title %}Register – {{ company.name|default:"My Company" }}{% endblock %}
 
 {% block content %}
 <div class="auth-shell">

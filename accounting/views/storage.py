@@ -216,6 +216,11 @@ def record_snapshot():
 def send_quota_alert(pct, db_bytes):
     from django.core.mail import send_mail
     from django.contrib.auth import get_user_model
+    from ..models import CompanyProfile
+    from ..utils.company_email import get_from_email
+
+    cp = CompanyProfile.objects.first()
+    brand = (cp.name if cp and cp.name else 'Storage watchdog').split('—')[0][:30]
 
     recipients = []
     admin_email = getattr(settings, 'ADMIN_EMAIL', '')
@@ -245,12 +250,12 @@ def send_quota_alert(pct, db_bytes):
         '(about $25/month, 8 GB) at https://supabase.com/pricing — the '
         'free plan can also PAUSE a project after 7 days without traffic '
         'and DELETE it after 30 days paused, so never ignore this.\n\n'
-        '— A1 Computer Solutions storage watchdog'
+        f'— {brand} storage watchdog'
     )
     send_mail(
-        subject=f'[A1] Database storage {pct:.0f}% used — clean up / backup now',
+        subject=f'[{brand}] Database storage {pct:.0f}% used — clean up / backup now',
         message=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
+        from_email=get_from_email(),
         recipient_list=recipients,
         fail_silently=False,
     )

@@ -1760,14 +1760,18 @@ def email_change_verify(request):
 
             # 2) Confirmation email to NEW address (fail-safe)
             try:
+                from ..models import CompanyProfile
+                from ..utils.company_email import get_from_email
+                _cp = CompanyProfile.objects.first()
                 send_mail(
                     subject="Your email has been changed",
                     message=(
-                        f"Your A1 Computer Solutions account email was "
+                        f"Your account email at "
+                        f"{_cp.name if _cp and _cp.name else 'our store'} was "
                         f"changed to {new_email}. If you didn't request this, "
                         f"please contact support immediately."
                     ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    from_email=get_from_email(),
                     recipient_list=[new_email],
                     # raise-on-failure so the except below logs it
                     # (fail_silently=True drops the email with no trace)
@@ -2003,7 +2007,7 @@ def _customer_repairs_excel(request, customer, qs):
 
     # Row 1 - Company
     ws.merge_cells(f'A1:{last_col}1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'] = company.name or "My Company"
     ws['A1'].font = title_font
     ws['A1'].fill = title_fill
     ws['A1'].alignment = center
@@ -2181,7 +2185,7 @@ def _customer_invoices_excel(customer, qs, request):
     money = '#,##0.00'
 
     ws.merge_cells('A1:H1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'] = company.name or "My Company"
     ws['A1'].font = Font(bold=True, size=14)
     ws.merge_cells('A2:H2')
     ws['A2'] = f"My Invoices — {customer.name}"
@@ -2252,12 +2256,12 @@ def _customer_purchases_excel(customer, qs):
     center = Alignment(horizontal='center', vertical='center')
 
     ws.merge_cells('A1:H1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'] = company.name or "My Company"
     ws['A1'].font = Font(bold=True, size=14)
     ws['A1'].alignment = center
 
     ws.merge_cells('A2:H2')
-    ws['A2'] = f"Orders from A1 Computer Solutions — {customer.name}"
+    ws['A2'] = f"Orders from {company.name or 'My Company'} — {customer.name}"
     ws['A2'].font = Font(bold=True, size=12)
     ws['A2'].alignment = center
 
@@ -2389,7 +2393,7 @@ def _customer_statement_excel(customer, request):
 
     # Title block
     ws.merge_cells('A1:F1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'] = company.name or "My Company"
     ws['A1'].font = title_font
     ws['A1'].alignment = center
 
@@ -2543,7 +2547,7 @@ def _customer_payments_excel(customer, qs):
     money = '#,##0.00'
 
     ws.merge_cells('A1:G1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'] = company.name or "My Company"
     ws['A1'].font = Font(bold=True, size=14)
     ws.merge_cells('A2:G2')
     ws['A2'] = f"Payment History — {customer.name}"

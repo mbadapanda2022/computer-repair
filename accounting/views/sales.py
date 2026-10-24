@@ -842,7 +842,7 @@ def invoice_list_excel(request):
 
     company = CompanyProfile.get_instance()
     ws.merge_cells('A1:H1')
-    ws['A1'] = f"{company.name or 'A1 Computer Solutions'} — Invoice List"
+    ws['A1'] = f"{company.name or 'My Company'} — Invoice List"
     ws['A1'].font = Font(bold=True, size=14)
     ws['A1'].alignment = center
     ws.merge_cells('A2:H2')

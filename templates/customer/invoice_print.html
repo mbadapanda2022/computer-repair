@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice {{ invoice.invoice_number }} – {{ company.name|default:"A1 Computer Solutions" }}</title>
+    <title>Invoice {{ invoice.invoice_number }} – {{ company.name|default:"My Company" }}</title>
     <style>
         /* ============================================================
            PAGE SETUP — Remove browser header/footer
@@ -365,7 +365,7 @@
                 <img src="{{ company.logo.url }}" alt="Logo" class="company-logo">
             {% endif %}
             <div>
-                <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+                <div class="company-name">{{ company.name|default:"My Company" }}</div>
                 <div style="font-size:7.5pt; color:#6c757d; margin-top:1px;">
                     {% if company.phone %}{{ company.phone }}{% endif %}
                     {% if company.email %}{% if company.phone %} | {% endif %}{{ company.email }}{% endif %}
@@ -568,7 +568,7 @@
         <p style="margin:2px 0;">
             This is a computer-generated invoice.
             <span style="margin:0 6px;">|</span>
-            © {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}
+            © {% now "Y" %} {{ company.name|default:"My Company" }}
             <span style="margin:0 6px;">|</span>
             Generated: {% now "d M Y, h:i A" %}
         </p>

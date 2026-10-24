@@ -183,16 +183,16 @@ def validate_contact_field(request):
 def privacy_policy(request):
     company = CompanyProfile.get_instance()
     meta = {
-        'title': 'Privacy Policy | ' + (company.name or 'A1 Computer Solutions'),
-        'description': 'How A1 Computer Solutions collects, uses and protects your data.',
+        'title': 'Privacy Policy | ' + (company.name or 'My Company'),
+        'description': f'How {company.name or "My Company"} collects, uses and protects your data.',
     }
     return render(request, 'landing/privacy_policy.html', {'meta': meta})
 
 def cookie_policy(request):
     company = CompanyProfile.get_instance()
     meta = {
-        'title': 'Cookie Policy | ' + (company.name or 'A1 Computer Solutions'),
-        'description': 'Cookie usage policy for a1computersolutions.in.',
+        'title': 'Cookie Policy | ' + (company.name or 'My Company'),
+        'description': f'Cookie usage policy for {request.get_host}.',
     }
     return render(request, 'landing/cookie_policy.html', {'meta': meta})
 
@@ -200,8 +200,8 @@ def cookie_policy(request):
 def terms_of_service(request):
     company = CompanyProfile.get_instance()
     meta = {
-        'title': 'Terms of Service | ' + (company.name or 'A1 Computer Solutions'),
-        'description': 'Terms governing repair, sales and service work at A1 Computer Solutions.',
+        'title': 'Terms of Service | ' + (company.name or 'My Company'),
+        'description': f'Terms governing repair, sales and service work at {company.name or "My Company"}.',
     }
     return render(request, 'landing/terms_of_service.html', {'meta': meta})
 
@@ -209,7 +209,7 @@ def terms_of_service(request):
 def return_policy(request):
     company = CompanyProfile.get_instance()
     meta = {
-        'title': 'Return & Refund Policy | ' + (company.name or 'A1 Computer Solutions'),
+        'title': 'Return & Refund Policy | ' + (company.name or 'My Company'),
         'description': 'Returns, replacements and refund process for products and repairs.',
     }
     return render(request, 'landing/return_policy.html', {'meta': meta})

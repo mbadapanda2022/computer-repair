@@ -89,7 +89,7 @@
         {% if logo_exists %}
             <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
         {% endif %}
-        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+        <h2>{{ company.name|default:"My Company" }}</h2>
         <p>
             {{ company.address|default:"" }}<br>
             {% if company.phone %}📞 {{ company.phone }} | {% endif %}
@@ -217,7 +217,7 @@
             <div class="signature-line">Customer Signature (Approval)</div>
         </div>
         <div class="signature-box">
-            <div class="signature-line">For {{ company.name|default:"A1 Computer Solutions" }}</div>
+            <div class="signature-line">For {{ company.name|default:"My Company" }}</div>
         </div>
     </div>
 

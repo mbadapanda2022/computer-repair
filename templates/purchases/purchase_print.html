@@ -72,7 +72,7 @@
 <div class="header">
     <div>
         {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
-        <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        <div class="company-name">{{ company.name|default:"My Company" }}</div>
         <div class="company-details">
             {% if company.address %}{{ company.address }}<br>{% endif %}
             {% if company.phone %}Phone: {{ company.phone }}{% endif %}
@@ -249,7 +249,7 @@
         This is a computer-generated purchase invoice. Generated on {% now "d M Y, h:i A" %}.
     </p>
     <p style="margin: 4px 0;">
-        © {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}
+        © {% now "Y" %} {{ company.name|default:"My Company" }}
     </p>
 </div>
 

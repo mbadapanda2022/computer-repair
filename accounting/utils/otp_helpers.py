@@ -23,7 +23,6 @@ import secrets
 import logging
 from datetime import timedelta
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.mail import send_mail
@@ -32,6 +31,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from ..models import EmailOTP
+from .company_email import get_from_email
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -105,12 +105,20 @@ def send_otp_email(user, email: str, otp: str, purpose: str) -> bool:
     purpose_display = _purpose_display(purpose)
     subject = f"Your OTP for {purpose_display}"
 
+    from ..models import CompanyProfile
+    from ..context_processors import fix_url
+    company = CompanyProfile.objects.first()
+    site_base = (company.website_url.rstrip('/') if company and company.website_url else '')
+
     context = {
         'user': user,
         'email': email,
         'otp': otp,
         'purpose': purpose_display,
         'expiry_minutes': OTP_EXPIRY_MINUTES,
+        'company': company,
+        'logo_url': fix_url(company.logo.url) if company and company.logo else '',
+        'site_base': site_base,
     }
     plain_message = (
         f"Your OTP for {purpose_display} is: {otp}. "
@@ -122,7 +130,7 @@ def send_otp_email(user, email: str, otp: str, purpose: str) -> bool:
         send_mail(
             subject=subject,
             message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=get_from_email(),
             recipient_list=[email],
             html_message=html_message,
             fail_silently=False,

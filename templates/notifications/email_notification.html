@@ -9,7 +9,7 @@
     {% if link %}
         <p><a href="{{ link }}">View Details</a></p>
     {% endif %}
-    <p>Regards,<br>A1 Computer Solutions</p>
+    <p>Regards,<br>{{ company.name|default:"My Company" }}</p>
 </body>
 </html>
 

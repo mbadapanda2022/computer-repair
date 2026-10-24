@@ -1,7 +1,7 @@
 {% extends 'base_public.html' %}
 {% load static %}
 
-{% block title %}{% if category %}{{ category.name }}{% elif tag %}#{{ tag.name }}{% else %}Blog{% endif %} – {{ company.name|default:"A1 Computer Solutions" }}{% endblock %}
+{% block title %}{% if category %}{{ category.name }}{% elif tag %}#{{ tag.name }}{% else %}Blog{% endif %} – {{ company.name|default:"My Company" }}{% endblock %}
 
 {% block extra_head %}
 <style>

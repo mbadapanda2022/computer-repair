@@ -169,6 +169,9 @@ class PaymentListFeatureTests(TestCase):
     # ---------- whatsapp share ----------
 
     def test_whatsapp_url_paid_with_expense_head(self):
+        from .models import CompanyProfile
+        CompanyProfile.objects.all().delete()
+        CompanyProfile.objects.create(name='Payment Test Traders')
         rent = Account.objects.get(code='5201')
         pay = self.make_payment(amount='4500.00', method='upi',
                                 upi_ref='TXN123', expense_account=rent)
@@ -176,7 +179,9 @@ class PaymentListFeatureTests(TestCase):
         self.assertIsNotNone(url)
         self.assertTrue(url.startswith('https://wa.me/91'))
         msg = unquote(url)
-        self.assertIn('made by A1 Computer Solutions', msg)
+        # Company name is dynamic now (Staff Settings) — message must
+        # echo the configured profile, never a built-in brand.
+        self.assertIn('made by Payment Test Traders', msg)
         self.assertIn('Ref: TXN123', msg)
         self.assertIn('Rent', msg)
 

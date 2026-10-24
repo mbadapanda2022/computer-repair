@@ -1,7 +1,7 @@
 {% extends 'base_public.html' %}
 {% load static %}
 
-{% block title %}Verify OTP – A1 Computer Solutions{% endblock %}
+{% block title %}Verify OTP – {{ company.name|default:"My Company" }}{% endblock %}
 
 {% block extra_head %}
 <style>

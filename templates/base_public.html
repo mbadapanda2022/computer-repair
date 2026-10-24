@@ -10,8 +10,8 @@
     <meta name="google-site-verification" content="nIwVGiwbtc6LoXxFtKpDuhia_RbWcD8TNXYzqLCrOBM" />
 
     <!-- ===== PRIMARY META TAGS ===== -->
-    <title>{% block title %}{{ meta.title|default:"A1 Computer Solutions" }}{% endblock %}</title>
-    <meta name="description" content="{{ meta.description|default:'Expert computer repair, laptop repair, printer repair, data recovery and LED TV repair in Keonjhar.' }}">
+    <title>{% block title %}{{ meta.title|default:"My Company" }}{% endblock %}</title>
+    <meta name="description" content="{{ meta.description|default:company.meta_description|default:'Expert computer repair, laptop repair, printer repair, data recovery and LED TV repair.' }}">
     <meta name="keywords" content="{{ meta.keywords|default:'laptop repair, printer repair, computer service, data recovery, LED TV repair, chip-level repair' }}">
     <link rel="canonical" href="{{ meta.og_url|default:request.build_absolute_uri }}">
 
@@ -30,7 +30,7 @@
     {% else %}
         <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'images/og-default.jpg' %}">
     {% endif %}
-    <meta property="og:site_name" content="{{ company.name|default:'A1 Computer Solutions' }}">
+    <meta property="og:site_name" content="{{ company.name|default:'My Company' }}">
 
     <!-- ===== TWITTER CARDS ===== -->
     <meta name="twitter:card" content="summary_large_image">
@@ -47,27 +47,31 @@
     {
         "@context": "https://schema.org",
         "@type": "LocalBusiness",
-        "name": "{{ company.name|default:'A1 Computer Solutions'|escapejs }}",
+        "name": "{{ company.name|default:'My Company'|escapejs }}",
         "description": "{{ meta.description|default:company.about_text|escapejs }}",
         "image": "{% if company.logo %}{{ company.logo.url }}{% endif %}",
         "address": {
             "@type": "PostalAddress",
             "streetAddress": "{{ company.address|default:''|escapejs }}",
-            "addressLocality": "Keonjhar",
-            "addressRegion": "Odisha",
-            "postalCode": "758001",
+            "addressLocality": "{{ company.city|escapejs }}",
+            "addressRegion": "{{ company.state|escapejs }}",
+            
             "addressCountry": "IN"
         },
         "telephone": "{{ company.phone|default:''|escapejs }}",
         "email": "{{ company.email|default:''|escapejs }}",
         "url": "{{ meta.og_url|default:request.build_absolute_uri }}",
-        "openingHours": "{{ company.working_hours|default:'Mo-Sa 10:00-20:00' }}",
+        "openingHours": "{{ company.working_hours }}",
         "priceRange": "₹₹"
     }
     </script>
 
     <!-- ===== FAVICON & FONTS ===== -->
+    {% if logo_url %}
+    <link rel="icon" type="image/png" href="{{ logo_url }}">
+    {% else %}
     <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}?v=2">
+    {% endif %}
     <meta name="theme-color" content="#0a1f3c">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

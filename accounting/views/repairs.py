@@ -2486,7 +2486,7 @@ def export_repairs_excel(request):
 
     # ── Title block ──
     ws.merge_cells(f'A1:{last_col}1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'] = company.name or "My Company"
     ws['A1'].font = title_font
     ws['A1'].fill = title_fill
     ws['A1'].alignment = center

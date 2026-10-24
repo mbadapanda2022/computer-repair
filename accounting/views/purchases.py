@@ -371,7 +371,7 @@ def purchase_list_excel(request):
 
     company = CompanyProfile.get_instance()
     ws.merge_cells('A1:J1')
-    ws['A1'] = f"{company.name or 'A1 Computer Solutions'} — Purchase List"
+    ws['A1'] = f"{company.name or 'My Company'} — Purchase List"
     ws['A1'].font = Font(bold=True, size=14, color="1F4E78")
     ws['A1'].alignment = center
 

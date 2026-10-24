@@ -34,8 +34,8 @@
 <body>
     <div class="header">
         {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
-        <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
-        <p style="margin:2px 0;">Orders from A1 Computer Solutions — {{ customer.name }}
+        <h2>{{ company.name|default:"My Company" }}</h2>
+        <p style="margin:2px 0;">Orders from {{ company.name }} — {{ customer.name }}
             {% if customer.phone %} | Phone: {{ customer.phone }}{% endif %}
         </p>
     </div>
@@ -105,7 +105,7 @@
 
     <div class="footer">
         <p>This is a computer-generated statement. No signature required.</p>
-        <p>© {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}</p>
+        <p>© {% now "Y" %} {{ company.name|default:"My Company" }}</p>
     </div>
 
     <div class="no-print" style="text-align:center; margin-top:15px;">

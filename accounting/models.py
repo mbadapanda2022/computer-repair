@@ -383,6 +383,10 @@ class CompanyProfile(SoftDeleteModel):
     )
     financial_year_start = models.DateField(default=timezone.localdate)
     state = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=100, blank=True,
+                            help_text="City your business operates in (shown in legal pages and structured data).")
+    website_url = models.URLField(blank=True,
+                                  help_text="Full public URL of this site, e.g. https://yourdomain.in — used in emails and WhatsApp messages.")
     tagline = models.CharField(max_length=255, blank=True, default="Expert chip-level repair, sales, and service for all brands.")
     hero_image = models.ImageField(upload_to='company_hero/', blank=True, null=True)
     about_text = models.TextField(blank=True)
@@ -427,6 +431,12 @@ class CompanyProfile(SoftDeleteModel):
 # ============================================================
 # 4. SERVICES, TESTIMONIALS, FAQ (Unchanged, just use SoftDelete)
 # ============================================================
+
+
+def company_message_name():
+    """Company name for customer-facing messages (WhatsApp bodies etc.)."""
+    cp = CompanyProfile.objects.first()
+    return cp.name if cp and cp.name else 'our store'
 
 class Service(SoftDeleteModel):
     title = models.CharField(max_length=200)
@@ -1249,7 +1259,7 @@ class Invoice(SoftDeleteModel):
         from urllib.parse import quote
         parts = [
             f"Hi {self.customer.name},",
-            f"Your invoice {self.invoice_number} from A1 Computer Solutions.",
+            f"Your invoice {self.invoice_number} from {company_message_name()}.",
             f"Date: {self.date.strftime('%d %b %Y')}",
             f"Total: Rs.{self.grand_total:.2f}",
             f"Due: Rs.{self.balance_due:.2f}" if self.balance_due > 0 else "Status: PAID",
@@ -1969,7 +1979,7 @@ class Purchase(SoftDeleteModel):
         status = 'PAID' if self.settlement_status == 'paid' else f"Balance Rs.{self.balance_due:.2f}"
         lines = [
             f"Hi {vendor.name},",
-            f"Purchase bill {self.purchase_number} dated {self.date.strftime('%d %b %Y')} — A1 Computer Solutions.",
+            f"Purchase bill {self.purchase_number} dated {self.date.strftime('%d %b %Y')} — {company_message_name()}.",
             f"Total: Rs.{self.grand_total:.2f}",
             f"Paid: Rs.{self.paid_amount:.2f}",
             f"Status: {status}",
@@ -2271,7 +2281,7 @@ class CreditNote(SoftDeleteModel):
         from urllib.parse import quote
         text = "\n".join([
             f"Hi {self.customer.name},",
-            f"Credit Note {self.credit_note_number} from A1 Computer Solutions.",
+            f"Credit Note {self.credit_note_number} from {company_message_name()}.",
             f"Against Invoice: {self.invoice.invoice_number}",
             f"Date: {self.date.strftime('%d %b %Y')}",
             f"Amount: Rs.{self.total_amount:.2f}",
@@ -3438,7 +3448,7 @@ class Payment(SoftDeleteModel):
         if self.direction == 'received':
             lines += [
                 f"Hi {self.contact.name},",
-                "Payment received by A1 Computer Solutions.",
+                f"Payment received by {company_message_name()}.",
                 f"Amount: Rs.{self.amount:.2f}",
             ]
             if self.discount_amount:
@@ -3460,7 +3470,7 @@ class Payment(SoftDeleteModel):
         else:
             lines += [
                 f"Hi {self.contact.name},",
-                f"Payment of Rs.{self.amount:.2f} made by A1 Computer Solutions.",
+                f"Payment of Rs.{self.amount:.2f} made by {company_message_name()}.",
                 f"Date: {self.date.strftime('%d %b %Y')}",
                 f"Mode: {mode}",
             ]

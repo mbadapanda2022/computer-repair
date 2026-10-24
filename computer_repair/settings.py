@@ -305,7 +305,9 @@ if not DEBUG:
     EMAIL_USE_TLS = True
     EMAIL_HOST_USER = os.getenv('BREVO_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_KEY', '')
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'solutionsmanojtech@gmail.com')
+    # Sender: env DEFAULT_FROM_EMAIL set ho toh wahi, warna Staff Settings
+    # ka company email use hota hai (accounting/utils/company_email.py).
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', '')
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
     EMAIL_HOST = 'smtp.gmail.com'
@@ -313,7 +315,7 @@ else:
     EMAIL_USE_TLS = True
     EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
-    DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER', 'solutionsmanojtech@gmail.com')
+    DEFAULT_FROM_EMAIL = os.getenv('EMAIL_HOST_USER', '')
 
 MESSAGE_TAGS = {
     messages.DEBUG: 'secondary',
@@ -375,6 +377,9 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 CSRF_FAILURE_VIEW = 'accounting.views.error_handlers.csrf_failure'
 
 
+# Is project kisi aur ko dene par: yahan apne domain ke origins daalo,
+# ya bina code chhede env var CSRF_TRUSTED_ORIGINS="https://site1,https://site2"
+# set karo (neeche merge hota hai).
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',
     'https://a1computersolutions.in',

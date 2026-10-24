@@ -11,7 +11,7 @@
                     {% else %}
                         <span class="brand-mark"><i class="bi bi-laptop" aria-hidden="true"></i></span>
                     {% endif %}
-                    {{ company.name|default:"A1 Computer Solutions" }}
+                    {{ company.name|default:"My Company" }}
                 </h5>
                 <div class="footer-heading-rule" aria-hidden="true"></div>
                 <p class="footer-about">{{ company.about_text|default:"Your trusted repair partner since 2015. We combine technical expertise with genuine care for your devices." }}</p>
@@ -28,7 +28,7 @@
                         <a href="{{ company.youtube_url }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="YouTube" aria-label="YouTube"><i class="bi bi-youtube" aria-hidden="true"></i></a>
                     {% endif %}
                     {% if company.whatsapp_number %}
-                        <a href="https://wa.me/{{ company.whatsapp_number|cut:'+' }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="WhatsApp" aria-label="WhatsApp"><i class="bi bi-whatsapp" aria-hidden="true"></i></a>
+                        <a href="https://wa.me/{{ company.whatsapp_number|cut:'+'|cut:'-'|cut:' ' }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="WhatsApp" aria-label="WhatsApp"><i class="bi bi-whatsapp" aria-hidden="true"></i></a>
                     {% endif %}
                     {% if company.google_review_link %}
                         <a href="{{ company.google_review_link }}" target="_blank" rel="noopener noreferrer" class="social-btn" title="Google Review" aria-label="Google Review"><i class="bi bi-google" aria-hidden="true"></i></a>
@@ -68,11 +68,11 @@
                 <ul class="list-unstyled footer-contact mb-0">
                     <li>
                         <i class="bi bi-geo-alt-fill" aria-hidden="true"></i>
-                        <span>{{ company.address|default:"Pattanayak Complex, Sirajuddin Squire, Keonjhar-758001, Odisha" }}</span>
+                        <span>{{ company.address }}</span>
                     </li>
                     <li>
                         <i class="bi bi-telephone-fill" aria-hidden="true"></i>
-                        <a href="tel:{{ company.phone }}">{{ company.phone|default:"+91-7008601963" }}</a>
+                        <a href="tel:{{ company.phone }}">{{ company.phone }}</a>
                     </li>
                     {% if company.whatsapp_number %}
                     <li>
@@ -82,11 +82,11 @@
                     {% endif %}
                     <li>
                         <i class="bi bi-envelope-fill" aria-hidden="true"></i>
-                        <a href="mailto:{{ company.email }}">{{ company.email|default:"info@a1computersolutions.com" }}</a>
+                        <a href="mailto:{{ company.email }}">{{ company.email }}</a>
                     </li>
                     <li>
                         <i class="bi bi-clock-fill" aria-hidden="true"></i>
-                        <span>{{ company.working_hours|default:"Mon–Sat: 10:00 AM – 8:00 PM" }}</span>
+                        <span>{{ company.working_hours }}</span>
                     </li>
                     {% if company.gstin %}
                     <li>
@@ -101,7 +101,7 @@
         <!-- Copyright + Developer Credit -->
         <div class="footer-bottom d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 text-center text-md-start">
             <small>
-                &copy; {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}. All rights reserved.
+                &copy; {% now "Y" %} {{ company.name|default:"My Company" }}. All rights reserved.
             </small>
             <small class="dev-credit">
                 <i class="bi bi-code-slash text-info me-1" aria-hidden="true"></i>

@@ -423,9 +423,10 @@ class CompanyProfileForm(forms.ModelForm):
             'name', 'address', 'phone', 'email', 'gstin',
             'logo', 'invoice_prefix', 'invoice_start_number',
             'default_tax_rate', 'financial_year_start', 'state',
+            'city', 'website_url',
             'tagline', 'hero_image', 'about_text',
             'google_map_embed', 'working_hours',
-            'facebook_url', 'instagram_url', 'youtube_url',
+            'facebook_url', 'instagram_url', 'youtube_url', 'blog_url',
             'whatsapp_number', 'google_review_link',
             'meta_title', 'meta_description', 'meta_keywords', 'og_image',
         ]
@@ -480,6 +481,15 @@ class CompanyProfileForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'https://youtube.com/yourchannel',
             }),
+            'blog_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://yourblog.example.com/',
+            }),
+            'city': BS_TEXT(),
+            'website_url': forms.URLInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'https://yourdomain.in',
+            }),
             'whatsapp_number': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '+919876543210',
@@ -517,6 +527,9 @@ class CompanyProfileForm(forms.ModelForm):
             'facebook_url': 'Full URL to your Facebook page',
             'instagram_url': 'Full URL to your Instagram profile',
             'youtube_url': 'Full URL to your YouTube channel',
+            'blog_url': 'Full URL to your external blog (Blogspot menu link)',
+            'city': 'City name for legal pages and search results (e.g., Keonjhar)',
+            'website_url': 'Public URL of this website. Used in OTP emails, statements and WhatsApp messages.',
             'whatsapp_number': 'WhatsApp number with country code (e.g., +919876543210)',
             'meta_title': 'Page Title (max 70 chars). Leave blank to use company name.',
             'meta_description': 'Meta Description (max 160 chars). Used in search results.',

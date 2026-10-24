@@ -245,7 +245,7 @@
         <div class="tk-brandrow">
             <div class="tk-brand">
                 <span class="bub"><i class="bi bi-laptop"></i></span>
-                <span>{{ company.name|default:"A1 Computer Solutions" }}</span>
+                <span>{{ company.name|default:"My Company" }}</span>
             </div>
             <span class="job-chip">#{{ repair.job_number }}</span>
         </div>
@@ -574,14 +574,14 @@
 
     <!-- ================= FOOTER ================= -->
     <div class="tk-footer">
-        <div class="f-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        <div class="f-name">{{ company.name|default:"My Company" }}</div>
         {% if company.address %}<div class="f-addr">{{ company.address }}</div>{% endif %}
         <div>
             {% if company.phone %}
             <a class="btn-ghost btn-solid" href="tel:{{ company.phone }}"><i class="bi bi-telephone-fill"></i> {{ company.phone }}</a>
             {% endif %}
             {% if company.whatsapp_number %}
-            <a class="btn-ghost" href="https://wa.me/{{ company.whatsapp_number }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
+            <a class="btn-ghost" href="https://wa.me/{{ company.whatsapp_number|default:company.phone|cut:'+'|cut:'-'|cut:' ' }}" target="_blank" rel="noopener"><i class="bi bi-whatsapp"></i> WhatsApp</a>
             {% endif %}
         </div>
     </div>

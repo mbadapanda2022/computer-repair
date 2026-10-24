@@ -69,7 +69,7 @@
             {% if logo_exists %}
                 <img src="{{ company.logo.url }}" alt="Logo" class="logo"><br>
             {% endif %}
-            <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+            <h2>{{ company.name|default:"My Company" }}</h2>
             <p style="color: #666; font-size: 10pt; margin: 3px 0;">
                 {{ company.address|default:"" }}
                 {% if company.phone %}<br>📞 {{ company.phone }}{% endif %}

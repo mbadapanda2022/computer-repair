@@ -1,6 +1,6 @@
 {% extends 'base_public.html' %}
 {% load static %}
-{% block title %}Return &amp; Refund Policy – A1 Computer Solutions{% endblock %}
+{% block title %}Return &amp; Refund Policy – {{ company.name|default:"My Company" }}{% endblock %}
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
@@ -10,7 +10,7 @@
             <hr>
             <p>
                 This policy explains how returns, replacements and refunds are handled by
-                <strong>A1 Computer Solutions</strong>, Keonjhar, Odisha.
+                <strong>{{ company.name }}</strong>{% if company.city %}, {{ company.city|default:company.state }}{% endif %}.
             </p>
 
             <h4 class="mt-4">1. Products Purchased In-Store / Online</h4>
@@ -54,14 +54,14 @@
             <h4 class="mt-4">6. Contact</h4>
             <p>
                 For any return or refund request, reach us at
-                <a href="tel:7008601963">7008601963</a> /
-                <a href="https://wa.me/918895745441">WhatsApp</a> or
-                <a href="mailto:mbadapanda@gmail.com">mbadapanda@gmail.com</a>.
+                <a href="tel:{{ company.phone }}">{{ company.phone }}</a> /
+                <a href="https://wa.me/{{ company.whatsapp_number|default:company.phone|cut:'+'|cut:'-'|cut:' ' }}" target="_blank" rel="noopener">WhatsApp</a> or
+                <a href="mailto:{{ company.email }}">{{ company.email }}</a>.
                 Related pages: <a href="{% url 'privacy_policy' %}">Privacy Policy</a>,
                 <a href="{% url 'terms_of_service' %}">Terms of Service</a>.
             </p>
             <hr>
-            <p class="text-muted small">&copy; {% now "Y" %} A1 Computer Solutions. All rights reserved.</p>
+            <p class="text-muted small">&copy; {% now "Y" %} {{ company.name|default:"My Company" }}. All rights reserved.</p>
         </div>
     </div>
 </div>

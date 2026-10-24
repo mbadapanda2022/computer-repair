@@ -26,7 +26,6 @@ import logging
 import re
 
 from django.apps import apps
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
@@ -36,6 +35,7 @@ from django.urls import resolve
 from django.urls.exceptions import Resolver404
 
 from ..models import Notification
+from .company_email import get_from_email
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -132,15 +132,20 @@ def send_notification(
 def _send_notification_email(user, title, message, link):
     """Fail-safe email dispatch."""
     try:
-        subject = f"[A1 Computer] {title}"
-        context = {'user': user, 'title': title, 'message': message, 'link': link}
+        from ..models import CompanyProfile
+        company = CompanyProfile.objects.first()
+        company_name = (company.name if company and company.name
+                        else 'My Company')
+        subject = f"[{company_name}] {title}"
+        context = {'user': user, 'title': title, 'message': message,
+                   'link': link, 'company': company}
         html_message = render_to_string(
             'notifications/email_notification.html', context,
         )
         send_mail(
             subject=subject,
             message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=get_from_email(),
             recipient_list=[user.email],
             html_message=html_message,
             # fail_silently=True would DROP the email with no log line when

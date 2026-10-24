@@ -36,7 +36,7 @@
 
 <div class="header">
     {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
-    <h2>{{ company.name|default:"A1 Computer Solutions" }}</h2>
+    <h2>{{ company.name|default:"My Company" }}</h2>
     <p>Purchase List — Generated on {% now "d M Y, h:i A" %}</p>
 </div>
 

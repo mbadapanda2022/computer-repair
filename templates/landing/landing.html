@@ -2,7 +2,7 @@
 {% extends 'base_public.html' %}
 {% load static %}
 
-{% block title %}{{ meta.title|default:"A1 Computer Solutions – Laptop & Printer Repair" }}{% endblock %}
+{% block title %}{{ meta.title|default:company.name }}{% endblock %}
 
 {% block content %}
 
@@ -13,7 +13,7 @@
             <div class="col-lg-6">
                 <span class="hero-eyebrow">
                     <span class="dot-live" aria-hidden="true"></span>
-                    Trusted repair experts in Keonjhar
+                    Trusted repair experts in {{ company.city|default:company.state }}
                 </span>
                 <h1 class="hero-title">
                     {% if company.tagline %}
@@ -397,7 +397,7 @@
             <div class="row align-items-center g-4 position-relative">
                 <div class="col-lg-8">
                     <h2 class="mb-2">Device acting up? Let's fix it today.</h2>
-                    <p class="mb-0">Bring your laptop, printer or computer to A1 Computer Solutions – free diagnosis, honest quote, guaranteed repair.</p>
+                    <p class="mb-0">Bring your laptop, printer or computer to {{ company.name }} – free diagnosis, honest quote, guaranteed repair.</p>
                 </div>
                 <div class="col-lg-4 text-lg-end">
                     {% if company.phone %}

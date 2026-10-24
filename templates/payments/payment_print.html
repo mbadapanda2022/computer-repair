@@ -43,7 +43,7 @@
 <div class="header">
     <div>
         {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
-        <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        <div class="company-name">{{ company.name|default:"My Company" }}</div>
         <div class="company-details">
             {% if company.address %}{{ company.address }}<br>{% endif %}
             {% if company.phone %}Phone: {{ company.phone }}{% endif %}
@@ -156,7 +156,7 @@
         </div>
         <div class="signature-block">
             <div class="signature-line"></div>
-            <div>For {{ company.name|default:"A1 Computer Solutions" }}</div>
+            <div>For {{ company.name|default:"My Company" }}</div>
             <div style="font-size: 8pt; color: #666;">Authorized Signatory</div>
         </div>
     </div>

@@ -1,6 +1,6 @@
 {% extends 'base_public.html' %}
 {% load static %}
-{% block title %}Terms of Service – A1 Computer Solutions{% endblock %}
+{% block title %}Terms of Service – {{ company.name|default:"My Company" }}{% endblock %}
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
@@ -10,8 +10,8 @@
             <hr>
             <p>
                 These terms govern the use of the website and the repair, sales and service
-                services provided by <strong>A1 Computer Solutions</strong>,
-                Pattanayak Complex, Sirajuddin Chowk, Keonjhar, Odisha – 758001.
+                services provided by <strong>{{ company.name }}</strong> —
+                {{ company.address }}.
                 By submitting a repair job, placing an order or using this website you agree to these terms.
             </p>
 
@@ -33,7 +33,7 @@
             <h4 class="mt-4">3. Data &amp; Backup</h4>
             <p>
                 Customers are solely responsible for taking a backup of their data before handing over a device.
-                A1 Computer Solutions is not liable for loss of data, software licences or settings during repair,
+                {{ company.name }} is not liable for loss of data, software licences or settings during repair,
                 although we take reasonable care. You confirm that the device and its contents are lawful.
             </p>
 
@@ -69,22 +69,22 @@
             <ul>
                 <li>Customer portal accounts are personal; keep your login details confidential.</li>
                 <li>Do not attempt to access other users' records or disrupt the website. Unauthorised access may be reported.</li>
-                <li>Content on this site (text, images, logos) belongs to A1 Computer Solutions and may not be copied without permission.</li>
+                <li>Content on this site (text, images, logos) belongs to {{ company.name }} and may not be copied without permission.</li>
             </ul>
 
             <h4 class="mt-4">9. Governing Law</h4>
-            <p>These terms are governed by the laws of India. Any dispute is subject to the jurisdiction of courts at Keonjhar, Odisha.</p>
+            <p>These terms are governed by the laws of India. Any dispute is subject to the jurisdiction of courts at {{ company.city|default:company.state }}.</p>
 
             <p class="mt-4">
                 Questions? Contact us on
-                <a href="tel:7008601963">7008601963</a> /
-                <a href="https://wa.me/918895745441">WhatsApp</a> or
-                <a href="mailto:mbadapanda@gmail.com">mbadapanda@gmail.com</a>.
+                <a href="tel:{{ company.phone }}">{{ company.phone }}</a> /
+                <a href="https://wa.me/{{ company.whatsapp_number|default:company.phone|cut:'+'|cut:'-'|cut:' ' }}" target="_blank" rel="noopener">WhatsApp</a> or
+                <a href="mailto:{{ company.email }}">{{ company.email }}</a>.
                 See also our <a href="{% url 'privacy_policy' %}">Privacy Policy</a>
                 and <a href="{% url 'return_policy' %}">Return &amp; Refund Policy</a>.
             </p>
             <hr>
-            <p class="text-muted small">&copy; {% now "Y" %} A1 Computer Solutions. All rights reserved.</p>
+            <p class="text-muted small">&copy; {% now "Y" %} {{ company.name|default:"My Company" }}. All rights reserved.</p>
         </div>
     </div>
 </div>

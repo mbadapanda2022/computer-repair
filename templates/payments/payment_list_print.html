@@ -31,7 +31,7 @@
 
 <div class="header">
     <div>
-        <div class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</div>
+        <div class="company-name">{{ company.name|default:"My Company" }}</div>
         <div class="company-details">
             {% if company.address %}{{ company.address }} · {% endif %}
             {% if company.phone %}Phone: {{ company.phone }}{% endif %}
@@ -109,7 +109,7 @@
 </table>
 
 <div class="footer">
-    Computer-generated payment register — A1 Computer Solutions. For internal accounting use.
+    Computer-generated payment register — {{ company.name }}. For internal accounting use.
 </div>
 
 <div class="no-print" style="text-align:center; margin-top:12px;">

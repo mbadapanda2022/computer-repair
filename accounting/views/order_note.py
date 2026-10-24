@@ -193,7 +193,7 @@ def order_note_excel(request):
     money_fmt = '#,##0.00'
 
     ws.merge_cells('A1:J1')
-    ws['A1'] = f"{company.name or 'A1 Computer Solutions'} — Order Note"
+    ws['A1'] = f"{company.name or 'My Company'} — Order Note"
     ws['A1'].font = Font(bold=True, size=14, color='1F4E78')
     ws['A1'].alignment = center
 

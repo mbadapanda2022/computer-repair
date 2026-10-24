@@ -840,6 +840,7 @@ def customer_statement_whatsapp(request, contact_id):
 
     period = f"{date_from if date_from else 'Start'} to {date_to if date_to else 'Today'}"
 
+    portal = (company.website_url or request.build_absolute_uri('/')).rstrip('/')
     message = f"""📊 *Customer Statement*
 
 👤 Customer: {contact.name}
@@ -847,7 +848,7 @@ def customer_statement_whatsapp(request, contact_id):
 💰 Opening Balance: ₹{opening:,.2f}
 💵 Closing Balance: ₹{closing:,.2f}
 
-For complete statement, please visit our portal https://a1computersolutions.in/
+For complete statement, please visit our portal {portal}/
 
 Thank you,
 {company.name}
@@ -1710,7 +1711,7 @@ def combined_statement_excel(request, contact_id):
 
     # ---- Title block ----
     ws.merge_cells('A1:F1')
-    ws['A1'] = company.name or "A1 Computer Solutions"
+    ws['A1'] = company.name or "My Company"
     ws['A1'].font = title_font
     ws['A1'].alignment = center
 
@@ -1948,6 +1949,7 @@ def vendor_statement_whatsapp(request, contact_id):
 
     period = f"{date_from if date_from else 'Start'} to {date_to if date_to else 'Today'}"
 
+    portal = (company.website_url or request.build_absolute_uri('/')).rstrip('/')
     message = f"""📊 *Vendor Statement*
 
 🏢 Vendor: {contact.name}
@@ -1955,7 +1957,7 @@ def vendor_statement_whatsapp(request, contact_id):
 💰 Opening Balance: ₹{opening:,.2f}
 💵 Closing Balance: ₹{closing:,.2f}
 
-For complete statement, please visit our portal https://a1computersolutions.in/
+For complete statement, please visit our portal {portal}/
 
 Thank you,
 {company.name}

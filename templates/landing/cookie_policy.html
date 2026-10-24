@@ -1,6 +1,6 @@
 {% extends 'base_public.html' %}
 {% load static %}
-{% block title %}Cookie Policy – A1 Computer Solutions{% endblock %}
+{% block title %}Cookie Policy – {{ company.name|default:"My Company" }}{% endblock %}
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
@@ -27,7 +27,7 @@
                 For more information, please <a href="{% url 'privacy_policy' %}">see our Privacy Policy</a> or contact us.
             </p>
             <hr>
-            <p class="text-muted small">&copy; {% now "Y" %} A1 Computer Solutions. All rights reserved.</p>
+            <p class="text-muted small">&copy; {% now "Y" %} {{ company.name|default:"My Company" }}. All rights reserved.</p>
         </div>
     </div>
 </div>

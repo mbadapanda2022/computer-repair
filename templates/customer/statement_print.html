@@ -63,7 +63,7 @@
     <div class="header">
         <div>
             {% if logo_exists %}<img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>{% endif %}
-            <p class="company-name">{{ company.name|default:"A1 Computer Solutions" }}</p>
+            <p class="company-name">{{ company.name|default:"My Company" }}</p>
             <div class="company-info">
                 {% if company.address %}{{ company.address }}<br>{% endif %}
                 {% if company.phone %}Phone: {{ company.phone }}{% endif %}
@@ -245,7 +245,7 @@
         <p>
             <strong>Verify:</strong> Opening + Debits − Credits = Closing.
         </p>
-        <p>© {% now "Y" %} {{ company.name|default:"A1 Computer Solutions" }}</p>
+        <p>© {% now "Y" %} {{ company.name|default:"My Company" }}</p>
     </div>
 
     <div class="no-print" style="text-align:center; margin-top:15px;">
