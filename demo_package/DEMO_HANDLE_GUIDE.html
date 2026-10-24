@@ -82,25 +82,11 @@
 <p>Sirf tab jab purana demo expire ho gaya ho ya naye features daale ho. Poore steps file me hain: <code>G:\computer_repair\demo_package\BUILD_DEMO.md</code>. Ya mujhse bas bolo — "naya demo build karo" — main bana dunga.</p>
 </div>
 
-<h2>7. Render Cron job (aapki ek baar ki 2-minute setting)</h2>
+<h2>7. Render Cron job — AB ZAROORI NAHI (automatic ho gaya)</h2>
 <div class="box">
-<p>Ye demo se alag baat hai — ye aapki <strong>live website</strong> ko bachata hai. Render free plan par 7 din koi visit/kaam na ho to database so jata hai; ye cron roz subah 6 baje ek chhota "heartbeat" bhejta hai.</p>
-<p><strong>Exact steps (phone se bhi ho jayega):</strong></p>
-<ol>
-<li>Browser me kholo <code>https://dashboard.render.com</code> aur apne account se login karo (jisse aapki website bani hai).</li>
-<li>Apni service <strong>a1computersolutions</strong> par click karo.</li>
-<li>Left menu me <strong>"Cron Jobs"</strong> dikhega — us par click → <strong>"New Cron Job"</strong> button.</li>
-<li>Form me sirf 3 cheezein bharo:
-  <ul>
-  <li>Name: <code>storage-watchdog</code></li>
-  <li>Schedule: <code>0 6 * * *</code> (is me space hi chhodna hai, bilkul aise)</li>
-  <li>Command: <code>python manage.py storage_watchdog</code></li>
-  </ul>
-</li>
-<li><strong>Environment:</strong> "Copy environment variables from a1computersolutions" wala option select karo — taaki database settings apne aap aa jayein.</li>
-<li>Create Cron Job → done. Bas ek baar banana hai, phir ye hamesha khud chalta rahega.</li>
-</ol>
-<p>Agar in steps me kahin atko to us screen ka screenshot bhejo — main next step bata dunga.</p>
+<p>Pehle main aapko Render me Cron Job banane bola tha. Maloom hua ki <strong>Render ke free plan me Cron Jobs feature hi nahi hai</strong> (paid) — isliye aapko option nahi dikh raha tha. Aapne galat kuch nahi kiya.</p>
+<p class="ok">&#10004; Maine free alternative bana diya hai: GitHub ka automatic scheduler roz subah <strong>6 baje</strong> aapki website ka <code>/keepalive/</code> URL hit karta hai. Isse (1) Supabase database 7 din idle hone par pause nahi hota, (2) storage snapshot note hota hai, (3) database 80% bhara to aapko email alert aata hai.</p>
+<p><strong>Aapko iske liye Render ya GitHub me kuch click karne ki zaroorat nahi — sab automatic hai.</strong> Verification bhi ho gaya: live website par heartbeat chala (19.2 MB / 500 MB = 3.8% used). Bas kabhi-kabah GitHub par <code>computer-repair → Actions</code> tab khol ke green tick dekh lena (optional).</p>
 </div>
 
 </body>
