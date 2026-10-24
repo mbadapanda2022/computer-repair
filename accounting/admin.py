@@ -505,9 +505,9 @@ class RepairPartInline(admin.TabularInline):
 # ============================================================
 class RepairStatusLogInline(admin.TabularInline):
     """
-    Job ke andar status history — APPEND-ONLY.
+    Status history inside the job — APPEND-ONLY.
 
-    Add/change/delete sab band: history sirf `change_status()` likhta hai.
+    Add/change/delete all disabled: only `change_status()` writes history.
     """
     model = RepairStatusLog
     extra = 0
@@ -526,7 +526,7 @@ class RepairStatusLogInline(admin.TabularInline):
 
 @admin.register(RepairStatusLog)
 class RepairStatusLogAdmin(admin.ModelAdmin):
-    """Read-only audit log — yahan se kuch edit nahi hota."""
+    """Read-only audit log — nothing can be edited from here."""
     list_display = ('changed_at', 'repair_job', 'from_status', 'to_status',
                     'actor', 'forced', 'ip_address')
     list_filter = ('to_status', 'forced', 'changed_at')
@@ -602,14 +602,14 @@ class RepairJobAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """
-        Admin se status badalna bhi STATE MACHINE se guzarta hai.
+        Changing status from Admin also goes through the STATE MACHINE.
 
-        Kyun: status sirf `change_status()` se badalna chahiye — warna
-        guards, timeline dates, immutable history aur notification bypass
-        ho jate hain (aur guard seedha error deta hai).
+        Why: status must only change via `change_status()` — otherwise
+        guards, timeline dates, immutable history and notifications get
+        bypassed (and the guard raises an error outright).
 
-        Yahan: purana status nikaal kar, naya status `change_status()` se
-        lagate hain (audit trail ke saath).
+        Here: fetch the old status, then apply the new one via
+        `change_status()` (with audit trail).
         """
         from django.core.exceptions import ValidationError as _VE
 
@@ -627,7 +627,7 @@ class RepairJobAdmin(admin.ModelAdmin):
 
         if old_status and new_status and old_status != new_status \
                 and not obj.invoice_id:
-            # Status ko purani value par lao — warna model guard raise karega
+            # Restore status to the old value — otherwise the model guard would raise
             obj.status = old_status
             super().save_model(request, obj, form, change)
             try:
@@ -646,7 +646,7 @@ class RepairJobAdmin(admin.ModelAdmin):
 
         obj.calculate_final_amount()
 
-    # ── Bulk actions (state machine ke through) ──────────────────
+    # ── Bulk actions (via the state machine) ──────────────────
     @admin.action(description="▶ Advance to next status (valid transitions only)")
     def advance_status(self, request, queryset):
         updated, failed = 0, []
@@ -694,13 +694,13 @@ class RepairJobAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None):
         fields = list(super().get_readonly_fields(request, obj))
-        # Invoiced job → status bhi lock (model guard ke saath consistent)
+        # Invoiced job → status locked too (consistent with model guard)
         if obj is not None and obj.pk and obj.invoice_id:
             fields.append('status')
         return fields
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
-        """Status dropdown me sirf VALID next transitions (+ current)."""
+        """Status dropdown shows only VALID next transitions (+ current)."""
         if db_field.name == 'status':
             obj_id = getattr(request.resolver_match, 'kwargs', {}).get('object_id')
             if obj_id:

@@ -138,9 +138,9 @@ def contact_message(request):
             })
             return response
         else:
-            # Partial ka root element container-div ke andar render karo —
-            # warna outerHTML swap container ka id mita deta hai aur
-            # ek validation-error ke baad form ka target toot jata tha.
+            # Render the partial's root element inside the container div —
+            # otherwise the outerHTML swap erases the container's id and the
+            # form's target used to break after a validation error.
             inner = render_to_string('landing/partials/_contact_form.html', {'form': form}, request=request)
             html = f'<div id="contactFormContainer">{inner}</div>'
             return HttpResponse(html, status=200)
@@ -602,7 +602,7 @@ def manage_services(request):
     services = Service.objects.all().order_by('order', 'created_at')
     context = {
         'services': services,
-        'include_controls': True,  # Controls ko show karne ke liye
+        'include_controls': True,  # To show the controls (staff page)
     }
     return render(request, 'landing/manage_services.html', context)
 

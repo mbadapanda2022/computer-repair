@@ -165,8 +165,8 @@ def health_check(request):
         }, status=200)
     except OperationalError as e:
         logger.error(f"Health check failed: {e}")
-        # Public endpoint — DB error text (host/user/db fragments) never
-        # jaana chahiye, detail sirf log me.
+        # Public endpoint — never leak DB error text (host/user/db
+        # fragments); details go to the log only.
         return JsonResponse({
             'status': 'error',
             'database': 'disconnected',
@@ -191,9 +191,9 @@ from django.utils.html import escape
 
 def htmx_field_error_response(field_name, errors=()):
     """
-    HTMX field-validation partial. `field_name` request GET se aata hai —
-    bina escape ka HTML me jodna reflected XSS deta hai, isliye hamesha
-    yahi helper use karein.
+    HTMX field-validation partial. `field_name` comes from request GET —
+    splicing it into HTML without escaping would be reflected XSS, so always
+    use this helper.
     """
     field_name = escape(field_name)
     if errors:

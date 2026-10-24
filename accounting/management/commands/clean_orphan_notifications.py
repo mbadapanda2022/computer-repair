@@ -134,7 +134,7 @@ class Command(BaseCommand):
         if legacy_notifs.exists():
             orphan_ids = []
 
-            # Plural/singular dono handle karo
+            # Handle both plural and singular
             model_patterns = {
                 'repairjob': re.compile(r'/repairs?/(\d+)/'),
                 'invoice': re.compile(r'/(?:sales|invoices?)/(\d+)/'),

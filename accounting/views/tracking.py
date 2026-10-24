@@ -36,12 +36,12 @@ STATUS_PROGRESS = {
 
 def _repair_advance_paid(repair):
     """
-    Is repair se related advance (rupee me):
-      (a) invoice par applied AdvanceAdjustments, PLUS
-      (b) customer ke unapplied advance Payments jo job start ke aas-paas
-          received hue (intake par advance, invoice abhi bana hi nahi).
-    Payment soft-delete/adjustment settled amounts automatically exclude
-    ho jate hain (SoftDeleteManager).
+    Advance related to this repair (in rupees):
+      (a) AdvanceAdjustments applied on the invoice, PLUS
+      (b) the customer's unapplied advance Payments received around the job
+          start (advance at intake, invoice not created yet).
+    Soft-deleted payments/adjustment settled amounts are excluded
+    automatically (SoftDeleteManager).
     """
     total = Decimal('0')
     if repair.invoice_id:
@@ -59,8 +59,8 @@ def _repair_advance_paid(repair):
         direction='received',
         is_advance=True,
         date__gte=job_start - timedelta(days=ADVANCE_LOOKBACK_DAYS),
-        # Aaj ke baad ki date wala advance kisi agle job ka ho sakta hai —
-        # is job par attribute mat karo.
+        # An advance dated after today may belong to a future job —
+        # do not attribute it to this job.
         date__lte=timezone.now().date(),
     )
     settled = {

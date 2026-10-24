@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _money(v):
-    """Print reports ke liye consistent ₹ amount formatting."""
+    """Consistent ₹ amount formatting for print reports."""
     return f"{v:,.2f}" if v is not None else "-"
 
 
@@ -528,16 +528,16 @@ def profit_loss(request):
             repairs = repairs.filter(date_in__gte=date_from)
         if date_to:
             repairs = repairs.filter(date_in__lte=date_to)
-        # Labour income RepairService lines se aata hai.
+        # Labour income comes from RepairService lines.
         repair_income = (
             RepairService.objects
             .filter(repair_job__in=repairs)
             .aggregate(total=Sum('line_total'))['total']
         ) or Decimal('0')
         
-        # Ledger-based heads (expenses/other income) isi report date range
-        # me gine jate hain — warna period select karne par bhi all-time
-        # expenses jud jate.
+        # Ledger-based heads (expenses/other income) are counted within this
+        # report's date range — otherwise selecting a period would still pull
+        # in all-time expenses.
         entry_q = Q(ledger_entry__is_deleted=False)
         if date_from:
             entry_q &= Q(ledger_entry__date__gte=date_from)
@@ -896,7 +896,7 @@ def balance_sheet(request):
         sales_total = Invoice.objects.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
         purchase_total = Purchase.objects.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
         profit = sales_total - purchase_total
-        # Labour income → RepairService (legacy field dead hai)
+        # Labour income → RepairService (legacy field is dead)
         repair_income = (
             RepairService.objects.aggregate(total=Sum('line_total'))['total']
         ) or Decimal('0')

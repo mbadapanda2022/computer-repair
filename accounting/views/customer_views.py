@@ -901,11 +901,11 @@ def repair_estimate_approve(request, pk):
             'approval_source',
         ])
 
-        # Status ab state machine se — guards + history + notification.
-        # Staff-side approval (repairs.py) se parity: 'received' job par
-        # received→repairing transition allowed nahi, isliye sirf
-        # pending/diagnosis se hi start_repair hota hai; received jobs
-        # ke liye approval record ho jata hai, staff aage badhata hai.
+        # Status now goes through the state machine — guards + history + notification.
+        # Parity with staff-side approval (repairs.py): the received→repairing
+        # transition is not allowed on a 'received' job, so start_repair only
+        # fires from pending/diagnosis; for received jobs the approval is just
+        # recorded and staff moves the job forward.
         if repair.estimated_cost and repair.estimated_cost > 0 \
                 and repair.status in ('pending', 'diagnosis'):
             repair.start_repair(

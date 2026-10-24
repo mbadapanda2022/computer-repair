@@ -878,10 +878,10 @@ class ProductForm(forms.ModelForm):
         self.fields['current_stock'].widget.attrs['placeholder'] = '0 (for service)'
         self.fields['low_stock_threshold'].widget.attrs['placeholder'] = '0 (for service)'
 
-        # ── GST rate: model default (18%) hardcoded thi, CompanyProfile ka
-        # configurable `default_tax_rate` use karte hain. Naye product par
-        # company ka rate pre-fill hota hai; har product apna rate rakh sakta
-        # hai (edited value override karti hai).
+        # ── GST rate: model default (18%) was hardcoded; now use
+        # CompanyProfile's configurable `default_tax_rate`. New products
+        # pre-fill with the company rate; each product can keep its own
+        # rate (an edited value overrides it).
         if not self.instance.pk:
             try:
                 company = CompanyProfile.get_instance()
@@ -1248,10 +1248,10 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             )
 
         # ── STATE MACHINE: transition validation (professional flow) ──
-        # Status ab sirf valid transitions se hi badal sakta hai. Purane
-        # behaviour me koi bhi status kisi bhi status se set ho sakta tha
-        # (pending → delivered bhi) — ab model ka transition table check
-        # hota hai aur saaf error milta hai.
+        # Status can now change only via valid transitions. In the old
+        # behaviour any status could be set from any other (pending →
+        # delivered included); now the model's transition table is
+        # checked and a clear error is raised.
         if status and self.instance and self.instance.pk:
             old_status = (
                 RepairJob.all_objects.filter(pk=self.instance.pk)
@@ -1272,18 +1272,18 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
 
     def save(self, commit=True):
         """
-        Aapka purana form-save — PLUS: status change ab state machine se
-        hota hai (transition guards + timeline dates + immutable history +
-        customer notification + cancel par stock reversal).
+        Your original form-save — PLUS: status change now goes through the
+        state machine (transition guards + timeline dates + immutable
+        history + customer notification + stock reversal on cancel).
 
-        Kyun zaroori hai: staff ke liye status dropdown sababse natural UX
-        hai, lekin seedha save hone se saare guards bypass ho jate the. Ab
-        dropdown bhi `change_status()` se guzarta hai.
+        Why needed: a status dropdown is the most natural UX for staff,
+        but saving directly bypassed all guards. Now the dropdown also
+        goes through `change_status()`.
 
         Steps:
-          1. Baaki fields (status ke bina) save karo
-          2. Status ko purani value par wapas lao (taaki guard na toote)
-          3. `change_status()` se transition lagao (guards + history + notify)
+          1. Save the other fields (without status)
+          2. Restore status to its old value (so the guard isn't broken)
+          3. Apply the transition via `change_status()` (guards + history + notify)
         """
         instance = super().save(commit=False)
 
@@ -1295,10 +1295,10 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
 
         if commit:
             if status_changed:
-                # 1+2. Non-status fields save karo (status purani value par)
+                # 1+2. Save non-status fields (status stays at old value)
                 instance.status = self._status_before_save
                 instance.save()
-                # 3. Ab transition state machine se lagao
+                # 3. Now apply the transition via the state machine
                 instance.change_status(
                     new_status,
                     by=self._actor,
@@ -1312,8 +1312,8 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
 
     def __init__(self, *args, **kwargs):
         """
-        Batch 1 (purana): HTMX live-validation + optional fields.
-        Batch 2 (naya)  : `actor=` (request.user) — audit history ke liye.
+        Batch 1 (old): HTMX live-validation + optional fields.
+        Batch 2 (new): `actor=` (request.user) — for audit history.
         """
         self._actor = kwargs.pop('actor', None)
         super().__init__(*args, **kwargs)
@@ -1339,12 +1339,12 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
 
 class RepairStatusTransitionForm(forms.Form):
     """
-    Status transition ka dedicated form (HTMX buttons ke liye).
+    Dedicated form for status transitions (for HTMX buttons).
 
-    Model ka state machine hi asli guard hai — ye form sirf:
-      • valid options offer karta hai,
-      • remarks (audit ke liye) collect karta hai,
-      • aur `change_status()` call karta hai.
+    The model's state machine is the real guard — this form only:
+      • offers valid options,
+      • collects remarks (for audit),
+      • and calls `change_status()`.
     """
     status = forms.ChoiceField(
         choices=(), required=True, widget=BS_SELECT(),
@@ -1368,8 +1368,8 @@ class RepairStatusTransitionForm(forms.Form):
 
         if job is not None:
             display = dict(job.STATUS_CHOICES)
-            # Sirf wo transitions jo normal flow me allowed hain (force-only
-            # wale — jaise delivered→repairing reopen — yahan nahi aate).
+            # Only transitions allowed in the normal flow (force-only ones —
+            # e.g. delivered→repairing reopen — are excluded here).
             allowed = sorted(job.allowed_next_statuses(job.status))
             self.allowed = allowed
             self.fields['status'].choices = (
@@ -1446,12 +1446,12 @@ class RepairPartForm(forms.ModelForm):
 
     def __init__(self, *args, repair_job=None, **kwargs):
         """
-        `repair_job=` optional hai — diya jaye to stock availability is job
-        ke hisaab se check hoti hai (job par pehle se lage parts count hote
-        hain, warna jhoota "insufficient stock" error aata tha).
+        `repair_job=` is optional — when provided, stock availability is
+        checked against this job (parts already attached to the job are
+        counted, otherwise a false "insufficient stock" error appeared).
 
-        NOTE: `self.instance` sirf `super().__init__()` ke BAAD milta hai,
-        isliye instance fallback wahan se lete hain.
+        NOTE: `self.instance` only exists after `super().__init__()`,
+        so the instance fallback is taken from there.
         """
         self.repair_job = repair_job
         super().__init__(*args, **kwargs)
@@ -1477,11 +1477,12 @@ class RepairPartForm(forms.ModelForm):
 
     def clean(self):
         """
-        Business guards (model layer ke saath consistent):
+        Business guards (consistent with the model layer):
 
-        1. Invoiced job → saaf error (view tak jaane se pehle)
-        2. Stock availability — `current_stock + is job par pehle se lage`
-           ke hisaab se, aur message me exact available qty
+        1. Invoiced job → clear error (before reaching the view)
+        2. Stock availability — based on `current_stock + parts already
+           attached to this job`, with the exact available qty in the
+           message
         """
         cleaned = super().clean()
         product = cleaned.get('product')
@@ -1490,7 +1491,7 @@ class RepairPartForm(forms.ModelForm):
         if not (product and qty):
             return cleaned
 
-        # 1. Invoiced job lock (model bhi rokta hai, par form me saaf message)
+        # 1. Invoiced job lock (model also blocks it, but give a clear message here)
         if self.repair_job is not None and getattr(self.repair_job, 'invoice_id', None):
             raise ValidationError(
                 f"Is job ka invoice ban chuka hai — part add/change nahi ho "
@@ -1505,7 +1506,7 @@ class RepairPartForm(forms.ModelForm):
             )
             return cleaned
 
-        # 2. Stock availability — is job par pehle se lage parts ko count karo
+        # 2. Stock availability — count parts already attached to this job
         already = Decimal('0')
         if self.repair_job is not None and self.repair_job.pk:
             already = (
@@ -1578,7 +1579,7 @@ class RepairServiceForm(forms.ModelForm):
         return amount
 
     def clean_product(self):
-        """Service line me sirf SERVICE product (is_service=True)."""
+        """Only SERVICE products (is_service=True) allowed in a service line."""
         product = self.cleaned_data.get('product')
         if product is not None and not product.is_service:
             raise ValidationError(
@@ -1692,8 +1693,8 @@ class PaymentForm(forms.ModelForm):
             )
 
         if method == 'cash' and bank_account:
-            # Cash till (register) me aata hai, bank me nahi — warna
-            # ledger cash aur bank statement dono confuse hote hain.
+            # Goes into the cash till (register), not the bank — otherwise
+            # both the cash ledger and bank statements get confusing.
             cleaned_data['bank_account'] = None
 
         if contact and direction:
@@ -2145,12 +2146,12 @@ class BlogPostForm(forms.ModelForm):
         }
 
 # ============================================================
-# Blog LIST filter form (HTMX-powered, blog list page ke liye)
+# Blog LIST filter form (HTMX-powered, for the blog list page)
 # ============================================================
 class BlogPostFilterForm(forms.Form):
     """
     Search + category + tag filter for the blog list page.
-    HTMX `keyup changed delay:500ms` se live-filter hota hai.
+    Filters live via HTMX `keyup changed delay:500ms`.
     """
     search = forms.CharField(
         required=False,

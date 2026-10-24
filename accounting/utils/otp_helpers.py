@@ -164,9 +164,9 @@ def create_and_send_otp(user, email: str, purpose: str) -> bool:
     """
     email = _normalize_email(email)
 
-    # Per-email send cooldown — warna attacker victim ko OTP emails se
-    # spam kar sakta hai aur ek saath bahut saare valid OTPs mint kar
-    # sakta hai (brute-force window badh jati hai).
+    # Per-email send cooldown — otherwise an attacker could spam the victim
+    # with OTP emails and mint many valid OTPs at once (the brute-force
+    # window would grow).
     cooldown_key = f'otp_send_cooldown:{purpose}:{email}'
     if cache.get(cooldown_key):
         logger.info(

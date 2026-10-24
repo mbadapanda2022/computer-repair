@@ -1,15 +1,15 @@
 """
 Repair module — REAL user-journey tests (Django TestCase).
 
-Chalane ka tareeka:
+Run:
     venv\\Scripts\\python.exe manage.py test accounting.tests_repair -v 2
 
-Ye tests ASLI HTTP endpoints hit karte hain (login, create, add part/service,
-status change, invoice, delete/restore) — jaise ek normal staff user karta hai.
-Isliye ye bug pakadte hain jo sirf model-level tests nahi pakadte.
+These tests hit REAL HTTP endpoints (login, create, add part/service,
+status change, invoice, delete/restore) — just like a normal staff user
+would, so they catch bugs that model-level tests alone cannot.
 
-Django apne aap ek temporary test database banata aur MITATA hai — aapke
-`db.sqlite3` ko chhoota nahi.
+Django automatically creates and DESTROYS a temporary test database —
+your `db.sqlite3` is left untouched.
 """
 from __future__ import annotations
 
@@ -28,13 +28,13 @@ from accounting.models import (
 User = get_user_model()
 
 
-# Test client 'testserver' host bhejta hai
+# The test client sends the 'testserver' host
 @override_settings(
     ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'],
     SECURE_SSL_REDIRECT=False,
 )
 class RepairJourneyTests(TestCase):
-    """Staff user ka poora repair workflow — HTTP ke through."""
+    """A staff user's complete repair workflow — over HTTP."""
 
     @classmethod
     def setUpTestData(cls):
@@ -89,7 +89,7 @@ class RepairJourneyTests(TestCase):
     # 1. LOGIN / ACCESS
     # ══════════════════════════════════════════════════════════════
     def test_staff_can_open_key_pages(self):
-        """Staff user saare important pages khol sakta hai."""
+        """A staff user can open all the important pages."""
         urls = [
             reverse('accounting:repair_list'),
             reverse('accounting:repair_create'),
@@ -137,7 +137,7 @@ class RepairJourneyTests(TestCase):
         self.assertEqual(job.final_amount, Decimal('5000.00'),
                          f'amount galat: {job.final_amount}')
 
-        # StockMovement bhi bana?
+        # Was a StockMovement also created?
         part = RepairPart.objects.get(repair_job=job)
         self.assertTrue(
             StockMovement.all_objects.filter(
@@ -195,7 +195,7 @@ class RepairJourneyTests(TestCase):
         job.refresh_from_db()
         self.assertEqual(job.status, 'repairing')
 
-        # repairing → ready (part laga hai isliye allowed)
+        # repairing → ready (a part is attached, so this is allowed)
         self.client.post(
             reverse('accounting:update_repair_status', args=[job.pk]),
             {'new_status': 'ready'},
@@ -205,9 +205,9 @@ class RepairJourneyTests(TestCase):
         self.assertEqual(job.status, 'ready')
         self.assertIsNotNone(job.ready_at, 'ready_at stamp nahi hua')
 
-        # ready → delivered (receiver chahiye)
-        # NOTE: delivery details pehle save karo — `change_status()` ke baad
-        # status field par seedha likhna guard se block hota hai.
+        # ready → delivered (receiver required)
+        # NOTE: save the delivery details first — after `change_status()`
+        # writing directly to the status field is blocked by the guard.
         RepairJob.all_objects.filter(pk=job.pk).update(
             delivered_to_name='Journey Receiver',
         )
@@ -287,7 +287,7 @@ class RepairJourneyTests(TestCase):
         self._add_part(job, qty=1, price='2500.00')
         job.refresh_from_db()
 
-        # Invoice banao (service layer se — view ka session flow alag hai)
+        # Create the invoice (via the service layer — the view's session flow differs)
         invoice = Invoice.objects.create(customer=self.customer, notes='journey')
         part = RepairPart.objects.get(repair_job=job)
         InvoiceItem.objects.create(
@@ -306,7 +306,7 @@ class RepairJourneyTests(TestCase):
         self.assertEqual(job.final_amount, invoice.grand_total)
         self.assertEqual(invoice.grand_total, Decimal('2500.00'))
 
-        # Double-deduction nahi hua?
+        # No double deduction happened?
         self.ssd.refresh_from_db()
         self.assertEqual(self.ssd.current_stock, Decimal('19.00'),
                          'invoice banane par stock dobara kat gaya!')
@@ -319,7 +319,7 @@ class RepairJourneyTests(TestCase):
         job.final_amount = invoice.grand_total
         job.save(update_fields=['invoice', 'final_amount'])
 
-        # Ab naya part add karne ki koshish — block hona chahiye
+        # Now try adding a new part — it must be blocked
         resp = self._add_part(job, qty=1)
         self.assertIn(resp.status_code, (200, 400, 302))
         job.refresh_from_db()
@@ -406,7 +406,7 @@ class RepairJourneyTests(TestCase):
     SECURE_SSL_REDIRECT=False,
 )
 class AdminJourneyTests(TestCase):
-    """Superuser admin panel se sab kuch manage kar sake."""
+    """A superuser can manage everything from the admin panel."""
 
     @classmethod
     def setUpTestData(cls):
@@ -430,7 +430,7 @@ class AdminJourneyTests(TestCase):
         )
 
     def test_admin_index_and_key_models(self):
-        """Admin ke important pages 200 dete hain."""
+        """The admin's important pages all return 200."""
         self.assertEqual(self.client.get('/admin/').status_code, 200)
         for model in ('repairjob', 'contact', 'product', 'invoice',
                       'repairstatuslog', 'companyprofile'):
@@ -455,7 +455,7 @@ class AdminJourneyTests(TestCase):
         })
         job = RepairJob.objects.filter(device_model='Admin Created Device').first()
         if job is None:
-            # Debug: response HTML se errorlist nikaalo
+            # Debug: extract the errorlist from the response HTML
             import re as _re
             html = resp.content.decode('utf-8', 'replace')
             errs = _re.findall(

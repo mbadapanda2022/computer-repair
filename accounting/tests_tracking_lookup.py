@@ -1,11 +1,12 @@
 """
 Public repair tracking lookup (landing page widget) — tests.
 
-Chalane ka tareeka:
+Run:
     python manage.py test accounting.tests_tracking_lookup -v 2
 
-Customer job number + registered mobile number daal ke apna repair track karta
-hai — registered ho ya staff-created contact, dono case cover hote hain.
+The customer enters the job number + registered mobile number to track
+their own repair — whether the contact is registered or staff-created,
+both cases are covered.
 """
 from __future__ import annotations
 
@@ -130,7 +131,7 @@ class RepairLookupTests(TestCase):
 
 
 class TrackingShareMessageTests(TestCase):
-    """WhatsApp share bhejta hai info + link, sirf nanga link nahi."""
+    """The WhatsApp share sends info + link, not just a bare link."""
 
     def setUp(self):
         self.customer = Contact.objects.create(

@@ -1,15 +1,15 @@
 """
 Direct-expense payment tests (Payment.expense_account).
 
-Chalane ka tareeka:
+Run:
     python manage.py test accounting.tests_expense_payment -v 2
 
-Dukaan ka asli scenario: staff ko dukaan ka 3 mahine ka rent (₹4500)
-cash/NEFT/UPI se dena hai, lekin koi vendor bill/invoice nahi hota.
-Pehla rasta Payment → Paid to Supplier sirf Vendor Payable (2011) debit
-karta tha — expense accounts (5201 Rent…) staff UI se unreachable the.
-Ab Payment (direction=paid) par optional 'expense_account' hai:
-seedha Dr Expense / Cr Cash|Bank post hota hai.
+Real shop scenario: staff must pay 3 months of shop rent (₹4500) via
+cash/NEFT/UPI, but there is no vendor bill/invoice. The first route,
+Payment → Paid to Supplier, only debited Vendor Payable (2011) — expense
+accounts (5201 Rent…) were unreachable from the staff UI. Now Payment
+(direction=paid) has an optional 'expense_account': it posts Dr Expense /
+Cr Cash|Bank directly.
 """
 from __future__ import annotations
 

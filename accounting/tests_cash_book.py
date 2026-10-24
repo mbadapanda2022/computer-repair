@@ -1,15 +1,16 @@
 """
 Cash Book & contra entry tests.
 
-Chalane ka tareeka:
+Run:
     python manage.py test accounting.tests_cash_book -v 2
 
-Dukaan ka asli scenario: customer se cash milta hai (cash box me aata
-hai), cash bank me deposit hota hai, bank se cash nikal ke counter par
-rakha jata hai. Pehle cash ka koi register nahi tha — ab Cash 1001 ledger
-account hi cash book hai, aur 'transfer' BankTransaction contra entry banati
-hai (Dr/Cr Cash ⇄ Bank). Payment method bhi ab decide karta hai ki ledger
-side Cash (1001) hogi ya Bank (1010).
+Real shop scenario: cash is received from customers (it comes into the cash
+box), cash is deposited into the bank, and cash is withdrawn from the bank
+and kept at the counter. There used to be no cash register at all — now the
+Cash 1001 ledger account itself is the cash book, and a 'transfer'
+BankTransaction creates a contra entry (Dr/Cr Cash ⇄ Bank). The payment
+method also now decides whether the ledger side will be Cash (1001) or
+Bank (1010).
 """
 from __future__ import annotations
 
@@ -94,7 +95,7 @@ class CashBookTests(TestCase):
         pay = Payment.objects.create(
             direction='received', contact=self.customer,
             amount=Decimal('500.00'), method='cash',
-            bank_account=self.bank,  # staff galti se select kar le
+            bank_account=self.bank,  # staff selects it by mistake
         )
         self.assertFalse(
             BankTransaction.objects.filter(payment=pay).exists()
@@ -145,7 +146,7 @@ class CashBookTests(TestCase):
         self.assertEqual(lines[CASH].credit, Decimal('3000.00'))
 
     def test_contra_withdrawal_brings_cash_from_bank(self):
-        self.upi_receipt('4000.00')  # bank me paisa aaya
+        self.upi_receipt('4000.00')  # money came into the bank
 
         self.client.post(reverse('accounting:contra_create'), {
             'direction': 'withdrawal', 'bank_account': self.bank.pk,

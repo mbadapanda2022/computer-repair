@@ -1,16 +1,16 @@
 """
 Advance → Invoice settlement tests.
 
-Chalane ka tareeka:
+Run:
     python manage.py test accounting.tests_advance_settlement -v 2
 
-Production scenario (Suvam Giri, 13 Oct 2026): customer ne intake par
-₹1000 advance diya (Payment is_advance=True, koi invoice nahi), baad me
-₹7000 ka repair invoice bana, aur ₹6000 cash balance diya. Advance pool
-me floating rehta tha aur invoice hamesha ₹1000 due dikhata tha.
-Ab apply_available_advance() advance ko invoice par settle karta hai —
-paid_amount me double-count NAHI hona chahiye aur un-apply par pool
-wapas aana chahiye.
+Production scenario (Suvam Giri, 13 Oct 2026): the customer paid a
+₹1000 advance at intake (Payment is_advance=True, no invoice), then a
+₹7000 repair invoice was created and ₹6000 cash was paid as the balance.
+The advance stayed floating in the pool and the invoice always showed
+₹1000 due. Now apply_available_advance() settles the advance against the
+invoice — paid_amount must NOT double-count and un-applying must return
+the amount to the pool.
 """
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ class AdvanceSettlementTests(TestCase):
         cust = self.refresh(self.customer)
         self.assertEqual(cust.advance_balance, Decimal('0.00'))
 
-        # Staff ab exact ₹6000 cash leta hai
+        # Staff now takes the exact ₹6000 cash
         self.pay_balance(inv, '6000.00')
         inv = self.refresh(inv)
         self.assertEqual(inv.paid_amount, Decimal('7000.00'))
@@ -108,7 +108,7 @@ class AdvanceSettlementTests(TestCase):
         self.assertEqual(inv.payment_status, 'paid')
 
     def test_apply_capped_at_balance_due(self):
-        """Bada advance, chhota invoice — pool me bacha hua credit rehna chahiye."""
+        """Large advance, small invoice — leftover credit must remain in the pool."""
         self.advance('7500.00')
         inv = self.invoice('7000.00')
 
@@ -123,7 +123,7 @@ class AdvanceSettlementTests(TestCase):
         self.assertEqual(cust.advance_balance, Decimal('500.00'))
 
     def test_fifo_split_across_two_invoices(self):
-        """Ek advance do invoices me divide ho toh dono ka hisab sahi rahe."""
+        """When one advance splits across two invoices, both must stay correctly accounted."""
         self.advance('1500.00')
         inv_a = self.invoice('1000.00')
         inv_b = self.invoice('1000.00')
@@ -139,7 +139,7 @@ class AdvanceSettlementTests(TestCase):
         self.assertEqual(inv_b.paid_amount, Decimal('500.00'))
 
     def test_only_unsettled_portion_of_advance_is_applied(self):
-        """Advance ka kuch hissa pehle se dusre invoice par laga ho."""
+        """Part of the advance was already applied to another invoice."""
         pay = self.advance('1000.00')
         other = self.invoice('2000.00')
         AdvanceAdjustment.objects.create(
@@ -151,7 +151,7 @@ class AdvanceSettlementTests(TestCase):
         self.assertEqual(sum(a for _, a in applied), Decimal('600.00'))
 
     def test_double_apply_is_idempotent(self):
-        """Dobara apply karne par double-count NAHI hona chahiye."""
+        """Applying again must NOT double-count."""
         self.advance('1000.00')
         inv = self.invoice('7000.00')
         inv.apply_available_advance()

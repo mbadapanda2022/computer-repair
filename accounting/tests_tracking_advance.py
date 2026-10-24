@@ -1,14 +1,14 @@
 """
 Tracking page — advance payment visibility tests.
 
-Chalane ka tareeka:
+Run:
     python manage.py test accounting.tests_tracking_advance -v 2
 
-Rule: customer ne is repair ke liye advance diya (invoice par applied
-AdvanceAdjustment, ya intake par recorded unapplied advance Payment)
-toh tracking par "Advance" section dikhna chahiye; advance nahi hai toh
-bilkul nahi dikhna chahiye. Invoice maujood na hone par bhi advance
-dikhna chahiye.
+Rule: if the customer paid an advance for this repair (an
+AdvanceAdjustment applied to the invoice, or an unapplied advance Payment
+recorded at intake), the tracking page must show an "Advance" section;
+with no advance, it must not show at all. The advance must show even when
+no invoice exists.
 """
 from __future__ import annotations
 
@@ -101,7 +101,7 @@ class TrackingAdvanceVisibilityTests(TestCase):
     # ---------- visible cases ----------
 
     def test_unapplied_advance_at_intake_shown_without_invoice(self):
-        # Suvam Giri jaisa case: advance Payment recorded, invoice abhi nahi
+        # A case like Suvam Giri's: advance Payment recorded, no invoice yet
         self.advance_payment('1000.00')
         page = self.track_page()
         self.assertEqual(page.status_code, 200)
@@ -136,12 +136,12 @@ class TrackingAdvanceVisibilityTests(TestCase):
         )
         adj.soft_delete()
         page = self.track_page()
-        # adjustment cancelled -> payment ka pura 500 unapplied advance hai
+        # adjustment cancelled -> the payment's full 500 is an unapplied advance
         self.assertContains(page, 'Advance Payment')
         self.assertContains(page, '₹500.00')
 
     def test_overpaid_invoice_balance_shown_as_zero_not_negative(self):
-        # advance 1000 bill 800 par -> balance_due model me -200 store hota hai
+        # advance 1000 against an 800 bill -> balance_due is stored as -200 in the model
         invoice = self.make_invoice(total='800.00')
         pay = self.advance_payment('1000.00')
         AdvanceAdjustment.objects.create(

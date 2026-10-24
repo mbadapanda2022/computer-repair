@@ -4,10 +4,10 @@ from whitenoise import WhiteNoise
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'computer_repair.settings')
 
-# Django ASGI Application Load करें
+# Load the Django ASGI application
 # Note: SSE/eventstream is deliberately not routed here — production runs
 # WSGI (gunicorn) and notifications use HTMX polling (see notification_helpers).
 django_asgi_app = get_asgi_application()
 
-# ✅ Whitenoise को ASGI के साथ Wrap करें (Static/Media Files के लिए)
+# ✅ Wrap Whitenoise with the ASGI app (for static/media files)
 application = WhiteNoise(django_asgi_app)

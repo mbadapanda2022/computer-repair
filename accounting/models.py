@@ -101,15 +101,15 @@ class SoftDeleteQuerySet(models.QuerySet):
 
     def restore(self):
         """
-        Restore soft-deleted records — per-instance jahan zaroori ho.
+        Restore soft-deleted records — per-instance where needed.
 
-        ⚠️ KYUN (AUDIT C-2): simple `update(is_deleted=False)` signals/hooks
-        bypass kar deta hai. Repair job/parts/services ke liye ye toota hua
-        tha — restore karne par parts wapas nahi aate the aur STOCK dobara
-        deduct nahi hota tha (inventory galat).
+        ⚠️ WHY (AUDIT C-2): a simple `update(is_deleted=False)` bypasses
+        signals/hooks. For repair jobs/parts/services this was broken —
+        on restore the parts did not come back and STOCK was not
+        re-deducted (wrong inventory).
 
-        Isliye un models ke liye per-instance `restore()` call karte hain
-        (wahi list jo `delete()` me hai), baaki ke liye fast bulk update.
+        So for those models we call per-instance `restore()`
+        (the same list as in `delete()`); for the rest, fast bulk update.
         """
         from django.utils import timezone as _tz
 
@@ -125,7 +125,7 @@ class SoftDeleteQuerySet(models.QuerySet):
                 count += 1
             return count
 
-        # ── Default: fast bulk restore (ledger/stock se juda nahi) ──
+        # ── Default: fast bulk restore (not tied to ledger/stock) ──
         return self.filter(is_deleted=True).update(
             is_deleted=False,
             deleted_at=None,
@@ -335,7 +335,7 @@ class InvoiceCounter(models.Model):
             try:
                 counter = cls.objects.select_for_update().get(prefix=prefix)
             except cls.DoesNotExist:
-                # Pehli baar – create with locking
+                # First time – create with locking
                 counter = cls.objects.create(prefix=prefix, last_number=0)
                 # Refresh with lock
                 counter = cls.objects.select_for_update().get(pk=counter.pk)
@@ -374,8 +374,8 @@ class CompanyProfile(SoftDeleteModel):
         help_text="Default service product for repair labor."
                   "If left blank, the first active service product will be used.",
     )
-    # Service lines (labour etc.) ka fallback GST rate.
-    # Blank = product ka apna tax_rate use hoga.
+    # Fallback GST rate for service lines (labour etc.).
+    # Blank = the product's own tax_rate is used.
     default_service_tax_rate = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True,
         validators=POSITIVE_VALIDATOR,
@@ -779,7 +779,7 @@ class Contact(SoftDeleteModel):
 
     def unapplied_advance_rows(self, direction='received'):
         """
-        Advance payments jo kisi invoice par settle NAHI hue.
+        Advance payments NOT settled against any invoice.
 
         Returns [(Payment, remaining_amount)] oldest-first (FIFO), so a
         later invoice settles against the earliest pending advance first.
@@ -967,12 +967,12 @@ class StockMovement(SoftDeleteModel):
             self.soft_delete()
 
     def restore(self, *args, **kwargs):
-        """Soft-deleted movement wapas laao — delete() ka mirror.
+        """Bring back a soft-deleted movement — mirror of delete().
 
-        Stock re-apply khud `save()` me ho jata hai: restore() ke dauraan
-        `StockMovement.objects.get` (deleted row exclude karta hai) →
-        old_qty=0 → delta=quantity → `current_stock + quantity`. Isliye
-        yahan koi extra F() update NAHI karna — warna double-count.
+        Stock re-apply happens in `save()` itself: during restore()
+        `StockMovement.objects.get` (excludes the deleted row) →
+        old_qty=0 → delta=quantity → `current_stock + quantity`. So do
+        NOT add any extra F() update here — that would double-count.
         """
         if not self.is_deleted:
             return
@@ -1113,8 +1113,8 @@ def sync_invoice_ledger(invoice):
 
 
 class Invoice(SoftDeleteModel):
-    # Unpaid + partial = "outstanding" — ek hi set dashboard card,
-    # list filter aur dropdown use karte taaki count kabhi diverge na ho.
+    # Unpaid + partial = "outstanding" — the dashboard card,
+    # list filter and dropdown use this one set so the count never diverges.
     OUTSTANDING_STATUSES = ['unpaid', 'partial']
     GST_TYPE = (('regular', 'Regular (B2B)'), ('non_gst', 'Non-GST'), ('interstate', 'Inter-state (IGST)'), ('intrastate', 'Intra-state (CGST+SGST)'))
     PAYMENT_STATUS = (('paid', 'Paid'), ('partial', 'Partially Paid'), ('unpaid', 'Unpaid'))
@@ -1310,10 +1310,10 @@ class Invoice(SoftDeleteModel):
             self.recompute_payment_state()
             super().save(update_fields=['subtotal', 'tax_amount', 'grand_total', 'balance_due', 'payment_status'])
 
-            # Ledger sync — repair resync ke dauraan defer hota hai, kyunki
-            # us waqt resync khud ledger alag transaction me sync karta hai.
-            # (Isse ledger ka failure invoice ke lines/totals ko rollback
-            #  nahi karta.)
+            # Ledger sync — deferred during repair resync, because
+            # at that time resync itself syncs the ledger in a separate transaction.
+            # (This way a ledger failure does not roll back the invoice's
+            #  lines/totals.)
             try:
                 from .repair_workflow import ledger_sync_deferred
                 _defer_ledger = ledger_sync_deferred()
@@ -1328,10 +1328,10 @@ class Invoice(SoftDeleteModel):
                 self.customer.recalc_advance_balance()
 
     def restore(self):
-        """Invoice restore = soft-delete cleanup ka mirror (audit bug: restored
-        invoice khaali aata tha). Pehle items restore (har item apna stock
-        re-deduct karta hai), phir header flag — Invoice.save totals + ledger +
-        contact recalc khud chala leta hai kyunki items ab exist karte hain."""
+        """Invoice restore = mirror of the soft-delete cleanup (audit bug: restored
+        invoice came back empty). Restore items first (each item re-deducts
+        its stock), then the header flag — Invoice.save runs totals + ledger +
+        contact recalc on its own because the items now exist."""
         if self.is_deleted:
             with transaction.atomic():
                 for item in InvoiceItem.all_objects.filter(
@@ -1363,11 +1363,11 @@ class Invoice(SoftDeleteModel):
 
     def recompute_payment_state(self):
         """
-        balance_due / payment_status ko allocations + advances ke aggregates
-        (source of truth) se set karo. paid_amount ko yahan use NAHI karte —
-        Payment-side sync (update_invoices / _recalculate_invoice_payment)
-        paid_amount me advance pehle se jod chuka hota hai, aur usse
-        `paid_amount + advance` karna advance ko double-count karta tha.
+        Set balance_due / payment_status from the allocations + advances aggregates
+        (source of truth). We do NOT use paid_amount here —
+        the Payment-side sync (update_invoices / _recalculate_invoice_payment)
+        already adds advance into paid_amount, so
+        `paid_amount + advance` would double-count the advance.
         """
         total_allocations = self.payment_allocations.aggregate(
             total=Sum('amount')
@@ -1377,10 +1377,10 @@ class Invoice(SoftDeleteModel):
         )['total'] or Decimal('0')
         total_paid = total_allocations + total_advance
 
-        # Over-payment (advance > bill) par negative due store NAHI karte —
-        # field MinValueValidator(0) wala hai aur displays "₹-200 Due"
-        # dikha dete. Credit ka exact amount Payment/AdvanceAdjustment aur
-        # Contact.advance_balance me tracked rehta hai.
+        # On over-payment (advance > bill) we do NOT store a negative due —
+        # the field has MinValueValidator(0), and displays would
+        # show "₹-200 Due". The exact credit amount stays
+        # tracked in Payment/AdvanceAdjustment and Contact.advance_balance.
         self.balance_due = max(
             Decimal('0'), self.grand_total - total_paid
         ).quantize(TAX_PRECISION)
@@ -1393,12 +1393,12 @@ class Invoice(SoftDeleteModel):
 
     def apply_available_advance(self, note=''):
         """
-        Customer ke unapplied advance (FIFO) ko is invoice ke balance_due
-        par settle karo — AdvanceAdjustment rows bana ke.
+        Settle the customer's unapplied advance (FIFO) against this invoice's
+        balance_due — by creating AdvanceAdjustment rows.
 
-        Intake par liya gaya advance tab tak sirf customer pool me para
-        rehta hai aur invoice kam-paid dikhta hai, jis se staff/customer
-        dono confuse hote hain. Returns [(Payment, amount)] applied.
+        Advance taken at intake otherwise sits only in the customer pool
+        and the invoice looks under-paid, confusing both
+        staff and customer. Returns [(Payment, amount)] applied.
         """
         if not self.customer_id:
             return []
@@ -1409,13 +1409,13 @@ class Invoice(SoftDeleteModel):
             for pay, avail in self.customer.unapplied_advance_rows():
                 if remaining_due <= 0:
                     break
-                # (payment, invoice) unique_together hai — jo advance pehle se
-                # is invoice par settle hai us par dobara row create mat karo.
+                # (payment, invoice) has unique_together — do not create another row
+                # for advance already settled on this invoice.
                 if AdvanceAdjustment.objects.filter(payment=pay, invoice=self).exists():
                     continue
                 # Payment row-lock + re-read of settled amount UNDER the lock:
-                # bina iske do concurrent invoices ek hi advance ka same
-                # unapplied amount padh kar use double-spend kar sakte the.
+                # without this, two concurrent invoices could read the same
+                # unapplied amount of one advance and double-spend it.
                 pay = Payment.objects.select_for_update().get(pk=pay.pk)
                 settled = AdvanceAdjustment.objects.filter(
                     payment=pay,
@@ -1435,8 +1435,8 @@ class Invoice(SoftDeleteModel):
                 remaining_due -= take
 
         if applied:
-            # sync_advance_adjustment signal DB state recalc kar chuka hai;
-            # in-memory copy refresh karo taaki caller sahi balance_due pade.
+            # sync_advance_adjustment signal has already recalced DB state;
+            # refresh the in-memory copy so the caller gets the correct balance_due.
             self.refresh_from_db(
                 fields=['paid_amount', 'balance_due', 'payment_status']
             )
@@ -1444,9 +1444,9 @@ class Invoice(SoftDeleteModel):
 
     def unapply_advance(self):
         """
-        Is invoice ke saare advance settle hatao — credit wapas customer
-        ke advance pool me chala jata hai (signals invoice/pool recalc
-        karte hain).
+        Remove all advance settlements on this invoice — the credit goes
+        back to the customer's advance pool (signals recalc
+        the invoice/pool).
         """
         adjustments = list(self.advance_adjustments.all())
         if adjustments:
@@ -1477,9 +1477,9 @@ class InvoiceItem(SoftDeleteModel):
         related_name='invoice_items',
         help_text="RepairPart this item was sourced from (audit trail).",
     )
-    # Repair service se aaya hua line — isse invoice ↔ job ka link
-    # deterministic hota hai (pehle sirf description se match hota tha,
-    # jo service add/edit karne par toot jata tha).
+    # Line originating from a repair service — this makes the invoice ↔ job
+    # link deterministic (previously it matched only by description,
+    # which broke when services were added/edited).
     repair_service = models.ForeignKey(
         'RepairService',
         on_delete=models.SET_NULL,
@@ -1531,8 +1531,8 @@ class InvoiceItem(SoftDeleteModel):
             )
             additional = Decimal(str(self.quantity)) - already_deducted
             if additional > 0:
-                # Product row-lock: do concurrent invoice items ek hi
-                # available_stock padh kar dono pass na ho jayein (TOCTOU
+                # Product row-lock: two concurrent invoice items must not both
+                # read the same available_stock and pass (TOCTOU
                 # oversell → negative stock).
                 locked = Product.objects.select_for_update().get(
                     pk=self.product_id,
@@ -1897,9 +1897,9 @@ class Purchase(SoftDeleteModel):
                 self.vendor.recalc_balance()
 
     def restore(self):
-        """Purchase restore = delete() ka mirror: pehle items (stock re-apply),
-        phir header. Header save update_fields se aata hai jo ledger sync skip
-        karta hai, isliye totals+ledger explicitly dobara sync karte hain."""
+        """Purchase restore = mirror of delete(): items first (stock re-apply),
+        then the header. The header save comes via update_fields, which skips
+        ledger sync, so we re-sync totals+ledger explicitly."""
         if self.is_deleted:
             with transaction.atomic():
                 for item in PurchaseItem.all_objects.filter(
@@ -2243,9 +2243,9 @@ class CreditNote(SoftDeleteModel):
                 )
 
     def restore(self):
-        """CreditNote restore = delete ka mirror: items wapas (stock return
-        re-apply), phir header, phir ek plain save() — CN.save ka ledger sync
-        sirf update_fields=None wale save par chalta hai."""
+        """CreditNote restore = mirror of delete: items back (stock return
+        re-apply), then the header, then a plain save() — CN.save's ledger sync
+        only runs on a save with update_fields=None."""
         if self.is_deleted:
             with transaction.atomic():
                 for item in CreditNoteItem.all_objects.filter(
@@ -2388,10 +2388,10 @@ class CreditNoteItem(SoftDeleteModel):
 
 class RepairStatusLog(models.Model):
     """
-    Append-only status history: kaun, kab, kya, kyun, kahan se.
+    Append-only status history: who, when, what, why, from where.
 
-    Ye row kabhi update/delete nahi hoti (admin me bhi read-only).
-    `RepairJob.timeline()` ise UI-friendly shape me deta hai.
+    This row is never updated/deleted (read-only even in admin).
+    `RepairJob.timeline()` returns it in a UI-friendly shape.
     """
     repair_job = models.ForeignKey(
         'RepairJob', on_delete=models.CASCADE, related_name='status_history',
@@ -2446,8 +2446,8 @@ class RepairStatusLog(models.Model):
 
 
 class RepairJob(SoftDeleteModel):
-    # "Open" = abhi shop me / under-work — dashboard Pending Repairs card
-    # aur repair_list open filter yahi set use karte hain.
+    # "Open" = still in the shop / under work — the dashboard Pending Repairs card
+    # and the repair_list open filter use exactly this set.
     OPEN_STATUSES = ['pending', 'received', 'diagnosis', 'repairing', 'ready']
     STATUS_CHOICES = (
         ('pending',    'Pending (Awaiting Receipt)'),
@@ -2535,11 +2535,11 @@ class RepairJob(SoftDeleteModel):
     delivered_by = models.CharField(max_length=100, blank=True, null=True)
 
     # ---------- Timeline tracking ----------
-    # `null=True, blank=True` zaroori hai — warna admin/form me ye field
-    # REQUIRED ho jati hai (DateField + default hone par bhi Django form
-    # ise required maangta hai), aur admin se naya job ban hi nahi paata.
-    # Value `save()` me auto-fill hoti hai (received_at → submitted_at →
-    # aaj ki date).
+    # `null=True, blank=True` is required — otherwise this field becomes
+    # REQUIRED in admin/forms (even with DateField + default, Django forms
+    # demand it as required), and a new job can't be created from admin at all.
+    # The value is auto-filled in `save()` (received_at → submitted_at →
+    # today's date).
     date_in = models.DateField(null=True, blank=True, help_text="Auto: pehla entry date (received_at ya aaj).",)
     submitted_at = models.DateTimeField(null=True, blank=True, help_text="Auto: when customer submitted via online portal")
     received_at = models.DateField(null=True, blank=True, help_text="Staff: when device physically arrived at shop")
@@ -2674,8 +2674,8 @@ class RepairJob(SoftDeleteModel):
     def _compute_final_amount(self):
         """
         SINGLE source of truth for final_amount (audit bug C-3 follow-up):
-        invoiced job ka amount invoice.grand_total hai (tax/discount ke saath,
-        resync_invoice ke set se match); bina invoice ke parts+services total.
+        for an invoiced job the amount is invoice.grand_total (incl. tax/discount,
+        matching what resync_invoice sets); without an invoice, parts+services total.
         """
         if self.invoice_id:
             inv_total = Invoice.objects.filter(
@@ -2699,15 +2699,15 @@ class RepairJob(SoftDeleteModel):
 
         # ============================================================
         # AUTO-SYNC date_in
-        # - Agar received_at set hai → date_in = received_at (staff / received customer)
-        # - Warna submitted_at.date() (customer pending)
+        # - If received_at is set → date_in = received_at (staff / received customer)
+        # - Otherwise submitted_at.date() (customer pending)
         # ============================================================
         if self.received_at:
             self.date_in = self.received_at
         elif self.submitted_at:
             self.date_in = self.submitted_at.date()
         elif not self.date_in:
-            # Admin/form se banaya gaya job — aaj ki date (warna NULL reh jata)
+            # Job created from admin/form — today's date (otherwise it stays NULL)
             self.date_in = timezone.localdate()
 
         # ============================================================
@@ -2786,10 +2786,10 @@ class RepairJob(SoftDeleteModel):
         super().save(*args, **kwargs)
 
         # Notifications on status change
-        # NOTE: `_suppress_status_notification` true hone par skip — kyunki
-        # `repair_workflow.RepairJob.change_status()` notification ko status
-        # history row ke baad (exactly once) bhejta hai. Isse customer ko
-        # duplicate notification nahi jata.
+        # NOTE: skipped when `_suppress_status_notification` is true — because
+        # `repair_workflow.RepairJob.change_status()` sends the notification after
+        # the status history row (exactly once). This way the customer
+        # does not get a duplicate notification.
         if (old_status and old_status != self.status
                 and not getattr(self, '_suppress_status_notification', False)):
             try:
@@ -2830,24 +2830,24 @@ class RepairJob(SoftDeleteModel):
 
     def restore(self, *args, **kwargs):
         """
-        Soft-deleted repair job wapas laao — parts/services aur STOCK ke saath.
+        Bring back a soft-deleted repair job — with parts/services and STOCK.
 
-        ⚠️ KYUN ZAROORI HAI (AUDIT C-2):
-        `SoftDeleteModel.restore()` sirf `is_deleted=False` karta hai. Repair
-        job ke liye ye adhoora hai, kyunki:
-          • `delete()` ne parts/services bhi soft-delete kiye the aur stock
-            wapas add kiya tha
-          • simple restore par parts/services deleted hi rehte the (job khali
-            dikhta tha)
-          • aur stock wapas KATTA nahi tha → inventory galat
+        ⚠️ WHY THIS IS NEEDED (AUDIT C-2):
+        `SoftDeleteModel.restore()` only sets `is_deleted=False`. For a repair
+        job that is incomplete, because:
+          • `delete()` also soft-deleted the parts/services and added stock
+            back
+          • on a simple restore parts/services stayed deleted (the job looked
+            empty)
+          • and stock was NOT re-deducted → wrong inventory
 
-        Ye method teeno theek karta hai:
+        This method fixes all three:
 
-          1. job ko restore karo
-          2. soft-deleted parts restore karo → stock dobara deduct
-          3. soft-deleted services restore karo
-          4. amount recalculate (invoice ho to invoice hi source of truth hai)
-          5. status history me ek RESTORE entry
+          1. restore the job
+          2. restore soft-deleted parts → stock re-deducted
+          3. restore soft-deleted services
+          4. recalculate amount (if invoiced, the invoice is the source of truth)
+          5. add one RESTORE entry to the status history
 
         Returns
         -------
@@ -2859,7 +2859,7 @@ class RepairJob(SoftDeleteModel):
         from django.db import transaction as _tx
 
         with _tx.atomic():
-            # 1. Job khud restore
+            # 1. Restore the job itself
             type(self).all_objects.filter(pk=self.pk).update(
                 is_deleted=False, deleted_at=None, deleted_by=None,
             )
@@ -2867,7 +2867,7 @@ class RepairJob(SoftDeleteModel):
             self.deleted_at = None
             self.deleted_by = None
 
-            # 2 + 3. Parts/services restore (stock wapas deduct hota hai)
+            # 2 + 3. Restore parts/services (stock gets deducted again)
             restored_parts = 0
             for part in list(RepairPart.all_objects.filter(
                 repair_job_id=self.pk, is_deleted=True,
@@ -2882,15 +2882,15 @@ class RepairJob(SoftDeleteModel):
                 service.restore()
                 restored_services += 1
 
-            # 4. Amount — invoiced ho to invoice ka grand_total hi sach hai
+            # 4. Amount — if invoiced, the invoice's grand_total is the truth
             self.refresh_from_db()
             if self.invoice_id:
-                # Invoice hi source of truth hai (resync alag se chalta hai)
+                # The invoice is the source of truth (resync runs separately)
                 pass
             else:
                 self.calculate_final_amount()
 
-            # 5. History me RESTORE entry (audit trail)
+            # 5. RESTORE entry in History (audit trail)
             try:
                 RepairStatusLog.objects.create(
                     repair_job=self,
@@ -2941,7 +2941,7 @@ class RepairPart(SoftDeleteModel):
             )
             additional = Decimal(self.quantity) - already_deducted
             if additional > 0:
-                # Row-lock + floor check (TOCTOU oversell se bachne ke liye)
+                # Row-lock + floor check (to avoid TOCTOU overselling)
                 locked = Product.objects.select_for_update().get(
                     pk=self.product_id,
                 )
@@ -2972,9 +2972,9 @@ class RepairPart(SoftDeleteModel):
         """
         Soft delete + stock reversal.
 
-        Stock movement ko SOFT delete karte hain (hard delete nahi), taaki
-        restore par wapas apply ho sake. `StockMovement.delete()` khud stock
-        reverse karta hai (quantity negative hai isliye minus-minus = plus).
+        The stock movement is SOFT-deleted (not hard-deleted) so it can be
+        re-applied on restore. `StockMovement.delete()` reverses stock
+        itself (quantity is negative, so minus-minus = plus).
         """
         if not self.product.is_service:
             StockMovement.objects.filter(
@@ -2988,11 +2988,11 @@ class RepairPart(SoftDeleteModel):
 
     def restore(self, *args, **kwargs):
         """
-        Soft-deleted part wapas laao — aur stock dobara deduct karo.
+        Bring back a soft-deleted part — and re-deduct its stock.
 
-        Kyun zaroori hai: `delete()` ne stock wapas add kiya tha. Simple
-        `is_deleted=False` karne se stock wapas KATTA nahi, jisse inventory
-        galat ho jati. Isliye restore par movement dobara apply karte hain.
+        Why it's needed: `delete()` had added the stock back. Just setting
+        `is_deleted=False` does NOT re-deduct the stock, which would make
+        inventory wrong. So on restore we re-apply the movement.
         """
         if not self.is_deleted:
             return self
@@ -3003,8 +3003,8 @@ class RepairPart(SoftDeleteModel):
         self.is_deleted = False
         self.deleted_at = None
         self.deleted_by = None
-        # Stock movement dobara banao — `save()` ise recreate karega aur
-        # StockMovement.save() stock dobara deduct karega.
+        # Recreate the stock movement — `save()` will recreate it and
+        # StockMovement.save() will deduct the stock again.
         self.save()
         if job is not None:
             job.calculate_final_amount()
@@ -3072,7 +3072,7 @@ class RepairService(SoftDeleteModel):
             repair_job.calculate_final_amount()
 
     def restore(self, *args, **kwargs):
-        """Soft-deleted service wapas laao (stock par koi asar nahi)."""
+        """Bring back a soft-deleted service (no effect on stock)."""
         if not self.is_deleted:
             return self
         job = self.repair_job
@@ -3502,11 +3502,11 @@ class Payment(SoftDeleteModel):
             super().save(*args, **kwargs)
 
             if self.is_deleted:
-                # soft_delete()/restore() ke save() yahan pahunchte hain.
-                # Delete path par payment.delete() ne ledger already clean kar
-                # diya hota hai — sync dobara chalane par entries RECREATE ho
-                # jaati thin (ghost ledger rows). Restore par is_deleted=False
-                # hota hai, neeche wala sync khud hi entries bana dega.
+                # soft_delete()/restore() saves reach here.
+                # On the delete path, payment.delete() has already cleaned the
+                # ledger — re-running sync would RECREATE the entries
+                # (ghost ledger rows). On restore, is_deleted=False
+                # holds, and the sync below will create the entries itself.
                 return
 
             if is_new:
@@ -3648,9 +3648,9 @@ class Payment(SoftDeleteModel):
                 LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
                 
                 if self.discount_amount > 0:
-                    # Bill ko full discount se kam karna hai: Dr Vendor Payable /
-                    # Cr Discount Received (advance branch jaisa). Peehle signs
-                    # ulti thi — vendor kam hi debit hota aur income expense ban jaati.
+                    # Reduce the bill by the discount: Dr Vendor Payable /
+                    # Cr Discount Received (like the advance branch). Previously the signs
+                    # were reversed — the vendor was debited less and income turned into an expense.
                     discount_acc = get_account('4011', 'Discount Received', 'income', '4')
                     LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=self.discount_amount, credit=0)
                     LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
@@ -3718,8 +3718,8 @@ class Payment(SoftDeleteModel):
                     LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
 
     def create_bank_transaction(self):
-        # Cash never moves through a bank account — till me rehta hai.
-        # (method-based ledger side ke saath consistent rehne ke liye.)
+        # Cash never moves through a bank account — it stays in the till.
+        # (To stay consistent with the method-based ledger side.)
         if not self.bank_account or self.method == 'cash':
             return
         txn_type = 'deposit' if self.direction == 'received' else 'withdrawal'
@@ -3982,8 +3982,8 @@ def _audit_post_save(sender, instance, created, **kwargs):
                 payload['model_label'], payload['object_id'],
             )
 
-    # on_commit: audit rows kabhi business transaction ko poison na karein,
-    # aur rolled-back changes ke liye audit row na bane.
+    # on_commit: audit rows must never poison the business transaction,
+    # and no audit row should be written for rolled-back changes.
     transaction.on_commit(_write_audit)
 
 
@@ -4280,7 +4280,7 @@ class BlogTag(models.Model):
 # ============================================================
 
 class BlogPostQuerySet(models.QuerySet):
-    """Custom queryset — `.published()` shortcut ke saath."""
+    """Custom queryset — with a `.published()` shortcut."""
 
     def published(self):
         return self.filter(
@@ -4386,11 +4386,11 @@ class BlogPost(models.Model):
     # SAVE — auto-slug, excerpt, reading-time, publish-date
     # ────────────────────────────────────────────────────────
     def save(self, *args, **kwargs):
-        # 1. Slug (title change par bhi regenerate nahi karte — SEO stable)
+        # 1. Slug (never regenerate even on title change — SEO stable)
         if not self.slug:
             self.slug = _unique_slug(self, self.title, max_length=280)
 
-        # 2. Plain-text nikalo HTML body se (excerpt + reading time ke liye)
+        # 2. Extract plain text from HTML body (for excerpt + reading time)
         plain = ''
         if self.body:
             plain = re.sub(r'<[^>]+>', ' ', self.body)
@@ -4427,7 +4427,7 @@ class BlogPost(models.Model):
         )
 
     def increment_views(self):
-        """Race-safe view counter (SQL F() expression use karta hai)."""
+        """Race-safe view counter (uses a SQL F() expression)."""
         BlogPost.objects.filter(pk=self.pk).update(views=F('views') + 1)
         self.views = (self.views or 0) + 1
 
@@ -4455,43 +4455,43 @@ def create_or_update_opening_balance_ledger(sender, instance, **kwargs):
     Opening balance ledger entry management.
     
     Smart behavior:
-    - Naya Contact -> create entry
+    - New Contact -> create entry
     - Existing Contact, opening_balance changed -> delete old + create new
-    - Existing Contact, opening_balance same -> kuch mat karo (skip)
+    - Existing Contact, opening_balance same -> do nothing (skip)
     - opening_balance = 0 -> delete entry
     """
-    # Original value DB se lo (agar existing contact hai)
+    # Get original value from DB (if it's an existing contact)
     original_balance = Decimal('0')
-    is_new = not instance.pk  # post_save me pk hamesha hoga, isliye created check
+    is_new = not instance.pk  # pk is always set in post_save, hence the created check
     
-    # Purani opening entry dhundo
+    # Find the old opening entry
     existing_entry = LedgerEntry.objects.filter(
         entry_type='opening',
         reference_id=instance.id,
     ).first()
     
-    # Agar entry pehle se hai aur amount same hai -> kuch nahi karna
+    # If the entry already exists and the amount is the same -> do nothing
     if existing_entry and existing_entry.total_amount == abs(instance.opening_balance or Decimal('0')):
-        # Sirf description update karo (name change hua ho sakta hai)
+        # Update only the description (the name may have changed)
         new_description = f"Opening balance for {instance.name}"
         if existing_entry.description != new_description:
             existing_entry.description = new_description
             existing_entry.save(update_fields=['description'])
         return
     
-    # Amount change hua hai YA entry nahi hai -> delete + recreate.
-    # Atomic: beech me fail hua to purani entry bachi rehti hai, warna
-    # opening balance kitaab se gayab ho jata.
+    # Amount changed OR the entry is missing -> delete + recreate.
+    # Atomic: if it fails midway the old entry survives; otherwise
+    # the opening balance would vanish from the books.
     with transaction.atomic():
         if existing_entry:
             existing_entry.delete()
 
-        # Agar opening_balance 0 hai -> kuch nahi banana
+        # If opening_balance is 0 -> create nothing
         if not instance.opening_balance or instance.opening_balance == 0:
             instance.recalc_balance()
             return
 
-        # Naya entry banao
+        # Create the new entry
         abs_bal = abs(instance.opening_balance)
         entry_date = instance.opening_balance_date or timezone.now().date()
         entry = LedgerEntry.objects.create(
@@ -4648,19 +4648,19 @@ def sync_contact_balance_on_ledger_line_change(sender, instance, **kwargs):
 # ============================================================
 # REPAIR WORKFLOW STATE MACHINE
 # ------------------------------------------------------------
-# `repair_workflow.py` se professional state machine RepairJob par apply
-# hota hai. YE KOI NAYA MODEL NAHI BANATA — sirf methods/config attach
-# karta hai, isliye Django app registry me koi conflict nahi hota.
+# The professional state machine from `repair_workflow.py` is applied to RepairJob
+# here. THIS DOES NOT CREATE ANY NEW MODEL — it only attaches
+# methods/config, so there is no conflict in the Django app registry.
 #
-# Milta hai:
+# Provides:
 #   • Model-layer transition table + business guards (form/view/admin/
-#     shell/script/API — sab ek hi darwaze se)
-#   • Immutable status history: kaun, kab, kya, kyun, kis IP se
-#   • Row-lock (select_for_update) → do staff ek saath click karein to race nahi
+#     shell/script/API — all through one single door)
+#   • Immutable status history: who, when, what, why, from which IP
+#   • Row-lock (select_for_update) → no race if two staff click at once
 #   • Named transitions: mark_received / start_diagnosis / start_repair /
 #     mark_ready / deliver / cancel / reopen_job
-#   • Invoiced job HARD locked, cancel par stock reversal
-#   • Seedha `job.status = 'x'` → guard raise (bypass nahi)
+#   • Invoiced job HARD locked, stock reversal on cancel
+#   • Direct `job.status = 'x'` → guard raises (no bypass)
 # ============================================================
 from .repair_workflow import (            # noqa: E402
     InvalidStatusTransition,
@@ -4673,9 +4673,9 @@ from .repair_workflow import (            # noqa: E402
 
 apply_repair_workflow(RepairJob)
 
-# ── Invoice consistency: invoiced job par line edits block + auto resync ──
-# (AUDIT C-3: invoice banne ke baad parts/services badalne se job ka amount
-#  aur invoice ka amount diverge ho jata tha)
+# ── Invoice consistency: line edits on an invoiced job block + auto resync ──
+# (AUDIT C-3: after an invoice was created, editing parts/services made the
+#  job amount and the invoice amount diverge)
 apply_invoice_consistency(RepairPart, RepairService)
 
 

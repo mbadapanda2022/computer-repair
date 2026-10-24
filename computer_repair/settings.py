@@ -11,9 +11,9 @@ if getattr(__import__('sys'), 'frozen', False):
     import sys as _sys
     BASE_DIR = Path(_sys._MEIPASS)
 
-# DEMO_MODE: Windows-demo exe ke liye (6-month trial, local sqlite, koi
-# secret/production config nahi). Production deployment par ye kabhi ON
-# nahi hota — launcher hi env var set karta hai.
+# DEMO_MODE: for the Windows demo exe (6-month trial, local sqlite, no
+# secrets/production config). Never ON in production — only the launcher
+# sets this env var.
 DEMO_MODE = os.getenv('DEMO_MODE', '').strip().lower() == 'true'
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
@@ -169,17 +169,17 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
-            # DatabaseCache (CACHES) + concurrent requests ke saath
-            # journal_mode=delete transient "unable to open database file"
-            # deta hai (Windows journal-file race). WAL + IMMEDIATE isse
-            # eliminate karta hai — Django 5.1 documented config.
+            # With DatabaseCache (CACHES) + concurrent requests,
+            # journal_mode=delete gives transient "unable to open database
+            # file" errors (Windows journal-file race). WAL + IMMEDIATE
+            # eliminates this — Django 5.1 documented config.
             "OPTIONS": {
                 "transaction_mode": "IMMEDIATE",
-                # temp_store=MEMORY: jab TEMP dir unusable ho (git-bash ka
-                # POSIX-style TEMP Windows SQLite me CANTOPEN deta hai),
-                # statement-journal/temp-file wale statements deterministically
-                # "unable to open database file" fail hote hain. In-memory temp
-                # isse eliminate karta hai (app ka data volume chhota hai).
+                # temp_store=MEMORY: when the TEMP dir is unusable (git-bash's
+                # POSIX-style TEMP causes CANTOPEN in Windows SQLite),
+                # statements needing statement-journal/temp files fail
+                # deterministically with "unable to open database file".
+                # In-memory temp store eliminates this (data volume is small).
                 "init_command": (
                     "PRAGMA journal_mode=WAL;"
                     "PRAGMA synchronous=NORMAL;"
@@ -217,7 +217,7 @@ cloudinary.config(
 )
 
 # ============================================================
-# CLOUDINARY STORAGE — same filename pe overwrite allow karo
+# CLOUDINARY STORAGE — allow overwrite of the same filename
 # ============================================================
 CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.getenv('CLOUDINARY_CLOUD_NAME'),
@@ -309,9 +309,9 @@ ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_LOGOUT_ON_GET = False
-# Registration ka ONLY entry point hamara custom /register/ flow hai (OTP
-# verified). allauth ka /accounts/signup/ 404 kar diya gaya hai urls.py me
-# (is allauth version me ACCOUNT_ALLOW_SIGN_UP setting nahi hai).
+# The ONLY registration entry point is our custom /register/ flow
+# (OTP verified). allauth's /accounts/signup/ is 404'd via a shadow route
+# in urls.py (this allauth version has no ACCOUNT_ALLOW_SIGN_UP setting).
 
 
 if not DEBUG:
@@ -321,8 +321,8 @@ if not DEBUG:
     EMAIL_USE_TLS = True
     EMAIL_HOST_USER = os.getenv('BREVO_HOST_USER', '')
     EMAIL_HOST_PASSWORD = os.getenv('BREVO_SMTP_KEY', '')
-    # Sender: env DEFAULT_FROM_EMAIL set ho toh wahi, warna Staff Settings
-    # ka company email use hota hai (accounting/utils/company_email.py).
+    # Sender: if DEFAULT_FROM_EMAIL is set in env, use it; otherwise the
+    # Staff Settings company email is used (accounting/utils/company_email.py).
     DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', '')
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -393,16 +393,16 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 CSRF_FAILURE_VIEW = 'accounting.views.error_handlers.csrf_failure'
 
 
-# Is project kisi aur ko dene par: yahan apne domain ke origins daalo,
-# ya bina code chhede env var CSRF_TRUSTED_ORIGINS="https://site1,https://site2"
-# set karo (neeche merge hota hai).
+# If handing this project to someone else: add their domain's origins here,
+# or without touching code set the env var
+# CSRF_TRUSTED_ORIGINS="https://site1,https://site2" (merged below).
 CSRF_TRUSTED_ORIGINS = [
     'https://a1computersolutions.onrender.com',
     'https://a1computersolutions.in',
     'https://www.a1computersolutions.in',
 ]
 
-# ENV se bhi allow karo — future proof
+# Also allow origins from ENV — future proof
 _extra = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 if _extra:
     CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra.split(',') if o.strip()]
@@ -410,9 +410,9 @@ if _extra:
 
 # ============================================================
 # DEMO_MODE overrides (Windows demo/trial package) — LAST WORD.
-# Sirf demo launcher ke env se activate hota hai; production par
-# DEMO_MODE kabhi true nahi. Koi secret/SMTP/Cloudinary is mode me
-# use nahi hota; sara data %LOCALAPPDATA% ke andar.
+# Activated only via the demo launcher's env; DEMO_MODE is never true in
+# production. No secrets/SMTP/Cloudinary are used in this mode; all data
+# stays under %LOCALAPPDATA%.
 # ============================================================
 if DEMO_MODE:
     DEMO_PORT = int(os.getenv('DEMO_PORT', '8777'))
@@ -469,10 +469,10 @@ if DEMO_MODE:
     # 6-month trial (accounting/demo_trial.py)
     DEMO_TRIAL_DAYS = int(os.getenv('DEMO_TRIAL_DAYS', '180'))
     DEMO_TRIAL_WARN_DAYS = 30
-    # Build date + trial + buffer: purane builds bhi hamesha expire ho
-    # jaate hain (clock rollback/bypass ka basic guard).
+    # Build date + trial + buffer: old builds always expire too
+    # (basic guard against clock rollback/bypass).
     DEMO_TRIAL_HARD_DEADLINE = os.getenv(
         'DEMO_TRIAL_HARD_DEADLINE',
-        '')  # launcher build-time embed karta hai; khali = skip
+        '')  # embedded by the launcher at build time; empty = skip
 
     MIDDLEWARE.append('accounting.middleware.DemoTrialMiddleware')

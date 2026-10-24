@@ -3,45 +3,45 @@
 Repair Workflow — Professional State Machine (non-model module)
 ==============================================================
 
-YE FILE KOI MODEL DEFINE NAHI KARTI — isliye Django ke app registry me
-koi conflict nahi hota. Isme sirf:
+This file defines NO MODELS — hence no conflict in Django's app registry.
+It contains only:
 
   1. `StatusMachineMixin`      — reusable, model-layer state machine
-  2. `Transition`              — ek transition ka metadata + onward graph
+  2. `Transition`              — one transition's metadata + onward graph
   3. `InvalidStatusTransition` — ValidationError subclass (forms/admin friendly)
-  4. `RepairWorkflowMixin`     — RepairJob ke guards + side-effects
+  4. `RepairWorkflowMixin`     — RepairJob's guards + side-effects
   5. `REPAIR_TRANSITIONS`      — transition table (single source of truth)
-  6. `apply_repair_workflow()` — RepairJob class par methods inject karta hai
+  6. `apply_repair_workflow()` — injects methods onto the RepairJob class
 
 INSTALL
 ───────
-`models.py` ke aakhir me (sab classes ke baad):
+At the end of `models.py` (after all classes):
 
     from .repair_workflow import apply_repair_workflow
     apply_repair_workflow(RepairJob)
     from .repair_workflow import RepairWorkflowMixin, RepairStatusLogMixin  # noqa
 
-`RepairStatusLog` model ko `models.py` me define karna hai (ek hi app me ek
-model — Django ka rule). Iska snippet `repair_workflow_snippet.py` me ready hai.
+The `RepairStatusLog` model must be defined in `models.py` (one model per
+app — Django's rule). Its snippet is ready in `repair_workflow_snippet.py`.
 
-KYA MILTA HAI
-─────────────
+WHAT YOU GET
+────────────
     job.mark_received(by=user, remarks='...')
     job.start_diagnosis(by=user) → start_repair → mark_ready → deliver
-    job.cancel(by=user, remarks='Customer ne mana kiya')   # stock auto-reverse
-    job.reopen_job(by=user)                # delivered se (force, audited)
+    job.cancel(by=user, remarks='Customer refused')   # stock auto-reverse
+    job.reopen_job(by=user)                # from delivered (force, audited)
     job.available_transitions()            # UI buttons
-    job.timeline()                         # kisne/kab/kyun — poora record
-    job.change_status('ready', force=True) # manager override (audit me mark)
+    job.timeline()                         # who/when/why — full record
+    job.change_status('ready', force=True) # manager override (marked in audit)
 
-Guards (model layer — form/view/admin/shell/script sab ke liye):
-  • Invoiced job HARD locked (force bhi bypass nahi karta)
-  • 'ready' se pehle kam se kam ek part/service/labour
-  • 'delivered' se pehle receiver (naam ya phone)
-  • rejected estimate par repair shuru nahi
-  • terminal state lock (delivered/cancelled)
-  • row-lock (select_for_update) → race-safe
-  • seedha `job.status = 'x'` → guard raise (bypass nahi)
+Guards (model layer — for forms/views/admin/shell/scripts alike):
+  • Invoiced job HARD locked (even force does not bypass)
+  • At least one part/service/labour before 'ready'
+  • Receiver (name or phone) before 'delivered'
+  • Repair cannot start on a rejected estimate
+  • Terminal state lock (delivered/cancelled)
+  • Row lock (select_for_update) → race-safe
+  • Direct `job.status = 'x'` → guard raises (no bypass)
 """
 
 from __future__ import annotations
@@ -71,15 +71,15 @@ __all__ = [
 
 STATUS_FIELD = 'status'
 
-#: Thread-local flag — jab repair ka invoice resync chal raha ho, tab
-#: `Invoice.save()` apna ledger rebuild skip kar deta hai (kyunki resync
-#: khud phase-2 me ledger sync karta hai). Isse ek ledger failure poore
-#: resync (lines + totals) ko rollback nahi karta.
+#: Thread-local flag — while a repair invoice resync is running,
+#: `Invoice.save()` skips its ledger rebuild (because resync itself syncs
+#: the ledger in phase 2). This way one ledger failure does not roll back
+#: the whole resync (lines + totals).
 _resync_local = threading.local()
 
 
 def ledger_sync_deferred() -> bool:
-    """True hone par `Invoice.save()` ledger rebuild skip kare."""
+    """When True, `Invoice.save()` skips the ledger rebuild."""
     return getattr(_resync_local, 'defer_ledger', False)
 
 
@@ -93,10 +93,10 @@ def _set_ledger_deferred(value: bool) -> None:
 
 class Transition:
     """
-    Ek allowed transition ka metadata + onward graph.
+    Metadata for one allowed transition + its onward graph.
 
-    `allowed` = is transition ke baad kahan ja sakte hain. UI buttons,
-    validation aur docs — teeno isi ek source se aate hain.
+    `allowed` = where we can go after this transition. UI buttons,
+    validation and docs all derive from this single source.
     """
     __slots__ = ('allowed', 'label', 'done', 'method', 'icon', 'kind',
                  'confirm', 'force_only')
@@ -122,17 +122,17 @@ class Transition:
 
 class InvalidStatusTransition(ValidationError):
     """
-    Transition rule ka ullanghan.
+    A transition rule was violated.
 
-    ValidationError se inherit — isliye Django forms/admin ise apne aap
-    field error bana dete hain, aur views ka `except ValidationError`
-    bhi ise pakad leta hai.
+    Inherits from ValidationError — so Django forms/admin turn it into a
+    field error automatically, and views' `except ValidationError`
+    catches it too.
     """
     pass
 
 
 # ════════════════════════════════════════════════════════════════
-# 2. CORE STATE MACHINE (reusable — Invoice/Payment par bhi lag sakta hai)
+# 2. CORE STATE MACHINE (reusable — can also be applied to Invoice/Payment)
 # ════════════════════════════════════════════════════════════════
 
 class StatusMachineMixin(models.Model):
@@ -170,7 +170,7 @@ class StatusMachineMixin(models.Model):
 
     @classmethod
     def allowed_next_statuses(cls, from_status):
-        """Wo transitions jo bina force ke ho sakti hain."""
+        """Transitions that are possible without force."""
         rules = cls.transition_rules().get(from_status, {}) or {}
         return {code for code, meta in rules.items()
                 if not getattr(meta, 'force_only', False)}
@@ -197,7 +197,7 @@ class StatusMachineMixin(models.Model):
         ).get(to_status)
 
     def available_transitions(self):
-        """UI buttons — sirf wo transitions jo ABHI valid hain."""
+        """UI buttons — only transitions that are valid RIGHT NOW."""
         return [
             {
                 'status': code,
@@ -225,7 +225,7 @@ class StatusMachineMixin(models.Model):
     def change_status(self, new_status, *, by=None, remarks='',
                       force=False, full_clean=False, idempotent=True):
         """
-        Status badalne ka EKLAUTA raasta.
+        The ONLY path to change status.
 
         Row lock → idempotency → transition table → guards → save →
         immutable history → side-effects.
@@ -282,14 +282,14 @@ class StatusMachineMixin(models.Model):
                 f"(force=True) se ho sakta hai — ye exception hai."
             )
 
-        # 5) Guards (hard rules force par bhi lagti hain)
+        # 5) Guards (hard rules apply even under force)
         self._status_guards(old_status, new_status, force=force)
 
         # 6) Apply + save
-        # NOTE: save() wrapper ka "direct write" guard yahan controlled tareeke
-        # se bypass hota hai — kyunki transition table + guards + history
-        # upar already handle ho chuke hain. Ye flag sirf isi internal save
-        # ke liye hai (aur finally me turant hata diya jata hai).
+        # NOTE: the save() wrapper's "direct write" guard is bypassed here in
+        # a controlled way — the transition table + guards + history were
+        # already handled above. This flag is only for this one internal save
+        # (and is removed immediately in the finally block).
         setattr(self, attr, new_status)
         if full_clean:
             self.full_clean(exclude=None, validate_unique=False)
@@ -300,7 +300,7 @@ class StatusMachineMixin(models.Model):
         finally:
             self._allow_direct_status_write = False
 
-        # 7) Immutable history (notification se pehle — notified_at guard)
+        # 7) Immutable history (before notification — notified_at guard)
         actor = by if getattr(by, 'pk', None) else self._current_actor()
         self._write_status_log(old_status, new_status, actor, remarks,
                                forced=force)
@@ -368,7 +368,7 @@ class StatusMachineMixin(models.Model):
             )
 
     def timeline(self, limit=None):
-        """UI-ready history — purana pehle, with labels + duration."""
+        """UI-ready history — oldest first, with labels + duration."""
         log_model = self._log_model()
         if log_model is None or not self.pk:
             return []
@@ -404,7 +404,7 @@ class StatusMachineMixin(models.Model):
         return rows
 
     def status_duration(self, status):
-        """Kisi status me kitna waqt bita (TAT analytics)."""
+        """Time spent in a given status (TAT analytics)."""
         log_model = self._log_model()
         if log_model is None or not self.pk:
             return None
@@ -455,9 +455,9 @@ class StatusMachineMixin(models.Model):
     # ── write protection ─────────────────────────────────────────
     def save(self, *args, **kwargs):
         """
-        Status seedha set karne par guard (admin dropdown, shell, scripts).
+        Guard against setting status directly (admin dropdown, shell, scripts).
 
-        Escape hatch:
+        Escape hatches:
           • `change_status(..., force=True)` — manager override (audited)
           • `obj._allow_direct_status_write = True` — data-fix/migration
         """
@@ -518,34 +518,35 @@ class StatusMachineMixin(models.Model):
 
 
 # ════════════════════════════════════════════════════════════════
-# 3. REPAIR-SPECIFIC BUSINESS LAYER (inject hone wala mixin)
+# 3. REPAIR-SPECIFIC BUSINESS LAYER (mixin that gets injected)
 # ════════════════════════════════════════════════════════════════
 
 class RepairWorkflowMixin:
     """
-    RepairJob ke guards + side-effects. `apply_repair_workflow()` ise class
-    par attach karta hai — koi naya model nahi banta, isliye Django registry
-    me conflict nahi hota.
+    RepairJob's guards + side-effects. `apply_repair_workflow()` attaches this
+    to the class — no new model is created, so there is no conflict in the
+    Django registry.
     """
 
     # ── guards ───────────────────────────────────────────────────
     def _status_guards(self, old_status, new_status, force=False):
         """
-        HARD (force bhi bypass nahi karta):
-          1. Invoiced job locked — paisa ledger me ja chuka hai.
+        HARD (even force does not bypass):
+          1. Invoiced job locked — money already went to the ledger.
 
-        SOFT (manager force se bypass kar sakta hai):
-          2. 'ready' se pehle kam se kam ek part/service/labour
-          3. 'delivered' se pehle receiver (naam ya phone)
-          4. diagnosis → repairing: rejected estimate par block
+        SOFT (manager can bypass with force):
+          2. At least one part/service/labour before 'ready'
+          3. Receiver (name or phone) before 'delivered'
+          4. diagnosis → repairing: blocked on a rejected estimate
         """
         if self.invoice_id:
-            # Invoice ke baad paisa ledger me ja chuka hai — scope/financial
-            # transitions (parts edit, cancel, back-step) hard-locked rahenge.
-            # Lekin fulfillment step 'ready → delivered' allowed hona chahiye:
-            # create_invoice_from_repair 'ready' par hi invoice banane deta hai,
-            # aur device handover invoice ke BAAD hota hai. Isko block karne se
-            # job hamesha 'ready' par atak jaata (delivery record kabhi nahi).
+            # After invoicing, money has already gone to the ledger — scope/
+            # financial transitions (parts edit, cancel, back-step) stay hard-
+            # locked. But the fulfillment step 'ready → delivered' must be
+            # allowed: create_invoice_from_repair only permits invoicing at
+            # 'ready', and device handover happens AFTER the invoice. Blocking
+            # this would leave the job permanently stuck at 'ready' (a delivery
+            # record would never exist).
             if not (old_status == 'ready' and new_status == 'delivered'):
                 raise InvalidStatusTransition(
                     f"Invoiced job (invoice #{self.invoice_id}) ka status nahi badal "
@@ -586,18 +587,18 @@ class RepairWorkflowMixin:
     # ── side-effects ─────────────────────────────────────────────
     def _on_status_change(self, old_status, new_status):
         """
-        1. Cancel par parts/services reversal (stock wapas inventory me).
-           Pehle ye `views/repairs.py` me inline tha — ab model me hai,
-           isliye admin/shell/script se cancel par bhi stock sahi reverse
-           hota hai.
+        1. Parts/services reversal on cancel (stock returned to inventory).
+           This used to be inline in `views/repairs.py` — now it lives in the
+           model, so cancelling via admin/shell/script also reverses stock
+           correctly.
 
            Config: settings.REPAIR_REVERSE_LINES_ON_CANCEL = False
 
         2. Customer notification (exactly once — notified_at guard).
         """
         if new_status == 'cancelled':
-            # Cancel ka time stamp — tracking page "Job Closed" dikhane ke liye
-            # ise hi use karta hai (admin/shell cancels par bhi lage).
+            # Cancellation timestamp — the tracking page uses this to show
+            # "Job Closed" (so it also gets set for admin/shell cancels).
             self.cancelled_at = timezone.now()
             self.save(update_fields=['cancelled_at'])
 
@@ -607,7 +608,7 @@ class RepairWorkflowMixin:
             for service in list(self.services.all()):
                 service.delete()
             for part in list(self.parts.all()):
-                # RepairPart.delete() → StockMovement delete → stock wapas add
+                # RepairPart.delete() → StockMovement delete → stock added back
                 part.delete()
             logger.info(
                 "RepairJob cancelled — parts/services reversed | job=%s",
@@ -676,7 +677,7 @@ class RepairWorkflowMixin:
         return self.change_status('cancelled', by=by, remarks=remarks, **kwargs)
 
     def reopen_job(self, by=None, remarks='', **kwargs):
-        """Delivered job wapas 'repairing' me — force (audited exception)."""
+        """Delivered job back to 'repairing' — force (audited exception)."""
         kwargs.setdefault('force', True)
         return self.change_status(
             'repairing', by=by,
@@ -705,23 +706,22 @@ class RepairWorkflowMixin:
     # ── invoice resync / drift (AUDIT C-3) ───────────────────────
     def resync_invoice(self, *, rebuild_ledger=True, update_job_amount=True):
         """
-        Job ke parts/services ko invoice ke line items ke saath sync karo.
+        Sync the job's parts/services with the invoice's line items.
 
         Returns
         -------
         dict : {'created': n, 'synced': n, 'removed': n, 'total': Decimal}
 
-        Kab chalayein: `edit_invoiced=True` se line edit ke baad, job restore
-        ke baad, ya kisi manual data-fix ke baad.
+        When to run: after editing lines with `edit_invoiced=True`, after
+        restoring a job, or after any manual data-fix.
         """
         if not self.invoice_id:
             return {'created': 0, 'synced': 0, 'removed': 0, 'total': None}
 
         # ── Re-entrancy guard ──
-        # Resync ke andar line saves hote hain, jo khud resync trigger kar
-        # sakte hain (infinite/nested loop + transaction breakage). Isliye
-        # pehla resync hi kaam karta hai, nested calls turant return ho jate
-        # hain.
+        # Resync runs line saves internally, which could themselves trigger
+        # resync (infinite/nested loop + transaction breakage). So only the
+        # first resync does work; nested calls return immediately.
         if getattr(self, '_invoice_resync_running', False):
             return {'created': 0, 'synced': 0, 'removed': 0,
                     'total': None, 'skipped': 'reentrant'}
@@ -729,22 +729,22 @@ class RepairWorkflowMixin:
         from django.db import transaction as _tx
 
         self._invoice_resync_running = True
-        # Ledger rebuild ko phase-2 tak defer karo (warna `Invoice.save()`
-        # ke andar ka sync failure phase-1 ke lines/totals ko rollback
-        # kar deta hai — yahi asli bug tha).
+        # Defer the ledger rebuild until phase 2 (otherwise a sync failure
+        # inside `Invoice.save()` would roll back phase-1's lines/totals —
+        # that was the original bug).
         _set_ledger_deferred(True)
         try:
-            # ═══ PHASE 1: lines + totals (ye kabhi fail nahi hona chahiye) ═══
+            # ═══ PHASE 1: lines + totals (must never fail) ═══
             with _tx.atomic():
                 invoice = type(self).invoice.field.related_model.objects.get(
                     pk=self.invoice_id
                 )
 
-                # ⚠️ ZAROORI: reverse-relation cache saaf karo.
-                # Django `self.parts` / `self.services` ko instance par cache
-                # kar leta hai. Line save hone ke baad bhi wo purani (stale)
-                # values deta hai — isi wajah se resync invoice ko purane
-                # amount par chhod deta tha.
+                # ⚠️ IMPORTANT: clear the reverse-relation cache.
+                # Django caches `self.parts` / `self.services` on the instance.
+                # Even after lines are saved it keeps returning stale values —
+                # that is why resync used to leave the invoice at the old
+                # amount.
                 self.refresh_from_db()
 
                 result = self._sync_lines_to_invoice(invoice)
@@ -760,17 +760,17 @@ class RepairWorkflowMixin:
                     Decimal('0.00'),
                 ).quantize(Decimal('0.01'))
 
-            # Job ka amount bhi yahin set kar do (phase 1 commit ke baad)
+            # Set the job's amount here too (after the phase-1 commit)
             if update_job_amount:
                 type(self).all_objects.filter(pk=self.pk).update(
                     final_amount=invoice.grand_total,
                 )
                 self.final_amount = invoice.grand_total
 
-                # ── Drift check (sirf warning) ──
-                # Asli signal: job ka amount vs invoice ka amount. Lines ka
-                # internal comparison cache-sensitive hai, isliye uske liye
-                # `job.invoice_drift` property (fresh queries) use karein.
+                # ── Drift check (warning only) ──
+                # Real signal: job amount vs invoice amount. The internal
+                # comparison of lines is cache-sensitive, so for that use the
+                # `job.invoice_drift` property (fresh queries).
                 if self.final_amount != invoice.grand_total:
                     logger.warning(
                         "Amount drift after resync | job=%s | invoice=%s vs "
@@ -780,17 +780,17 @@ class RepairWorkflowMixin:
                         self.final_amount, self.pk,
                     )
 
-            # ═══ PHASE 2: ledger (best-effort — ALAG transaction) ═══
-            # Ledger sync failure ka asar lines/totals par NAHI padta, kyunki
-            # ye apna alag transaction hai. Ye critical tha: pehle ledger ka
-            # error poore resync ko rollback kar deta tha, jisse invoice me
-            # purane amounts hi rehte the (aur item gayab tak ho jate the).
+            # ═══ PHASE 2: ledger (best-effort — SEPARATE transaction) ═══
+            # A ledger sync failure does NOT affect lines/totals, because this
+            # is its own separate transaction. This was critical: earlier a
+            # ledger error rolled back the whole resync, leaving the invoice
+            # at its old amounts (and items could even disappear).
             if rebuild_ledger:
                 try:
                     with _tx.atomic():
                         from .models import sync_invoice_ledger
-                        # Ledger ko ab explicit sync karo (phase-2 me) —
-                        # Invoice.save() ne ise defer kar diya tha.
+                        # Sync the ledger explicitly now (in phase 2) —
+                        # Invoice.save() had deferred it.
                         _set_ledger_deferred(False)
                         try:
                             sync_invoice_ledger(invoice)
@@ -812,10 +812,10 @@ class RepairWorkflowMixin:
         """
         Parts/services → invoice items (create / update / soft-delete).
 
-        Matching DETERMINISTIC hai:
+        Matching is DETERMINISTIC:
           • part    → `InvoiceItem.repair_part_id`
-          • service → `InvoiceItem.repair_service_id` (naya FK)
-          • purane records jinka link nahi hai → description match (fallback)
+          • service → `InvoiceItem.repair_service_id` (new FK)
+          • older records without a link → description match (fallback)
         """
         from .models import InvoiceItem
 
@@ -824,7 +824,7 @@ class RepairWorkflowMixin:
         by_service = {
             i.repair_service_id: i for i in existing if i.repair_service_id
         }
-        # Fallback: purane invoice items (link ke bina) — description se match
+        # Fallback: old invoice items (without link) — match by description
         orphan_service = {
             f'{i.product_id}:{i.description}': i
             for i in existing
@@ -859,7 +859,7 @@ class RepairWorkflowMixin:
                            or f"[{self.job_number}] {service.product.name}")
             item = by_service.get(service.pk)
             if item is None:
-                # Fallback: purane unlinked item ko dhoondo
+                # Fallback: find an old unlinked item
                 item = orphan_service.get(f'{service.product_id}:{description}')
 
             if item is None:
@@ -875,7 +875,7 @@ class RepairWorkflowMixin:
                 item.product = service.product
                 item.description = description
                 item.unit_price = service.amount
-                item.repair_service = service      # link bhi fix ho jata hai
+                item.repair_service = service      # link gets fixed too
                 item.stock_already_deducted = True
                 item.save()
                 synced += 1
@@ -894,8 +894,8 @@ class RepairWorkflowMixin:
         """
         (invoice_total, line_total, difference).
 
-        difference != 0 = job ke lines aur invoice ke beech mismatch hai
-        (audit/control report ke liye).
+        difference != 0 = mismatch between the job's lines and the invoice
+        (for audit/control reports).
         """
         from decimal import Decimal as _D
         invoice_total = self.invoiced_amount if self.invoice_id else None
@@ -907,10 +907,10 @@ class RepairWorkflowMixin:
     # ── notification duplicate-guard wrapper ─────────────────────
     def _notify_status_change(self):
         """
-        Status-change notification — `_suppress_status_notification` set ho to
-        skip. `apply_repair_workflow()` is method ko RepairJob.save() ke
-        notification block se call karwata hai (aur asli notification
-        `change_status()` ke through, history row ke baad, jaati hai).
+        Status-change notification — skipped if `_suppress_status_notification`
+        is set. `apply_repair_workflow()` has this method called from
+        RepairJob.save()'s notification block (while the real notification
+        goes out via `change_status()`, after the history row).
         """
         if getattr(self, '_suppress_status_notification', False):
             return
@@ -937,7 +937,7 @@ class RepairWorkflowMixin:
 
 
 # ════════════════════════════════════════════════════════════════
-# 4. TRANSITION TABLE — business rules ka single source of truth
+# 4. TRANSITION TABLE — single source of truth for business rules
 # ════════════════════════════════════════════════════════════════
 #
 #   pending ──received──► received ──diagnosis──► diagnosis
@@ -960,10 +960,10 @@ REPAIR_TRANSITIONS = {
             icon='bi-box-arrow-in-down', kind='primary',
             confirm="Device shop par receive hua? Timeline me aaj ki date lag jayegi.",
         ),
-        # Legacy path: estimate approve hone par seedha repair shuru (diagnosis
-        # skip). Ye aapke purane views ka behaviour tha — isliye explicit
-        # rakha gaya hai, chup-chaap marne nahi diya. Agar aap chahein ki
-        # har job diagnosis se guzre, to bas ye 6 lines hata dein.
+        # Legacy path: repair starts directly on estimate approval (diagnosis
+        # skipped). This was the behaviour of your old views — kept explicit
+        # on purpose, not silently dropped. If you want every job to go
+        # through diagnosis, just remove these 6 lines.
         'repairing': Transition(
             {'ready', 'cancelled'},
             label='Start Repair (direct)', method='start_repair',
@@ -1024,9 +1024,9 @@ REPAIR_TRANSITIONS = {
             confirm="Device customer ko de diya? 'Received By' (naam ya phone) "
                     "bhara hona zaroori hai.",
         ),
-        # Customer ne delivery mana kar di / estimate reject kiya / device
-        # pickup nahi — 'ready' se bhi cancel ho sakta hai (reason + optional
-        # charge view me handle hota hai).
+        # Customer refused delivery / rejected the estimate / device not
+        # picked up — cancel is possible from 'ready' too (reason + optional
+        # charge handled in the view).
         'cancelled': Transition(
             set(), label='Cancel Job', method='cancel',
             icon='bi-x-octagon', kind='danger',
@@ -1044,10 +1044,10 @@ REPAIR_TRANSITIONS = {
         ),
     },
     'cancelled': {
-        # Cancelled job sirf DELIVERED ho sakta hai — device customer ko
-        # wapas de diya gaya (device yahan hi pada tha, repair nahi hui).
-        # Ye aapke purane view ka rule tha (cancelled → delivered allowed),
-        # isliye state machine me bhi wahi rakha gaya hai.
+        # A cancelled job can only become DELIVERED — device handed back to
+        # the customer (it was sitting here; repair never happened).
+        # This was the rule in your old view (cancelled → delivered allowed),
+        # so the state machine keeps the same behaviour.
         'delivered': Transition(
             set(), label='Device Returned (Delivered)', method='deliver',
             icon='bi-arrow-return-left', kind='secondary',
@@ -1057,31 +1057,32 @@ REPAIR_TRANSITIONS = {
     },
 }
 
-#: Sirf 'delivered' terminal hai. 'cancelled' se device wapas diya ja sakta
-#: hai (cancelled → delivered) — isliye wo terminal NAHI hai.
+#: Only 'delivered' is terminal. From 'cancelled' the device can be handed
+#: back (cancelled → delivered) — so 'cancelled' is NOT terminal.
 REPAIR_TERMINAL_STATUSES = frozenset({'delivered'})
 
 
 # ════════════════════════════════════════════════════════════════
-# 6. INVOICE CONSISTENCY (invoiced job ka amount diverge na ho)
+# 6. INVOICE CONSISTENCY (invoiced job's amount must not diverge)
 # ════════════════════════════════════════════════════════════════
 
 class InvoiceConsistencyMixin:
     """
-    RepairPart / RepairService ke liye guards + invoice resync.
+    Guards + invoice resync for RepairPart / RepairService.
 
     PROBLEM (AUDIT C-3):
-      Invoice ban jaane ke baad bhi staff part/service add ya remove kar
-      sakta tha. `calculate_final_amount()` sirf job ka `final_amount`
-      badalta tha — invoice ka `grand_total` nahi. Natija: job ₹9,000
-      dikhata, invoice ₹4,500 rehta, aur ₹4,500 ka extra stock kat chuka
-      hota → books aur inventory me silent farq.
+      Even after an invoice existed, staff could still add or remove
+      parts/services. `calculate_final_amount()` only changed the job's
+      `final_amount` — not the invoice's `grand_total`. Result: the job
+      showed ₹9,000 while the invoice stayed at ₹4,500, and ₹4,500 of extra
+      stock had already been deducted → silent divergence in books and
+      inventory.
 
     SOLUTION:
-      • Invoiced job par line add/change/remove → BLOCK (saaf message)
-      • `edit_invoiced=True` pass karein (ya settings flag) → allowed,
-        aur invoice turant resync ho jata hai
-      • `job.resync_invoice()` — manual data-fix ke liye
+      • add/change/remove a line on an invoiced job → BLOCK (clear message)
+      • pass `edit_invoiced=True` (or the settings flag) → allowed, and the
+        invoice resyncs immediately
+      • `job.resync_invoice()` — for manual data-fixes
       • `job.invoice_drift` — mismatch report
     """
 
@@ -1092,18 +1093,18 @@ class InvoiceConsistencyMixin:
         return job, locked
 
     def _edit_allowed(self, edit_invoiced_flag=False):
-        """`edit_invoiced=True` ya settings flag — dono me se koi ek."""
+        """Either `edit_invoiced=True` or the settings flag — one of the two."""
         if edit_invoiced_flag:
             return True
         return bool(getattr(settings, 'REPAIR_ALLOW_INVOICED_LINE_EDIT', False))
 
     def _line_changed(self):
         """
-        Kya is line ke invoice-affecting fields badle?
+        Did any invoice-affecting field of this line change?
 
-        RepairPart aur RepairService ke fields ALAG hain (part me `quantity` +
-        `unit_price`, service me `amount`), isliye sirf wo fields compare
-        karte hain jo model me actually maujood hain.
+        RepairPart and RepairService have DIFFERENT fields (part: `quantity` +
+        `unit_price`; service: `amount`), so only compare the fields that
+        actually exist on the model.
         """
         if self.pk is None:
             return True
@@ -1123,8 +1124,8 @@ class InvoiceConsistencyMixin:
 
     # ── save ─────────────────────────────────────────────────────
     def _pro_save(self, *args, **kwargs):
-        # `soft_delete()` internally `self.save()` call karta hai — tab
-        # instance par ye flag set hota hai, taaki guard dobara na lage.
+        # `soft_delete()` internally calls `self.save()` — then this flag is
+        # set on the instance so the guard does not fire again.
         edit_invoiced = bool(
             kwargs.pop('edit_invoiced', False)
             or getattr(self, '_invoice_edit_authorised', False)
@@ -1142,20 +1143,20 @@ class InvoiceConsistencyMixin:
                 f"REPAIR_ALLOW_INVOICED_LINE_EDIT = True karein."
             )
 
-        # ⚠️ `_line_changed()` save se PEHLE check karo — save ke baad DB
-        # already updated hoti hai aur comparison hamesha False deta hai.
+        # ⚠️ Check `_line_changed()` BEFORE save — after save the DB is
+        # already updated and the comparison would always return False.
         changed = self._line_changed()
 
         result = self._pro_original_save(*args, **kwargs)
 
         if locked and job is not None and changed:
             try:
-                # Job ko fresh laao (purana instance status/dates stale ho sakta)
+                # Refetch the job (the old instance's status/dates may be stale)
                 self.repair_job.resync_invoice()
             except Exception:
-                # ⚠️ Line edit kabhi fail na ho sirf isliye ki invoice sync
-                # nahi ho paya — log karo aur aage badho.
-                # (Resync `job.resync_invoice()` se dobara chala sakte hain.)
+                # ⚠️ A line edit must never fail just because the invoice
+                # could not sync — log and move on.
+                # (Resync can be re-run via `job.resync_invoice()`.)
                 logger.exception(
                     "Invoice resync failed after line save (line save hua hai) "
                     "| job=%s | %s#%s",
@@ -1176,17 +1177,17 @@ class InvoiceConsistencyMixin:
                 f"(invoice turant update ho jayega)."
             )
 
-        # Soft-delete (ya legacy hard-delete) — internal save ke waqt guard
-        # dobara na lage, isliye instance par authorisation flag set karte hain
+        # Soft-delete (or legacy hard-delete) — set the authorisation flag on
+        # the instance so the guard does not fire again during internal saves
         self._invoice_edit_authorised = True
         try:
             self._pro_original_delete(*args, **kwargs)
         finally:
             self._invoice_edit_authorised = False
 
-        # Soft-delete ke baad line invoice me nahi aani chahiye — resync.
-        # (Delete ke waqt job bhi deleted ho sakta hai, aur `save()` guard
-        # status par lagta hai — isliye job ko bypass flag ke saath sync karo.)
+        # After a soft-delete the line must not appear in the invoice — resync.
+        # (The job may also be deleted during delete, and the `save()` guard
+        # fires on status — so sync the job with the bypass flag set.)
         if locked and job is not None:
             try:
                 self.repair_job._allow_direct_status_write = True
@@ -1202,10 +1203,10 @@ class InvoiceConsistencyMixin:
 
 def apply_invoice_consistency(part_model, service_model):
     """
-    RepairPart + RepairService par invoice-consistency guards lagata hai.
+    Installs invoice-consistency guards on RepairPart + RepairService.
 
-    Idempotent — dobara chalane par purane original save/delete reuse hote
-    hain (double wrapping nahi hoti).
+    Idempotent — re-running reuses the stored original save/delete (no double
+    wrapping).
     """
     for model in (part_model, service_model):
         if getattr(model, '_invoice_consistency_applied', False):
@@ -1223,29 +1224,29 @@ def apply_invoice_consistency(part_model, service_model):
 
 
 # ════════════════════════════════════════════════════════════════
-# 7. APPLY — RepairJob par sab kuch inject karo (naya model nahi)
+# 7. APPLY — inject everything onto RepairJob (no new model)
 # ════════════════════════════════════════════════════════════════
 
 def apply_repair_workflow(job_model, log_model_name='RepairStatusLog'):
     """
-    `RepairJob` (ya koi bhi model) par state machine inject karta hai.
+    Injects the state machine onto `RepairJob` (or any model).
 
-    Kya karta hai:
-      1. `StatusMachineMixin` methods add karta hai (agar inherit nahi hue)
-      2. `RepairWorkflowMixin` ke guards/side-effects/named transitions add karta hai
-      3. Transition table + log model set karta hai
-      4. Wrapper `save()` lagata hai jo status guard + notification suppression
-         handle karta hai (purana save bilkul waise hi chalta hai)
+    What it does:
+      1. Adds `StatusMachineMixin` methods (if not already inherited)
+      2. Adds `RepairWorkflowMixin`'s guards/side-effects/named transitions
+      3. Sets the transition table + log model
+      4. Installs a wrapper `save()` that handles the status guard +
+         notification suppression (the original save runs exactly as before)
 
     Returns
     -------
-    The same class (mutated) — naya model register nahi hota.
+    The same class (mutated) — no new model gets registered.
     """
-    # ── 1. Core mixin methods — CLASS PAR DIRECT inject karo ──
-    # ZAROORI DETAIL: classmethod ko `getattr(mixin_cls, name)` se lene par wo
-    # ALREADY BOUND milta hai (__self__ = StatusMachineMixin). Seedha setattr
-    # karne par `cls` mixin hi rehta hai → "StatusMachineMixin has no field
-    # named 'status'". Isliye classmethod ko UNWRAP karke dobara wrap karte hain.
+    # ── 1. Core mixin methods — inject DIRECTLY onto the CLASS ──
+    # IMPORTANT DETAIL: fetching a classmethod via `getattr(mixin_cls, name)`
+    # returns it ALREADY BOUND (__self__ = StatusMachineMixin). Setting it via
+    # setattr directly would leave `cls` as the mixin → "StatusMachineMixin
+    # has no field named 'status'". So we UNWRAP the classmethod and re-wrap it.
     for name in ('change_status', 'advance', 'transition_rules',
                  'status_choices', 'status_label', 'allowed_next_statuses',
                  'can_transition_to', 'next_status', 'transition_for',
@@ -1267,7 +1268,7 @@ def apply_repair_workflow(job_model, log_model_name='RepairStatusLog'):
                  'resync_invoice', '_sync_lines_to_invoice'):
         setattr(job_model, name, getattr(RepairWorkflowMixin, name))
 
-    # ── 3. Properties (property object hi attach hota hai) ──
+    # ── 3. Properties (the property object itself is what gets attached) ──
     job_model.status_badge_class = RepairWorkflowMixin.status_badge_class
     job_model.status_icon = RepairWorkflowMixin.status_icon
     job_model.is_terminal = RepairWorkflowMixin.is_terminal
@@ -1297,8 +1298,8 @@ def apply_repair_workflow(job_model, log_model_name='RepairStatusLog'):
                 "sab chalenge."
             )
 
-        # Purana save chalao — uske andar ka status-notification suppress
-        # ho jayega (asli notification change_status() bhejta hai).
+        # Run the original save — the status notification inside it gets
+        # suppressed (the real notification is sent by change_status()).
         self._suppress_status_notification = True
         try:
             result = original_save(self, *args, **kwargs)

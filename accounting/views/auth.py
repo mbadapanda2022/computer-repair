@@ -551,9 +551,9 @@ def verify_otp_view(request):
                 'Please enter a valid 6-digit OTP.',
             )
 
-        # Brute-force guard: OTP ke lifetime me limited wrong attempts.
-        # Bina iske 6-digit OTP (10^9 combinations... 10^6) ko 10 minute
-        # ki window me parallel requests se todha ja sakta hai.
+        # Brute-force guard: limited wrong attempts during the OTP lifetime.
+        # Without this, a 6-digit OTP (10^9 combinations... 10^6) could be
+        # broken via parallel requests within the 10-minute window.
         attempts_key = f'otp_verify_attempts:{purpose}:{email.lower()}'
         if cache.get(attempts_key, 0) >= OTP_MAX_ATTEMPTS:
             logger.warning(

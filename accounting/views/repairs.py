@@ -127,7 +127,7 @@ def _safe_notify(customer, **kwargs):
 
 
 # ════════════════════════════════════════════════════════════
-# HELPER: Cancellation charge invoice (cancel/reject ke waqt charge)
+# HELPER: Cancellation charge invoice (charge on cancel/reject)
 # ════════════════════════════════════════════════════════════
 CANCEL_CHARGE_PRODUCT_NAME = 'Diagnosis / Service Charge (Cancelled Repair)'
 
@@ -149,7 +149,7 @@ def _get_cancel_charge_product():
 
 
 def _parse_cancel_charge(raw):
-    """Cancel charge ko Decimal me; khaali/galat/negative → 0 (lenient)."""
+    """Parse the cancel charge as Decimal; empty/invalid/negative → 0 (lenient)."""
     raw = (raw or '').strip()
     if not raw:
         return Decimal('0')
@@ -162,10 +162,10 @@ def _parse_cancel_charge(raw):
 
 def _create_cancellation_invoice(job, charge, user, reason):
     """
-    Cancel/reject hone par customer ka charge (diagnosis etc.) — seedha invoice,
-    status-guard wale create_invoice_from_repair se alag raasta (job cancelled
-    status me hota hai aur parts/services lines cancel par delete ho chuke hain).
-    Advance auto-settle bhi hota hai (normal repair invoice jaisa).
+    Charge the customer (diagnosis etc.) on cancel/reject — a direct invoice,
+    a separate path from the status-guarded create_invoice_from_repair (the job
+    is in cancelled status and the parts/services lines are already deleted on
+    cancel). Advance auto-settlement also runs (like a normal repair invoice).
     """
     company = CompanyProfile.get_instance()
     with transaction.atomic():
@@ -211,10 +211,10 @@ def _create_cancellation_invoice(job, charge, user, reason):
             note='Auto-applied on cancellation charge'
         )
 
-        # Model.save() har baar final_amount ko parts+services se recalculata
-        # hai; cancel par lines delete ho chuke hain → 0 aa jata. Charge invoice
-        # ka total final_amount me set karne ke liye save() BYPASS karke
-        # queryset.update() karo.
+        # Model.save() recalculates final_amount from parts+services on every
+        # save; on cancel the lines are already deleted → it would come back 0.
+        # To set the charge invoice's total into final_amount, BYPASS save()
+        # and use queryset.update().
         RepairJob.all_objects.filter(pk=job.pk).update(final_amount=charge)
         job.final_amount = charge
 
@@ -547,7 +547,7 @@ def get_paginated_repairs_context(request, queryset=None):
             Q(serial_number__icontains=search)
         )
     if status == 'open':
-        # Dashboard "Pending Repairs" card ka exact set.
+        # Same exact set as the Dashboard "Pending Repairs" card.
         queryset = queryset.filter(status__in=RepairJob.OPEN_STATUSES)
     elif status:
         queryset = queryset.filter(status=status)
@@ -595,8 +595,8 @@ def get_paginated_repairs_context(request, queryset=None):
         'date_from': date_from,
         'date_to': date_to,
         'status_choices': RepairJob.STATUS_CHOICES,
-        # List view: har job ke liye valid next steps (state machine).
-        # Jo job invoiced/terminal hai uska map khaali — UI lock dikhata hai.
+        # List view: valid next steps for each job (state machine).
+        # Invoiced/terminal jobs get an empty map entry — UI shows a lock.
         'transition_map': {job.pk: job.available_transitions() for job in jobs},
         'stats': stats,
         'filtered_total': filtered_total,
@@ -807,8 +807,8 @@ def repair_update(request, pk):
 
         if form.is_valid():
             # ── 1. Save atomically ──
-            # form.save(commit=True) status ko state machine (change_status)
-            # se guzarata hai — guards + timeline dates + history + notify.
+            # form.save(commit=True) routes status through the state machine
+            # (change_status) — guards + timeline dates + history + notify.
             if (form.cleaned_data.get('status') == 'delivered'
                     and not form.cleaned_data.get('delivery_date')):
                 form.cleaned_data['delivery_date'] = timezone.now().date()
@@ -907,7 +907,7 @@ def repair_detail(request, pk):
         'part_form': RepairPartForm(),
         'status_choices': RepairJob.STATUS_CHOICES,
         # ── State machine context (UI) ──
-        # Dropdown me sirf valid next transitions + immutable status history
+        # Dropdown shows only valid next transitions + immutable status history
         'available_transitions': job.available_transitions(),
         'status_timeline': job.timeline(),
         'status_durations': {
@@ -981,8 +981,8 @@ def update_repair_status(request, pk):
                 f'Status is already "{job.get_status_display()}".',
             )
 
-        # Sirf 'delivered' se aage kuch nahi (cancelled se device wapas diya
-        # ja sakta hai → cancelled → delivered allowed hai)
+        # Only 'delivered' has nothing ahead of it (a cancelled device can be
+        # handed back → cancelled → delivered is allowed)
         if job.status in FORWARD_TERMINAL:
             return _modal_error_response(
                 'error',
@@ -990,7 +990,7 @@ def update_repair_status(request, pk):
                 status=400,
             )
 
-        # ── State machine check (model ka transition table hi sach hai) ──
+        # ── State machine check (the model's transition table is the source of truth) ──
         if not RepairJob.can_transition_to(job.status, new_status):
             allowed = sorted(RepairJob.allowed_next_statuses(job.status))
             allowed_txt = ', '.join(
@@ -1114,25 +1114,25 @@ def update_repair_status(request, pk):
         extra['cancellation_reason'] = cancel_reason
 
     # ── Apply atomically ──
-    # NOTE: Cancel par parts delete karne ki zaroorat NAHI hai — ab wo kaam
-    # model ke `RepairJob._on_status_change()` karta hai (stock reversal ke
-    # saath), taaki admin/shell/script se cancel karne par bhi stock sahi
-    # reverse ho. Yahan se duplicate logic hata di gayi hai.
+    # NOTE: No need to delete parts on cancel here — the model's
+    # `RepairJob._on_status_change()` now does that job (with stock reversal),
+    # so stock reverses correctly even when cancelling from admin/shell/script.
+    # The duplicate logic here was removed.
     charged_invoice = None
     try:
         with transaction.atomic():
-            # Pehle extra fields (dates/remarks) save karo
+            # Save the extra fields (dates/remarks) first
             if extra:
                 for field, value in extra.items():
                     setattr(job, field, value)
                 job.save(update_fields=list(extra.keys()))
 
-            # Ab status change — model ka state machine:
+            # Now the status change — the model's state machine:
             #   • transition table + guards (invoiced lock, receiver, parts)
             #   • timeline date stamping (received_at/ready_at/delivery_date)
-            #   • immutable history (kaun, kab, kyun)
+            #   • immutable history (who, when, why)
             #   • customer notification (exactly once)
-            #   • cancel par stock reversal
+            #   • stock reversal on cancel
             job.change_status(
                 new_status,
                 by=request.user,
@@ -1148,7 +1148,7 @@ def update_repair_status(request, pk):
                     job, cancel_charge, request.user, cancel_reason,
                 )
     except ValidationError as exc:
-        # Guard ka error — user ko saaf message (500 nahi)
+        # Guard error — show the user a clean message (not a 500)
         message = exc.messages[0] if getattr(exc, 'messages', None) else str(exc)
         logger.warning(
             "Status change blocked | job=%s | %s → %s | %s",
@@ -1230,10 +1230,10 @@ def add_repair_part(request, pk):
         )
 
     if request.method == 'POST':
-        # `repair_job` diya jata hai taaki form stock availability is job ke
-        # hisaab se check kare (job par pehle se lage parts bhi count hote
-        # hain) — pehle ye check view me tha aur job ke existing parts ko
-        # nahi ginta tha, jisse jhoota "insufficient stock" error aata tha.
+        # `repair_job` is passed so the form checks stock availability against
+        # this job (parts already attached to the job are also counted) — this
+        # check used to live in the view and did not count the job's existing
+        # parts, which produced a false "insufficient stock" error.
         form = RepairPartForm(request.POST, repair_job=job)
         if form.is_valid():
             product = form.cleaned_data['product']
@@ -1813,9 +1813,9 @@ def create_invoice_from_repair(request, pk):
     # Build invoice atomically
     # ════════════════════════════════════════════════════════
     with transaction.atomic():
-        # Race guard: upar ka check lock ke bahar tha — do concurrent POSTs
-        # dono ek hi job par invoice bana sakte the (last-writer-win, pehla
-        # invoice orphan). Row lock ke andar re-check.
+        # Race guard: the check above was outside the lock — two concurrent POSTs
+        # could both create an invoice on the same job (last-writer-win, first
+        # invoice orphaned). Re-check inside the row lock.
         job = RepairJob.objects.select_for_update().get(pk=job.pk)
         if job.invoice_id:
             _clear_repair_invoice_session(request)
@@ -1883,8 +1883,8 @@ def create_invoice_from_repair(request, pk):
                 description=item_data.get('description', ''),
                 stock_already_deducted=skip_stock,
                 repair_part_id=repair_part_id if repair_part_id else None,
-                # Service ka link — isse invoice ↔ job ka resync deterministic
-                # rehta hai (description badalne par bhi tootega nahi)
+                # Service link — keeps the invoice ↔ job resync deterministic
+                # (won't break even if the description changes)
                 repair_service_id=repair_service_id if repair_service_id else None,
             )
             item.save()
@@ -2103,8 +2103,8 @@ def repair_create_for_contact(request, contact_id):
 def staff_approve_estimate(request, pk):
     repair = get_object_or_404(RepairJob, pk=pk)
 
-    # Approved hone ke baad dobara approve na ho; pending/hold/rejected se
-    # approve allowed (customer baad me haan keh sakta hai).
+    # No re-approving once approved; approving from pending/hold/rejected is
+    # allowed (the customer may agree later).
     if repair.estimate_status == 'approved':
         messages.warning(
             request,
@@ -2117,13 +2117,13 @@ def staff_approve_estimate(request, pk):
         remarks = request.POST.get('remarks', '').strip()
 
         with transaction.atomic():
-            # Row lock + re-check: portal se concurrent decision se parity toot-ti hai
+            # Row lock + re-check: a concurrent decision from the portal would break parity
             repair = RepairJob.objects.select_for_update().get(pk=pk)
             if repair.estimate_status == 'approved':
                 messages.warning(request, "This estimate is already approved.")
                 return redirect('accounting:repair_detail', pk=repair.pk)
 
-            # Estimate fields pehle save karo (status ko chhue bina)
+            # Save the estimate fields first (without touching status)
             repair.estimate_status = 'approved'
             repair.estimate_decided_at = None
             repair.estimate_approved_at = timezone.now()
@@ -2138,7 +2138,7 @@ def staff_approve_estimate(request, pk):
                 'estimate_approved_by', 'approval_source', 'approval_remarks',
             ])
 
-            # Status ab state machine se — guards + history + notification
+            # Status now goes through the state machine — guards + history + notification
             if repair.status in ('pending', 'diagnosis'):
                 repair.start_repair(
                     by=request.user,

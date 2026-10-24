@@ -1,17 +1,17 @@
 """
 Regression tests for the full-project audit fixes (2026-10-19).
 
-Chalane ka tareeka:
+Run:
     venv\\Scripts\\python.exe manage.py test accounting.tests_audit_fixes -v 2
 
-Har test ek audit bug ko pin karta hai:
-  B2  repair_update form se status change → state machine (pehle 500)
+Each test pins one audit bug:
+  B2  status change via repair_update form → state machine (previously 500)
   B3  GET-mutation guards (remove part/service, message delete)
   B4  final_amount single source of truth (invoiced = invoice.grand_total)
-  B5  Invoice restore → items + stock + ledger wapas
+  B5  Invoice restore → items + stock + ledger restored
   B7  negative estimated_cost reject
   B8  stock floor + oversell block
-  B9  advance dobara apply na ho (double-spend cap)
+  B9  advance must not be applied twice (double-spend cap)
   B12 DateField defaults timezone.localdate
   B23 rupee filter Indian grouping
 """

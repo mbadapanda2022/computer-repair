@@ -1,15 +1,15 @@
 """
 Trading Account / P&L (Direct-Indirect expense) tests.
 
-Chalane ka tareeka:
+Run:
     python manage.py test accounting.tests_profit_loss -v 2
 
-Production scenario: expenses ka ek hi flat "Expenses" group tha, isliye
-P&L report me Gross Profit aur Net Profit alag-alag nahi dikhate the.
-Migration 0008 se Direct (51) / Indirect (52) groups bane. Report ab:
+Production scenario: expenses had a single flat "Expenses" group, so the
+P&L report could not show Gross Profit and Net Profit separately.
+Migration 0008 created the Direct (51) / Indirect (52) groups. The report now:
   Trading: Sales + Repair − Direct Expenses = Gross Profit
   P&L:     Gross + Other Income − Indirect = Net Profit
-Ledger sums date range ke BAHAR ke entries ko ignore karna chahiye.
+Ledger sums must ignore entries OUTSIDE the date range.
 """
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ class ProfitLossTradingSplitTests(TestCase):
             Account.objects.filter(group=indirect).count(), 20)
 
     def test_migration_is_idempotent(self):
-        """Do baar chalne par duplicate account/group NAHI banne chahiye."""
+        """Running twice must NOT create duplicate accounts/groups."""
         import importlib
         mig = importlib.import_module(
             'accounting.migrations.0008_direct_indirect_expenses_accounts'
@@ -131,7 +131,7 @@ class ProfitLossTradingSplitTests(TestCase):
         self.make_ledger('journal', '2026-01-12',
                          debit_acc=self.rent_acc, debit='1500',
                          credit_acc=self.creditors, credit='1500')
-        # Journal: Dr 5201 Rent 9999 OUT of range — ignore hona chahiye
+        # Journal: Dr 5201 Rent 9999 OUT of range — must be ignored
         self.make_ledger('journal', '2025-12-01',
                          debit_acc=self.rent_acc, debit='9999',
                          credit_acc=self.creditors, credit='9999')

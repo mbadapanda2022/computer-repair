@@ -93,7 +93,7 @@ class BookRepairViewTests(TestCase):
 class AllauthSignupClosedTests(TestCase):
     def test_accounts_signup_never_renders_form(self):
         # Shadowed by _signup_closed 404 route + AccessControl redirect —
-        # the bina-OTP allauth signup must never render an account form.
+        # the allauth signup (which skips OTP) must never render an account form.
         r = self.client.get('/accounts/signup/')
         self.assertEqual(r.status_code, 302)
         final = self.client.get('/accounts/signup/', follow=True)

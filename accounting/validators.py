@@ -20,19 +20,19 @@ def validate_image_binary(value):
     """
     Level 3: Deep binary validation using Pillow (Image.verify()).
 
-    IMPORTANT: Har Image.open() ke baad cursor aage chala jata hai.
-    Cloudinary ko poori file chahiye hoti hai, isliye return karne se
-    PEHLE cursor ko 0 par reset karna ZAROORI hai.
+    IMPORTANT: The cursor advances after every Image.open().
+    Cloudinary needs the whole file, so the cursor MUST be reset
+    to 0 before returning.
     """
     try:
-        # Step 1: File pointer ko start par le jao
+        # Step 1: Move the file pointer to the start
         value.seek(0)
 
-        # Step 2: PIL se verify karo
+        # Step 2: Verify with PIL
         with Image.open(value) as img:
             img.verify()
 
-        # Step 3: Cursor reset (verify ne aage badha diya)
+        # Step 3: Reset cursor (verify moved it forward)
         value.seek(0)
 
         # Step 4: Format check
@@ -41,15 +41,15 @@ def validate_image_binary(value):
             if img_format not in ALLOWED_EXTENSIONS:
                 raise ValidationError(f"Unsupported image format: {img_format}")
 
-        # Step 5: SABSE ZAROORI — return se PEHLE cursor reset
+        # Step 5: MOST IMPORTANT — reset cursor before returning
         value.seek(0)
 
     except ValidationError:
-        # Validation error ko as-is raise karo, cursor reset karke
+        # Re-raise validation error as-is, after resetting the cursor
         value.seek(0)
         raise
     except Exception as e:
-        # Koi bhi PIL/IO error -> cursor reset + ValidationError
+        # Any PIL/IO error -> cursor reset + ValidationError
         value.seek(0)
         raise ValidationError(f"Invalid image file: {e}")
 

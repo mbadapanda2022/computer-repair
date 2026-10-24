@@ -1,9 +1,9 @@
 """
 Dashboard stat-card deep-link tests.
 
-Cards "Pending Invoices"/"Total Due"/"Pending Repairs" composite
-filter tokens (status=pending / status=open) use karte hain — list
-ka content card ke count se exactly match hona chahiye.
+The "Pending Invoices"/"Total Due"/"Pending Repairs" cards use composite
+filter tokens (status=pending / status=open) — the list content must match
+the card's count exactly.
 
     python manage.py test accounting.tests_dashboard_links -v 2
 """

@@ -463,8 +463,9 @@ class Command(BaseCommand):
             credit_note=cn, invoice_item=item, product=item.product,
             quantity_returned=Decimal('1'), unit_price=item.unit_price,
         )
-        # Header save after items triggers the CN ledger sync (views/sales.py
-        # credit-note flow ka mirror) — CreditNoteItem.save syncs khud nahi karta.
+        # Header save after items triggers the CN ledger sync (mirror of the
+        # credit-note flow in views/sales.py) — CreditNoteItem.save does not
+        # sync by itself.
         cn.save()
 
     # ── direct expenses ────────────────────────────────────────
