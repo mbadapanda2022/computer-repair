@@ -413,6 +413,61 @@ class ContactMessageForm(forms.ModelForm):
         return website
 
 
+class BookRepairForm(forms.Form):
+    """Public /book-repair/ form — creates/reuses a customer Contact and
+    opens a pending RepairJob (job number + tracking link on success)."""
+
+    name = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'placeholder': 'Your name'}))
+    phone = forms.CharField(
+        max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'placeholder': '10-digit mobile number'}))
+    device_model = forms.CharField(
+        max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'e.g. HP Pavilion 15, Canon MG2570'}))
+    serial_number = forms.CharField(
+        required=False, max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'placeholder': 'Optional'}))
+    issue_description = forms.CharField(
+        min_length=5, max_length=2000,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control', 'rows': 4,
+            'placeholder': 'Describe the problem…'}))
+    # Honeypot — same silent-bot trap as the contact form.
+    website = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'style': 'display: none !important;',
+            'tabindex': '-1', 'autocomplete': 'off', 'aria-hidden': 'true'}),
+        label="Website (Leave empty)")
+
+    def clean_name(self):
+        name = (self.cleaned_data.get('name') or '').strip()
+        if len(name) < 2:
+            raise ValidationError("Name must be at least 2 characters.")
+        return name
+
+    def clean_phone(self):
+        digits = ''.join(filter(str.isdigit,
+                                self.cleaned_data.get('phone', '')))
+        if len(digits) == 11 and digits.startswith('0'):
+            digits = digits[1:]
+        if len(digits) > 10 and digits.startswith('91'):
+            digits = digits[-10:]
+        if len(digits) != 10:
+            raise ValidationError("Enter a valid 10-digit mobile number.")
+        return digits
+
+    def clean_issue_description(self):
+        return (self.cleaned_data.get('issue_description') or '').strip()
+
+
 # ============================================================
 # 1. COMPANY SETTINGS
 # ============================================================

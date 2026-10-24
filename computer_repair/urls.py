@@ -2,7 +2,15 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import Http404
 from accounting.views import landing_views
+
+
+def _signup_closed(request):
+    """allauth's /accounts/signup/ bypasses our OTP-verified /register/
+    flow — deliberately 404'd (matched before the allauth include)."""
+    raise Http404
+
 
 # Custom Error Handlers
 handler404 = 'accounting.views.error_handlers.custom_404'
@@ -13,6 +21,7 @@ handler400 = 'accounting.views.error_handlers.custom_400'
 urlpatterns = [
     # Admin
     path('admin/', admin.site.urls),
+    path('accounts/signup/', _signup_closed),
     path('accounts/', include('allauth.urls')),
     path('sitemap.xml', landing_views.sitemap_xml, name='sitemap'),
     path('robots.txt', landing_views.robots_txt, name='robots_txt'),
@@ -20,6 +29,7 @@ urlpatterns = [
     # Public Landing Pages
     path('', landing_views.landing, name='home'),
     path('contact-message/', landing_views.contact_message, name='contact_message'),
+    path('book-repair/', landing_views.book_repair, name='book_repair'),
     path('validate-contact-field/', landing_views.validate_contact_field, name='validate_contact_field'),
     path('privacy-policy/', landing_views.privacy_policy, name='privacy_policy'),
     path('cookie-policy/', landing_views.cookie_policy, name='cookie_policy'),

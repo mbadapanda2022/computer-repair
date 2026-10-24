@@ -309,6 +309,9 @@ ACCOUNT_LOGIN_METHODS = {'username', 'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_LOGOUT_ON_GET = False
+# Registration ka ONLY entry point hamara custom /register/ flow hai (OTP
+# verified). allauth ka /accounts/signup/ 404 kar diya gaya hai urls.py me
+# (is allauth version me ACCOUNT_ALLOW_SIGN_UP setting nahi hai).
 
 
 if not DEBUG:

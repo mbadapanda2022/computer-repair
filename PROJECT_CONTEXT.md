@@ -14,7 +14,7 @@
 | **Stack** | Django 5.1.5 + HTMX + Bootstrap 5 + Chart.js |
 | **Hosting** | Render (free tier) + Supabase Postgres + Cloudinary (media) |
 | **Repo** | https://github.com/mbadapanda2022/computer-repair |
-| **Production** | https://a1computersolutions.onrender.com |
+| **Production** | https://a1computersolutions.in |
 | **Django project** | `computer_repair/` |
 | **Main app** | `accounting/` |
 | **Python** | 3.13.5 |

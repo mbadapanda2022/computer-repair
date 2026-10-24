@@ -26,7 +26,10 @@
                     {{ company.about_text|default:"Expert chip-level repair, sales, and service for all brands. Quick turnaround & guaranteed quality." }}
                 </p>
                 <div class="d-flex flex-wrap gap-3">
-                    <a href="#contact" class="btn btn-hero-primary">
+                    <a href="{% url 'book_repair' %}" class="btn btn-hero-primary">
+                        <i class="bi bi-tool me-2" aria-hidden="true"></i>Book a Repair
+                    </a>
+                    <a href="#contact" class="btn btn-hero-ghost">
                         <i class="bi bi-chat-dots me-2" aria-hidden="true"></i>Get a Free Quote
                     </a>
                     <a href="#services" class="btn btn-hero-ghost">

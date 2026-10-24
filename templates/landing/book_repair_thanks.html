@@ -1,0 +1,51 @@
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}Booking Confirmed – {{ company.name|default:"My Company" }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .thanks-card {
+        max-width: 640px;
+        margin: 3rem auto;
+        border: 0;
+        border-radius: 1rem;
+        box-shadow: 0 10px 30px rgba(40, 167, 69, .10);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card thanks-card">
+        <div class="card-body p-4 p-md-5 text-center">
+            {% if job %}
+                <div style="font-size:3rem;line-height:1;">&#9989;</div>
+                <h1 class="h3 text-success mt-2 mb-1">Booking Confirmed!</h1>
+                <p class="text-muted">
+                    Aapki repair job record ho gayi hai. Shop ka staff jald hi
+                    aapko call karega.
+                </p>
+                <div class="alert alert-light border text-start">
+                    <div><strong>Job Number:</strong>
+                        <span class="badge bg-primary">{{ job.job_number }}</span></div>
+                    <div class="mt-1"><strong>Device:</strong> {{ job.device_model }}</div>
+                    <div class="mt-2"><strong>Live Status Track Karein:</strong><br>
+                        <a href="{{ tracking_url }}" class="text-break">{{ tracking_url }}</a>
+                    </div>
+                    <div class="text-muted small mt-1">
+                        Ye link browser bookmark me save kar lein — login ki
+                        zaroorat nahi, status 90 din tak dikhega.
+                    </div>
+                </div>
+                <a href="{% url 'home' %}" class="btn btn-outline-primary mt-2">
+                    &larr; Back to Home
+                </a>
+            {% else %}
+                <h1 class="h3 text-success">Thank you!</h1>
+                <p class="text-muted">Your request has been received.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

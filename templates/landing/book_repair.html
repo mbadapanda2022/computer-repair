@@ -1,0 +1,83 @@
+{% extends 'base_public.html' %}
+{% load static %}
+
+{% block title %}Book a Repair – {{ company.name|default:"My Company" }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .book-card {
+        max-width: 640px;
+        margin: 3rem auto;
+        border: 0;
+        border-radius: 1rem;
+        box-shadow: 0 10px 30px rgba(13, 110, 253, .08);
+    }
+    .book-card .form-label { font-weight: 600; }
+    .book-required-note { font-size: .85rem; color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="card book-card">
+        <div class="card-body p-4 p-md-5">
+            <h1 class="h3 text-primary mb-1">
+                <i class="bi bi-tool me-2" aria-hidden="true"></i>Book a Repair
+            </h1>
+            <p class="text-muted">
+                Device ka problem yahan batayein — hum turant aapki job card
+                bana lenge. Aapko ek <strong>free tracking link</strong> milega
+                jisse kabhi bhi status dekh sakte hain.
+            </p>
+
+            {% if throttled %}
+                <div class="alert alert-warning">
+                    Bahut zyada bookings is connection se. Please 1 hour baad
+                    try karein ya phone par call karein.
+                </div>
+            {% endif %}
+
+            <form method="post" action="{% url 'book_repair' %}" novalidate>
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label class="form-label" for="id_name">Your Name *</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}<div class="text-danger small">{{ form.name.errors|striptags }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="id_phone">Mobile Number *</label>
+                    {{ form.phone }}
+                    <div class="form-text book-required-note">10-digit number — ispar repair updates WhatsApp/SMS par bhi ja sakte hain.</div>
+                    {% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors|striptags }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="id_device_model">Device / Model *</label>
+                    {{ form.device_model }}
+                    <div class="form-text book-required-note">Jaise: HP Pavilion 15, Canon MG2570, Dell Optiplex…</div>
+                    {% if form.device_model.errors %}<div class="text-danger small">{{ form.device_model.errors|striptags }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="id_serial_number">Serial Number (optional)</label>
+                    {{ form.serial_number }}
+                    {% if form.serial_number.errors %}<div class="text-danger small">{{ form.serial_number.errors|striptags }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="id_issue_description">Problem kya hai? *</label>
+                    {{ form.issue_description }}
+                    {% if form.issue_description.errors %}<div class="text-danger small">{{ form.issue_description.errors|striptags }}</div>{% endif %}
+                </div>
+
+                {# honeypot — invisible to humans #}
+                <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;">
+                    <label for="id_website">Website</label>
+                    {{ form.website }}
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2">
+                    <i class="bi bi-check2-circle me-2" aria-hidden="true"></i>Book Repair
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

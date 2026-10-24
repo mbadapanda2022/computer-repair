@@ -15,7 +15,8 @@ from django.urls import reverse
 from django.contrib import messages
 
 from ..models import *
-from ..forms import ContactMessageForm, ServiceForm, TestimonialForm, FAQForm
+from ..forms import (BookRepairForm, ContactMessageForm, ServiceForm,
+                     TestimonialForm, FAQForm)
 from .utils import is_htmx
 from ..decorators import handle_errors
 from ..utils.notification_helpers import send_notification_to_staff
@@ -146,6 +147,59 @@ def contact_message(request):
     else:
         form = ContactMessageForm()
         return render(request, 'landing/partials/_contact_form.html', {'form': form})
+
+
+# ============================================================
+# PUBLIC REPAIR BOOKING (/book-repair/)
+# ============================================================
+
+@csrf_protect
+@handle_errors(default_redirect='home')
+def book_repair(request):
+    """Visitor books a repair → Contact (by phone) + pending RepairJob.
+    Success page shows the auto job number and the login-free tracking
+    link, and staff get a notification + email."""
+    from ..utils.tracking import generate_tracking_url
+
+    if request.method == 'POST':
+        if _throttle('book_repair_rl', request, limit=5, window=3600):
+            return render(request, 'landing/book_repair.html',
+                          {'form': BookRepairForm(),
+                           'throttled': True}, status=429)
+
+        if request.POST.get('website', '').strip():
+            # Bot trap: pretend success, save nothing.
+            return render(request, 'landing/book_repair_thanks.html', {})
+
+        form = BookRepairForm(request.POST)
+        if form.is_valid():
+            cd = form.cleaned_data
+            contact = Contact.objects.filter(phone=cd['phone']).first()
+            if contact is None:
+                contact = Contact.objects.create(
+                    name=cd['name'], phone=cd['phone'],
+                    contact_type='customer')
+            job = RepairJob.objects.create(
+                customer=contact,
+                device_model=cd['device_model'],
+                serial_number=cd.get('serial_number') or '',
+                issue_description=cd['issue_description'])
+            send_notification_to_staff(
+                title=f'New online repair booking: {job.job_number}',
+                message=(f'{cd["name"]} ({cd["phone"]}) booked '
+                         f'{cd["device_model"]}: '
+                         f'{cd["issue_description"][:90]}'),
+                link=reverse('accounting:repair_list'),
+                notif_type='info', category='general', send_email=True)
+            return render(request, 'landing/book_repair_thanks.html',
+                          {'job': job,
+                           'tracking_url': generate_tracking_url(job,
+                                                                  request)})
+
+        return render(request, 'landing/book_repair.html', {'form': form})
+
+    return render(request, 'landing/book_repair.html',
+                  {'form': BookRepairForm()})
 
 
 # ============================================================
