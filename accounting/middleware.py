@@ -19,12 +19,14 @@ Rules (in order):
 """
 
 import logging
+import time
 
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect
 from django.urls import Resolver404, resolve
 from django.http import HttpResponse
+from django.utils import timezone
 from .audit import clear_current_request, set_current_request
 
 logger = logging.getLogger(__name__)
@@ -35,6 +37,7 @@ class AccessControlMiddleware:
     PUBLIC_URL_NAMES = frozenset({
         'home', 'privacy_policy', 'cookie_policy',
         'terms_of_service', 'return_policy',
+        'demo_guide',
         'contact_message', 'validate_contact_field',
         'login', 'register', 'logout',
         'password_reset', 'password_reset_done',
@@ -178,3 +181,66 @@ class AccessControlMiddleware:
             return redirect('customer:customer_dashboard')
         except Exception:
             return redirect('home')
+
+class DemoTrialMiddleware:
+    """DEMO_MODE only: 6-month trial enforcement for the demo package.
+
+    - Expired  -> every page becomes the Trial Expired screen with the
+      developer's phone/WhatsApp contact.
+    - <=30 days -> a warning banner is injected into HTML responses.
+    Production never enters this class (first line short-circuits).
+    """
+
+    _PASSTHROUGH_PREFIXES = ('/static/', '/media/', '/favicon')
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if not getattr(settings, 'DEMO_MODE', False):
+            return self.get_response(request)
+
+        path = request.path
+        if any(path.startswith(p) for p in self._PASSTHROUGH_PREFIXES):
+            return self.get_response(request)
+
+        from .demo_trial import get_trial_state, TRIAL_CONTACT
+        state = self._state_cached(get_trial_state)
+
+        if state['expired']:
+            from django.shortcuts import render
+            return render(request, 'demo/trial_expired.html',
+                          {'trial': state, 'contact': TRIAL_CONTACT,
+                           'today': timezone.localdate()})
+
+        response = self.get_response(request)
+
+        if state['warn'] and not getattr(response, 'streaming', False) \
+                and response.status_code == 200 \
+                and 'text/html' in response.get('Content-Type', ''):
+            self._inject_banner(response, state)
+        return response
+
+    _memo = None
+    _memo_at = 0.0
+
+    @classmethod
+    def _state_cached(cls, getter):
+        now = time.time()
+        if cls._memo is None or now - cls._memo_at > 60:
+            cls._memo = getter()
+            cls._memo_at = now
+        return cls._memo
+
+    @staticmethod
+    def _inject_banner(response, state):
+        from django.template.loader import render_to_string
+        from .demo_trial import TRIAL_CONTACT
+        html = render_to_string('demo/trial_banner.html',
+                                {'trial': state, 'contact': TRIAL_CONTACT})
+        body = response.content.decode('utf-8', 'ignore')
+        idx = body.rfind('</body>')
+        if idx != -1:
+            body = body[:idx] + html + body[idx:]
+            response.content = body.encode('utf-8')
+            response['Content-Length'] = str(len(response.content))

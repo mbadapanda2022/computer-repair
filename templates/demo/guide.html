@@ -1,0 +1,156 @@
+{# templates/demo/guide.html — DEMO_MODE bilingual tutorial #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo Guide – Computer Repair &amp; Accounting Software</title>
+<style>
+  :root { --blue:#0d6efd; --ink:#1c2733; --soft:#f4f7fc; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI',Inter,Arial,sans-serif; color:var(--ink); background:var(--soft); line-height:1.65; }
+  header { background:linear-gradient(135deg,#0d6efd,#0a58ca); color:#fff; padding:34px 20px; text-align:center; }
+  header h1 { font-size:26px; margin-bottom:6px; }
+  header p { opacity:.92; font-size:15px; }
+  main { max-width:900px; margin:24px auto 60px; padding:0 18px; }
+  .card { background:#fff; border-radius:14px; padding:22px 24px; margin-bottom:18px; box-shadow:0 4px 16px rgba(13,60,140,.07); }
+  .card h2 { font-size:19px; color:var(--blue); margin-bottom:10px; }
+  .card h3 { font-size:16px; margin:14px 0 6px; }
+  ul,ol { margin:8px 0 8px 22px; }
+  li { margin-bottom:6px; }
+  code, .k { background:#eef4ff; color:#0a4bb3; padding:2px 8px; border-radius:6px; font-family:Consolas,monospace; font-size:14px; }
+  table { width:100%; border-collapse:collapse; margin:10px 0; font-size:14px; }
+  th,td { border:1px solid #dbe4f0; padding:8px 10px; text-align:left; }
+  th { background:#f0f6ff; }
+  .warn { background:#fff8e6; border-left:4px solid #e0a800; padding:12px 14px; border-radius:8px; margin:10px 0; }
+  .cta { background:linear-gradient(135deg,#0d3b8a,#0d6efd); color:#fff; border-radius:16px; padding:24px; text-align:center; }
+  .cta a.btn { display:inline-block; margin:10px 8px 0; padding:12px 26px; border-radius:30px; font-weight:700; text-decoration:none; }
+  .wa { background:#25d366; color:#fff; } .call { background:#fff; color:#0d6efd; }
+  .hindi { color:#5a6b80; font-size:14px; }
+  footer { text-align:center; font-size:13px; color:#6c757d; padding:18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>&#128736; Computer Repair &amp; Accounting Software — Demo Guide</h1>
+  <p>Hindi-English Tutorial · Poora professional system · 6-month evaluation</p>
+</header>
+<main>
+
+<div class="card">
+  <h2>&#128640; 1. Software kaise chalayein (How to start)</h2>
+  <ul>
+    <li>Desktop icon <strong>"Computer Repair Demo"</strong> par double-click karein.
+        <span class="hindi">Program apne aap local server start karega aur browser khul jayega.</span></li>
+    <li>Browser me address: <code>http://127.0.0.1:8777/</code></li>
+    <li>Band karne ke liye browser tab band karein; server background me band ho jata hai
+        (Task Manager se "Computer Repair Demo" process end kar sakte hain).</li>
+    <li>Aapka demo data save hota hai: <code>%LOCALAPPDATA%\A1RepairDemo\</code> — uninstall ke baad bhi rehta hai,
+        delete karne par fresh demo ban jata hai. <span class="hindi">Sab data sirf aapke computer par — kahin internet par nahi jata.</span></li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>&#128274; 2. Login credentials (demo accounts)</h2>
+  <table>
+    <tr><th>Role</th><th>Username</th><th>Password</th><th>Kya dikhega</th></tr>
+    <tr><td>Admin / Staff</td><td><code>Admin</code></td><td><code>Demo@12345</code></td><td>Poora staff portal — billing, repairs, reports, settings</td></tr>
+    <tr><td>Customer portal</td><td><code>demo_customer</code></td><td><code>Demo@12345</code></td><td>Apna repair status, invoices, payments, tracking</td></tr>
+  </table>
+  <p>Login page: <code>http://127.0.0.1:8777/login/</code> — username ya phone/email dono se login kar sakte hain.</p>
+</div>
+
+<div class="card">
+  <h2>&#128203; 3. Repair Workflow — sabse important feature</h2>
+  <ol>
+    <li><strong>Repairs → New Repair</strong>: customer ka device, problem, warranty entry. Job number auto-banta hai (REP-0001…).</li>
+    <li>Status board: Pending → Received → Under Diagnosis → Under Repair → Ready → Delivered (ya Cancel).</li>
+    <li><strong>Estimate banayein</strong> (parts + labour add karke) phir <strong>"Send Estimate"</strong> —
+        poora professional WhatsApp message ready hota hai (itemised breakup, total, approve/reject link).</li>
+    <li>Customer approve kare ya aap staff ki taraf se confirm karke seedha <strong>Invoice</strong> generate karein.</li>
+    <li>Tracking link bina-login ke chalta hai — customer phone par status dekh sakta hai.</li>
+  </ol>
+  <p class="hindi">Chip-level repair dukaan ke liye poora job-card system — entry se delivery tak, GST invoice ke saath.</p>
+</div>
+
+<div class="card">
+  <h2>&#129534; 4. Billing &amp; GST (Sales)</h2>
+  <ul>
+    <li>Sales → New Invoice: items search/add, discount, GST (B2B/Non-GST/Inter-state/Intra-state CGST+SGST) auto.</li>
+    <li>Invoice print/PDF professional format me — company naam, GSTIN, bill number sab Settings se aate hain.</li>
+    <li>Invoice par WhatsApp share button — customer ko summary chala jata hai.</li>
+    <li>Credit Notes (return), invoice se payment receive, pending/paid filters.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>&#128230; 5. Purchases &amp; Stock</h2>
+  <ul>
+    <li>Purchases: vendor bill entry → stock automatically badhta hai, payment settlement (full/partial/advance).</li>
+    <li>Stock dashboard: low-stock alerts, stock adjustment (damage/sample), value report.</li>
+    <li>Products: parts + services (labour), barcode/HSN, selling price.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>&#128176; 6. Payments, Bank &amp; Cash Book</h2>
+  <ul>
+    <li>Payments: received/paid, cash-bank-UPI, advance handling, expense heads (Rent, Salary…).</li>
+    <li>Cash Book + Bank Accounts: day-wise cash, bank statement print, contra transfers.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>&#128202; 7. Accounting Reports (Tally-style)</h2>
+  <ul>
+    <li>Journals auto-post: har invoice/payment/expense se ledger update.</li>
+    <li>Reports: <strong>Profit &amp; Loss</strong>, <strong>Balance Sheet</strong>, <strong>Trial Balance</strong>,
+        <strong>Customer/Vendor Ledger</strong>, <strong>Aging</strong> (kab se pending), <strong>GST report</strong> —
+        sab print/PDF/Excel.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>&#9889; 8. Speed features</h2>
+  <ul>
+    <li>Keyboard shortcuts (Tally style): page par <code>?</code> dabayein — poora key list.</li>
+    <li>Global search (<code>/</code> key): customer, invoice, product, job — sab ek jagah.</li>
+    <li>Notifications: stock kam, payment due, repair updates — bell icon me + email bhi.</li>
+    <li>Visitors/Analytics: kaun customer kab aaya, WhatsApp link clicks.</li>
+    <li>Database Health: backup, safe cleanup, storage status.</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h2>&#127912; 9. Apni company kaise lagayein (Dynamic branding)</h2>
+  <p>Staff login → <strong>Settings</strong> — sirf yahan apna naam, logo, address, phone, GSTIN, city,
+     website bharein. <strong>Poori site, bills, WhatsApp messages, emails, reports — sab turant aapke brand</strong> ho jayenge.
+     Koi code change nahi, kori setting.</p>
+  <p class="hindi">Software 100% aapki company ke liye customize hone wala hai — demo ka naam sirf example hai.</p>
+</div>
+
+<div class="card">
+  <h2>&#9203; 10. Trial ke niyam (6 months)</h2>
+  <div class="warn">
+    Ye professional demo <strong>6 mahine (180 din)</strong> ke liye hai — aapke computer par, poore features ke saath,
+    unlimited entries. Expiry se 30 din pehle screen par reminder aayega, aur expiry ke baad software contact screen par
+    badal jayega. Poora data aapke paas rahega — full version par sab transfer ho jata hai.
+  </div>
+  <p>Expire hone par bhi koi tension nahi — neeche se contact karein, aapki company ke liye live setup (domain + hosting
+  + backup + training) kar di jayegi.</p>
+</div>
+
+<div class="cta">
+  <h2 style="color:#fff;">Full version ya live setup chahiye?</h2>
+  <p>{{ contact.company }} — {{ contact.name }}</p>
+  <a class="btn wa" href="https://wa.me/{{ contact.whatsapp }}?text=Hello%2C%20main%20Computer%20Repair%20software%20ka%20demo%20use%20kar%20raha%20hoon.%20Full%20version%20ke%20baare%20me%20baat%20karni%20hai.">&#128241; WhatsApp: +91 {{ contact.phone }}</a>
+  <a class="btn call" href="tel:+91{{ contact.phone }}">&#128222; Call: {{ contact.phone }}</a>
+</div>
+
+<footer>
+  Designed &amp; Developed by {{ contact.name }} · {{ contact.website }}<br>
+  Trial state: {% if trial.expired %}EXPIRED{% else %}{{ trial.days_left }} days remaining{% endif %}
+</footer>
+</main>
+</body>
+</html>

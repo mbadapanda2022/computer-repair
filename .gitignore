@@ -40,3 +40,9 @@ backup_*.json
 _backups/
 db.sqlite3-wal
 db.sqlite3-shm
+
+# Windows demo build artifacts (regeneratable, large)
+demo_package/dist/
+demo_package/build/
+demo_package/output/
+demo_package/deadline.txt

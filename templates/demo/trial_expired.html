@@ -1,0 +1,80 @@
+{# templates/demo/trial_expired.html — DEMO_MODE expiry screen #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo Trial Expired – Computer Repair &amp; Accounting Software</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Inter, Arial, sans-serif;
+      background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 60%, #073b84 100%);
+      min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 24px; color: #1c2733;
+    }
+    .card {
+      background: #fff; border-radius: 20px; max-width: 640px; width: 100%;
+      padding: 40px 36px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+      text-align: center;
+    }
+    .hourglass { font-size: 56px; margin-bottom: 10px; }
+    h1 { font-size: 26px; margin-bottom: 12px; }
+    p.lead { font-size: 16px; color: #47566a; line-height: 1.6; margin-bottom: 24px; }
+    .highlight {
+      background: #f0f7ff; border: 1px solid #cfe2ff; border-radius: 12px;
+      padding: 14px 16px; font-size: 15px; color: #0a58ca; margin-bottom: 26px;
+    }
+    .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; }
+    .btn {
+      display: inline-block; padding: 13px 26px; border-radius: 40px;
+      font-weight: 700; font-size: 16px; text-decoration: none;
+    }
+    .btn-wa { background: #25d366; color: #fff; }
+    .btn-call { background: #0d6efd; color: #fff; }
+    .contactbox {
+      text-align: left; background: #f8f9fa; border-radius: 12px;
+      padding: 18px 20px; font-size: 15px; line-height: 1.9; color: #333;
+    }
+    .contactbox strong { color: #0d6efd; }
+    .footer { margin-top: 26px; font-size: 13px; color: #6c757d; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="hourglass">&#9203;</div>
+    <h1>Your 6-Month Demo Trial Has Ended</h1>
+    <p class="lead">
+      Aapne is software ke poore professional features explore kar liye —
+      billing, GST accounting, repair jobs, inventory, payments, reports
+      aur customer portal. Ab isko <strong>apni company ke asli data</strong>
+      ke saath live karane ke liye contact kijiye.
+    </p>
+    <div class="highlight">
+      Demo data ab read-only hai. Aapka trial
+      {{ trial.expiry_display }} ko expire hua.
+      Full setup mein aapki company ka naam, logo, GST, bill numbers —
+      sab aapki settings se chalega (ye software poori tarah dynamic hai).
+    </div>
+    <div class="btns">
+      <a class="btn btn-wa" target="_blank" rel="noopener"
+         href="https://wa.me/{{ contact.whatsapp }}?text=Hello%2C%20demo%20trial%20expire%20ho%20gaya%20.%20Mujhe%20full%20version%20chahiye.">
+        &#128241; WhatsApp {{ contact.name }}
+      </a>
+      <a class="btn btn-call" href="tel:+91{{ contact.phone }}">
+        &#128222; Call: {{ contact.phone }}
+      </a>
+    </div>
+    <div class="contactbox">
+      <strong>{{ contact.company }}</strong><br>
+      Developer: {{ contact.name }}<br>
+      Phone: +91 {{ contact.phone }} &nbsp;|&nbsp;
+      WhatsApp: <a href="https://wa.me/{{ contact.whatsapp }}" target="_blank" rel="noopener">+91 {{ contact.whatsapp|cut:"91" }}</a><br>
+      Website: <a href="{{ contact.website }}" target="_blank" rel="noopener">a1computersolutions.in</a>
+    </div>
+    <div class="footer">
+      Designed &amp; Developed by {{ contact.name }} · a1computersolutions.in
+    </div>
+  </div>
+</body>
+</html>

@@ -43,16 +43,21 @@ class SourceScanTests(TestCase):
 
     def _files(self):
         root = Path(__file__).resolve().parents[1]
+        # Developer's own sales contact (phone/WhatsApp on the trial
+        # expiry screen) is permanent-hardcoded by design, like the
+        # developer footer — exempt the demo-trial files.
+        exempt = {'demo_trial.py'}
         roots = [(root / 'templates', {'.html'}),
                  (root / 'static' / 'css', {'.css'}),
                  (root / 'static' / 'js', {'.js'})]
         for d, exts in roots:
             for p in d.rglob('*'):
-                if p.suffix in exts:
+                if p.suffix in exts and 'demo' not in p.parts:
                     yield p
         acc = root / 'accounting'
         for p in acc.rglob('*.py'):
-            if 'migrations' in p.parts or p.name.startswith('tests_'):
+            if ('migrations' in p.parts or p.name.startswith('tests_')
+                    or p.name in exempt):
                 continue
             yield p
 

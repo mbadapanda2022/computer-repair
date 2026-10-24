@@ -23,6 +23,7 @@ from .views.auth import (
 )
 from .views.repairs import staff_approve_estimate
 from .views.utils import health_check
+from .views.demo import demo_guide
 from .views.global_search import global_search
 
 app_name = 'accounting'
@@ -219,6 +220,7 @@ urlpatterns = [
 
     # ===== Settings =====
     path('settings/', company_settings, name='company_settings'),
+    path('demo-guide/', demo_guide, name='demo_guide'),
     path('settings/backup/', backup_database, name='backup_database'),
     path('settings/restore/', restore_database, name='restore_database'),
     path('settings/validate-field/', validate_setting_field, name='validate_setting_field'),

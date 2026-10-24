@@ -6,11 +6,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
+if getattr(__import__('sys'), 'frozen', False):
+    # PyInstaller bundle: templates/static/migrations data-dir
+    import sys as _sys
+    BASE_DIR = Path(_sys._MEIPASS)
+
+# DEMO_MODE: Windows-demo exe ke liye (6-month trial, local sqlite, koi
+# secret/production config nahi). Production deployment par ye kabhi ON
+# nahi hota — launcher hi env var set karta hai.
+DEMO_MODE = os.getenv('DEMO_MODE', '').strip().lower() == 'true'
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 if not SECRET_KEY:
-    from django.core.exceptions import ImproperlyConfigured
-    raise ImproperlyConfigured("DJANGO_SECRET_KEY environment variable is missing!")
+    if DEMO_MODE:
+        SECRET_KEY = 'demo-mode-insecure-local-key-do-not-use-in-production'
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY environment variable is missing!")
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'False').strip().lower() == 'true'
 
@@ -142,7 +154,7 @@ if DATABASE_URL:
 
     DATABASES = {"default": _db_config}
 else:
-    if not DEBUG:
+    if not DEBUG and not DEMO_MODE:
         # Render sets DATABASE_URL; if it's missing/typo'd we must NOT
         # silently boot on ephemeral SQLite — every write would be lost
         # on restart while the site looks healthy.
@@ -151,7 +163,8 @@ else:
             "DATABASE_URL is not set but DEBUG=False. Refusing to run "
             "production against throwaway SQLite."
         )
-    # Local development
+    # Local development (and DEMO_MODE: NAME is overridden in the demo
+    # block at the bottom of this file to the per-user data dir)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -390,3 +403,73 @@ CSRF_TRUSTED_ORIGINS = [
 _extra = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 if _extra:
     CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra.split(',') if o.strip()]
+
+
+# ============================================================
+# DEMO_MODE overrides (Windows demo/trial package) — LAST WORD.
+# Sirf demo launcher ke env se activate hota hai; production par
+# DEMO_MODE kabhi true nahi. Koi secret/SMTP/Cloudinary is mode me
+# use nahi hota; sara data %LOCALAPPDATA% ke andar.
+# ============================================================
+if DEMO_MODE:
+    DEMO_PORT = int(os.getenv('DEMO_PORT', '8777'))
+    _demo_dir = Path(os.getenv('DEMO_DATA_DIR') or
+                     (Path(os.getenv('LOCALAPPDATA', str(Path.home())))
+                      / 'A1RepairDemo'))
+    _demo_dir.mkdir(parents=True, exist_ok=True)
+    DEMO_DATA_DIR = str(_demo_dir)
+
+    DEBUG = False
+    ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '[::1]']
+
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": str(_demo_dir / 'demo.sqlite3'),
+            "OPTIONS": {
+                "transaction_mode": "IMMEDIATE",
+                "init_command": (
+                    "PRAGMA journal_mode=WAL;"
+                    "PRAGMA synchronous=NORMAL;"
+                    "PRAGMA temp_store=MEMORY;"
+                ),
+            },
+        }
+    }
+
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        # Local demo: no gzip/manifest compression needed — plain storage keeps
+        # collectstatic dependency-light (whitenoise.middleware still serves it).
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = str(_demo_dir / 'media')
+    STATIC_ROOT = str(_demo_dir / 'static')
+
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+    CSRF_TRUSTED_ORIGINS = [
+        f'http://127.0.0.1:{DEMO_PORT}',
+        f'http://localhost:{DEMO_PORT}',
+    ]
+
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    DEFAULT_FROM_EMAIL = 'demo@localhost'
+
+    # 6-month trial (accounting/demo_trial.py)
+    DEMO_TRIAL_DAYS = int(os.getenv('DEMO_TRIAL_DAYS', '180'))
+    DEMO_TRIAL_WARN_DAYS = 30
+    # Build date + trial + buffer: purane builds bhi hamesha expire ho
+    # jaate hain (clock rollback/bypass ka basic guard).
+    DEMO_TRIAL_HARD_DEADLINE = os.getenv(
+        'DEMO_TRIAL_HARD_DEADLINE',
+        '')  # launcher build-time embed karta hai; khali = skip
+
+    MIDDLEWARE.append('accounting.middleware.DemoTrialMiddleware')
