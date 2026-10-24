@@ -37,7 +37,7 @@ class AccessControlMiddleware:
     PUBLIC_URL_NAMES = frozenset({
         'home', 'privacy_policy', 'cookie_policy',
         'terms_of_service', 'return_policy',
-        'demo_guide',
+        'demo_guide', 'keepalive',
         'contact_message', 'validate_contact_field',
         'login', 'register', 'logout',
         'password_reset', 'password_reset_done',

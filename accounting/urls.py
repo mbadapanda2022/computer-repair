@@ -35,6 +35,7 @@ urlpatterns = [
     path('analytics/ping/', analytics_views.visitor_ping, name='analytics_ping'),
     path('db-health/', storage_views.storage_health, name='storage_health'),
     path('db-health/cleanup/', storage_views.storage_cleanup, name='storage_cleanup'),
+    path('keepalive/', storage_views.keepalive, name='keepalive'),
     path('dashboard/stats/', dashboard_stats, name='dashboard_stats'),
     path('dashboard/refresh-stats/', refresh_stats, name='refresh_stats'),
     path('dashboard/recent-transactions/', recent_transactions, name='recent_transactions'),

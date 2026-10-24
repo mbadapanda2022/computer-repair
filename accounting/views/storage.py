@@ -17,9 +17,10 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.sessions.models import Session
 from django.core.cache import cache
 from django.db import connection
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from ..models import EmailOTP, Notification, PageView, StorageSnapshot, VisitorSession
 
@@ -274,6 +275,30 @@ def check_quota_and_alert():
         except Exception:
             pass  # SMTP outage must not break the cron heartbeat
     return db_bytes, pct, alert_sent
+
+
+# ────────────────────────────────────────────────────────────────
+#  Public daily heartbeat — free replacement for Render Cron Jobs
+#  (Render free tier does not offer cron). GitHub Actions workflow
+#  .github/workflows/keepalive.yml curls this every morning.
+# ────────────────────────────────────────────────────────────────
+
+KEEPALIVE_LOCK_KEY = 'keepalive_last_run'
+
+
+@require_GET
+def keepalive(request):
+    """DB touch + snapshot + quota alert, throttled to one full run per
+    20 hours so frequent hits can never become a load problem."""
+    if not cache.add(KEEPALIVE_LOCK_KEY,
+                     timezone.now().isoformat(), 72000):
+        return HttpResponse('ok (heartbeat already ran recently)')
+    snap = record_snapshot()
+    db_bytes, pct, alert_sent = check_quota_and_alert()
+    return HttpResponse(
+        'watchdog ok: %.1f MB used (%.1f%% of free quota), '
+        'snapshot=%s, alert_email=%s'
+        % (db_bytes / 1048576, pct, snap.pk, alert_sent))
 
 
 # ────────────────────────────────────────────────────────────────

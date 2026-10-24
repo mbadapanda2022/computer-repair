@@ -296,6 +296,34 @@ class WatchdogTests(TestCase):
         self.assertEqual(StorageSnapshot.objects.count(), 1)
 
 
+class KeepaliveViewTests(TestCase):
+    """Public /keepalive/ — free replacement for Render Cron Jobs."""
+
+    URL = '/keepalive/'
+
+    def setUp(self):
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_anonymous_get_runs_full_watchdog(self):
+        r = self.client.get(self.URL)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'watchdog ok', r.content)
+        self.assertEqual(StorageSnapshot.objects.count(), 1)
+
+    def test_second_hit_within_20h_is_throttled(self):
+        self.client.get(self.URL)
+        r = self.client.get(self.URL)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b'already ran', r.content)
+        self.assertEqual(StorageSnapshot.objects.count(), 1)
+
+    def test_post_not_allowed(self):
+        self.assertEqual(self.client.post(self.URL).status_code, 405)
+
+
 class FormatTests(TestCase):
     def test_format_bytes_units(self):
         self.assertEqual(storage_views.format_bytes(512), '512 B')
