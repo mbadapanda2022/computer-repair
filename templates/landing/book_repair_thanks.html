@@ -23,19 +23,19 @@
                 <div style="font-size:3rem;line-height:1;">&#9989;</div>
                 <h1 class="h3 text-success mt-2 mb-1">Booking Confirmed!</h1>
                 <p class="text-muted">
-                    Aapki repair job record ho gayi hai. Shop ka staff jald hi
-                    aapko call karega.
+                    Your repair job has been recorded. Our shop staff will
+                    call you shortly.
                 </p>
                 <div class="alert alert-light border text-start">
                     <div><strong>Job Number:</strong>
                         <span class="badge bg-primary">{{ job.job_number }}</span></div>
                     <div class="mt-1"><strong>Device:</strong> {{ job.device_model }}</div>
-                    <div class="mt-2"><strong>Live Status Track Karein:</strong><br>
+                    <div class="mt-2"><strong>Track Live Status:</strong><br>
                         <a href="{{ tracking_url }}" class="text-break">{{ tracking_url }}</a>
                     </div>
                     <div class="text-muted small mt-1">
-                        Ye link browser bookmark me save kar lein — login ki
-                        zaroorat nahi, status 90 din tak dikhega.
+                        Save this link in your browser bookmarks — no login
+                        needed, the status stays viewable for 90 days.
                     </div>
                 </div>
                 <a href="{% url 'home' %}" class="btn btn-outline-primary mt-2">

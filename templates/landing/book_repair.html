@@ -25,15 +25,15 @@
                 <i class="bi bi-tool me-2" aria-hidden="true"></i>Book a Repair
             </h1>
             <p class="text-muted">
-                Device ka problem yahan batayein — hum turant aapki job card
-                bana lenge. Aapko ek <strong>free tracking link</strong> milega
-                jisse kabhi bhi status dekh sakte hain.
+                Describe your device problem here — we will create your job card
+                right away. You will get a <strong>free tracking link</strong>
+                to check the status anytime.
             </p>
 
             {% if throttled %}
                 <div class="alert alert-warning">
-                    Bahut zyada bookings is connection se. Please 1 hour baad
-                    try karein ya phone par call karein.
+                    Too many bookings from this connection. Please try again
+                    after 1 hour or call us on the phone.
                 </div>
             {% endif %}
 
@@ -47,13 +47,13 @@
                 <div class="mb-3">
                     <label class="form-label" for="id_phone">Mobile Number *</label>
                     {{ form.phone }}
-                    <div class="form-text book-required-note">10-digit number — ispar repair updates WhatsApp/SMS par bhi ja sakte hain.</div>
+                    <div class="form-text book-required-note">10-digit number — repair updates may also be sent to it on WhatsApp/SMS.</div>
                     {% if form.phone.errors %}<div class="text-danger small">{{ form.phone.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="mb-3">
                     <label class="form-label" for="id_device_model">Device / Model *</label>
                     {{ form.device_model }}
-                    <div class="form-text book-required-note">Jaise: HP Pavilion 15, Canon MG2570, Dell Optiplex…</div>
+                    <div class="form-text book-required-note">For example: HP Pavilion 15, Canon MG2570, Dell Optiplex…</div>
                     {% if form.device_model.errors %}<div class="text-danger small">{{ form.device_model.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="mb-3">
@@ -62,7 +62,7 @@
                     {% if form.serial_number.errors %}<div class="text-danger small">{{ form.serial_number.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="id_issue_description">Problem kya hai? *</label>
+                    <label class="form-label" for="id_issue_description">What is the problem? *</label>
                     {{ form.issue_description }}
                     {% if form.issue_description.errors %}<div class="text-danger small">{{ form.issue_description.errors|striptags }}</div>{% endif %}
                 </div>
