@@ -189,6 +189,14 @@
 
                             {% if contact.contact_type != 'vendor' %}
                             <li>
+                                <a class="dropdown-item"
+                                   href="{% url 'accounting:repair_list' %}?customer={{ contact.pk }}"
+                                   target="_blank">
+                                    <i class="bi bi-list-check me-2 text-primary"></i>View Repairs
+                                </a>
+                            </li>
+
+                            <li>
                                 <button class="dropdown-item"
                                         hx-get="{% url 'accounting:repair_create_for_contact' contact.pk %}"
                                         hx-target="#mainModalContent">
