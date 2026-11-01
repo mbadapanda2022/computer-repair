@@ -115,7 +115,7 @@
                             <div class="track-result-body">
                                 <strong>Repair found!</strong>
                                 <span>Open the live tracking page for job <strong>{{ track_job }}</strong>.</span>
-                                <a href="/tracking/repair/{{ track_token }}/" class="btn track-open-btn">
+                                <a href="{% url 'tracking:repair_track' track_token %}" class="btn track-open-btn">
                                     <i class="bi bi-eye-fill me-1"></i>View Full Tracking
                                 </a>
                             </div>

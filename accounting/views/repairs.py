@@ -24,7 +24,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import (
+    Case, Count, DecimalField, F, Q, Sum, Value, When,
+)
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -515,22 +518,20 @@ def get_paginated_repairs_context(request, queryset=None):
     today = timezone.now().date()
     week_start = today - timedelta(days=7)
 
-    all_jobs = RepairJob.objects.all()
-    stats = {
-        'total_count': all_jobs.count(),
-        'pending_count': all_jobs.filter(
-            status__in=['pending', 'received', 'diagnosis', 'repairing']
-        ).count(),
-        'completed_count': all_jobs.filter(status='delivered').count(),
-        'urgent_count': all_jobs.filter(
-            estimate_status='pending', estimated_cost__isnull=False
-        ).count(),
-        'overdue_count': all_jobs.filter(
+    # Single round-trip for all six stat cards (remote DB — avoid 6 counts).
+    _agg = RepairJob.objects.aggregate(
+        total_count=Count('id'),
+        pending_count=Count('id', filter=Q(
+            status__in=['pending', 'received', 'diagnosis', 'repairing'])),
+        completed_count=Count('id', filter=Q(status='delivered')),
+        urgent_count=Count('id', filter=Q(
+            estimate_status='pending', estimated_cost__isnull=False)),
+        overdue_count=Count('id', filter=Q(
             status__in=['received', 'diagnosis', 'repairing'],
-            received_at__lt=today - timedelta(days=AGING_URGENT_DAYS),
-        ).count(),
-        'this_week_count': all_jobs.filter(date_in__gte=week_start).count(),
-    }
+            received_at__lt=today - timedelta(days=AGING_URGENT_DAYS))),
+        this_week_count=Count('id', filter=Q(date_in__gte=week_start)),
+    )
+    stats = {key: value or 0 for key, value in _agg.items()}
 
     search = request.GET.get('search', '').strip()
     status = request.GET.get('status', '')
@@ -560,11 +561,24 @@ def get_paginated_repairs_context(request, queryset=None):
 
     # ============================================================
     # Filtered total — excludes cancelled AND uses invoiced amount
-    # when invoice exists (via display_amount property).
+    # when invoice exists (mirrors RepairJob.display_amount).
+    # One SQL SUM instead of pulling every filtered row into Python.
     # ============================================================
-    filtered_total = Decimal('0')
-    for job in queryset.exclude(status='cancelled'):
-        filtered_total += job.display_amount
+    _amount_expr = Case(
+        When(invoice__isnull=False, then=F('invoice__grand_total')),
+        default=F('final_amount'),
+        output_field=DecimalField(max_digits=16, decimal_places=2),
+    )
+    filtered_total = (
+        queryset.exclude(status='cancelled')
+        .aggregate(
+            total=Coalesce(
+                Sum(_amount_expr),
+                Value(Decimal('0')),
+                output_field=DecimalField(max_digits=16, decimal_places=2),
+            )
+        )['total']
+    )
     filtered_total = filtered_total.quantize(Decimal('0.01'))
 
     paginator = Paginator(queryset, 20)

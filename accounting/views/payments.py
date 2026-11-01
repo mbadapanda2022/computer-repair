@@ -73,7 +73,10 @@ def _filter_payment_queryset(request):
     queryset = (
         Payment.objects
         .select_related('contact', 'bank_account', 'expense_account')
-        .prefetch_related('allocations__invoice', 'purchase_allocations__purchase')
+        .prefetch_related(
+            'allocations__invoice', 'purchase_allocations__purchase',
+            'advance_adjustments__invoice',
+        )
         .all()
         .order_by('-date', '-id')
     )

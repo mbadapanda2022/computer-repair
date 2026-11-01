@@ -1983,6 +1983,9 @@ def _customer_repairs_excel(request, customer, qs):
     if err:
         return err
 
+    # Batch-load parts so the row loop below doesn't fire one query per job.
+    qs = qs.prefetch_related('parts')
+
     company = CompanyProfile.get_instance()
     wb = openpyxl.Workbook()
     ws = wb.active

@@ -934,6 +934,7 @@ class StockMovement(SoftDeleteModel):
             models.Index(fields=['product']),
             models.Index(fields=['movement_type']),
             models.Index(fields=['source_content_type', 'source_object_id']),
+            models.Index(fields=['date']),
         ]
         constraints = [
             models.UniqueConstraint(fields=['source_content_type', 'source_object_id'], name='unique_stock_movement_source')
@@ -1170,6 +1171,8 @@ class Invoice(SoftDeleteModel):
             models.Index(fields=['customer', 'payment_status']),
             models.Index(fields=['discount_type']),
             models.Index(fields=['discount_date']),
+            models.Index(fields=['date']),
+            models.Index(fields=['payment_status']),
         ]
 
     def __str__(self):
@@ -1809,6 +1812,7 @@ class Purchase(SoftDeleteModel):
             models.Index(fields=['vendor']),
             models.Index(fields=['discount_type']),
             models.Index(fields=['discount_date']),
+            models.Index(fields=['date']),
         ]
         
     @transaction.atomic
@@ -2566,6 +2570,8 @@ class RepairJob(SoftDeleteModel):
             models.Index(fields=['job_number']),
             models.Index(fields=['customer', 'status']),
             models.Index(fields=['status', 'estimate_status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['date_in']),
         ]
 
     def __str__(self):
@@ -3423,6 +3429,7 @@ class Payment(SoftDeleteModel):
             models.Index(fields=['contact', 'direction']),
             models.Index(fields=['bank_account']),
             models.Index(fields=['is_advance']),
+            models.Index(fields=['date']),
         ]
 
     @property

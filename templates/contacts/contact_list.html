@@ -18,7 +18,7 @@
             hx-trigger="click">
             <i class="bi bi-tools"></i> New Repair
         </button>
-        <a href="{% url 'accounting:export_contacts_excel' %}" class="btn btn-success" target="_blank">
+        <a href="{% url 'accounting:export_contacts_excel' %}" class="btn btn-outline-success" target="_blank">
             <i class="bi bi-file-earmark-excel"></i> Export Excel
         </a>
     </div>
@@ -33,6 +33,7 @@
                        hx-get="{% url 'accounting:contact_list' %}"
                        hx-trigger="keyup changed delay:500ms"
                        hx-target="#contacts-table-container"
+                       hx-push-url="true"
                        hx-include="[name='search'],[name='contact_type']"
                        value="{{ search }}">
             </div>
@@ -41,6 +42,7 @@
                         hx-get="{% url 'accounting:contact_list' %}"
                         hx-trigger="change"
                         hx-target="#contacts-table-container"
+                        hx-push-url="true"
                         hx-include="[name='search'],[name='contact_type']">
                     <option value="">All Types</option>
                     <option value="customer" {% if contact_type_filter == 'customer' %}selected{% endif %}>Customer</option>

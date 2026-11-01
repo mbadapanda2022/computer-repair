@@ -179,13 +179,10 @@
                                         {% if user|unread_count %}{{ user|unread_count }}{% endif %}
                                     </span>
                                 </button>
+                                {# Filled on bell click (button above) — no background polling #}
                                 <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0"
-                                    style="width:350px; max-width:calc(100vw - 1.25rem); max-height:400px; overflow-y:auto;"
-                                    hx-get="{% url 'customer:customer_notification_dropdown' %}"
-                                    hx-trigger="load, every 30s"
-                                    hx-target="#notification-dropdown"
-                                    hx-swap="innerHTML">
-                                    <div class="text-center py-3 text-muted">Loading notifications...</div>
+                                    style="width:350px; max-width:calc(100vw - 1.25rem); max-height:400px; overflow-y:auto;">
+                                    <div class="text-center py-3 text-muted">Loading…</div>
                                 </div>
                             </div>
 

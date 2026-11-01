@@ -131,7 +131,11 @@
         window.confirmPurge = function(form) {
             const days = parseInt(form.querySelector('[name="days"]').value || '0', 10);
             if (isNaN(days) || days < 30) {
-                alert('Please enter a valid number of days (minimum 30).');
+                if (window.showToast) {
+                    window.showToast('warning', 'Please enter a valid number of days (minimum 30).');
+                } else {
+                    alert('Please enter a valid number of days (minimum 30).');
+                }
                 return false;
             }
             return confirm(

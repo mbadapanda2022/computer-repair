@@ -1,7 +1,7 @@
 import json
 import logging
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, date, time, timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
@@ -17,6 +17,28 @@ from ..models import Product, StockMovement, CompanyProfile
 from ..forms import StockMovementForm
 from .utils import is_htmx, htmx_response, redirect_to_staff
 from ..decorators import handle_errors
+
+
+def _apply_datetime_range(queryset, date_from, date_to):
+    """Filter a DateTimeField by inclusive local-date range using sargable
+    bounds — `date__date__gte` wraps the column in DATE() and defeats the
+    index, which hurts on the remote (Supabase) DB."""
+    if date_from:
+        try:
+            start = datetime.combine(date.fromisoformat(date_from), time.min)
+            queryset = queryset.filter(
+                date__gte=timezone.make_aware(start, timezone.get_current_timezone()))
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            end = datetime.combine(
+                date.fromisoformat(date_to) + timedelta(days=1), time.min)
+            queryset = queryset.filter(
+                date__lt=timezone.make_aware(end, timezone.get_current_timezone()))
+        except ValueError:
+            pass
+    return queryset
 
 # Optional Excel export
 try:
@@ -68,10 +90,7 @@ def get_paginated_stock_context(request, queryset=None):
         queryset = queryset.filter(product_id=product_filter)
     if movement_type:
         queryset = queryset.filter(movement_type=movement_type)
-    if date_from:
-        queryset = queryset.filter(date__date__gte=date_from)
-    if date_to:
-        queryset = queryset.filter(date__date__lte=date_to)
+    queryset = _apply_datetime_range(queryset, date_from, date_to)
 
     # ---------- Pagination ----------
     paginator = Paginator(queryset, 20)
@@ -303,10 +322,7 @@ def export_stock_excel(request):
         queryset = queryset.filter(product_id=product_filter)
     if movement_type:
         queryset = queryset.filter(movement_type=movement_type)
-    if date_from:
-        queryset = queryset.filter(date__date__gte=date_from)
-    if date_to:
-        queryset = queryset.filter(date__date__lte=date_to)
+    queryset = _apply_datetime_range(queryset, date_from, date_to)
 
     # Create workbook
     wb = openpyxl.Workbook()

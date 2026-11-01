@@ -198,31 +198,30 @@ def dashboard_stats(request):
     """Return chart data as JSON for dashboard charts."""
     try:
         today = date.today()
-        sales_data = []
-        purchase_data = []
-        repair_data = []
-        labels = []
+        week_start = today - timedelta(days=6)
+        days = [week_start + timedelta(days=i) for i in range(7)]
+        labels = [d.strftime('%d %b') for d in days]
 
-        # Last 7 days
-        for i in range(6, -1, -1):
-            d = today - timedelta(days=i)
-            labels.append(d.strftime('%d %b'))
-            
-            sales_data.append(
-                float(Invoice.objects.filter(date=d).aggregate(
-                    total=Sum('grand_total')
-                )['total'] or Decimal('0'))
-            )
-            
-            purchase_data.append(
-                float(Purchase.objects.filter(date=d).aggregate(
-                    total=Sum('grand_total')
-                )['total'] or Decimal('0'))
-            )
-            
-            repair_data.append(
-                float(RepairJob.objects.filter(date_in=d).count())
-            )
+        # One grouped query per model instead of 3 queries per day (21
+        # round-trips) — matters on the remote production DB.
+        sales_by_day = {
+            row['date']: float(row['total'] or 0)
+            for row in Invoice.objects.filter(date__gte=week_start)
+            .values('date').annotate(total=Sum('grand_total'))
+        }
+        purchase_by_day = {
+            row['date']: float(row['total'] or 0)
+            for row in Purchase.objects.filter(date__gte=week_start)
+            .values('date').annotate(total=Sum('grand_total'))
+        }
+        repairs_by_day = {
+            row['date_in']: row['n']
+            for row in RepairJob.objects.filter(date_in__gte=week_start)
+            .values('date_in').annotate(n=Count('id'))
+        }
+        sales_data = [sales_by_day.get(d, 0.0) for d in days]
+        purchase_data = [purchase_by_day.get(d, 0.0) for d in days]
+        repair_data = [float(repairs_by_day.get(d, 0)) for d in days]
 
         # Top products
         top_products = (

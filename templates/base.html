@@ -10,7 +10,7 @@
     {% if logo_url %}
     <link rel="icon" type="image/png" href="{{ logo_url }}">
     {% else %}
-    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon.png' %}">
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
     {% endif %}
     <title>{% block title %}Staff Portal – {{ company.name|default:"My Company" }}{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -44,14 +44,14 @@
             <ul class="list-unstyled components mb-0">
                 <li class="nav-section-label">Overview</li>
                 <li>
-                    <a href="{% url 'home' %}" class="nav-link">
+                    <a href="{% url 'home' %}" class="nav-link {% if request.path == '/' %}active{% endif %}">
                         <i class="bi bi-house-door"></i>
                         <span class="link-text">Home</span>
                     </a>
                 </li>
                 <li>
                     <a href="{% url 'accounting:dashboard' %}"
-                    class="nav-link {% if request.resolver_match.url_name == 'dashboard' or request.path == '/' or request.path == '/dashboard/' %}active{% endif %}">
+                    class="nav-link {% if request.resolver_match.url_name == 'dashboard' or request.path == '/dashboard/' %}active{% endif %}">
                         <i class="bi bi-speedometer2"></i>
                         <span class="link-text">Dashboard</span>
                     </a>
@@ -155,14 +155,14 @@
                 </li>
                 <li>
                     <a href="{% url 'accounting:stock_dashboard' %}"
-                    class="nav-link {% if request.resolver_match.url_name == 'stock_dashboard' or 'stock' in request.path %}active{% endif %}">
+                    class="nav-link {% if request.resolver_match.url_name == 'stock_dashboard' %}active{% endif %}">
                         <i class="bi bi-clipboard-data"></i>
                         <span class="link-text">Stock</span>
                     </a>
                 </li>
                 <li>
                     <a href="{% url 'accounting:stock_adjustment_list' %}"
-                    class="nav-link {% if request.resolver_match.url_name == 'stock_adjustment_list' or 'stock' in request.path %}active{% endif %}">
+                    class="nav-link {% if request.resolver_match.url_name == 'stock_adjustment_list' or request.resolver_match.url_name == 'stock_adjustment_add' %}active{% endif %}">
                         <i class="bi bi-clock-history"></i>
                         <span class="link-text">Stock History</span>
                     </a>
@@ -331,13 +331,10 @@
                                     {% if user|unread_count %}{{ user|unread_count }}{% endif %}
                                 </span>
                             </button>
+                            {# Filled on bell click (button below) — no background polling #}
                             <div id="notification-dropdown" class="dropdown-menu dropdown-menu-end p-0"
-                                style="width:350px; max-width:calc(100vw - 1.25rem); max-height:400px; overflow-y:auto;"
-                                hx-get="{% url 'accounting:notification_dropdown' %}"
-                                hx-trigger="load, every 30s"
-                                hx-target="#notification-dropdown"
-                                hx-swap="innerHTML">
-                                <div class="text-center py-3 text-muted">Loading notifications...</div>
+                                style="width:350px; max-width:calc(100vw - 1.25rem); max-height:400px; overflow-y:auto;">
+                                <div class="text-center py-3 text-muted">Loading…</div>
                             </div>
                         </div>
 

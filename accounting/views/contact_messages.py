@@ -8,6 +8,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 from django.db.models import Q
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.utils import timezone
 
 from ..models import ContactMessage
@@ -39,8 +40,17 @@ def message_list(request):
             Q(message__icontains=search)
         )
 
+    paginator = Paginator(contact_messages, 25)
+    try:
+        page_obj = paginator.page(request.GET.get('page', 1))
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
     context = {
-        'contact_messages': contact_messages,
+        'contact_messages': page_obj,
+        'page_obj': page_obj,
         'status_filter': status,
         'search_query': search,
     }
