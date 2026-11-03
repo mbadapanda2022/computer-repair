@@ -10,6 +10,7 @@ what the shop actually received.
 from __future__ import annotations
 
 import datetime
+import html as html_module
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -561,6 +562,11 @@ class UpiPlacementTests(UpiTestCase):
         self.assertContains(r, 'wa.me/919800000001')
         self.assertIn('reference%20number%20is%3A',
                       r.context['upi_whatsapp_link'])
+        # A phone cannot scan its own screen, so every code shown here needs a
+        # tap link: the balance-locked one and the type-it-yourself one.
+        page = html_module.unescape(r.content.decode())
+        self.assertEqual(page.count('upi://pay?'), 2)
+        self.assertIn('Pay any amount', page)
         # Public page stays read-only.
         self.assertEqual(UpiPaymentRequest.objects.count(), 0)
 
