@@ -69,6 +69,10 @@
         poora professional WhatsApp message ready hota hai (itemised breakup, total, approve/reject link).</li>
     <li>Customer approve kare ya aap staff ki taraf se confirm karke seedha <strong>Invoice</strong> generate karein.</li>
     <li>Tracking link bina-login ke chalta hai — customer phone par status dekh sakta hai.</li>
+    <li><strong>Ghar/office par repair</strong>: New Repair me "At Customer Location" chunein — address aur wahan ke
+        contact person (naam/phone) entry hota hai; repair page par us contact ka call + WhatsApp button aata hai.</li>
+    <li><strong>Online booking</strong>: website par <code>/book-repair/</code> form — customer bina login apni problem
+        bhar deta hai, job ban jata hai aur use tracking link mil jata hai; staff ko notification + email aata hai.</li>
   </ol>
   <p class="hindi">Chip-level repair dukaan ke liye poora job-card system — entry se delivery tak, GST invoice ke saath.</p>
 </div>
@@ -80,6 +84,8 @@
     <li>Invoice print/PDF professional format me — company naam, GSTIN, bill number sab Settings se aate hain.</li>
     <li>Invoice par WhatsApp share button — customer ko summary chala jata hai.</li>
     <li>Credit Notes (return), invoice se payment receive, pending/paid filters.</li>
+    <li><strong>Non-GST bill</strong> (personal customers) plain "INVOICE" format me print hota hai — koi fake tax
+        columns nahi. GST bill me GSTIN + CGST/SGST breakup print hota hai.</li>
   </ul>
 </div>
 
@@ -97,6 +103,12 @@
   <ul>
     <li>Payments: received/paid, cash-bank-UPI, advance handling, expense heads (Rent, Salary…).</li>
     <li>Cash Book + Bank Accounts: day-wise cash, bank statement print, contra transfers.</li>
+    <li><strong>UPI QR se payment — koi gateway ya fees nahi</strong>: Settings me apna UPI ID bharein, phir har
+        invoice par QR code (amount pre-filled, ya apne aap type karne wala) print/screen par aata hai. Customer
+        portal ya tracking page se scan karke pay karta hai aur "maine pay kiya" report bhejta hai.</li>
+    <li><strong>UPI Claims screen</strong> (sidebar): customer ka report sirf request hai — staff bank/UPI statement
+        se reference milakar <strong>Verify</strong> kare tabhi ledger me paisa baithta hai; galat ho to Reject with
+        reason. Duplicate reference dobara submit nahi ho sakta.</li>
   </ul>
 </div>
 
@@ -123,8 +135,8 @@
 
 <div class="card">
   <h2>&#127912; 9. Apni company kaise lagayein (Dynamic branding)</h2>
-  <p>Staff login → <strong>Settings</strong> — sirf yahan apna naam, logo, address, phone, GSTIN, city,
-     website bharein. <strong>Poori site, bills, WhatsApp messages, emails, reports — sab turant aapke brand</strong> ho jayenge.
+  <p>Staff login → <strong>Settings</strong> — sirf yahan apna naam, logo, address, phone, GSTIN, city, website
+     aur <strong>UPI ID</strong> bharein. <strong>Poori site, bills, WhatsApp messages, emails, reports — sab turant aapke brand</strong> ho jayenge.
      Koi code change nahi, kori setting.</p>
   <p class="hindi">Software 100% aapki company ke liye customize hone wala hai — demo ka naam sirf example hai.</p>
 </div>

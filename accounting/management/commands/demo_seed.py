@@ -40,6 +40,7 @@ from accounting.models import (
     RepairService,
     Service,
     Testimonial,
+    UpiPaymentRequest,
     sync_purchase_ledger,
 )
 
@@ -55,6 +56,10 @@ COMPANY = {
     'tagline': 'Expert chip-level repair, sales, and service for all brands.',
     'invoice_prefix': 'INV',
     'default_tax_rate': Decimal('18.00'),
+    # Invented VPA: the buyer sees the whole UPI QR flow (codes, pay screen,
+    # claims console) working offline. Nobody can actually pay this address.
+    'upi_id': 'democomputercare@ybl',
+    'upi_holder_name': 'Demo Computer Care',
     'financial_year_start': timezone.localdate().replace(year=timezone.localdate().year - 1, month=4, day=1),
 }
 
@@ -121,6 +126,7 @@ class Command(BaseCommand):
             self._purchases(vendors, products)
             invoices = self._invoices(customers, products, banks)
             self._repairs(customers, products, banks, users['admin'], invoices)
+            self._upi_claims(customers, invoices)
             self._credit_note(customers, products)
             self._expenses(banks, vendors)
             self._landing_content()
@@ -144,6 +150,7 @@ class Command(BaseCommand):
         for model in (Notification, ContactMessage, FAQ, Testimonial, Service,
                       RepairService, RepairPart, RepairStatusLog, RepairJob,
                       CreditNoteItem, CreditNote,
+                      UpiPaymentRequest,
                       PaymentAllocation, PurchaseAllocation, AdvanceAdjustment,
                       Payment,
                       InvoiceItem, Invoice, PurchaseItem, Purchase,
@@ -290,6 +297,11 @@ class Command(BaseCommand):
             (0, 10, 'intrastate', [('SSD 480GB SATA', 1, '3300.00'),
                                    ('Chip Level Repair Labour', 1, '900.00')], 'full', 1),
             (1, 5, 'intrastate', [('RAM 8GB DDR4', 1, '1899.00')], None, 0),
+            # Left open for the portal user (demo_customer = Ravi) so the buyer
+            # can open the customer-side UPI pay screen and report a payment.
+            (0, 3, 'intrastate', [('SSD 480GB SATA', 1, '3400.00'),
+                                  ('Mouse Optical 1200DPI', 1, '390.00')],
+             None, 0),
         ]
         invoices = []
         for (ci, days_ago, gst, lines, pay, bank_idx) in plan:
@@ -320,6 +332,22 @@ class Command(BaseCommand):
                 inv.save(update_fields=['balance_due', 'payment_status'])
             invoices.append(inv)
         return invoices
+
+    def _upi_claims(self, customers, invoices):
+        """One pending 'customer says they paid' report on the portal user's
+        open bill, so the buyer can press Verify and watch it become a real
+        Payment + allocation. A claim never moves money by itself."""
+        open_bill = next((inv for inv in invoices
+                          if inv.customer_id == customers[0].id
+                          and inv.balance_due > 0), None)
+        if not open_bill:
+            return
+        UpiPaymentRequest.objects.create(
+            invoice=open_bill, contact=customers[0],
+            amount=min(Decimal('1000.00'), open_bill.balance_due),
+            upi_reference='463012345678901', paid_on=self._d(1),
+            note='Demo claim — verify it to see the payment book itself',
+        )
 
     # ── repair jobs (full workflow) ────────────────────────────
     def _repairs(self, customers, products, banks, admin, invoices):
