@@ -139,6 +139,26 @@
             </td>
         </tr>
 
+        <!-- Repair Location Row -->
+        <tr>
+            <td colspan="2">
+                <strong>Repair Location:</strong>
+                {% if job.service_mode == 'site' %}
+                    <span class="badge badge-pending">On-site</span>
+                    {% if job.service_location %}{{ job.service_location|linebreaksbr }}{% endif %}
+                    {% if job.site_contact_name %}
+                        <br><strong>Site Contact:</strong> {{ job.site_contact_name }}
+                        {% if job.site_contact_designation %} ({{ job.site_contact_designation }}){% endif %}
+                        {% if job.site_contact_phone %}
+                            &nbsp;|&nbsp; <strong>Phone:</strong> {{ job.site_contact_phone }}
+                        {% endif %}
+                    {% endif %}
+                {% else %}
+                    At Shop
+                {% endif %}
+            </td>
+        </tr>
+
         <!-- Device Row -->
         <tr>
             <td style="width:50%;"><strong>Device:</strong> {{ job.device_model }}</td>

@@ -296,13 +296,20 @@ def _build_activity_timeline(job):
         })
 
     if job.received_at:
-        desc = 'Device physically received at shop'
+        if job.service_mode == 'site':
+            label = 'Work Started at Location'
+            desc = 'Repair carried out on-site'
+            if job.service_location:
+                desc += f' — {job.service_location}'
+        else:
+            label = 'Received at Shop'
+            desc = 'Device physically received at shop'
         if job.received_by:
             desc += f' — by {job.received_by}'
         events.append({
-            'label': 'Received at Shop',
+            'label': label,
             'at': job.received_at,
-            'icon': 'box-arrow-in-down',
+            'icon': 'geo-alt' if job.service_mode == 'site' else 'box-arrow-in-down',
             'color': 'primary',
             'desc': desc,
         })

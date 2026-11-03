@@ -377,6 +377,62 @@
                 </div>
             </div>
 
+            {% if job.service_mode == 'site' %}
+            <!-- On-site Service Card -->
+            <div class="card border-0 shadow-sm mb-4 border-start border-4 border-warning">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-geo-alt-fill text-warning me-2"></i>On-site Repair — Work Location
+                    </h5>
+                    <span class="badge bg-warning text-dark">
+                        <i class="bi bi-person-workspace me-1"></i>Engineer visits this address
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <div class="p-3 bg-light rounded-3 h-100">
+                                <small class="text-muted d-block mb-1 text-uppercase fw-semibold" style="font-size:10px;">
+                                    Address
+                                </small>
+                                <p class="mb-0 small">{{ job.service_location|default:"—"|linebreaksbr }}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="p-3 bg-light rounded-3 h-100">
+                                <small class="text-muted d-block mb-1 text-uppercase fw-semibold" style="font-size:10px;">
+                                    Contact at Site
+                                </small>
+                                <div class="fw-bold">{{ job.site_contact_name|default:"—" }}</div>
+                                {% if job.site_contact_designation %}
+                                    <small class="text-muted d-block">{{ job.site_contact_designation }}</small>
+                                {% endif %}
+                                {% if job.site_contact_phone %}
+                                    <div class="mt-2 d-flex gap-2">
+                                        <a href="tel:{{ job.site_contact_phone }}"
+                                           class="btn btn-sm btn-outline-success">
+                                            <i class="bi bi-telephone me-1"></i>Call
+                                        </a>
+                                        {% if job.site_whatsapp_target %}
+                                        <a href="https://wa.me/{{ job.site_whatsapp_target }}"
+                                           target="_blank"
+                                           class="btn btn-sm btn-outline-success">
+                                            <i class="bi bi-whatsapp me-1"></i>WhatsApp
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Billing/reminder goes to the customer above; work happens at this location.
+                    </small>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- Job Description Card -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3">

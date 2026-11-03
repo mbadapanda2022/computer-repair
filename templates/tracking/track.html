@@ -389,6 +389,9 @@
             </div>
             {% endif %}
             <div class="info-row"><span class="k">Serial / IMEI No.</span><span class="v">{{ repair.serial_number|default:"—" }}</span></div>
+            {% if repair.service_mode == 'site' %}
+            <div class="info-row"><span class="k">Repair Location</span><span class="v">On-site{% if repair.service_location %} — {{ repair.service_location }}{% endif %}</span></div>
+            {% endif %}
             {% if repair.accessories %}
             <div class="info-row"><span class="k">Accessories Given</span><span class="v">{{ repair.accessories }}</span></div>
             {% endif %}
@@ -396,7 +399,7 @@
             <div class="info-row"><span class="k">Condition on Receive</span><span class="v">{{ repair.device_condition|default:repair.received_remarks }}</span></div>
             {% endif %}
             {% if repair.received_at %}
-            <div class="info-row"><span class="k">Received On</span><span class="v">{{ repair.received_at|date:"d M Y" }}</span></div>
+            <div class="info-row"><span class="k">{% if repair.service_mode == 'site' %}Work Started On{% else %}Received On{% endif %}</span><span class="v">{{ repair.received_at|date:"d M Y" }}</span></div>
             {% endif %}
         </div>
     </div>
@@ -460,8 +463,8 @@
                 </div>
                 <div class="tl-item {% if repair.received_at %}done{% elif repair.status == 'pending' %}active{% endif %}">
                     <span class="tl-dot"></span>
-                    <div class="tl-title">Device Received at Shop</div>
-                    <div class="tl-time">{% if repair.received_at %}{{ repair.received_at|date:"d M Y" }}{% else %}Awaiting device drop-off{% endif %}</div>
+                    <div class="tl-title">{% if repair.service_mode == 'site' %}Work Started at Location{% else %}Device Received at Shop{% endif %}</div>
+                    <div class="tl-time">{% if repair.received_at %}{{ repair.received_at|date:"d M Y" }}{% elif repair.service_mode == 'site' %}Awaiting on-site visit{% else %}Awaiting device drop-off{% endif %}</div>
                 </div>
                 <div class="tl-item {% if repair.status == 'diagnosis' %}active{% elif repair.received_at and repair.status != 'pending' and repair.status != 'cancelled' %}done{% elif repair.status == 'received' %}pending-step{% endif %}">
                     <span class="tl-dot"></span>

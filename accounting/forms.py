@@ -439,6 +439,12 @@ class BookRepairForm(forms.Form):
         widget=forms.Textarea(attrs={
             'class': 'form-control', 'rows': 4,
             'placeholder': 'Describe the problem…'}))
+    service_location = forms.CharField(
+        required=False, max_length=500,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control', 'rows': 2,
+            'placeholder': 'Home/office address — only if you need the '
+                           'repair done at your location'}))
     # Honeypot — same silent-bot trap as the contact form.
     website = forms.CharField(
         required=False,
@@ -1128,13 +1134,22 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
     Repair form for staff. Staff can edit all timeline dates,
     delivery details, and status.
     """
+    # Optional on purpose: legacy/programmatic POSTs (and partial HTMX
+    # validation payloads) predate service mode — absence means "shop".
+    service_mode = forms.ChoiceField(
+        choices=RepairJob.SERVICE_MODE_CHOICES,
+        required=False, initial='shop',
+        widget=forms.Select(attrs={'class': 'form-select'}))
+
     class Meta:
         model = RepairJob
         fields = [
             'customer', 'device_model', 'serial_number',
             'issue_description', 'diagnosis_report', 'action_taken',
             'accessories', 'device_condition',
-            'status',
+            'status', 'service_mode',
+            'service_location', 'site_contact_name',
+            'site_contact_phone', 'site_contact_designation',
             'received_at', 'ready_at', 'delivery_date',
             'received_by', 'received_remarks',
             'delivered_by',
@@ -1167,6 +1182,23 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                 'placeholder': 'E.g., Battery missing, Hard disk removed',
             }),
             'status': forms.Select(attrs={'class': 'form-select'}),
+            'service_mode': forms.Select(attrs={'class': 'form-select'}),
+            'service_location': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'Full address where the work will be done (e.g., Station Rd, Keonjhar — near Bank Colony)',
+            }),
+            'site_contact_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Person to contact at the work location',
+            }),
+            'site_contact_phone': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Site contact mobile number',
+            }),
+            'site_contact_designation': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'e.g., Manager, Receptionist, Guard',
+            }),
             'received_at': BS_DATE(),
             'ready_at': BS_DATE(),
             'delivery_date': BS_DATE(),
@@ -1202,7 +1234,12 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
         labels = {
-            'received_at': 'Received at Shop (date)',
+            'received_at': 'Received / Work Started (date)',
+            'service_mode': 'Repair Location',
+            'service_location': 'Work Location (address)',
+            'site_contact_name': 'Site Contact Person (name)',
+            'site_contact_phone': 'Site Contact Phone',
+            'site_contact_designation': 'Site Contact Designation',
             'ready_at': 'Ready for Delivery (date)',
             'delivery_date': 'Delivered to Customer (date)',
             'received_by': 'Received By (staff name)',
@@ -1230,6 +1267,9 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                 )
         return customer
 
+    def clean_service_mode(self):
+        return self.cleaned_data.get('service_mode') or 'shop'
+
     def clean_estimated_cost(self):
         cost = self.cleaned_data.get('estimated_cost')
         if cost is not None and cost < 0:
@@ -1246,6 +1286,28 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                 'delivery_date',
                 "Delivery date is required when status is 'Delivered'.",
             )
+
+        # An on-site job is useless to the engineer without an address and
+        # a person to call at the site.
+        if cleaned_data.get('service_mode') == 'site':
+            if not (cleaned_data.get('service_location') or '').strip():
+                self.add_error(
+                    'service_location',
+                    "Work location address is required for on-site repairs.",
+                )
+            if not (cleaned_data.get('site_contact_name') or '').strip():
+                self.add_error(
+                    'site_contact_name',
+                    "Site contact person name is required for on-site repairs.",
+                )
+            phone = (cleaned_data.get('site_contact_phone') or '').strip()
+            if phone:
+                digits = ''.join(filter(str.isdigit, phone))
+                if len(digits) not in (10, 11, 12):
+                    self.add_error(
+                        'site_contact_phone',
+                        "Enter a valid mobile number (10 digits).",
+                    )
 
         # ── STATE MACHINE: transition validation (professional flow) ──
         # Status can now change only via valid transitions. In the old

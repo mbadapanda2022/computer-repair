@@ -59,7 +59,7 @@
         </div>
     </div>
     <div>
-        <p class="doc-title">TAX INVOICE</p>
+        <p class="doc-title">{% if invoice.is_tax_invoice %}TAX INVOICE{% else %}INVOICE{% endif %}</p>
         <div class="doc-info">
             <strong>{{ invoice.invoice_number }}</strong><br>
             Date: {{ invoice.date|date:"d M Y" }}<br>
@@ -79,14 +79,18 @@
         <div class="details">
             {% if invoice.customer.phone %}📞 {{ invoice.customer.phone }}<br>{% endif %}
             {% if invoice.customer.email %}✉ {{ invoice.customer.email }}<br>{% endif %}
-            {% if invoice.customer.gstin %}GSTIN: {{ invoice.customer.gstin }}<br>{% endif %}
+            {% if invoice.customer.gstin and invoice.is_tax_invoice %}GSTIN: {{ invoice.customer.gstin }}<br>{% endif %}
             {% if invoice.customer.address %}{{ invoice.customer.address }}{% endif %}
         </div>
     </div>
     <div class="party-box">
         <div class="label">Invoice Details</div>
         <div class="details">
-            <strong>GST Type:</strong> {{ invoice.get_gst_type_display }}<br>
+            {% if invoice.is_tax_invoice %}
+                <strong>GST Type:</strong> {{ invoice.get_gst_type_display }}<br>
+            {% else %}
+                <strong>Type:</strong> Non-GST<br>
+            {% endif %}
             {% if invoice.notes %}<strong>Notes:</strong> {{ invoice.notes }}{% endif %}
         </div>
     </div>
@@ -100,8 +104,10 @@
             <th>Product</th>
             <th class="text-center" style="width:70px;">Qty</th>
             <th class="text-end" style="width:90px;">Unit Price</th>
+            {% if invoice.is_tax_invoice %}
             <th class="text-end" style="width:80px;">Tax %</th>
             <th class="text-end" style="width:90px;">Tax Amt</th>
+            {% endif %}
             <th class="text-end" style="width:100px;">Total</th>
         </tr>
     </thead>
@@ -115,40 +121,44 @@
             </td>
             <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
             <td class="text-end">₹{{ item.unit_price|rupee }}</td>
+            {% if invoice.is_tax_invoice %}
             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
             <td class="text-end">₹{{ item.tax_amount|rupee }}</td>
+            {% endif %}
             <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="text-center" style="padding:20px;">No items in this invoice.</td></tr>
+        <tr><td colspan="{{ invoice.is_tax_invoice|yesno:'7,5' }}" class="text-center" style="padding:20px;">No items in this invoice.</td></tr>
         {% endfor %}
     </tbody>
     <tfoot>
         <tr class="total-row">
-            <td colspan="6" class="text-end">Subtotal</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">Subtotal</td>
             <td class="text-end">₹{{ invoice.subtotal|rupee }}</td>
         </tr>
         {% if invoice.discount_amount > 0 %}
         <tr class="total-row">
-            <td colspan="6" class="text-end" style="color: #dc3545;">Discount</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end" style="color: #dc3545;">Discount</td>
             <td class="text-end" style="color: #dc3545;">−₹{{ invoice.discount_amount|rupee }}</td>
         </tr>
         {% endif %}
+        {% if invoice.is_tax_invoice %}
         <tr class="total-row">
             <td colspan="6" class="text-end">Tax Amount</td>
             <td class="text-end">₹{{ invoice.tax_amount|rupee }}</td>
         </tr>
+        {% endif %}
         <tr class="grand-total">
-            <td colspan="6" class="text-end">GRAND TOTAL</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">GRAND TOTAL</td>
             <td class="text-end">₹{{ invoice.grand_total|rupee }}</td>
         </tr>
         {% if invoice.paid_amount > 0 %}
         <tr class="total-row">
-            <td colspan="6" class="text-end">Paid</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">Paid</td>
             <td class="text-end" style="color: #198754;">₹{{ invoice.paid_amount|rupee }}</td>
         </tr>
         <tr class="total-row" style="background: #f8d7da;">
-            <td colspan="6" class="text-end">Balance Due</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">Balance Due</td>
             <td class="text-end" style="color: #dc3545;">₹{{ invoice.balance_due|rupee }}</td>
         </tr>
         {% endif %}

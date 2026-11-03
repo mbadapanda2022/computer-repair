@@ -66,6 +66,12 @@
                     {{ form.issue_description }}
                     {% if form.issue_description.errors %}<div class="text-danger small">{{ form.issue_description.errors|striptags }}</div>{% endif %}
                 </div>
+                <div class="mb-3">
+                    <label class="form-label" for="id_service_location">Repair at your location? (optional)</label>
+                    {{ form.service_location }}
+                    <div class="form-text book-required-note">Leave empty to bring the device to our shop. Fill an address if you need our engineer to come to your home or office.</div>
+                    {% if form.service_location.errors %}<div class="text-danger small">{{ form.service_location.errors|striptags }}</div>{% endif %}
+                </div>
 
                 {# honeypot — invisible to humans #}
                 <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;">

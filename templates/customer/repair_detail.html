@@ -799,9 +799,24 @@
                             {% endif %}
                         </span>
                     </div>
+                    {% if repair.service_mode == 'site' %}
+                    <div class="info-row">
+                        <span class="info-label"><i class="bi bi-geo-alt me-2"></i>Repair Location</span>
+                        <span class="info-value">
+                            On-site — {{ repair.service_location }}
+                            {% if repair.site_contact_name %}
+                                <br><small class="text-muted">
+                                    Site contact: {{ repair.site_contact_name }}
+                                    {% if repair.site_contact_designation %}({{ repair.site_contact_designation }}){% endif %}
+                                    {% if repair.site_contact_phone %}— {{ repair.site_contact_phone }}{% endif %}
+                                </small>
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
                     {% if repair.received_at %}
                     <div class="info-row">
-                        <span class="info-label"><i class="bi bi-box-arrow-in-down me-2"></i>Received at Shop</span>
+                        <span class="info-label"><i class="bi bi-box-arrow-in-down me-2"></i>{% if repair.service_mode == 'site' %}Work Started{% else %}Received at Shop{% endif %}</span>
                         <span class="info-value">{{ repair.received_at|date:"d M Y" }}</span>
                     </div>
                     {% endif %}

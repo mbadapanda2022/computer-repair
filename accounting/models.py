@@ -1178,6 +1178,12 @@ class Invoice(SoftDeleteModel):
     def __str__(self):
         return f"Invoice {self.invoice_number} - {self.customer.name}"
     
+    @property
+    def is_tax_invoice(self):
+        """False for Non-GST invoices — templates must render a plain
+        'INVOICE' without any tax columns, GSTIN emphasis or breakup."""
+        return self.gst_type != 'non_gst'
+
     def get_gst_breakup(self):
         """
         Return GST breakdown based on invoice type.
@@ -2455,7 +2461,7 @@ class RepairJob(SoftDeleteModel):
     OPEN_STATUSES = ['pending', 'received', 'diagnosis', 'repairing', 'ready']
     STATUS_CHOICES = (
         ('pending',    'Pending (Awaiting Receipt)'),
-        ('received',   'Received at Shop'),
+        ('received',   'Received'),
         ('diagnosis',  'Under Diagnosis'),
         ('repairing',  'Under Repair'),
         ('ready',      'Ready for Delivery'),
@@ -2467,6 +2473,10 @@ class RepairJob(SoftDeleteModel):
         ('approved', 'Approved'),
         ('on_hold',  'On Hold'),
         ('rejected', 'Rejected'),
+    )
+    SERVICE_MODE_CHOICES = (
+        ('shop', 'At Shop (device brought here)'),
+        ('site', 'At Customer Location (on-site repair)'),
     )
 
     job_number = models.CharField(max_length=50, unique=True, editable=False)
@@ -2484,6 +2494,24 @@ class RepairJob(SoftDeleteModel):
     action_taken = models.TextField(blank=True)
     diagnosis_report = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
+
+    # ---------- Service mode / on-site details ----------
+    # A job is NOT always "device arrives at shop": the engineer may repair at
+    # the customer's home/office, or a remote payer (third-party company) may
+    # book service at a local site. The billing party stays `customer`; these
+    # fields record WHERE the work happens and WHOM the engineer contacts there.
+    service_mode = models.CharField(
+        max_length=10, choices=SERVICE_MODE_CHOICES, default='shop')
+    service_location = models.TextField(
+        blank=True, null=True,
+        help_text="Full address where the on-site work is done (home, office, branch, etc.)",
+    )
+    site_contact_name = models.CharField(
+        max_length=200, blank=True, null=True,
+        help_text="Person to contact at the work location",
+    )
+    site_contact_phone = models.CharField(max_length=20, blank=True, null=True)
+    site_contact_designation = models.CharField(max_length=100, blank=True, null=True)
 
     # ---------- Estimate flow ----------
     estimate_status = models.CharField(max_length=10, choices=ESTIMATE_STATUS_CHOICES, default='pending')
@@ -2546,7 +2574,7 @@ class RepairJob(SoftDeleteModel):
     # today's date).
     date_in = models.DateField(null=True, blank=True, help_text="Auto: pehla entry date (received_at ya aaj).",)
     submitted_at = models.DateTimeField(null=True, blank=True, help_text="Auto: when customer submitted via online portal")
-    received_at = models.DateField(null=True, blank=True, help_text="Staff: when device physically arrived at shop")
+    received_at = models.DateField(null=True, blank=True, help_text="Staff: when device physically arrived at shop (or on-site work started)")
     received_remarks = models.TextField(blank=True, null=True, help_text="Staff: device condition at reception")
     ready_at = models.DateField(null=True, blank=True, help_text="Auto: when repair was marked Ready for Delivery")
     delivered_at = models.DateTimeField(null=True, blank=True, help_text="Auto audit: when status changed to Delivered")
@@ -2658,12 +2686,12 @@ class RepairJob(SoftDeleteModel):
         url = f"https://wa.me/{self.customer_whatsapp_target}?text={quote(text)}"
         return url, text
 
-    @property
-    def customer_whatsapp_target(self):
-        """wa.me number for the customer (91-prefixed 10-digit)."""
-        if not self.customer or not self.customer.phone:
+    @staticmethod
+    def _wa_number(raw_phone):
+        """Normalize an Indian phone to a wa.me number (91-prefixed)."""
+        if not raw_phone:
             return ''
-        digits = ''.join(filter(str.isdigit, str(self.customer.phone)))
+        digits = ''.join(filter(str.isdigit, str(raw_phone)))
         if len(digits) == 10:
             return '91' + digits
         if len(digits) == 11 and digits.startswith('0'):
@@ -2672,6 +2700,16 @@ class RepairJob(SoftDeleteModel):
         if len(digits) in (12, 13) and digits.startswith('91'):
             return digits
         return digits if len(digits) > 10 else ''
+
+    @property
+    def customer_whatsapp_target(self):
+        """wa.me number for the customer (91-prefixed 10-digit)."""
+        return self._wa_number(self.customer.phone if self.customer else None)
+
+    @property
+    def site_whatsapp_target(self):
+        """wa.me number for the on-site contact person."""
+        return self._wa_number(self.site_contact_phone)
 
     @property
     def can_be_invoiced(self):

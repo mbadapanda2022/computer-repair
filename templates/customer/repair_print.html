@@ -162,6 +162,19 @@
             <span class="label">Received By</span>
             <span class="value">{{ repair.received_by|default:"—" }}</span>
         </div>
+        {% if repair.service_mode == 'site' %}
+        <div class="info-item info-full">
+            <span class="label">Repair Location (On-site)</span>
+            <span class="value">
+                {{ repair.service_location|default:"—" }}
+                {% if repair.site_contact_name %}
+                    — Site Contact: {{ repair.site_contact_name }}
+                    {% if repair.site_contact_designation %}({{ repair.site_contact_designation }}){% endif %}
+                    {% if repair.site_contact_phone %}({{ repair.site_contact_phone }}){% endif %}
+                {% endif %}
+            </span>
+        </div>
+        {% endif %}
         {% if repair.received_remarks %}
         <div class="info-item info-full">
             <span class="label">Reception Remarks</span>

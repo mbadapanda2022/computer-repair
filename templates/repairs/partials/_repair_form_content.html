@@ -154,10 +154,74 @@
                             </div>
                         </div>
 
+                        <!-- ===== SECTION 3.5: WHERE THE REPAIR HAPPENS ===== -->
+                        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+                            <i class="bi bi-geo-alt"></i> Where the Repair Happens
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="id_service_mode" class="form-label fw-semibold">Repair Location</label>
+                                <select name="service_mode" id="id_service_mode" class="form-select">
+                                    <option value="shop" {% if form.service_mode.value != 'site' %}selected{% endif %}>
+                                        At Shop (device brought here)</option>
+                                    <option value="site" {% if form.service_mode.value == 'site' %}selected{% endif %}>
+                                        At Customer Location (on-site repair)</option>
+                                </select>
+                                <small class="text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Use "At Customer Location" when the engineer repairs at the customer's
+                                    home/office, or when a remote company books service at a local site.
+                                    Billing still goes to the selected Customer above.
+                                </small>
+                            </div>
+                        </div>
+                        <div id="onsite-fields" class="row g-3 mt-2 d-none">
+                            <div class="col-12">
+                                <label for="id_service_location" class="form-label fw-semibold">Work Location (address) <span class="text-danger">*</span></label>
+                                <textarea name="service_location" id="id_service_location" rows="2"
+                                          class="form-control"
+                                          placeholder="Full address where the work will be done">{{ form.service_location.value|default:'' }}</textarea>
+                                <div class="invalid-feedback d-block">{{ form.service_location.errors|join:", " }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_site_contact_name" class="form-label fw-semibold">Site Contact Person <span class="text-danger">*</span></label>
+                                <input type="text" name="site_contact_name" id="id_site_contact_name"
+                                       class="form-control"
+                                       value="{{ form.site_contact_name.value|default:'' }}"
+                                       placeholder="Who to call on reaching the site">
+                                <div class="invalid-feedback d-block">{{ form.site_contact_name.errors|join:", " }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_site_contact_phone" class="form-label fw-semibold">Site Contact Phone</label>
+                                <input type="text" name="site_contact_phone" id="id_site_contact_phone"
+                                       class="form-control"
+                                       value="{{ form.site_contact_phone.value|default:'' }}"
+                                       placeholder="10-digit number">
+                                <div class="invalid-feedback d-block">{{ form.site_contact_phone.errors|join:", " }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="id_site_contact_designation" class="form-label fw-semibold">Site Contact Designation</label>
+                                <input type="text" name="site_contact_designation" id="id_site_contact_designation"
+                                       class="form-control"
+                                       value="{{ form.site_contact_designation.value|default:'' }}"
+                                       placeholder="e.g., Manager, Receptionist">
+                            </div>
+                        </div>
+                        <script>
+                            (function () {
+                                const mode = document.getElementById('id_service_mode');
+                                const panel = document.getElementById('onsite-fields');
+                                if (!mode || !panel) return;
+                                const sync = () => panel.classList.toggle('d-none', mode.value !== 'site');
+                                mode.addEventListener('change', sync);
+                                sync();
+                            })();
+                        </script>
+
                         <!-- ===== SECTION 4: RECEPTION ===== -->
                         <h6 class="text-success border-bottom pb-2 mb-3 mt-4">
                             <i class="bi bi-box-arrow-in-down"></i> Reception
-                            <small class="text-muted fw-normal">— When device physically arrived at shop</small>
+                            <small class="text-muted fw-normal">— When device arrived at shop (or on-site work started)</small>
                         </h6>
                         <div class="row g-3">
                             <div class="col-md-4">

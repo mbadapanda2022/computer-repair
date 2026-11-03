@@ -65,7 +65,7 @@
         <div class="details">
             {% if credit_note.customer.phone %}📞 {{ credit_note.customer.phone }}<br>{% endif %}
             {% if credit_note.customer.email %}✉ {{ credit_note.customer.email }}<br>{% endif %}
-            {% if credit_note.customer.gstin %}GSTIN: {{ credit_note.customer.gstin }}<br>{% endif %}
+            {% if credit_note.customer.gstin and invoice.is_tax_invoice %}GSTIN: {{ credit_note.customer.gstin }}<br>{% endif %}
             {% if credit_note.customer.address %}{{ credit_note.customer.address }}{% endif %}
         </div>
     </div>
@@ -86,8 +86,10 @@
             <th>Product</th>
             <th class="text-center" style="width:80px;">Qty</th>
             <th class="text-end" style="width:90px;">Rate</th>
+            {% if invoice.is_tax_invoice %}
             <th class="text-end" style="width:70px;">Tax %</th>
             <th class="text-end" style="width:90px;">Tax Amt</th>
+            {% endif %}
             <th class="text-end" style="width:100px;">Total</th>
         </tr>
     </thead>
@@ -98,23 +100,27 @@
             <td>{{ item.product.name }}</td>
             <td class="text-center">{{ item.quantity_returned|floatformat:2 }}</td>
             <td class="text-end">₹{{ item.unit_price|rupee }}</td>
+            {% if invoice.is_tax_invoice %}
             <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
             <td class="text-end">₹{{ item.tax_amount|rupee }}</td>
+            {% endif %}
             <td class="text-end fw-bold">₹{{ item.line_total|rupee }}</td>
         </tr>
         {% endfor %}
     </tbody>
     <tfoot>
         <tr>
-            <td colspan="6" class="text-end">Subtotal</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">Subtotal</td>
             <td class="text-end">₹{{ credit_note.subtotal|rupee }}</td>
         </tr>
+        {% if invoice.is_tax_invoice %}
         <tr>
             <td colspan="6" class="text-end">Tax</td>
             <td class="text-end">₹{{ credit_note.tax_amount|rupee }}</td>
         </tr>
+        {% endif %}
         <tr class="grand-total">
-            <td colspan="6" class="text-end">CREDIT TOTAL</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">CREDIT TOTAL</td>
             <td class="text-end">₹{{ credit_note.total_amount|rupee }}</td>
         </tr>
     </tfoot>

@@ -565,6 +565,11 @@ class RepairJobAdmin(admin.ModelAdmin):
         ('Job Information', {
             'fields': ('job_number', 'customer', 'device_model', 'serial_number', 'status')
         }),
+        ('Repair Location', {
+            'fields': ('service_mode', 'service_location',
+                       'site_contact_name', 'site_contact_phone',
+                       'site_contact_designation')
+        }),
         ('Issue & Diagnosis', {
             'fields': ('issue_description', 'diagnosis_report', 'action_taken')
         }),

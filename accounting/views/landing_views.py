@@ -179,16 +179,30 @@ def book_repair(request):
                 contact = Contact.objects.create(
                     name=cd['name'], phone=cd['phone'],
                     contact_type='customer')
+            site_address = (cd.get('service_location') or '').strip()
+            job_fields = {}
+            if site_address:
+                # The visitor asked for on-site service — booker is the
+                # assumed site contact until staff adjusts it.
+                job_fields = {
+                    'service_mode': 'site',
+                    'service_location': site_address,
+                    'site_contact_name': cd['name'],
+                    'site_contact_phone': cd['phone'],
+                }
             job = RepairJob.objects.create(
                 customer=contact,
                 device_model=cd['device_model'],
                 serial_number=cd.get('serial_number') or '',
-                issue_description=cd['issue_description'])
+                issue_description=cd['issue_description'],
+                **job_fields)
             send_notification_to_staff(
                 title=f'New online repair booking: {job.job_number}',
                 message=(f'{cd["name"]} ({cd["phone"]}) booked '
                          f'{cd["device_model"]}: '
-                         f'{cd["issue_description"][:90]}'),
+                         f'{cd["issue_description"][:90]}'
+                         + (' [on-site at ' + site_address[:60] + ']'
+                            if site_address else '')),
                 link=reverse('accounting:repair_list'),
                 notif_type='info', category='general', send_email=True)
             return render(request, 'landing/book_repair_thanks.html',
