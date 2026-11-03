@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
@@ -105,11 +105,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not getattr(settings, 'DEMO_MODE', False):
-            self.stderr.write(self.style.ERROR(
+            # CommandError (not a returned exit code) so `call_command` users
+            # get a clean abort — Django prints the rc as output otherwise.
+            raise CommandError(
                 'demo_seed refuses to run unless DEMO_MODE=true. '
                 'This protects real business data from demo fixtures.'
-            ))
-            return 1
+            )
         if options['fresh']:
             self._wipe()
         elif Invoice.objects.exists() or RepairJob.objects.exists():
@@ -131,9 +132,9 @@ class Command(BaseCommand):
             self._expenses(banks, vendors)
             self._landing_content()
             self._messages_and_notifications(users['admin'])
-        self.stdout.write(self.style.SUCCESS(
-            'Demo data seeded. Login: Admin / %s (staff) and demo_customer / %s (customer portal).'
-            % (DEMO_PASSWORD, DEMO_PASSWORD)
+            self.stdout.write(self.style.SUCCESS(
+                'Demo data seeded. Login: Admin / %s (staff) and demo_customer / %s (customer portal).'
+                % (DEMO_PASSWORD, DEMO_PASSWORD)
         ))
         return 0
 
@@ -370,6 +371,19 @@ class Command(BaseCommand):
         j1 = new_job(customers[0], 'Demo Laptop Model A15',
                      'Laptop not switching on. Customer suspects battery issue.', 3)
 
+        # 1b) Fresh online booking, engineer not dispatched yet — shows the
+        #     on-site flow (work at the customer's address, site contact person)
+        #     that a visitor creates themselves on /book-repair/.
+        new_job(customers[1], 'Demo Office Desktop C-7',
+                'Printer of the accounts department not working; need an '
+                'engineer at our office.', 0,
+                service_mode='site',
+                service_location='2nd Floor, Sample Business Park, '
+                                 'Lewis Road, Bhubaneswar, Odisha 751002',
+                site_contact_name='Demo Receptionist',
+                site_contact_phone='9800000099',
+                site_contact_designation='Office Manager')
+
         # 2) Under diagnosis with pending estimate
         j2 = new_job(customers[1], 'Demo Desktop PC Tower',
                      'PC restarts randomly under load.', 6,
@@ -385,25 +399,43 @@ class Command(BaseCommand):
         j3.estimate_approved_by = admin
         j3.save()
         j1.change_status('received')
-        j1.change_status('diagnosis')
         j2.change_status('received')
         j2.change_status('diagnosis')
         j3.change_status('received')
         j3.change_status('diagnosis')
         j3.change_status('repairing')
 
-        # 4) Ready — parts + labour added, ready for delivery
+        # 4) Ready + bill raised but NOT paid, so the public tracking link a
+        #    real customer gets on WhatsApp shows the UPI QR screen offline.
         j4 = new_job(customers[3], 'Demo Printer LP-100',
                      'Paper jam + streaky print output.', 12)
         j4.change_status('received')
         j4.change_status('diagnosis')
         j4.change_status('repairing')
-        RepairPart.objects.create(repair_job=j4, product=products['Keyboard USB Standard'],
-                                  quantity=1, unit_price=Decimal('650.00'))
-        RepairService.objects.create(repair_job=j4, product=cleaning,
-                                     amount=Decimal('400.00'),
-                                     description='Printer head cleaning')
+        part4 = RepairPart.objects.create(
+            repair_job=j4, product=products['Keyboard USB Standard'],
+            quantity=1, unit_price=Decimal('650.00'))
+        svc4 = RepairService.objects.create(
+            repair_job=j4, product=cleaning, amount=Decimal('400.00'),
+            description='Printer head cleaning')
         j4.change_status('ready')
+        inv4 = Invoice.objects.create(
+            customer=customers[3], date=self._d(1), gst_type='intrastate',
+            due_date=self._d(-13), notes='Demo repair invoice — payment pending',
+        )
+        InvoiceItem.objects.create(
+            invoice=inv4, product=part4.product, description=part4.product.name,
+            quantity=Decimal(1), unit_price=part4.unit_price,
+            tax_rate=Decimal('18.00'), repair_part=part4)
+        InvoiceItem.objects.create(
+            invoice=inv4, product=svc4.product, description=svc4.description,
+            quantity=Decimal(1), unit_price=svc4.amount,
+            tax_rate=Decimal('18.00'), repair_service=svc4)
+        inv4.refresh_from_db()
+        inv4.recompute_payment_state()
+        inv4.save(update_fields=['balance_due', 'payment_status'])
+        j4.invoice = inv4
+        j4.save(update_fields=['invoice'])
 
         # 5) Delivered with invoice (parts+labour, intrastate GST, paid cash)
         j5 = new_job(customers[4], 'Demo Laptop L-220',
