@@ -1,0 +1,322 @@
+<!-- templates/customer/upi_payment.html -->
+{% extends "base_customer.html" %}
+
+{% block title %}Pay {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center g-4">
+    <div class="col-12 col-xl-10">
+
+        <!-- HEADER -->
+        <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px; overflow: hidden;">
+            <div class="card-body p-4"
+                 style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); color: #fff;">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                        <div class="text-uppercase small opacity-75">Pay invoice</div>
+                        <h3 class="fw-bold mb-1">{{ invoice.invoice_number }}</h3>
+                        <div class="opacity-75 small">
+                            {{ company.name }} · {{ invoice.customer.name }}
+                        </div>
+                    </div>
+                    <div class="text-md-end">
+                        <div class="text-uppercase small opacity-75">Balance due</div>
+                        <div class="display-6 fw-bold">₹{{ invoice.balance_due|rupee }}</div>
+                        <div class="small opacity-75">
+                            Grand total ₹{{ invoice.grand_total|rupee }}
+                            · Paid ₹{{ invoice.paid_amount|rupee }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if not upi %}
+        <!-- UPI not configured / nothing to pay -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4 text-center">
+                {% if invoice.balance_due <= 0 %}
+                <i class="bi bi-check-circle-fill text-success display-5 d-block mb-3"></i>
+                <h5 class="fw-semibold">This invoice is fully paid</h5>
+                <p class="text-muted mb-3">Thank you. Nothing is pending on
+                    {{ invoice.invoice_number }}.</p>
+                {% else %}
+                <i class="bi bi-qr-code display-5 d-block mb-3 text-muted opacity-25"></i>
+                <h5 class="fw-semibold">Online payment is not available right now</h5>
+                <p class="text-muted mb-3">
+                    The shop has not set up a UPI ID yet, so there is no code to scan.
+                    Please pay at the counter, or call us and we will arrange it.
+                </p>
+                {% endif %}
+                <a href="{% url 'customer:customer_invoice_detail' invoice.pk %}"
+                   class="btn btn-primary">
+                    <i class="bi bi-arrow-left me-1"></i>Back to invoice
+                </a>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="row g-4">
+
+            <!-- LEFT: QR CARDS -->
+            <div class="col-12 col-lg-7">
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="fw-semibold mb-1">
+                            <i class="bi bi-qr-code-scan text-primary me-2"></i>Scan and pay
+                        </h5>
+                        <p class="text-muted small mb-4">
+                            Open PhonePe, Google Pay, Paytm, BHIM or any UPI app and scan the
+                            code that matches how you want to pay. No card details, no
+                            charges, no app download needed.
+                        </p>
+
+                        <div class="row g-3">
+                            <!-- Exact balance -->
+                            <div class="col-12 col-sm-6">
+                                <div class="border rounded-3 p-3 h-100 text-center">
+                                    <div class="fw-semibold mb-2">
+                                        <i class="bi bi-tag-fill text-primary me-1"></i>
+                                        Full balance
+                                    </div>
+                                    <img src="{{ upi.exact.qr }}" width="188" height="188"
+                                         alt="UPI QR code for ₹{{ upi.amount_display }} on invoice {{ invoice.invoice_number }}"
+                                         class="rounded bg-white border mb-2 mx-auto d-block">
+                                    <div class="small text-muted mb-2">
+                                        ₹{{ upi.amount_display }} is filled in for you.
+                                        Most apps lock it so the amount cannot be mistyped.
+                                    </div>
+                                    <a href="{{ upi.exact.uri }}"
+                                       class="btn btn-primary btn-sm w-100 d-sm-none">
+                                        <i class="bi bi-phone me-1"></i>Open UPI app
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Any amount -->
+                            <div class="col-12 col-sm-6">
+                                <div class="border rounded-3 p-3 h-100 text-center">
+                                    <div class="fw-semibold mb-2">
+                                        <i class="bi bi-pencil-square text-success me-1"></i>
+                                        Any amount
+                                    </div>
+                                    <img src="{{ upi.flexible.qr }}" width="188" height="188"
+                                         alt="UPI QR code for {{ company.upi_id }} where you type the amount yourself"
+                                         class="rounded bg-white border mb-2 mx-auto d-block">
+                                    <div class="small text-muted mb-2">
+                                        For a part payment. The app asks you for the amount —
+                                        type what you want to send.
+                                    </div>
+                                    <a href="{{ upi.flexible.uri }}"
+                                       class="btn btn-outline-success btn-sm w-100 d-sm-none">
+                                        <i class="bi bi-phone me-1"></i>Open UPI app
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-light border mt-4 mb-0 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div class="small">
+                                <span class="text-muted">Paying to:</span>
+                                <strong class="font-monospace ms-1">{{ company.upi_id }}</strong>
+                                <span class="text-muted mx-1">·</span>
+                                <strong>{{ upi.payee_name }}</strong>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    id="copyUpiId" data-upi-id="{{ company.upi_id }}">
+                                <i class="bi bi-clipboard me-1"></i>Copy UPI ID
+                            </button>
+                        </div>
+                        <div id="copyUpiFeedback" class="small text-success mt-2 d-none">
+                            <i class="bi bi-check2 me-1"></i>UPI ID copied.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- HOW IT WORKS -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <h6 class="fw-semibold mb-3">How it works</h6>
+                        <ol class="list-unstyled mb-0 small">
+                            <li class="d-flex gap-3 mb-3">
+                                <span class="flex-shrink-0 d-inline-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bold"
+                                      style="width: 28px; height: 28px;">1</span>
+                                <span>Scan the QR in your UPI app and complete the payment.</span>
+                            </li>
+                            <li class="d-flex gap-3 mb-3">
+                                <span class="flex-shrink-0 d-inline-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bold"
+                                      style="width: 28px; height: 28px;">2</span>
+                                <span>Copy the <strong>reference / UTR number</strong> shown on your
+                                    payment success screen (a long number like
+                                    <span class="font-monospace">4630XXXXXXXXXXXX</span>).</span>
+                            </li>
+                            <li class="d-flex gap-3">
+                                <span class="flex-shrink-0 d-inline-flex align-items-center justify-content-center rounded-circle bg-primary text-white fw-bold"
+                                      style="width: 28px; height: 28px;">3</span>
+                                <span>Fill the form on the right and tap <strong>I have paid</strong>.
+                                    The shop checks its UPI statement and marks the invoice paid —
+                                    you will get a notification and an email as soon as it is done.</span>
+                            </li>
+                        </ol>
+                        <p class="text-muted small mb-0 mt-3">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Telling the shop does not mark the bill paid by itself — the owner
+                            confirms the money actually arrived. That keeps both sides safe.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: CLAIM FORM -->
+            <div class="col-12 col-lg-5">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h6 class="fw-semibold mb-0">
+                            <i class="bi bi-cash-coin text-success me-2"></i>I have paid by UPI
+                        </h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <form method="post"
+                              action="{% url 'customer:customer_upi_pay' invoice.pk %}"
+                              novalidate>
+                            {% csrf_token %}
+
+                            <div class="mb-3">
+                                <label for="{{ form.amount.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.amount.label }}
+                                </label>
+                                {{ form.amount }}
+                                {% if form.amount.help_text %}
+                                <div class="form-text">{{ form.amount.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.amount.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.upi_reference.id_for_label }}"
+                                       class="form-label fw-semibold">
+                                    {{ form.upi_reference.label }}
+                                </label>
+                                {{ form.upi_reference }}
+                                {% for error in form.upi_reference.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                                {% if not form.upi_reference.errors %}
+                                <div class="form-text">
+                                    Exactly as shown in your UPI app, so we can find it fast.
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.paid_on.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.paid_on.label }}
+                                </label>
+                                {{ form.paid_on }}
+                                {% for error in form.paid_on.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.note.id_for_label }}" class="form-label fw-semibold">
+                                    {{ form.note.label }}
+                                </label>
+                                {{ form.note }}
+                                {% for error in form.note.errors %}
+                                <div class="invalid-feedback d-block">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <button type="submit" class="btn btn-success w-100 py-2">
+                                <i class="bi bi-send me-1"></i>Tell the shop I have paid
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 mt-4">
+                    <a href="{% url 'customer:customer_invoice_detail' invoice.pk %}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1"></i>Back to invoice
+                    </a>
+                    <a href="{% url 'customer:customer_invoice_print' invoice.pk %}"
+                       class="btn btn-outline-primary" target="_blank" rel="noopener">
+                        <i class="bi bi-printer me-1"></i>Print invoice
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- PREVIOUS CLAIMS: the customer's own trail stays visible even
+             after the bill is settled or the shop removes its UPI ID. -->
+        {% if claims %}
+        <div class="card border-0 shadow-sm mt-4">
+            <div class="card-header bg-white border-bottom py-3">
+                <h6 class="fw-semibold mb-0">
+                    <i class="bi bi-clock-history text-primary me-2"></i>Your payment reports
+                </h6>
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for claim in claims %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div class="fw-semibold">₹{{ claim.amount|rupee }}</div>
+                            <div class="small text-muted font-monospace">
+                                {{ claim.upi_reference }}
+                            </div>
+                            <div class="small text-muted">{{ claim.paid_on }}</div>
+                        </div>
+                        <span class="badge
+                            {% if claim.status == 'verified' %}bg-success
+                            {% elif claim.status == 'rejected' %}bg-secondary
+                            {% else %}bg-warning text-dark{% endif %}">
+                            {% if claim.status == 'verified' %}
+                            <i class="bi bi-check2 me-1"></i>Recorded
+                            {% elif claim.status == 'rejected' %}
+                            Not found
+                            {% else %}
+                            Checking
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if claim.status == 'rejected' and claim.rejection_reason %}
+                    <div class="small text-danger mt-2">
+                        <i class="bi bi-exclamation-circle me-1"></i>{{ claim.rejection_reason }}
+                    </div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<script>
+(function () {
+    const button = document.getElementById('copyUpiId');
+    if (!button) return;
+    button.addEventListener('click', function () {
+        const value = button.dataset.upiId || '';
+        const done = function () {
+            const feedback = document.getElementById('copyUpiFeedback');
+            if (feedback) feedback.classList.remove('d-none');
+            button.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied';
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(value).then(done).catch(function () {
+                window.prompt('Copy the UPI ID:', value);
+            });
+        } else {
+            window.prompt('Copy the UPI ID:', value);
+        }
+    });
+})();
+</script>
+{% endblock %}

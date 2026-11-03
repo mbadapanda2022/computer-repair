@@ -564,6 +564,63 @@
     </div>
     {% endif %}
 
+    <!-- ================= PAY BY UPI ================= -->
+    {% if upi %}
+    <div class="tk-section">
+        <div class="section-title"><i class="bi bi-qr-code"></i> Pay ₹{{ upi.amount|rupee }} by UPI</div>
+        <div class="panel">
+            <p style="margin:0 0 14px;color:var(--tk-muted);font-size:.9rem;">
+                Scan with any UPI app — PhonePe, Google Pay, Paytm, BHIM. The money goes
+                straight to {{ company.name }}; there are no charges and no details to enter.
+            </p>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                <div style="text-align:center;">
+                    <img src="{{ upi.exact.qr }}" width="150" height="150"
+                         alt="UPI QR code with {{ upi.amount_display }} rupees pre-filled for invoice {{ upi.invoice_number }}"
+                         style="background:#fff;border:1px solid var(--tk-border);border-radius:10px;">
+                    <div style="font-size:.8rem;font-weight:700;margin-top:6px;">Full balance</div>
+                    <div style="font-size:.75rem;color:var(--tk-muted);">₹{{ upi.amount|rupee }} pre-filled</div>
+                </div>
+                <div style="text-align:center;">
+                    <img src="{{ upi.flexible.qr }}" width="150" height="150"
+                         alt="UPI QR code where you type any amount for {{ company.name }}"
+                         style="background:#fff;border:1px solid var(--tk-border);border-radius:10px;">
+                    <div style="font-size:.8rem;font-weight:700;margin-top:6px;">Any amount</div>
+                    <div style="font-size:.75rem;color:var(--tk-muted);">Type it in the app</div>
+                </div>
+                <div style="flex:1;min-width:210px;">
+                    <div style="background:#f2f7ff;border:1px solid #dbe8ff;border-radius:10px;padding:10px 12px;font-size:.85rem;">
+                        <div><strong>UPI ID:</strong>
+                            <span style="font-family:monospace;">{{ upi.vpa }}</span></div>
+                        <div style="color:var(--tk-muted);">in the name of {{ upi.payee_name }}</div>
+                    </div>
+                    <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;">
+                        <a class="btn-ghost btn-solid" href="{{ upi.exact.uri }}"><i class="bi bi-phone"></i> Open UPI app</a>
+                    </div>
+                    <p style="font-size:.82rem;color:var(--tk-muted);margin:12px 0 0;">
+                        <strong>After paying, please tell us.</strong> Send the UPI reference
+                        number (shown on your payment success screen) so the shop can match it
+                        and mark this bill paid.
+                    </p>
+                    {% if upi_whatsapp_link %}
+                    <a class="btn-ghost" style="margin-top:8px;display:inline-flex;"
+                       href="{{ upi_whatsapp_link }}" target="_blank" rel="noopener">
+                        <i class="bi bi-whatsapp"></i> Send the reference on WhatsApp
+                    </a>
+                    {% endif %}
+                    <div style="font-size:.78rem;color:var(--tk-muted);margin-top:8px;">
+                        Or say it at the counter
+                        {% if company.phone %}or call <a href="tel:{{ company.phone }}">{{ company.phone }}</a>{% endif %}.
+                        Registered customers can also report it in the
+                        <a href="{% url 'customer:customer_invoices' %}">customer portal</a>
+                        to track the status there.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- ================= DELIVERY ================= -->
     {% if repair.delivered_at %}
     <div class="tk-section">

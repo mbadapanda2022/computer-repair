@@ -15,6 +15,7 @@ urlpatterns = [
     path('invoices/', customer_views.invoice_list, name='customer_invoices'),
     path('invoices/<int:pk>/', customer_views.invoice_detail, name='customer_invoice_detail'),
     path('invoices/<int:pk>/print/', customer_views.invoice_print, name='customer_invoice_print'),
+    path('invoices/<int:pk>/pay/', customer_views.upi_payment, name='customer_upi_pay'),
     
      # ── Purchases (view-only) ──────────────────────────
     path('purchases/', customer_views.purchase_list, name='customer_purchases'),

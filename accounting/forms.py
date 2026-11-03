@@ -14,6 +14,7 @@ from django.db.models import Sum
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
+from .templatetags.math_filters import rupee
 from .models import (
     Account,
     BankAccount,
@@ -38,6 +39,7 @@ from .models import (
     Service,
     StockMovement,
     Testimonial,
+    UpiPaymentRequest,
     get_cash_in_hand,
 )
 
@@ -540,6 +542,7 @@ class CompanyProfileForm(forms.ModelForm):
             'google_map_embed', 'working_hours',
             'facebook_url', 'instagram_url', 'youtube_url', 'blog_url',
             'whatsapp_number', 'google_review_link',
+            'upi_id', 'upi_holder_name',
             'meta_title', 'meta_description', 'meta_keywords', 'og_image',
         ]
         widgets = {
@@ -610,6 +613,14 @@ class CompanyProfileForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'https://g.page/r/CSroVuEHgpaJEAE/review',
             }),
+            'upi_id': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'yourshop@ybl  /  9876543210@paytm',
+            }),
+            'upi_holder_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Name shown in the customer UPI app',
+            }),
             'meta_title': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Max 70 characters',
@@ -643,6 +654,10 @@ class CompanyProfileForm(forms.ModelForm):
             'city': 'City name for legal pages and search results (e.g., Keonjhar)',
             'website_url': 'Public URL of this website. Used in OTP emails, statements and WhatsApp messages.',
             'whatsapp_number': 'WhatsApp number with country code (e.g., +919876543210)',
+            'upi_id': 'Enabling this shows a scannable UPI QR on unpaid invoices, '
+                      'the customer portal and the print bill. No gateway needed — '
+                      'money lands directly in your own UPI account.',
+            'upi_holder_name': 'Shown to the customer in their UPI app as the payee name.',
             'meta_title': 'Page Title (max 70 chars). Leave blank to use company name.',
             'meta_description': 'Meta Description (max 160 chars). Used in search results.',
             'meta_keywords': 'Comma separated keywords for SEO.',
@@ -1841,6 +1856,135 @@ class PaymentForm(forms.ModelForm):
                 )
 
         return cleaned_data
+
+
+# ============================================================
+# 8.5 UPI PAYMENT CLAIMS (customer declares, staff verifies)
+# ============================================================
+# A UPI reference is the 12-digit UTR / PRR the payment app prints on its
+# success screen. Kept permissive (letters, digits, - _ /) because some apps
+# prefix or space it; a copy-paste must not be rejected.
+UPI_REFERENCE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9\-_/]{2,99}$')
+
+
+class UpiClaimForm(forms.Form):
+    """
+    Customer's "I have paid this invoice by UPI" declaration.
+
+    Books nothing at all — it only records a UpiPaymentRequest for staff to
+    confirm against their own UPI statement, so a customer can never mark an
+    invoice paid. The amount is validated against the LIVE balance due rather
+    than what the page was rendered with, because a staff cash payment may
+    have landed in the meantime.
+    """
+    amount = forms.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal('0.01'),
+        label='Amount you paid',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control', 'step': '0.01', 'inputmode': 'decimal'}))
+    upi_reference = forms.CharField(
+        max_length=100, label='UPI reference / UTR number',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Number shown on your UPI payment screen'}))
+    paid_on = forms.DateField(
+        label='Payment date', widget=BS_DATE(), initial=timezone.localdate)
+    note = forms.CharField(
+        required=False, max_length=500, widget=forms.Textarea(attrs={
+            'class': 'form-control', 'rows': 2,
+            'placeholder': 'Anything we should know? (optional)'}))
+
+    def __init__(self, *args, invoice=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.invoice = invoice
+        if invoice is not None:
+            self.fields['amount'].initial = invoice.balance_due
+            self.fields['amount'].help_text = (
+                f"Balance due on this invoice: ₹{rupee(invoice.balance_due)}.")
+
+    def clean_amount(self):
+        amount = Decimal(str(self.cleaned_data['amount'])).quantize(
+            Decimal('0.01'))
+        due = self._live_due()
+        if due <= Decimal('0'):
+            raise ValidationError(
+                "This invoice has no balance left to pay.")
+        if amount > due:
+            raise ValidationError(
+                f"Amount cannot be more than the balance due of ₹{rupee(due)}.")
+        return amount
+
+    def clean_upi_reference(self):
+        ref = (self.cleaned_data.get('upi_reference') or '').strip().replace(
+            ' ', '')
+        if not UPI_REFERENCE_RE.match(ref):
+            raise ValidationError(
+                "Enter the UPI reference / UTR number exactly as shown in "
+                "your UPI app.")
+        if self.invoice is not None and UpiPaymentRequest.objects.filter(
+                invoice=self.invoice,
+                upi_reference__iexact=ref).exists():
+            raise ValidationError(
+                "This reference has already been submitted for this invoice.")
+        return ref
+
+    def clean_paid_on(self):
+        day = self.cleaned_data['paid_on']
+        if day > timezone.localdate():
+            raise ValidationError("Payment date cannot be in the future.")
+        return day
+
+    def _live_due(self):
+        due = (Invoice.objects.filter(pk=self.invoice.pk).values_list(
+            'balance_due', flat=True).first()
+            if self.invoice is not None else None)
+        return (due or Decimal('0')).quantize(Decimal('0.01'))
+
+
+class UpiVerifyForm(forms.Form):
+    """
+    Staff confirmation of a claim before the money is booked.
+
+    The amount is deliberately editable: what a customer claims and what
+    actually reached the shop's UPI account are not always the same figure,
+    and the ledger must reflect the real one.
+    """
+    amount = forms.DecimalField(
+        max_digits=12, decimal_places=2, min_value=Decimal('0.01'),
+        label='Amount received (as per your UPI statement)',
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control', 'step': '0.01', 'inputmode': 'decimal'}))
+    paid_on = forms.DateField(
+        label='Payment date', widget=BS_DATE())
+    bank_account = forms.ModelChoiceField(
+        queryset=BankAccount.objects.filter(is_active=True), required=False,
+        empty_label='Not linked to a bank/wallet account',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        help_text='Optional — choosing it also files the amount in that '
+                  "account's statement for reconciliation.")
+
+    def __init__(self, *args, claim=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.claim = claim
+        if claim is not None:
+            self.fields['amount'].initial = claim.amount
+            self.fields['paid_on'].initial = claim.paid_on
+
+    def clean_amount(self):
+        amount = Decimal(str(self.cleaned_data['amount'])).quantize(
+            Decimal('0.01'))
+        due = self._live_due()
+        if amount > due:
+            raise ValidationError(
+                f"More than the current balance due of ₹{due}. Enter what "
+                f"you actually received, or reject the claim.")
+        return amount
+
+    def _live_due(self):
+        invoice_id = getattr(self.claim, 'invoice_id', None)
+        due = (Invoice.objects.filter(pk=invoice_id).values_list(
+            'balance_due', flat=True).first() if invoice_id else None)
+        return (due or Decimal('0')).quantize(Decimal('0.01'))
 
 
 # ============================================================

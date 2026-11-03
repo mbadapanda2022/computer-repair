@@ -28,6 +28,7 @@ from .sales import *
 from .settings import *
 from .statements import *
 from .stock import *
+from .upi_claims import *
 
 # ============================================================
 # CUSTOMER VIEWS (with customer_ prefix)

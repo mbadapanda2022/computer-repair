@@ -1,0 +1,98 @@
+<!-- templates/sales/_upi_verify_modal.html -->
+<form method="post"
+      action="{% url 'accounting:upi_claim_verify' claim.pk %}"
+      id="upiVerifyForm" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+
+    <div class="modal-header">
+        <h5 class="modal-title">
+            <i class="bi bi-patch-check text-success me-2"></i>Verify UPI payment
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+
+    <div class="modal-body">
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2">
+            {% for error in form.non_field_errors %}
+            <div><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- WHAT THE CUSTOMER CLAIMS -->
+        <div class="alert alert-info py-2 small mb-3">
+            <div class="fw-semibold mb-1">
+                <i class="bi bi-person me-1"></i>{{ claim.contact.name }}
+                ({{ claim.contact.phone }})
+            </div>
+            <div class="d-flex flex-wrap gap-3">
+                <span>Invoice: <strong>{{ claim.invoice.invoice_number }}</strong></span>
+                <span>Claimed: <strong>₹{{ claim.amount|rupee }}</strong></span>
+                <span>Paid on: <strong>{{ claim.paid_on }}</strong></span>
+            </div>
+            <div class="mt-1">
+                Reference: <strong class="font-monospace">{{ claim.upi_reference }}</strong>
+            </div>
+            {% if claim.note %}
+            <div class="mt-1">Message: <em>“{{ claim.note }}”</em></div>
+            {% endif %}
+        </div>
+
+        <p class="small text-muted mb-3">
+            <i class="bi bi-shield-exclamation me-1"></i>
+            Open your UPI app or bank statement and confirm this reference and amount
+            actually arrived. Recording here adds a real payment to
+            <strong>{{ claim.invoice.invoice_number }}</strong> and closes the invoice if
+            it covers the balance.
+        </p>
+
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label for="{{ form.amount.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.amount.label }}
+                </label>
+                {{ form.amount }}
+                <div class="form-text">
+                    Balance due right now:
+                    <strong>₹{{ live_due|rupee }}</strong>.
+                    Enter less for a part payment.
+                </div>
+                {% for error in form.amount.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="col-md-4">
+                <label for="{{ form.paid_on.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.paid_on.label }}
+                </label>
+                {{ form.paid_on }}
+                {% for error in form.paid_on.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+                {% endfor %}
+            </div>
+
+            <div class="col-md-4">
+                <label for="{{ form.bank_account.id_for_label }}" class="form-label fw-semibold">
+                    {{ form.bank_account.label }}
+                </label>
+                {{ form.bank_account }}
+                <div class="form-text">{{ form.bank_account.help_text }}</div>
+                {% for error in form.bank_account.errors %}
+                <div class="invalid-feedback d-block">{{ error }}</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Not yet
+        </button>
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check2-circle me-1"></i>Confirm &amp; record payment
+        </button>
+    </div>
+</form>

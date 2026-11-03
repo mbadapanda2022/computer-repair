@@ -138,6 +138,13 @@
                     </a>
                 </li>
                 <li>
+                    <a href="{% url 'accounting:upi_claim_list' %}"
+                    class="nav-link {% if request.resolver_match.url_name == 'upi_claim_list' or 'upi-claims' in request.path %}active{% endif %}">
+                        <i class="bi bi-qr-code"></i>
+                        <span class="link-text">UPI Claims</span>
+                    </a>
+                </li>
+                <li>
                     <a href="{% url 'accounting:order_note' %}"
                     class="nav-link {% if 'order-note' in request.path %}active{% endif %}">
                         <i class="bi bi-journal-text"></i>

@@ -60,6 +60,12 @@
                                class="btn btn-sm btn-outline-primary" title="View">
                                 <i class="bi bi-eye"></i>
                             </a>
+                            {% if company.accepts_upi and invoice.balance_due > 0 %}
+                            <a href="{% url 'customer:customer_upi_pay' invoice.pk %}"
+                               class="btn btn-sm btn-success" title="Pay ₹{{ invoice.balance_due|rupee }} by UPI">
+                                <i class="bi bi-qr-code"></i>
+                            </a>
+                            {% endif %}
                             <a href="{% url 'customer:customer_invoice_print' invoice.pk %}"
                                class="btn btn-sm btn-outline-secondary" target="_blank" title="Print">
                                 <i class="bi bi-printer"></i>

@@ -1,0 +1,347 @@
+<!-- templates/sales/upi_claims.html -->
+{% extends "base.html" %}
+
+{% block title %}UPI Payment Claims{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-lg-4 py-3">
+
+    <!-- HEADER -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-qr-code-scan text-primary me-2"></i>UPI Payment Claims
+            </h3>
+            <p class="text-muted small mt-1 mb-0">
+                Customers report a UPI payment here. Check your own UPI app or bank
+                statement for the reference, then record it — nothing is added to the
+                books until you do.
+            </p>
+        </div>
+        {% if company.accepts_upi %}
+        <span class="badge bg-success-subtle text-success border border-success-subtle fs-6">
+            <i class="bi bi-check-circle me-1"></i>UPI ID: {{ company.upi_id }}
+        </span>
+        {% else %}
+        <a class="btn btn-outline-warning btn-sm" href="{% url 'accounting:company_settings' %}">
+            <i class="bi bi-gear me-1"></i>Add your UPI ID to show QR codes
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- SETUP NOTICE -->
+    {% if not company.accepts_upi %}
+    <div class="alert alert-warning d-flex align-items-start gap-2">
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <div>
+            <strong>No UPI ID saved yet.</strong>
+            Customers have nothing to scan, so no claims can arrive. Open
+            <a href="{% url 'accounting:company_settings' %}" class="alert-link">Company Settings</a>
+            and enter the UPI ID your shop actually receives money on
+            (Paytm, PhonePe, Google Pay, BHIM or a bank-linked ID — business or personal, both work).
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- STATS -->
+    <div class="row g-2 g-lg-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-warning">
+                <div class="card-body d-flex align-items-center p-2 p-lg-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-2 p-lg-3 me-2 me-lg-3">
+                        <i class="bi bi-hourglass-split fs-5 fs-lg-4 text-warning"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <small class="text-muted d-block text-uppercase fw-semibold">Waiting for you</small>
+                        <h5 class="mb-0 fw-bold text-truncate">
+                            ₹{{ pending_total|rupee }}
+                            <small class="text-muted fs-6">({{ counts.pending }})</small>
+                        </h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body d-flex align-items-center p-2 p-lg-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-2 p-lg-3 me-2 me-lg-3">
+                        <i class="bi bi-patch-check fs-5 fs-lg-4 text-success"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <small class="text-muted d-block text-uppercase fw-semibold">Verified</small>
+                        <h5 class="mb-0 fw-bold text-success">{{ counts.verified }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-secondary">
+                <div class="card-body d-flex align-items-center p-2 p-lg-3">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-2 p-lg-3 me-2 me-lg-3">
+                        <i class="bi bi-x-circle fs-5 fs-lg-4 text-secondary"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <small class="text-muted d-block text-uppercase fw-semibold">Rejected</small>
+                        <h5 class="mb-0 fw-bold text-secondary">{{ counts.rejected }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABS + SEARCH (plain URLs so refresh and Back keep the view) -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <ul class="nav nav-pills mb-0">
+                <li class="nav-item">
+                    <a class="nav-link py-1 px-3 {% if status == 'pending' %}active{% endif %}"
+                       href="?status=pending{{ filters_qs }}">
+                        Pending <span class="badge bg-light text-dark ms-1">{{ counts.pending }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-1 px-3 {% if status == 'verified' %}active{% endif %}"
+                       href="?status=verified{{ filters_qs }}">
+                        Verified <span class="badge bg-light text-dark ms-1">{{ counts.verified }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-1 px-3 {% if status == 'rejected' %}active{% endif %}"
+                       href="?status=rejected{{ filters_qs }}">
+                        Rejected <span class="badge bg-light text-dark ms-1">{{ counts.rejected }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-1 px-3 {% if status == 'all' %}active{% endif %}"
+                       href="?status=all{{ filters_qs }}">All</a>
+                </li>
+            </ul>
+            <form class="d-flex gap-2" method="get" action="{% url 'accounting:upi_claim_list' %}">
+                <input type="hidden" name="status" value="{{ status }}">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" name="search" value="{{ search }}"
+                           placeholder="Customer, phone, invoice, UPI reference"
+                           aria-label="Search claims">
+                </div>
+                <button class="btn btn-sm btn-primary" type="submit">Search</button>
+                {% if search %}
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="?status={{ status }}" title="Clear search">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr class="text-uppercase small">
+                        <th>Customer</th>
+                        <th>Invoice</th>
+                        <th class="text-end">Claimed</th>
+                        <th class="text-end">Balance due</th>
+                        <th>UPI reference</th>
+                        <th>Paid on</th>
+                        <th>Status</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for claim in claims %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold text-truncate" style="max-width: 15ch;">{{ claim.contact.name }}</div>
+                            <small class="text-muted">{{ claim.contact.phone }}</small>
+                        </td>
+                        <td>
+                            <a class="small fw-semibold"
+                               href="{% url 'accounting:invoice_detail' claim.invoice.pk %}">
+                                {{ claim.invoice.invoice_number }}
+                            </a>
+                        </td>
+                        <td class="text-end fw-bold">₹{{ claim.amount|rupee }}</td>
+                        <td class="text-end">
+                            {% if claim.status == 'pending' %}
+                                {% if claim.amount > claim.invoice.balance_due %}
+                                <span class="text-danger fw-semibold"
+                                      title="Claim is more than what is outstanding on this invoice">
+                                    ₹{{ claim.invoice.balance_due|rupee }}
+                                </span>
+                                {% else %}
+                                ₹{{ claim.invoice.balance_due|rupee }}
+                                {% endif %}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="small font-monospace">{{ claim.upi_reference }}</span>
+                            {% if claim.note %}
+                            <i class="bi bi-chat-left-text text-muted ms-1" title="{{ claim.note }}"></i>
+                            {% endif %}
+                        </td>
+                        <td class="small">{{ claim.paid_on }}</td>
+                        <td>
+                            {% if claim.status == 'pending' %}
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-hourglass me-1"></i>Pending
+                            </span>
+                            {% elif claim.status == 'verified' %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check2 me-1"></i>Verified
+                            </span>
+                            {% if claim.payment %}
+                            <div><small class="text-muted">Payment recorded</small></div>
+                            {% endif %}
+                            {% else %}
+                            <span class="badge bg-secondary">
+                                <i class="bi bi-x me-1"></i>Rejected
+                            </span>
+                            {% if claim.rejection_reason %}
+                            <div><small class="text-muted text-truncate d-block" style="max-width: 16ch;"
+                                        title="{{ claim.rejection_reason }}">{{ claim.rejection_reason }}</small></div>
+                            {% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            {% if claim.status == 'pending' %}
+                            <button type="button" class="btn btn-sm btn-success"
+                                    hx-get="{% url 'accounting:upi_claim_verify' claim.pk %}?next={{ request.GET.urlencode|urlencode }}"
+                                    hx-target="#mainModalContent"
+                                    hx-trigger="click"
+                                    title="Check your UPI statement, then record this payment">
+                                <i class="bi bi-check2-circle me-1"></i>Verify
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger ms-1"
+                                    data-bs-toggle="modal" data-bs-target="#upiRejectModal"
+                                    data-reject-url="{% url 'accounting:upi_claim_reject' claim.pk %}?next={{ request.GET.urlencode|urlencode }}"
+                                    data-reject-label="{{ claim.contact.name }} — ₹{{ claim.amount|rupee }} ({{ claim.upi_reference }})">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                            {% else %}
+                            <span class="text-muted small">Reviewed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-qr-code display-6 d-block mb-2 opacity-25"></i>
+                            {% if search %}
+                            No claims match “{{ search }}”.
+                            {% elif status == 'pending' %}
+                            Nothing waiting. New UPI claims from customers will appear here.
+                            {% elif status == 'all' %}
+                            No UPI claims yet.
+                            {% else %}
+                            No {{ status }} claims yet.
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if claims.has_other_pages %}
+        <div class="card-footer bg-white border-0">
+            <nav aria-label="Claims pagination">
+                <ul class="pagination justify-content-center mb-0 flex-wrap">
+                    {% if claims.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?status={{ status }}{{ filters_qs }}&page=1">
+                            <i class="bi bi-chevron-double-left"></i></a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?status={{ status }}{{ filters_qs }}&page={{ claims.previous_page_number }}">
+                            <i class="bi bi-chevron-left"></i></a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-left"></i></span></li>
+                    <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link">{{ claims.number }} / {{ claims.paginator.num_pages }}</span>
+                    </li>
+
+                    {% if claims.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?status={{ status }}{{ filters_qs }}&page={{ claims.next_page_number }}">
+                            <i class="bi bi-chevron-right"></i></a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?status={{ status }}{{ filters_qs }}&page={{ claims.paginator.num_pages }}">
+                            <i class="bi bi-chevron-double-right"></i></a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+                    <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-right"></i></span></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <p class="text-center text-muted small mb-0 mt-2">
+                {{ claims.paginator.count }} claim{{ claims.paginator.count|pluralize }} in this view.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- REJECT CONFIRM (shared, filled per row) -->
+<div class="modal fade" id="upiRejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form method="post" id="upiRejectForm" class="modal-content">
+            {% csrf_token %}
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-x-circle text-danger me-2"></i>Reject this claim
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">
+                    Rejecting <strong id="upiRejectLabel"></strong> keeps the invoice
+                    unpaid and tells the customer the payment was not found.
+                </p>
+                <label for="id_reject_reason" class="form-label fw-semibold">
+                    Reason <span class="text-muted fw-normal">(optional, shown to the customer)</span>
+                </label>
+                <textarea class="form-control" id="id_reject_reason" name="reason" rows="2"
+                          maxlength="200"
+                          placeholder="No payment with this reference in our account yet."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-x-lg me-1"></i>Reject claim
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const modal = document.getElementById('upiRejectModal');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        if (!button) return;
+        document.getElementById('upiRejectForm').action = button.dataset.rejectUrl;
+        document.getElementById('upiRejectLabel').textContent = button.dataset.rejectLabel;
+    });
+})();
+</script>
+{% endblock %}

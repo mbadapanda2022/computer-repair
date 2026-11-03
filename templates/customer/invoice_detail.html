@@ -678,6 +678,12 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
+                        {% if company.accepts_upi and invoice.balance_due > 0 %}
+                        <a href="{% url 'customer:customer_upi_pay' invoice.pk %}"
+                           class="btn btn-success action-btn">
+                            <i class="bi bi-qr-code"></i>Pay ₹{{ invoice.balance_due|rupee }} by UPI
+                        </a>
+                        {% endif %}
                         <a href="{% url 'customer:customer_invoice_print' invoice.pk %}" class="btn btn-outline-primary action-btn" target="_blank">
                             <i class="bi bi-printer"></i> Print Invoice
                         </a>

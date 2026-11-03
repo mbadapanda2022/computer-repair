@@ -31,7 +31,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import PasswordChangeForm
 from django.core.mail import send_mail
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, OuterRef, Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -53,6 +53,7 @@ from ..forms import (
     CustomerProfileForm,
     CustomerRepairForm,
     EmailChangeRequestForm,
+    UpiClaimForm,
 )
 from ..models import (
     CompanyProfile,
@@ -65,11 +66,14 @@ from ..models import (
     Payment,
     Purchase,
     RepairJob,
+    UpiPaymentRequest,
 )
 from ..utils.notification_helpers import (
     get_unread_count,
     send_notification_to_staff,
 )
+from ..utils.upi import invoice_upi_options
+from ..templatetags.math_filters import rupee
 from ..utils.otp_helpers import (
     OTP_RESEND_COOLDOWN_SECONDS,
     create_and_send_otp,
@@ -492,6 +496,96 @@ def invoice_detail(request, pk):
         'invoice_items': invoice_items,
         'repair_job': repair_job,
         'gst_breakup': gst_breakup,
+    })
+
+
+@login_required
+@csrf_protect
+@handle_errors(default_redirect='customer:customer_invoices')
+def upi_payment(request, pk):
+    """
+    Pay-now screen for one invoice: the shop's scannable UPI QR (exact balance
+    pre-filled, plus an enter-it-yourself variant for partial payment) and the
+    "I have already paid" form.
+
+    Declaring a payment here books nothing. It creates a claim for staff to
+    confirm against their own UPI statement, so an invoice can never become
+    paid on the customer's word alone — and the shop's money trail stays the
+    single source of truth.
+    """
+    customer = _get_customer(request)
+    invoice = get_object_or_404(
+        Invoice.objects.select_related('customer'), pk=pk, customer=customer)
+    company = CompanyProfile.get_instance()
+    options = invoice_upi_options(invoice, company)
+
+    form = UpiClaimForm(request.POST or None, invoice=invoice)
+
+    if request.method == 'POST':
+        if not options:
+            messages.error(
+                request,
+                'UPI payment is not available for this invoice right now. '
+                'Please pay at the counter or contact us.')
+            return redirect('customer:customer_invoice_detail', pk=invoice.pk)
+
+        if form.is_valid():
+            try:
+                claim = UpiPaymentRequest.objects.create(
+                    invoice=invoice,
+                    contact=customer,
+                    amount=form.cleaned_data['amount'],
+                    upi_reference=form.cleaned_data['upi_reference'],
+                    paid_on=form.cleaned_data['paid_on'],
+                    note=form.cleaned_data['note'],
+                    submitted_by=request.user,
+                )
+            except IntegrityError:
+                # Same UTR submitted twice (double click / retry) — the unique
+                # (invoice, reference) guard caught it, so say so plainly.
+                form.add_error(
+                    'upi_reference',
+                    'This reference has already been submitted for this '
+                    'invoice.')
+            else:
+                try:
+                    send_notification_to_staff(
+                        title=(f'UPI payment claimed: ₹{rupee(claim.amount)} '
+                               f'on {invoice.invoice_number}'),
+                        message=(
+                            f'{customer.name} ({customer.phone}) says they '
+                            f'paid ₹{rupee(claim.amount)} by UPI, reference '
+                            f'{claim.upi_reference}, on {claim.paid_on}. '
+                            f'Balance due is ₹{rupee(invoice.balance_due)}. '
+                            f'Please confirm in your UPI statement and '
+                            f'verify it.'
+                        ),
+                        link=reverse('accounting:upi_claim_list'),
+                        notif_type='warning',
+                        category='payment',
+                        send_email=True,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Staff notification failed for UPI claim %s", claim.pk)
+
+                messages.success(
+                    request,
+                    f'Thank you — the shop has been told you paid '
+                    f'₹{rupee(claim.amount)}. Your invoice will show as paid '
+                    f'once they confirm the payment.')
+                return redirect('customer:customer_upi_pay', pk=invoice.pk)
+
+        logger.warning(
+            "UPI claim rejected by validation | customer=%s | invoice=%s | "
+            "errors=%s", customer.pk, invoice.pk, dict(form.errors))
+
+    return render(request, 'customer/upi_payment.html', {
+        'invoice': invoice,
+        'company': company,
+        'upi': options,
+        'form': form,
+        'claims': UpiPaymentRequest.objects.filter(invoice=invoice),
     })
 
 

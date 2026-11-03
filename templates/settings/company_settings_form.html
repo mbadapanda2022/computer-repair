@@ -29,3 +29,65 @@
     </div>
 </form>
 
+<!-- UPI PAYMENT PREVIEW -->
+{% load upi_tags %}
+<div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-white py-3">
+        <h5 class="mb-0">
+            <i class="bi bi-qr-code text-primary me-2"></i>UPI payments
+        </h5>
+    </div>
+    <div class="card-body">
+        {% if profile.accepts_upi %}
+        {% upi_qr profile as preview_qr %}
+        {% upi_link profile as preview_uri %}
+        <div class="row g-4 align-items-center">
+            <div class="col-auto">
+                <img src="{{ preview_qr }}" width="168" height="168"
+                     alt="Preview of the shop UPI QR code" class="border rounded bg-white">
+            </div>
+            <div class="col">
+                <div class="mb-2">
+                    <span class="text-muted small">Receiving UPI ID</span>
+                    <div class="fw-bold font-monospace fs-5">{{ profile.upi_id }}</div>
+                </div>
+                <div class="mb-3">
+                    <span class="text-muted small">Name shown to the customer</span>
+                    <div class="fw-semibold">{{ profile.upi_payee_name }}</div>
+                </div>
+                <p class="small text-muted mb-2">
+                    Save, then scan this code with your own PhonePe / Google Pay / Paytm / BHIM
+                    app — it should open a payment screen showing the name above. That is the
+                    fastest way to catch a typo before a customer does.
+                </p>
+                <a href="{{ preview_uri }}" class="btn btn-sm btn-outline-primary d-sm-none">
+                    <i class="bi bi-phone me-1"></i>Open UPI app
+                </a>
+            </div>
+        </div>
+        <hr>
+        <div class="small text-muted">
+            <div class="fw-semibold text-dark mb-1">Where customers see this code</div>
+            <ul class="mb-2 ps-3">
+                <li>Their portal — invoice page, invoice list and the
+                    <em>Pay by UPI</em> screen (amount filled in, or typed by them).</li>
+                <li>The printed bill, and the public repair tracking page.</li>
+            </ul>
+            Money arrives in your own UPI account — no gateway, no charges, no sharing of
+            bank login. When a customer reports a payment it appears in
+            <a href="{% url 'accounting:upi_claim_list' %}">UPI Claims</a> for you to
+            verify before it touches the books.
+        </div>
+        {% else %}
+        <p class="small text-muted mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            No UPI ID saved yet. Enter one above — for example
+            <span class="font-monospace">yourshop@ybl</span> or
+            <span class="font-monospace">9876543210@paytm</span> — and save.
+            QR codes then appear on unpaid invoices automatically, and this card shows a
+            preview you can test. Leave it blank to hide all QR codes.
+        </p>
+        {% endif %}
+    </div>
+</div>
+

@@ -6,6 +6,7 @@ from .views import contact_messages as message_views
 from .views import order_note as order_note_view
 from .views import analytics as analytics_views
 from .views import storage as storage_views
+from .views import upi_claims
 from .views.auth import (
     unified_login_view,
     register_view,
@@ -170,6 +171,11 @@ urlpatterns = [
     path('payments/<int:pk>/delete/', payments.payment_delete, name='payment_delete'),
     path('payments/<int:pk>/reconcile/', payments.reconcile_payment, name='reconcile_payment'),
     path('payments/load-unpaid-invoices/', payments.load_unpaid_invoices, name='load_unpaid_invoices'),
+
+    # ===== UPI payment claims (customer-paid, staff-verified) =====
+    path('upi-claims/', upi_claims.upi_claim_list, name='upi_claim_list'),
+    path('upi-claims/<int:pk>/verify/', upi_claims.upi_claim_verify, name='upi_claim_verify'),
+    path('upi-claims/<int:pk>/reject/', upi_claims.upi_claim_reject, name='upi_claim_reject'),
 
     # ===== Statements =====
     path('statements/combined/<int:contact_id>/', statements.combined_statement, name='combined_statement'),

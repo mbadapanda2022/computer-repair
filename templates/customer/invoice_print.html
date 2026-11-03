@@ -1,4 +1,4 @@
-{% load static math_filters %}
+{% load static math_filters upi_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -565,6 +565,28 @@
         <div class="gst-item fw-bold">
             <span class="label">Grand Total</span>
             <span class="value">₹{{ invoice.grand_total|rupee }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- SCAN TO PAY                                                  -->
+    <!-- ============================================================ -->
+    {% upi_options invoice company as upi %}
+    {% if upi %}
+    <div style="display:flex; gap:14px; align-items:center; border:1px solid #ddd;
+                border-radius:6px; padding:8px 10px; margin:12px 0; background:#f8f9fa;">
+        <img src="{{ upi.exact.qr }}" width="96" height="96" alt="UPI QR code"
+             style="flex-shrink:0; background:#fff;">
+        <div style="font-size:9pt; line-height:1.5;">
+            <div style="font-size:10pt; font-weight:bold;">
+                Scan to pay ₹{{ upi.amount|rupee }} — UPI
+            </div>
+            <div>UPI ID: <strong>{{ upi.vpa }}</strong> ({{ upi.payee_name }})</div>
+            <div>Works in PhonePe, Google Pay, Paytm and BHIM. For a part payment,
+                type the amount in the app.</div>
+            <div style="color:#555;">After paying, send us the UPI reference number so we
+                can mark this invoice paid.</div>
         </div>
     </div>
     {% endif %}

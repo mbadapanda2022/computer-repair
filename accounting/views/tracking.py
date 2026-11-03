@@ -3,6 +3,7 @@ import hashlib
 import re
 from datetime import timedelta
 from decimal import Decimal
+from urllib.parse import quote
 
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
@@ -14,6 +15,7 @@ from django.utils import timezone
 
 from ..models import RepairJob, CompanyProfile, Payment, AdvanceAdjustment
 from ..utils.tracking import verify_tracking_token, generate_tracking_token
+from ..utils.upi import invoice_upi_options
 
 
 RATE_LIMIT_PER_MIN = 30
@@ -76,6 +78,25 @@ def _repair_advance_paid(repair):
     return total
 
 
+def _upi_whatsapp_link(company, repair, upi):
+    """
+    wa.me link with the invoice and amount already typed, ending where the
+    customer adds their UPI reference — so the shop can find that exact entry
+    in its UPI statement. '' when there is no number to message.
+    """
+    digits = re.sub(r'\D', '', company.whatsapp_number or company.phone or '')
+    if len(digits) == 11 and digits.startswith('0'):
+        digits = digits[1:]
+    if len(digits) == 10:
+        digits = '91' + digits
+    if len(digits) not in (12, 13):
+        return ''
+    text = (f'Hi {company.name}, I paid ₹{upi["amount_display"]} by UPI '
+            f'against invoice {upi["invoice_number"]} (job {repair.job_number}). '
+            'My UPI reference number is: ')
+    return f'https://wa.me/{digits}?text={quote(text)}'
+
+
 @require_http_methods(["GET"])
 def repair_track(request, token):
     """
@@ -114,11 +135,18 @@ def repair_track(request, token):
 
     company = CompanyProfile.get_instance()
 
+    # Read-only payment help: the shop's QR for whatever is still outstanding.
+    # Reporting the payment for real happens in the customer portal or at the
+    # counter, so this page keeps making no writes.
+    upi = invoice_upi_options(repair.invoice, company) if repair.invoice else None
+
     context = {
         'repair': repair,
         'company': company,
         'advance_paid': _repair_advance_paid(repair),
         'progress': STATUS_PROGRESS.get(repair.status, 0),
+        'upi': upi,
+        'upi_whatsapp_link': _upi_whatsapp_link(company, repair, upi) if upi else '',
         'show_costs': (
             repair.status in ('ready', 'delivered')
             or repair.invoice_id is not None

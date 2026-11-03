@@ -18,6 +18,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
+from .templatetags.math_filters import rupee
+
 def to_aware_datetime(value):
     """
     Convert a date OR naive/aware datetime to timezone-aware datetime.
@@ -47,6 +49,13 @@ logger = logging.getLogger(__name__)
 MONEY_ZERO = Decimal('0.00')
 TAX_PRECISION = Decimal('0.01')
 POSITIVE_VALIDATOR = [MinValueValidator(MONEY_ZERO)]
+
+# UPI virtual payment address (VPA): local part of alphanumerics plus
+# . _ -, then '@' and an alphabetic bank handle — e.g. shopname@ybl.
+UPI_VPA_VALIDATOR = RegexValidator(
+    regex=r'^[A-Za-z0-9][A-Za-z0-9._\-]{0,255}@[A-Za-z]{2,64}$',
+    message='Enter a valid UPI ID (e.g. yourshop@ybl, 9876543210@paytm).',
+)
 
 
 # ============================================================
@@ -398,6 +407,22 @@ class CompanyProfile(SoftDeleteModel):
     youtube_url = models.URLField(blank=True)
     whatsapp_number = models.CharField(max_length=20, blank=True)
     google_review_link = models.URLField(blank=True)
+
+    # ---------- UPI collection (static/dynamic QR, no payment gateway) ----------
+    # The shop keeps its own UPI app (PhonePe / GPay / BHIM / Paytm, business
+    # or personal). We only encode a standard upi:// deep link into a QR, so
+    # there is no gateway account, no fees and no webhook to maintain.
+    upi_id = models.CharField(
+        max_length=256, blank=True, validators=[UPI_VPA_VALIDATOR],
+        help_text="UPI ID / VPA customers pay to — e.g. a1computers@ybl or "
+                  "9876543210@paytm. Leave blank to hide all UPI QR codes.",
+    )
+    upi_holder_name = models.CharField(
+        max_length=200, blank=True,
+        help_text="Name shown in the customer's UPI app. Defaults to the "
+                  "company name when left blank.",
+    )
+
     meta_title = models.CharField(max_length=70, blank=True)
     meta_description = models.CharField(max_length=160, blank=True)
     meta_keywords = models.CharField(max_length=200, blank=True)
@@ -426,6 +451,16 @@ class CompanyProfile(SoftDeleteModel):
 
     def __str__(self):
         return self.name
+
+    @property
+    def accepts_upi(self):
+        """Single switch behind every UPI QR / pay-now surface."""
+        return bool((self.upi_id or '').strip())
+
+    @property
+    def upi_payee_name(self):
+        """Payee name encoded into the QR ('pn') — the app shows this."""
+        return (self.upi_holder_name or '').strip() or self.name or 'Merchant'
 
 
 # ============================================================
@@ -3412,6 +3447,134 @@ class PurchaseAllocation(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.payment.id} -> {self.purchase.purchase_number}: ₹{self.amount}"
+
+
+class UpiPaymentRequest(SoftDeleteModel):
+    """
+    A customer's "I have paid this invoice by UPI" declaration.
+
+    Deliberately NOT a Payment. Until staff confirm the money actually
+    landed in their UPI/bank statement, nothing is booked: no ledger entry,
+    no invoice total change. On verification record_as_payment() creates the
+    real Payment + PaymentAllocation, and the existing sync_payment_allocation
+    signals do all of the accounting exactly as the staff payment form does.
+    """
+    STATUS_CHOICES = (
+        ('pending', 'Pending Verification'),
+        ('verified', 'Verified & Recorded'),
+        ('rejected', 'Rejected'),
+    )
+
+    invoice = models.ForeignKey(
+        Invoice, on_delete=models.CASCADE, related_name='upi_requests')
+    # Copied from the invoice so the customer portal can filter claims
+    # without walking the invoice relation.
+    contact = models.ForeignKey(
+        Contact, on_delete=models.PROTECT, related_name='upi_requests')
+    amount = models.DecimalField(
+        max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR,
+        help_text="Amount the customer says they paid")
+    upi_reference = models.CharField(
+        max_length=100,
+        help_text="UTR / PRR / Reference No shown by the UPI app after paying")
+    paid_on = models.DateField(default=timezone.localdate)
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default='pending')
+    note = models.TextField(blank=True)
+
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='upi_requests_submitted')
+    payment = models.ForeignKey(
+        'Payment', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='upi_request',
+        help_text="Created only when staff verify the claim")
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='upi_requests_verified')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'UPI Payment Claim'
+        verbose_name_plural = 'UPI Payment Claims'
+        # The same UTR cannot be claimed twice against one invoice — this is
+        # what stops a double submit from ever becoming a double payment.
+        unique_together = [['invoice', 'upi_reference']]
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['invoice', 'status']),
+        ]
+
+    def __str__(self):
+        return (f"{self.invoice.invoice_number} — ₹{self.amount} "
+                f"({self.get_status_display()})")
+
+    @property
+    def can_review(self):
+        return self.status == 'pending'
+
+    @transaction.atomic
+    def record_as_payment(self, *, amount, bank_account=None, date=None,
+                          user=None):
+        """
+        Verify the claim and post the money.
+
+        The invoice row is locked and the amount is checked against the LIVE
+        balance due (not the amount captured at claim time), because someone
+        may have paid by cash or the invoice may have been adjusted in between
+        — this is what keeps paid_amount / balance_due from ever drifting.
+        """
+        if self.status != 'pending':
+            raise ValidationError(
+                'This claim has already been reviewed.')
+
+        invoice = Invoice.objects.select_for_update().get(pk=self.invoice_id)
+        due = (invoice.balance_due or MONEY_ZERO).quantize(TAX_PRECISION)
+        amount = Decimal(amount).quantize(TAX_PRECISION)
+
+        if amount <= MONEY_ZERO:
+            raise ValidationError('Amount must be greater than zero.')
+        if amount > due:
+            raise ValidationError(
+                f'Amount is more than the current balance due of ₹{rupee(due)}.')
+
+        payment = Payment.objects.create(
+            direction='received',
+            contact=self.contact,
+            amount=amount,
+            date=date or self.paid_on,
+            method='upi',
+            bank_account=bank_account,
+            upi_ref=self.upi_reference,
+            reference=self.invoice.invoice_number,
+            is_advance=False,
+            description=f'UPI claim verified — {invoice.invoice_number}',
+        )
+        # Creating the allocation is what triggers the invoice/ledger sync.
+        PaymentAllocation.objects.create(
+            payment=payment, invoice=invoice, amount=amount)
+
+        self.status = 'verified'
+        self.payment = payment
+        self.verified_by = user
+        self.verified_at = timezone.now()
+        self.save(update_fields=['status', 'payment', 'verified_by',
+                                 'verified_at'])
+        return payment
+
+    @transaction.atomic
+    def mark_rejected(self, *, reason='', user=None):
+        if self.status != 'pending':
+            raise ValidationError('This claim has already been reviewed.')
+        self.status = 'rejected'
+        self.rejection_reason = (reason or '').strip()[:200]
+        self.verified_by = user
+        self.verified_at = timezone.now()
+        self.save(update_fields=['status', 'rejection_reason', 'verified_by',
+                                 'verified_at'])
 
 
 class Payment(SoftDeleteModel):

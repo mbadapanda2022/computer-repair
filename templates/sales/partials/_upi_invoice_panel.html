@@ -1,0 +1,98 @@
+<!-- templates/sales/partials/_upi_invoice_panel.html
+     UPI section on the staff invoice page: the code the customer can scan and
+     any payment claims made against this invoice. -->
+{% load upi_tags %}
+
+{% upi_options invoice company as upi %}
+{% if upi or invoice.upi_requests.exists %}
+<div class="card border-0 shadow-sm mt-4">
+    <div class="card-header bg-light fw-bold d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <span><i class="bi bi-qr-code text-primary me-1"></i>UPI payments</span>
+        <a href="{% url 'accounting:upi_claim_list' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-list-check me-1"></i>All claims
+        </a>
+    </div>
+    <div class="card-body">
+        {% if upi %}
+        <div class="d-flex flex-wrap gap-3 align-items-start mb-3">
+            <div class="text-center">
+                <img src="{{ upi.exact.qr }}" width="132" height="132"
+                     alt="UPI QR code for ₹{{ upi.amount_display }} on invoice {{ invoice.invoice_number }}"
+                     class="border rounded bg-white">
+                <div class="small text-muted mt-1">₹{{ upi.amount|rupee }} pre-filled</div>
+            </div>
+            <div class="flex-grow-1" style="min-width: 220px;">
+                <div class="small">
+                    <span class="text-muted">Turn to:</span>
+                    <strong class="font-monospace">{{ upi.vpa }}</strong>
+                    ({{ upi.payee_name }})
+                </div>
+                <div class="small text-muted mt-1">
+                    Show this to the customer at the counter, or send them the bill —
+                    the same code is printed on it. Any UPI app works and the money
+                    lands directly in your own account.
+                </div>
+                <a href="{{ upi.exact.uri }}" class="btn btn-sm btn-outline-primary mt-2 d-sm-none">
+                    <i class="bi bi-phone me-1"></i>Open UPI app
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <p class="small text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            No online payment code for this invoice
+            {% if not company.accepts_upi %}
+            — add your UPI ID in
+            <a href="{% url 'accounting:company_settings' %}">Company Settings</a>.
+            {% else %}
+            — the balance is already settled.
+            {% endif %}
+        </p>
+        {% endif %}
+
+        {% for claim in invoice.upi_requests.all %}
+        <div class="border rounded p-2 p-md-3 mb-2
+                    {% if claim.status == 'pending' %}border-warning bg-warning-subtle{% endif %}">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="small">
+                    <span class="fw-bold">₹{{ claim.amount|rupee }}</span>
+                    <span class="text-muted mx-1">·</span>
+                    ref <span class="font-monospace">{{ claim.upi_reference }}</span>
+                    <span class="text-muted mx-1">·</span>
+                    on {{ claim.paid_on }}
+                    <span class="text-muted mx-1">·</span>
+                    by {{ claim.contact.name }}
+                    {% if claim.note %}
+                    <div class="text-muted mt-1">“{{ claim.note }}”</div>
+                    {% endif %}
+                    {% if claim.rejection_reason %}
+                    <div class="text-danger mt-1">Rejected: {{ claim.rejection_reason }}</div>
+                    {% endif %}
+                </div>
+                <div class="text-nowrap">
+                    {% if claim.status == 'pending' %}
+                    <span class="badge bg-warning text-dark me-1">Awaiting check</span>
+                    <button type="button" class="btn btn-sm btn-success"
+                            hx-get="{% url 'accounting:upi_claim_verify' claim.pk %}?next={{ request.path|urlencode }}"
+                            hx-target="#mainModalContent"
+                            hx-trigger="click">
+                        <i class="bi bi-check2-circle me-1"></i>Verify
+                    </button>
+                    {% elif claim.status == 'verified' %}
+                    <span class="badge bg-success">
+                        <i class="bi bi-check2 me-1"></i>Recorded{% if claim.payment %} ₹{{ claim.payment.amount|rupee }}{% endif %}
+                    </span>
+                    {% else %}
+                    <span class="badge bg-secondary">Rejected</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <p class="small text-muted mb-0">
+            No customer has reported a UPI payment for this invoice yet.
+        </p>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

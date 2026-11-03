@@ -1,4 +1,4 @@
-{% load static math_filters %}
+{% load static math_filters upi_tags %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -176,6 +176,26 @@
     {% else %}
         <div class="item"><span class="label">Total Tax:</span><span class="value">₹{{ invoice.tax_amount|rupee }}</span></div>
     {% endif %}
+</div>
+{% endif %}
+
+<!-- SCAN TO PAY -->
+{% upi_options invoice company as upi %}
+{% if upi %}
+<div style="display: flex; gap: 14px; align-items: center; border: 1px solid #ddd;
+            border-radius: 6px; padding: 8px 10px; margin: 12px 0; background: #f8f9fa;">
+    <img src="{{ upi.exact.qr }}" width="96" height="96" alt="UPI QR code"
+         style="flex-shrink: 0; background: #fff;">
+    <div style="font-size: 9pt; line-height: 1.5;">
+        <div style="font-size: 10pt; font-weight: bold;">
+            Scan to pay ₹{{ upi.amount|rupee }} — UPI
+        </div>
+        <div>UPI ID: <strong>{{ upi.vpa }}</strong> ({{ upi.payee_name }})</div>
+        <div>Any UPI app works: PhonePe, Google Pay, Paytm, BHIM. For a part payment,
+            type the amount yourself in the app.</div>
+        <div style="color: #555;">After paying, please tell us the UPI reference number —
+            the balance is updated once the shop confirms the payment.</div>
+    </div>
 </div>
 {% endif %}
 
