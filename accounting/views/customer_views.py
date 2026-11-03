@@ -708,14 +708,26 @@ def repair_create(request):
                 job.submitted_at = timezone.now()
                 job.save()
 
+            is_site = job.service_mode == 'site'
+
             # Notify staff — outside transaction
             try:
-                send_notification_to_staff(
-                    title=f"New Repair Request: {job.job_number}",
-                    message=(
+                if is_site:
+                    staff_msg = (
+                        f"{customer.name} requested an ON-SITE repair for "
+                        f"{job.device_model} at {job.service_location}"
+                        f" (site contact: {job.site_contact_name}"
+                        + (f", {job.site_contact_phone}"
+                           if job.site_contact_phone else '') + ")."
+                    )
+                else:
+                    staff_msg = (
                         f"{customer.name} submitted a repair for "
                         f"{job.device_model}. Awaiting device drop-off."
-                    ),
+                    )
+                send_notification_to_staff(
+                    title=f"New Repair Request: {job.job_number}",
+                    message=staff_msg,
                     link=reverse('accounting:repair_detail', args=[job.pk]),
                     notif_type='warning',
                     category='repairs',
@@ -724,6 +736,19 @@ def repair_create(request):
             except Exception:
                 logger.exception("Staff notification failed for repair %s", job.job_number)
 
+            # Mode-aware customer confirmation wording.
+            if is_site:
+                confirm = (
+                    f'Repair job {job.job_number} submitted. Our engineer '
+                    f'will call {job.site_contact_name} to schedule the '
+                    f'on-site visit.'
+                )
+            else:
+                confirm = (
+                    f'Repair job {job.job_number} submitted. '
+                    f'Please bring your device to the shop.'
+                )
+
             if htmx:
                 response = HttpResponse()
                 response['HX-Redirect'] = reverse(
@@ -731,20 +756,11 @@ def repair_create(request):
                 )
                 response['HX-Trigger'] = json.dumps({
                     'closeModal': '',
-                    'showToast': {
-                        'level': 'success',
-                        'message': (
-                            f'Repair job {job.job_number} submitted. '
-                            f'Please bring your device to the shop.'
-                        ),
-                    },
+                    'showToast': {'level': 'success', 'message': confirm},
                 })
                 return response
 
-            messages.success(
-                request,
-                f'Repair job {job.job_number} submitted. Please bring your device.',
-            )
+            messages.success(request, confirm)
             return redirect('customer:customer_repair_detail', pk=job.pk)
 
         # Validation failed

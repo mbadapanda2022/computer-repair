@@ -87,6 +87,8 @@
                           placeholder="e.g., Scratched, Battery weak">{{ form.device_condition.value|default:'' }}</textarea>
             </div>
         </div>
+
+        {% include "customer/partials/_repair_onsite_fields.html" %}
     </div>
 
     <div class="modal-footer">

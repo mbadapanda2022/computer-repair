@@ -439,12 +439,30 @@ class BookRepairForm(forms.Form):
         widget=forms.Textarea(attrs={
             'class': 'form-control', 'rows': 4,
             'placeholder': 'Describe the problem…'}))
+    service_mode = forms.ChoiceField(
+        required=False, initial='shop',
+        choices=(('shop', "I'll bring the device to the shop"),
+                 ('site', "I need the repair done at my location (on-site)")),
+        widget=forms.Select(attrs={'class': 'form-select'}))
     service_location = forms.CharField(
         required=False, max_length=500,
         widget=forms.Textarea(attrs={
             'class': 'form-control', 'rows': 2,
-            'placeholder': 'Home/office address — only if you need the '
-                           'repair done at your location'}))
+            'placeholder': 'e.g. 2nd Floor, XYZ Bank, Main Road, Bhubaneswar'}))
+    site_contact_name = forms.CharField(
+        required=False, max_length=200,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': "Whoever is present at the site"}))
+    site_contact_phone = forms.CharField(
+        required=False, max_length=20,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'placeholder': '10-digit mobile'}))
+    site_contact_designation = forms.CharField(
+        required=False, max_length=100,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Optional — e.g. Branch Manager'}))
     # Honeypot — same silent-bot trap as the contact form.
     website = forms.CharField(
         required=False,
@@ -472,6 +490,39 @@ class BookRepairForm(forms.Form):
 
     def clean_issue_description(self):
         return (self.cleaned_data.get('issue_description') or '').strip()
+
+    def clean_service_mode(self):
+        return self.cleaned_data.get('service_mode') or 'shop'
+
+    def clean_site_contact_phone(self):
+        phone = (self.cleaned_data.get('site_contact_phone') or '').strip()
+        if not phone:
+            return ''
+        digits = ''.join(filter(str.isdigit, phone))
+        if len(digits) == 11 and digits.startswith('0'):
+            digits = digits[1:]
+        if len(digits) > 10 and digits.startswith('91'):
+            digits = digits[-10:]
+        if len(digits) != 10:
+            raise ValidationError("Enter a valid 10-digit mobile number.")
+        return digits
+
+    def clean(self):
+        cleaned = super().clean()
+        # An on-site booking is useless to the engineer without an address
+        # and a person to call at the site. A named site contact is optional
+        # (falls back to the booker) but a phone, when given, must be valid
+        # — enforced by clean_site_contact_phone above.
+        if cleaned.get('service_mode') == 'site':
+            if not (cleaned.get('service_location') or '').strip():
+                self.add_error(
+                    'service_location',
+                    "Please provide the full site address for on-site repairs.")
+            if not (cleaned.get('site_contact_name') or '').strip():
+                self.add_error(
+                    'site_contact_name',
+                    "Please provide the name of the person to contact at the site.")
+        return cleaned
 
 
 # ============================================================
@@ -2019,11 +2070,23 @@ class CustomerProfileForm(forms.ModelForm):
 
 
 class CustomerRepairForm(forms.ModelForm):
+    # Customer-facing phrasing of the staff-side service mode. Optional on
+    # purpose — absence means "shop", so legacy POSTs and single-field HTMX
+    # validations keep working.
+    service_mode = forms.ChoiceField(
+        required=False, initial='shop',
+        choices=(('shop', "I'll bring the device to the shop"),
+                 ('site', "I need the repair done at my location (on-site)")),
+        widget=forms.Select(attrs={'class': 'form-select'}))
+
     class Meta:
         model = RepairJob
         fields = [
             'device_model', 'serial_number', 'issue_description',
             'accessories', 'device_condition',
+            'service_mode', 'service_location',
+            'site_contact_name', 'site_contact_phone',
+            'site_contact_designation',
         ]
         widgets = {
             'device_model': BS_TEXT(),
@@ -2031,7 +2094,48 @@ class CustomerRepairForm(forms.ModelForm):
             'issue_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'accessories': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
             'device_condition': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'service_location': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'e.g. 2nd Floor, XYZ Bank, Main Road, Bhubaneswar'}),
+            'site_contact_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Whoever is present at the location'}),
+            'site_contact_phone': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': '10-digit mobile'}),
+            'site_contact_designation': forms.TextInput(attrs={
+                'class': 'form-control', 'placeholder': 'Optional'}),
         }
+
+    def clean_service_mode(self):
+        return self.cleaned_data.get('service_mode') or 'shop'
+
+    def clean_site_contact_phone(self):
+        phone = (self.cleaned_data.get('site_contact_phone') or '').strip()
+        if not phone:
+            return ''
+        digits = ''.join(filter(str.isdigit, phone))
+        if len(digits) == 11 and digits.startswith('0'):
+            digits = digits[1:]
+        if len(digits) > 10 and digits.startswith('91'):
+            digits = digits[-10:]
+        if len(digits) != 10:
+            raise ValidationError("Enter a valid 10-digit mobile number.")
+        return digits
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get('service_mode') == 'site':
+            if not (cleaned.get('service_location') or '').strip():
+                self.add_error(
+                    'service_location',
+                    "Please provide the full address where the repair "
+                    "should be done.")
+            if not (cleaned.get('site_contact_name') or '').strip():
+                self.add_error(
+                    'site_contact_name',
+                    "Please provide the name of the person to contact "
+                    "at the location.")
+        return cleaned
 
 
 # ============================================================

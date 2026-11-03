@@ -181,15 +181,20 @@ def book_repair(request):
                     contact_type='customer')
             site_address = (cd.get('service_location') or '').strip()
             job_fields = {}
-            if site_address:
-                # The visitor asked for on-site service — booker is the
-                # assumed site contact until staff adjusts it.
+            site_note = ''
+            # 'site' mode, or a bare address from a legacy/scripted POST,
+            # both mean on-site. Site contact falls back to the booker.
+            if cd.get('service_mode') == 'site' or site_address:
                 job_fields = {
                     'service_mode': 'site',
                     'service_location': site_address,
-                    'site_contact_name': cd['name'],
-                    'site_contact_phone': cd['phone'],
+                    'site_contact_name': (cd.get('site_contact_name') or '').strip() or cd['name'],
+                    'site_contact_phone': (cd.get('site_contact_phone') or '').strip() or cd['phone'],
+                    'site_contact_designation': (cd.get('site_contact_designation') or '').strip() or None,
                 }
+                site_note = (f' [on-site at {site_address[:60]} — ask for '
+                             f'{job_fields["site_contact_name"]} '
+                             f'{job_fields["site_contact_phone"]}]')
             job = RepairJob.objects.create(
                 customer=contact,
                 device_model=cd['device_model'],
@@ -200,9 +205,7 @@ def book_repair(request):
                 title=f'New online repair booking: {job.job_number}',
                 message=(f'{cd["name"]} ({cd["phone"]}) booked '
                          f'{cd["device_model"]}: '
-                         f'{cd["issue_description"][:90]}'
-                         + (' [on-site at ' + site_address[:60] + ']'
-                            if site_address else '')),
+                         f'{cd["issue_description"][:90]}' + site_note),
                 link=reverse('accounting:repair_list'),
                 notif_type='info', category='general', send_email=True)
             return render(request, 'landing/book_repair_thanks.html',

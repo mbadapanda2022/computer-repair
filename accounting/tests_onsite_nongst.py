@@ -143,6 +143,89 @@ class BookRepairOnSiteTests(TestCase):
         self.assertEqual(job.site_contact_name, 'Remote Payer')
         self.assertEqual(job.site_contact_phone, '9876500041')
 
+    def test_booking_with_explicit_site_contact(self):
+        # A remote payer names the person at the local site — that contact
+        # must win over the booker's own details.
+        self._post(service_mode='site',
+                   service_location='Branch 4, Union Bank, Cuttack',
+                   site_contact_name='Ravi Verma',
+                   site_contact_phone='9876500099',
+                   site_contact_designation='Branch Manager')
+        job = RepairJob.objects.get()
+        self.assertEqual(job.service_mode, 'site')
+        self.assertEqual(job.site_contact_name, 'Ravi Verma')
+        self.assertEqual(job.site_contact_phone, '9876500099')
+        self.assertEqual(job.site_contact_designation, 'Branch Manager')
+
+    def test_booking_site_mode_without_address_rejected(self):
+        r = self._post(service_mode='site')
+        self.assertEqual(RepairJob.objects.count(), 0)
+        self.assertContains(r, 'Please provide the full site address')
+        self.assertContains(r, 'Please provide the name of the person')
+
+    def test_booking_site_invalid_phone_rejected(self):
+        self._post(service_mode='site',
+                   service_location='Some Road',
+                   site_contact_name='Ravi',
+                   site_contact_phone='12345')
+        self.assertEqual(RepairJob.objects.count(), 0)
+
+
+class CustomerPortalOnSiteTests(TestCase):
+    """Customer self-service repair creation/edit supports on-site mode."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth.models import User as U
+        cls.user = U.objects.create_user('portal_user', password='x')
+        cls.customer = Contact.objects.create(
+            name='Portal Self', phone='9876500071', contact_type='customer',
+            user=cls.user)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def _post(self, **over):
+        data = {'device_model': 'Epson L3110', 'serial_number': '',
+                'issue_description': 'streaky prints', 'accessories': '',
+                'device_condition': '', 'service_mode': 'shop'}
+        data.update(over)
+        return self.client.post(
+            reverse('customer:customer_repair_create'), data)
+
+    def test_shop_submission_defaults_to_shop(self):
+        r = self._post()
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(RepairJob.objects.get().service_mode, 'shop')
+
+    def test_site_submission_persists_details(self):
+        r = self._post(service_mode='site',
+                       service_location='Flat 2B, Tower 3, Bhubaneswar',
+                       site_contact_name='Meera Das',
+                       site_contact_phone='9876500072',
+                       site_contact_designation='Secretary')
+        self.assertEqual(r.status_code, 302)
+        job = RepairJob.objects.get()
+        self.assertEqual(job.service_mode, 'site')
+        self.assertEqual(job.site_contact_name, 'Meera Das')
+        self.assertEqual(job.site_contact_designation, 'Secretary')
+        self.assertEqual(job.customer, self.customer)
+        self.assertEqual(job.status, 'pending')
+
+    def test_site_mode_requires_address_and_contact(self):
+        r = self._post(service_mode='site')
+        self.assertEqual(RepairJob.objects.count(), 0)
+        self.assertContains(r, 'full address')
+        self.assertContains(r, 'person to contact')
+
+    def test_invalid_site_phone_rejected(self):
+        r = self._post(service_mode='site',
+                       service_location='Somewhere',
+                       site_contact_name='Meera',
+                       site_contact_phone='12345')
+        self.assertEqual(RepairJob.objects.count(), 0)
+        self.assertContains(r, 'valid 10-digit')
+
 
 class TrackingPageSiteModeTests(TestCase):
     @classmethod

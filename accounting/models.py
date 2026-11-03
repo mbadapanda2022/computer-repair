@@ -2501,7 +2501,8 @@ class RepairJob(SoftDeleteModel):
     # book service at a local site. The billing party stays `customer`; these
     # fields record WHERE the work happens and WHOM the engineer contacts there.
     service_mode = models.CharField(
-        max_length=10, choices=SERVICE_MODE_CHOICES, default='shop')
+        max_length=10, choices=SERVICE_MODE_CHOICES, default='shop',
+        blank=True)
     service_location = models.TextField(
         blank=True, null=True,
         help_text="Full address where the on-site work is done (home, office, branch, etc.)",

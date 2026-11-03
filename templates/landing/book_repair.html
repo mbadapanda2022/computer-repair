@@ -67,10 +67,40 @@
                     {% if form.issue_description.errors %}<div class="text-danger small">{{ form.issue_description.errors|striptags }}</div>{% endif %}
                 </div>
                 <div class="mb-3">
-                    <label class="form-label" for="id_service_location">Repair at your location? (optional)</label>
-                    {{ form.service_location }}
-                    <div class="form-text book-required-note">Leave empty to bring the device to our shop. Fill an address if you need our engineer to come to your home or office.</div>
-                    {% if form.service_location.errors %}<div class="text-danger small">{{ form.service_location.errors|striptags }}</div>{% endif %}
+                    <label class="form-label" for="id_service_mode">Where do you need the repair? *</label>
+                    {{ form.service_mode }}
+                    <div class="form-text book-required-note">Choose "on-site" if you need our engineer to come to your home, office or site.</div>
+                    {% if form.service_mode.errors %}<div class="text-danger small">{{ form.service_mode.errors|striptags }}</div>{% endif %}
+                </div>
+
+                {# On-site details — hidden until "site" is selected #}
+                <div id="onsite-fields" class="d-none mb-3">
+                    <div class="border rounded p-3 bg-light">
+                        <div class="mb-3">
+                            <label class="form-label" for="id_service_location">Site address *</label>
+                            {{ form.service_location }}
+                            <div class="form-text book-required-note">Full address where the engineer should report.</div>
+                            {% if form.service_location.errors %}<div class="text-danger small">{{ form.service_location.errors|striptags }}</div>{% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="id_site_contact_name">Who should our engineer contact at the site? *</label>
+                            {{ form.site_contact_name }}
+                            <div class="form-text book-required-note">Leave blank to use your own name and number.</div>
+                            {% if form.site_contact_name.errors %}<div class="text-danger small">{{ form.site_contact_name.errors|striptags }}</div>{% endif %}
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-7">
+                                <label class="form-label" for="id_site_contact_phone">Site contact phone</label>
+                                {{ form.site_contact_phone }}
+                                {% if form.site_contact_phone.errors %}<div class="text-danger small">{{ form.site_contact_phone.errors|striptags }}</div>{% endif %}
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label" for="id_site_contact_designation">Designation (optional)</label>
+                                {{ form.site_contact_designation }}
+                                {% if form.site_contact_designation.errors %}<div class="text-danger small">{{ form.site_contact_designation.errors|striptags }}</div>{% endif %}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {# honeypot — invisible to humans #}
@@ -86,4 +116,16 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    'use strict';
+    var mode = document.getElementById('id_service_mode');
+    var panel = document.getElementById('onsite-fields');
+    if (!mode || !panel) return;
+    function toggle() { panel.classList.toggle('d-none', mode.value !== 'site'); }
+    mode.addEventListener('change', toggle);
+    toggle();
+})();
+</script>
 {% endblock %}

@@ -79,6 +79,8 @@
                             </div>
                         </div>
 
+                        {% include "customer/partials/_repair_onsite_fields.html" %}
+
                         <div class="mt-4 d-flex justify-content-end gap-2">
                             <a href="{% url 'customer:customer_repairs' %}" class="btn btn-secondary">Cancel</a>
                             <button type="submit" class="btn btn-primary">

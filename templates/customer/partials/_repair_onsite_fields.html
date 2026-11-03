@@ -1,0 +1,73 @@
+{% comment %}
+Shared on-site repair block for the customer portal self-service forms
+(create / edit / modal). Assumes `form` is a CustomerRepairForm. Fields
+are hidden until the customer selects "site" in the Repair Location select.
+{% endcomment %}
+<div class="row g-3 mt-2">
+    <div class="col-12">
+        <label for="id_service_mode" class="form-label fw-semibold">Repair Location *</label>
+        {{ form.service_mode }}
+        <div class="form-text">
+            Choose on-site if you need our engineer to come to your home, office or site.
+        </div>
+        {% if form.service_mode.errors %}
+            <div class="text-danger small">{{ form.service_mode.errors|striptags }}</div>
+        {% endif %}
+    </div>
+</div>
+
+<div id="onsite-fields" class="d-none">
+    <div class="row g-3 mt-2">
+        <div class="col-12">
+            <div class="border rounded p-3 bg-light">
+                <div class="mb-3">
+                    <label for="id_service_location" class="form-label fw-semibold">Site Address *</label>
+                    {{ form.service_location }}
+                    {% if form.service_location.errors %}
+                        <div class="text-danger small">{{ form.service_location.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label for="id_site_contact_name" class="form-label fw-semibold">
+                        Contact Person at the Site *
+                    </label>
+                    {{ form.site_contact_name }}
+                    <div class="form-text">Who should our engineer call on arrival?</div>
+                    {% if form.site_contact_name.errors %}
+                        <div class="text-danger small">{{ form.site_contact_name.errors|striptags }}</div>
+                    {% endif %}
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="id_site_contact_phone" class="form-label fw-semibold">Contact Phone</label>
+                        {{ form.site_contact_phone }}
+                        {% if form.site_contact_phone.errors %}
+                            <div class="text-danger small">{{ form.site_contact_phone.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_site_contact_designation" class="form-label fw-semibold">
+                            Designation (optional)
+                        </label>
+                        {{ form.site_contact_designation }}
+                        {% if form.site_contact_designation.errors %}
+                            <div class="text-danger small">{{ form.site_contact_designation.errors|striptags }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var mode = document.getElementById('id_service_mode');
+    var panel = document.getElementById('onsite-fields');
+    if (!mode || !panel) return;
+    function toggle() { panel.classList.toggle('d-none', mode.value !== 'site'); }
+    mode.addEventListener('change', toggle);
+    toggle();
+})();
+</script>
