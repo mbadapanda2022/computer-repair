@@ -75,15 +75,39 @@
         return document.querySelector('.tt-nav-link[data-slug="' + slug + '"]');
     }
 
-    /* Boot the tool inside a pane (initial render and every HTMX swap), then
-     * sync the sidebar highlight and the tab title from the nav link, which is
-     * the one place that carries the tool's full SEO title. */
-    function bootPane(target) {
-        if (!target || !window.TT || typeof TT.boot !== 'function') return;
-        TT.boot(target);
+    /* The pane's chrome — which sidebar row is lit, and what the tab says. The
+     * nav link is the only place carrying a tool's full title, and the shell
+     * hands over the welcome title because after a Back to /tools/ there is no
+     * tool left to look one up for. */
+    function syncChrome(target) {
         var link = navLink(paneSlug(target));
         markActive(link);
-        if (link && link.dataset.title) document.title = link.dataset.title;
+        if (link && link.dataset.title) {
+            document.title = link.dataset.title;
+        } else if (target && target.dataset.indexTitle) {
+            document.title = target.dataset.indexTitle;
+        }
+    }
+
+    /* Boot the tool inside a pane, on the initial render and after every swap.
+     *
+     * Swapped markup is brand-new elements, and a restore from htmx's history
+     * cache is no different — except that the cached HTML keeps the
+     * data-tt-inited marker (which would make TT.boot skip the element, leaving
+     * a panel bound to nothing) and the mode button the user had last clicked
+     * (which would disagree with the tool's own fresh state). So the marker is
+     * dropped before booting, and the button the page ships as active is
+     * clicked again once its handler exists. */
+    function bootPane(target) {
+        if (!target || !window.TT || typeof TT.boot !== 'function') return;
+        target.querySelectorAll('.tt-tool[data-tool]').forEach(function (el) {
+            delete el.dataset[TT.INITED];
+        });
+        TT.boot(target);
+        target.querySelectorAll('.tt-tool [data-default-mode]').forEach(function (btn) {
+            btn.click();
+        });
+        syncChrome(target);
     }
 
     /* Welcome pane's "Open a tool" select: drive the sidebar link so HTMX
@@ -125,9 +149,20 @@
         }
     });
 
-    /* Back / Forward after hx-push-url: htmx restores the pane content from
-     * its history cache, so just re-sync sidebar, title and tool bindings. */
-    window.addEventListener('popstate', function () {
+    /* Back / Forward after hx-push-url. htmx puts the cached pane markup back
+     * itself and then fires htmx:historyRestore — it does NOT fire htmx:afterSwap
+     * for a restore, so this is the only place that gets to re-boot the pane.
+     * The cached markup still carries data-tt-inited and its last-rendered
+     * results, so without a re-boot the tool comes back dead: it shows numbers
+     * for fields that no longer hold those values and ignores every keystroke. */
+    document.addEventListener('htmx:historyRestore', function () {
         bootPane(document.getElementById('ttContent'));
+    });
+
+    /* A cached entry that never existed (an old session, or a bookmark hop) makes
+     * htmx fetch the URL and swap it normally, which htmx:afterSwap already
+     * handles; this only covers the plain popstate that htmx leaves alone. */
+    window.addEventListener('popstate', function () {
+        syncChrome(document.getElementById('ttContent'));
     });
 })();

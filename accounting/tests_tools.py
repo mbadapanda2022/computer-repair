@@ -127,6 +127,36 @@ class TechToolsPaneMarkupTests(TestCase):
                 self.assertIn('data-clear', src)
                 self.assertIn('tt-result-box', src)
 
+    def test_panes_carry_every_field_their_js_reads(self):
+        # A tool looks its controls up by id. A typo in one of those ids costs
+        # nothing at boot time and leaves the result box blank forever, so the
+        # ids named inside each init function have to exist in that pane.
+        for name in TOOL_SCRIPTS:
+            src = bundle_source(name)
+            chunks = re.split(r"TT\.tools\['([^']+)'\] = function \(root\)", src)
+            for slug, body in zip(chunks[1::2], chunks[2::2]):
+                tool = get_tool(slug)
+                self.assertIsNotNone(tool, f'{slug} is in {name} but not the registry')
+                partial = partial_source(tool)
+                for field_id in sorted(set(
+                        re.findall(r"TT\.q\(root,\s*'([A-Za-z0-9_]+)'\)", body))):
+                    with self.subTest(bundle=name, slug=slug, field=field_id):
+                        self.assertIn(f'id="{field_id}"', partial,
+                                      f'{slug} reads #{field_id}, its pane has no such id')
+
+    def test_every_result_row_has_a_label_and_a_value(self):
+        # TT.lines() draws r[0] as the label and r[1] as the value, and a row
+        # pushed with the array closed one bracket early loses its value as a
+        # dropped extra argument — the pane then shows a bare label forever and
+        # nothing in the browser or the suite complains. Built one row per line
+        # instead, so a closed array on the opening line is the mistake.
+        for name in TOOL_SCRIPTS:
+            for line in bundle_source(name).splitlines():
+                if 'push([' in line:
+                    with self.subTest(bundle=name, line=line.strip()[:80]):
+                        self.assertNotRegex(line.rstrip(), r'push\(\[.*\],\s*$',
+                                            'row array closed before its value')
+
     def test_panes_do_not_depend_on_view_context(self):
         # A pane swapped in by HTMX gets no context, so nothing inside a tool
         # pane may read a template variable except the url tag.
@@ -156,7 +186,8 @@ class TechToolsPaneMarkupTests(TestCase):
         # is active) is restored too; one default per group is required.
         for tool in TOOLS:
             src = partial_source(tool)
-            groups = set(re.findall(r'data-(?:mode|bands|gstmix)="([^"]+)"', src))
+            groups = set(re.findall(
+                r'data-(?:mode|bands|gstmix|ptlayer|pspath|fstype)="([^"]+)"', src))
             if not groups:
                 continue
             with self.subTest(slug=tool['slug']):
@@ -253,6 +284,34 @@ class TechToolsPublicAccessTests(TestCase):
         body = self.client.get('/tools/').content.decode()
         self.assertIn('<title>Tech Tools', body)
         self.assertIn('Nothing is uploaded', body)
+
+    def test_shell_hands_the_js_its_fallback_title(self):
+        # Pressing Back to /tools/ leaves no tool in the pane, so the shell has
+        # to carry the welcome title or the tab keeps naming the previous tool.
+        body = self.client.get('/tools/gst-calc/').content.decode()
+        self.assertIn('data-index-title="Tech Tools | ', body)
+
+    def test_shell_reboots_a_pane_coming_back_from_history(self):
+        # htmx restores a pushed URL out of its own cache, and for that swap it
+        # fires no htmx:afterSwap — only htmx:historyRestore. The cached markup
+        # still carries data-tt-inited plus the results it rendered last time, so
+        # a pane that is not re-booted comes back dead: it ignores every keystroke
+        # and shows figures for field values the snapshot no longer holds.
+        src = (BASE_DIR / 'static' / 'js' / 'tech-tools.js').read_text(
+            encoding='utf-8')
+
+        restore = re.search(
+            r"addEventListener\('htmx:historyRestore'[^{]*\{(.*?)\}\);", src, re.S)
+        self.assertIsNotNone(restore, 'nothing handles htmx:historyRestore')
+        self.assertIn('bootPane(', restore.group(1))
+
+        boot = re.search(r'function bootPane\(target\) \{(.*?)\n    \}', src, re.S)
+        self.assertIsNotNone(boot, 'bootPane is missing')
+        body = boot.group(1)
+        self.assertIn('delete el.dataset[TT.INITED]', body)
+        self.assertIn('TT.boot(target)', body)
+        self.assertIn('data-default-mode', body)
+        self.assertIn('syncChrome(target)', body)
 
     def test_shell_loads_local_scripts_in_registry_order(self):
         body = self.client.get('/tools/').content.decode()

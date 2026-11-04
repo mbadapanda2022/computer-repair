@@ -33,14 +33,18 @@ def _company_name():
 def _shell(request, tool):
     """Context for the page shell, with per-tool SEO metadata when open."""
     company = _company_name()
+    index_title = 'Tech Tools | ' + company
     if tool:
         title = f'{tool["seo_title"]} | {company}'
         description = tool['seo_description']
     else:
-        title = f'Tech Tools | {company}'
+        title = index_title
         description = ('Free calculators for repair work — resistor and '
-                       'capacitor codes, Ohm\'s law, LED resistors, battery '
-                       f'runtime, subnets and GST. Tools by {company}.')
+                       'capacitor codes, Ohm\'s law, LED and base resistors, '
+                       'voltage dividers, RC timing, PCB trace current, '
+                       'heatsink and regulator heat, fuse and sense-resistor '
+                       f'choices, battery runtime, subnets and GST. Tools by '
+                       f'{company}.')
     return {
         'tool_groups': grouped_tools(),
         'tool_count': len(TOOLS),
@@ -48,6 +52,7 @@ def _shell(request, tool):
         'initial_partial': tool['partial'] if tool else WELCOME_PARTIAL,
         'script_files': TOOL_SCRIPTS,
         'site_name': company,
+        'index_title': index_title,
         'meta': {
             'title': title,
             'description': description,

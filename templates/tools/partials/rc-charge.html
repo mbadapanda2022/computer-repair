@@ -1,0 +1,89 @@
+{# RC time constant — charge, discharge, inrush and stored energy #}
+<div class="tt-tool" data-tool="rc-charge">
+    <h3><i class="bi bi-stopwatch me-2"></i>RC Time Constant</h3>
+    <p class="text-muted mb-3">
+        The same τ answers two bench questions: how long a soft-start, reset
+        line or timer takes to reach its level, and how long a bulk capacitor
+        stays charged after the board is unplugged.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="rcVolts">Voltage (V)</label>
+            <div class="input-group">
+                <input class="form-control" id="rcVolts" type="number" step="any" min="0"
+                       value="5" autocomplete="off">
+                <select class="form-select" id="rcVoltsUnit" aria-label="Voltage unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                    <option value="kV">kV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="rcR">Resistance (R)</label>
+            <div class="input-group">
+                <input class="form-control" id="rcR" type="number" step="any" min="0"
+                       value="10" autocomplete="off">
+                <select class="form-select" id="rcRUnit" aria-label="Resistance unit">
+                    <option value="Ω">Ω</option>
+                    <option value="kΩ" selected>kΩ</option>
+                    <option value="MΩ">MΩ</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="rcC">Capacitance (C)</label>
+            <div class="input-group">
+                <input class="form-control" id="rcC" type="number" step="any" min="0"
+                       value="100" autocomplete="off">
+                <select class="form-select" id="rcCUnit" aria-label="Capacitance unit">
+                    <option value="pF">pF</option>
+                    <option value="nF">nF</option>
+                    <option value="µF" selected>µF</option>
+                    <option value="mF">mF</option>
+                    <option value="F">F</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="rcSeconds">Voltage after this time (optional)</label>
+            <div class="input-group">
+                <input class="form-control" id="rcSeconds" type="number" step="any" min="0"
+                       value="" placeholder="e.g. 0.5" autocomplete="off">
+                <select class="form-select" id="rcSecondsUnit" aria-label="Time unit">
+                    <option value="seconds" selected>seconds</option>
+                    <option value="minutes">minutes</option>
+                    <option value="hours">hours</option>
+                    <option value="days">days</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="rcTarget">…or time to reach this voltage (optional)</label>
+            <input class="form-control" id="rcTarget" type="number" step="any" min="0"
+                   value="" placeholder="must be below the voltage above" autocomplete="off">
+        </div>
+        <div class="col-sm-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Time constant</div>
+        <div class="tt-result-value big" id="rcHead" aria-live="polite">—</div>
+        <div id="rcOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        Charging follows V = Vs(1 − e<sup>−t/τ</sup>) and discharging
+        V = Vs·e<sup>−t/τ</sup>, with τ = R × C. Five time constants is 99.3 %,
+        which is why a board is not safe to touch the moment the rail reads zero.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

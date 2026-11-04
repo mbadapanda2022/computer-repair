@@ -1,0 +1,70 @@
+{# Series bulb (dim bulb) limiter for powering a repaired board #}
+<div class="tt-tool" data-tool="series-lamp">
+    <h3><i class="bi bi-lamp me-2"></i>Series Bulb Limiter</h3>
+    <p class="text-muted mb-3">
+        The bench trick that saves a repaired SMPS or laptop board: an
+        incandescent bulb in series with the live line. Its own hot resistance
+        is the current limit, so a shorted board lights the bulb instead of
+        blowing the fuse, the bridge or the track you just soldered.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6 col-6">
+            <label class="tt-label" for="slMains">Mains supply</label>
+            <select class="form-select" id="slMains" aria-label="Mains voltage">
+                <option value="230" selected>230 V (India)</option>
+                <option value="120">120 V (US)</option>
+            </select>
+        </div>
+        <div class="col-sm-6 col-6">
+            <label class="tt-label" for="slBulb">Bulb rating (W)</label>
+            <input class="form-control" id="slBulb" type="number" step="any" min="1"
+                   value="100" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="slLoad">What the board draws when healthy (VA, optional)</label>
+            <input class="form-control" id="slLoad" type="number" step="any" min="0"
+                   value="150" autocomplete="off">
+        </div>
+        <div class="col-sm-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-chips mt-2">
+        <span class="tt-chips-label">Common bulbs:</span>
+        <button type="button" class="tt-chip" data-slbulpick="25">25 W</button>
+        <button type="button" class="tt-chip" data-slbulpick="40">40 W</button>
+        <button type="button" class="tt-chip" data-slbulpick="60">60 W</button>
+        <button type="button" class="tt-chip" data-slbulpick="100">100 W</button>
+        <button type="button" class="tt-chip" data-slbulpick="150">150 W</button>
+        <button type="button" class="tt-chip" data-slbulpick="200">200 W</button>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Current on a short</div>
+        <div class="tt-result-value big" id="slHead" aria-live="polite">—</div>
+        <div id="slOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        Pick a bulb about the same wattage as the supply you are testing. Full
+        brightness means a short somewhere — start with the bulk capacitor and
+        the bridge; a bulb that flickers on then fades to dim is a healthy
+        inrush charging the mains cap. A CFL or LED lamp will not work here, it
+        needs a plain tungsten bulb.
+    </div>
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        A switched-mode supply is not a resistor, so the healthy-load figures
+        are an estimate for sizing the bulb, not a promise about the voltage the
+        board receives. Everything here sits on the live side of the mains: use
+        an isolation transformer before probing anything with a meter or scope.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

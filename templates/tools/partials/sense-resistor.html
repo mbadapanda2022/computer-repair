@@ -1,0 +1,81 @@
+{# Current sense resistor — millivolts per amp and the wattage to fit #}
+<div class="tt-tool" data-tool="sense-resistor">
+    <h3><i class="bi bi-speedometer2 me-2"></i>Current Sense Resistor</h3>
+    <p class="text-muted mb-3">
+        The low-value leg in a charger, a battery protection board or a laptop
+        rail is just a known resistor: the millivolts across it are the current.
+        Work it forwards to size a replacement, or backwards from what your
+        meter is reading to find the current flowing right now.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="srR">Sense resistance</label>
+            <div class="input-group">
+                <input class="form-control" id="srR" type="number" step="any" min="0"
+                       value="5" autocomplete="off">
+                <select class="form-select" id="srRUnit" aria-label="Resistance unit">
+                    <option value="mΩ" selected>mΩ</option>
+                    <option value="Ω">Ω</option>
+                    <option value="kΩ">kΩ</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="srAmps">Current through it</label>
+            <div class="input-group">
+                <input class="form-control" id="srAmps" type="number" step="any" min="0"
+                       value="3" autocomplete="off">
+                <select class="form-select" id="srAmpsUnit" aria-label="Current unit">
+                    <option value="A" selected>A</option>
+                    <option value="mA">mA</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="srFull">Full-scale voltage (optional)</label>
+            <div class="input-group">
+                <input class="form-control" id="srFull" type="number" step="any" min="0"
+                       value="" placeholder="what the ADC can take" autocomplete="off">
+                <select class="form-select" id="srFullUnit" aria-label="Full-scale unit">
+                    <option value="V">V</option>
+                    <option value="mV" selected>mV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="srRead">Voltage you measured (optional)</label>
+            <div class="input-group">
+                <input class="form-control" id="srRead" type="number" step="any" min="0"
+                       value="" placeholder="e.g. 15" autocomplete="off">
+                <select class="form-select" id="srReadUnit" aria-label="Measured voltage unit">
+                    <option value="V">V</option>
+                    <option value="mV" selected>mV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-12 d-flex">
+            <button type="button" class="btn btn-outline-secondary ms-auto" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Signal per amp</div>
+        <div class="tt-result-value big" id="srHead" aria-live="polite">—</div>
+        <div id="srOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        When a sense resistor has burnt open, the rail downstream reads dead even
+        though the supply is fine — measure across it rather than trusting the
+        band or code, because a darkened 0.01 Ω part often still measures right
+        while cold. Replace it with the same value, not a nearby one: the whole
+        current loop is calibrated against those millivolts.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

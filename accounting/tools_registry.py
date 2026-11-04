@@ -14,9 +14,10 @@ from __future__ import annotations
 
 # JS bundles loaded by the tools page. Each file registers one init function
 # per tool into ``TT.tools`` (see static/js/tools/common.js).
-TOOL_SCRIPTS = ('electronics.js', 'computer.js', 'shop.js')
+TOOL_SCRIPTS = ('electronics.js', 'board.js', 'computer.js', 'shop.js')
 
 ELECTRONICS = 'Electronics'
+BOARD = 'Chip-Level Board Repair'
 COMPUTER = 'Computer & Network'
 SHOP = 'Shop & Billing'
 
@@ -85,6 +86,136 @@ TOOLS = (
         'seo_description': 'Work out the series resistor for an LED from any '
                            'supply voltage: resistance, power dissipation and '
                            'the nearest standard E24 value to buy.',
+    },
+    {
+        'slug': 'voltage-divider',
+        'name': 'Voltage Divider',
+        'icon': 'bi-sliders',
+        'category': BOARD,
+        'blurb': 'R1 / R2 tap voltage, and what it really reads once the '
+                 'circuit loads it.',
+        'partial': 'tools/partials/voltage-divider.html',
+        'seo_title': 'Voltage Divider Calculator — Loaded Output Error',
+        'seo_description': 'Voltage divider calculator: enter Vin, R1 and R2 for the tap '
+                           'voltage, add the load to see the real output, the loading '
+                           'error and whether it is stiff enough.',
+    },
+    {
+        'slug': 'rc-charge',
+        'name': 'RC Time Constant',
+        'icon': 'bi-stopwatch',
+        'category': BOARD,
+        'blurb': 'Charge and discharge times, inrush current and the energy a '
+                 'capacitor still holds.',
+        'partial': 'tools/partials/rc-charge.html',
+        'seo_title': 'RC Time Constant Calculator — Charge and Discharge Time',
+        'seo_description': 'RC time constant calculator: tau = R x C, the voltage after '
+                           'any time, the time to reach a target, inrush current and the '
+                           'energy stored in the capacitor.',
+    },
+    {
+        'slug': 'pcb-trace',
+        'name': 'PCB Trace Current',
+        'icon': 'bi-grid-3x3',
+        'category': BOARD,
+        'blurb': 'How much current a copper trace may carry, and the width '
+                 'needed for repair work.',
+        'partial': 'tools/partials/pcb-trace.html',
+        'seo_title': 'PCB Trace Current Calculator — IPC-2221 Width and Amps',
+        'seo_description': 'PCB trace current calculator from width, copper weight and '
+                           'allowed temperature rise, plus the trace width needed for a '
+                           'repair on outer or inner layers.',
+    },
+    {
+        'slug': 'heatsink',
+        'name': 'Heatsink & Junction Temp',
+        'icon': 'bi-thermometer-half',
+        'category': BOARD,
+        'blurb': 'Thermal path for a MOSFET or regulator, and the biggest sink '
+                 'that still keeps it legal.',
+        'partial': 'tools/partials/heatsink.html',
+        'seo_title': 'Heatsink Calculator — Junction Temperature and RθSA',
+        'seo_description': 'Heatsink calculator for TO-220 and power transistors: junction '
+                           'and case temperature from dissipation and thermal resistances, '
+                           'plus the heatsink needed.',
+    },
+    {
+        'slug': 'transistor-switch',
+        'name': 'Transistor Base Resistor',
+        'icon': 'bi-diagram-2',
+        'category': BOARD,
+        'blurb': 'Resistor that saturates a driver transistor for a load, with '
+                 'forced beta shown.',
+        'partial': 'tools/partials/transistor-switch.html',
+        'seo_title': 'Transistor Switch Base Resistor Calculator (Saturation)',
+        'seo_description': 'Base resistor calculator for saturating an NPN switching '
+                           'transistor from a logic output: base current, overdrive, '
+                           'forced beta, resistor watts and E24 value.',
+    },
+    {
+        'slug': 'series-lamp',
+        'name': 'Series Bulb Limiter',
+        'icon': 'bi-lamp',
+        'category': BOARD,
+        'blurb': 'What bulb to put in line when powering a shorted SMPS or '
+                 'laptop board.',
+        'partial': 'tools/partials/series-lamp.html',
+        'seo_title': 'Series Bulb Tester Calculator — Dim Bulb Current Limiter',
+        'seo_description': 'Series bulb limiter (dim bulb tester) calculator: the bulb to '
+                           'fit, the current limit on a dead short, the voltage the board '
+                           'sees and what the glow means.',
+    },
+    {
+        'slug': 'rectifier-cap',
+        'name': 'Rectifier & Bulk Cap',
+        'icon': 'bi-plug',
+        'category': BOARD,
+        'blurb': 'Peak voltage, ripple on the rail and the capacitance that '
+                 'flattens it.',
+        'partial': 'tools/partials/rectifier-cap.html',
+        'seo_title': 'Bridge Rectifier and Filter Capacitor Calculator',
+        'seo_description': 'Bridge rectifier and filter capacitor calculator: peak DC '
+                           'after the diodes, ripple voltage for a load at 50 or 60 Hz, '
+                           'and the capacitance that reduces it.',
+    },
+    {
+        'slug': 'regulator-heat',
+        'name': 'Regulator Drop & Heat',
+        'icon': 'bi-fire',
+        'category': BOARD,
+        'blurb': 'What an LDO or 78xx burns in watts, and how hot its junction '
+                 'gets with it.',
+        'partial': 'tools/partials/regulator-heat.html',
+        'seo_title': 'Linear Regulator Heat Calculator — LDO and 78xx',
+        'seo_description': 'Linear regulator and LDO heat calculator: power dissipated '
+                           'from dropout and load, junction temperature for a given θJA, '
+                           'safe current and efficiency.',
+    },
+    {
+        'slug': 'fuse-size',
+        'name': 'Fuse Size',
+        'icon': 'bi-shield-exclamation',
+        'category': BOARD,
+        'blurb': 'Cartridge rating for a load, slow or quick blow, that still '
+                 'protects the wiring.',
+        'partial': 'tools/partials/fuse-size.html',
+        'seo_title': 'Fuse Size Calculator — Slow Blow and Quick Blow',
+        'seo_description': 'Fuse size calculator for a board or supply: rating for the '
+                           'load current, slow blow versus quick blow margin, the next '
+                           'standard IEC value and voltage rating.',
+    },
+    {
+        'slug': 'sense-resistor',
+        'name': 'Current Sense Resistor',
+        'icon': 'bi-speedometer2',
+        'category': BOARD,
+        'blurb': 'Millivolts per amp across a shunt, the wattage to fit, and '
+                 'the current a meter reading means.',
+        'partial': 'tools/partials/sense-resistor.html',
+        'seo_title': 'Current Sense Resistor Calculator — mV per Amp',
+        'seo_description': 'Current sense resistor calculator: millivolts per amp, the '
+                           'drop at a given current, heat dissipated, the power rating to '
+                           'fit and the current a reading means.',
     },
     {
         'slug': 'battery-life',
@@ -182,7 +313,7 @@ TOOLS = (
 TOOLS_BY_SLUG = {tool['slug']: tool for tool in TOOLS}
 
 #: Category order for the sidebar groups.
-CATEGORY_ORDER = (ELECTRONICS, COMPUTER, SHOP)
+CATEGORY_ORDER = (ELECTRONICS, BOARD, COMPUTER, SHOP)
 
 
 def get_tool(slug):

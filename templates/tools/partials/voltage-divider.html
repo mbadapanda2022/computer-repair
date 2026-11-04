@@ -1,0 +1,83 @@
+{# Voltage divider — unloaded tap and the real loaded output #}
+<div class="tt-tool" data-tool="voltage-divider">
+    <h3><i class="bi bi-sliders me-2"></i>Voltage Divider</h3>
+    <p class="text-muted mb-3">
+        Two resistors make the tap voltage, but the circuit on the tap makes it
+        something else. Enter the load to see the sag you will actually measure
+        with a meter, and whether the divider is stiff enough to trust.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="vdVin">Voltage at the top (Vin)</label>
+            <div class="input-group">
+                <input class="form-control" id="vdVin" type="number" step="any" min="0"
+                       value="12" autocomplete="off">
+                <select class="form-select" id="vdVinUnit" aria-label="Supply unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                    <option value="kV">kV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="vdR1">R1 — from + to the tap</label>
+            <div class="input-group">
+                <input class="form-control" id="vdR1" type="number" step="any" min="0"
+                       value="10" autocomplete="off">
+                <select class="form-select" id="vdR1Unit" aria-label="R1 unit">
+                    <option value="Ω">Ω</option>
+                    <option value="kΩ" selected>kΩ</option>
+                    <option value="MΩ">MΩ</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="vdR2">R2 — from the tap to ground</label>
+            <div class="input-group">
+                <input class="form-control" id="vdR2" type="number" step="any" min="0"
+                       value="4.7" autocomplete="off">
+                <select class="form-select" id="vdR2Unit" aria-label="R2 unit">
+                    <option value="Ω">Ω</option>
+                    <option value="kΩ" selected>kΩ</option>
+                    <option value="MΩ">MΩ</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="vdLoad">Load on the tap (optional)</label>
+            <div class="input-group">
+                <input class="form-control" id="vdLoad" type="number" step="any" min="0"
+                       value="" placeholder="leave blank for nothing connected"
+                       autocomplete="off">
+                <select class="form-select" id="vdLoadUnit" aria-label="Load unit">
+                    <option value="Ω">Ω</option>
+                    <option value="kΩ" selected>kΩ</option>
+                    <option value="MΩ">MΩ</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-12 d-flex">
+            <button type="button" class="btn btn-outline-secondary ms-auto" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">On the tap</div>
+        <div class="tt-result-value big" id="vdHead" aria-live="polite">—</div>
+        <div id="vdOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        A divider feeding an ADC input, a sense line or a transistor base is
+        only accurate while the bottom leg is at least a hundred times smaller
+        than what hangs on it. Otherwise buffer the tap with an op-amp, or pick
+        lower resistor values and accept the wasted current.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

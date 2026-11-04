@@ -1,0 +1,84 @@
+{# Linear regulator drop and heat — what an LDO or 78xx has to shed #}
+<div class="tt-tool" data-tool="regulator-heat">
+    <h3><i class="bi bi-fire me-2"></i>Regulator Drop &amp; Heat</h3>
+    <p class="text-muted mb-3">
+        A linear regulator spends every volt it removes as heat, so a hot 5 V
+        chip tells you two things at once: how much drop it is eating and how
+        much current is pulling it. Work the limit backwards and you also get the
+        current where it stops being safe.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="lrVin">Voltage in</label>
+            <div class="input-group">
+                <input class="form-control" id="lrVin" type="number" step="any" min="0"
+                       value="12" autocomplete="off">
+                <select class="form-select" id="lrVinUnit" aria-label="Input voltage unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="lrVout">Voltage out</label>
+            <div class="input-group">
+                <input class="form-control" id="lrVout" type="number" step="any" min="0"
+                       value="5" autocomplete="off">
+                <select class="form-select" id="lrVoutUnit" aria-label="Output voltage unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="lrAmps">Current to the load</label>
+            <div class="input-group">
+                <input class="form-control" id="lrAmps" type="number" step="any" min="0"
+                       value="0.35" autocomplete="off">
+                <select class="form-select" id="lrAmpsUnit" aria-label="Load current unit">
+                    <option value="A" selected>A</option>
+                    <option value="mA">mA</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="lrTheta">θJA — package to air (°C/W)</label>
+            <input class="form-control" id="lrTheta" type="number" step="any" min="0"
+                   value="62" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="lrAmbient">Air around it (°C)</label>
+            <input class="form-control" id="lrAmbient" type="number" step="any"
+                   value="40" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="lrTjMax">Max junction (°C)</label>
+            <input class="form-control" id="lrTjMax" type="number" step="any" min="0"
+                   value="125" autocomplete="off">
+        </div>
+        <div class="col-12 d-flex">
+            <button type="button" class="btn btn-outline-secondary ms-auto" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Running temperature</div>
+        <div class="tt-result-value big" id="lrHead" aria-live="polite">—</div>
+        <div id="lrOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        θJA off a datasheet is usually quoted still-air on a small test board:
+        a TO-220 with no sink is about 62 °C/W, a SOT-223 on a plain board about
+        95 °C/W, and the same part over a solid copper pour can drop under 40.
+        If a rail reads correct but the chip is burning hot, look for the shorted
+        load drawing the extra current before replacing the regulator.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

@@ -1,0 +1,81 @@
+{# Transistor switch base resistor (saturation) #}
+<div class="tt-tool" data-tool="transistor-switch">
+    <h3><i class="bi bi-diagram-2 me-2"></i>Transistor Base Resistor</h3>
+    <p class="text-muted mb-3">
+        A driver transistor on a printer motor board or a laptop enable line is
+        used as a switch, so it is pushed into saturation instead of being run at
+        its datasheet gain. Enter the load and the drive voltage and get the
+        resistor that actually turns it on hard.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="tsDrive">Voltage driving the base</label>
+            <div class="input-group">
+                <input class="form-control" id="tsDrive" type="number" step="any" min="0"
+                       value="3.3" autocomplete="off">
+                <select class="form-select" id="tsDriveUnit" aria-label="Drive unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                    <option value="kV">kV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="tsVbe">Base–emitter drop Vbe</label>
+            <div class="input-group">
+                <input class="form-control" id="tsVbe" type="number" step="any" min="0"
+                       value="0.7" autocomplete="off">
+                <select class="form-select" id="tsVbeUnit" aria-label="Vbe unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="tsIc">Load current at the collector</label>
+            <div class="input-group">
+                <input class="form-control" id="tsIc" type="number" step="any" min="0"
+                       value="150" autocomplete="off">
+                <select class="form-select" id="tsIcUnit" aria-label="Collector current unit">
+                    <option value="µA">µA</option>
+                    <option value="mA" selected>mA</option>
+                    <option value="A">A</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="tsHfe">Transistor hFE (β)</label>
+            <input class="form-control" id="tsHfe" type="number" step="any" min="2"
+                   value="100" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="tsOver">Overdrive — times the minimum base current</label>
+            <input class="form-control" id="tsOver" type="number" step="any" min="1"
+                   max="20" value="2" autocomplete="off">
+        </div>
+        <div class="col-sm-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Base resistor</div>
+        <div class="tt-result-value big" id="tsHead" aria-live="polite">—</div>
+        <div id="tsOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        Overdrive 2 is normal, 5 to 10 is what most service manuals use for a
+        switching transistor, and hFE on the datasheet is quoted at a different
+        collector current than your load — so drive it hard rather than trusting
+        the gain. For a MOSFET there is no DC gate current: use 10–100 Ω in the
+        gate lead to tame the switching spike instead.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

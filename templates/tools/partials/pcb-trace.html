@@ -1,0 +1,72 @@
+{# PCB trace current capacity (IPC-2221) #}
+<div class="tt-tool" data-tool="pcb-trace">
+    <h3><i class="bi bi-grid-3x3 me-2"></i>PCB Trace Current</h3>
+    <p class="text-muted mb-3">
+        Before you jumper a burnt track or run a wire where a trace used to be:
+        how much current a copper track may carry without cooking its own
+        adhesive, and how wide it has to be for the rail you are repairing.
+    </p>
+
+    <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Layer">
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle active"
+                data-ptlayer="external" data-default-mode>Outer layer</button>
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle"
+                data-ptlayer="internal">Inner layer</button>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="ptWidth">Trace width</label>
+            <div class="input-group">
+                <input class="form-control" id="ptWidth" type="number" step="any" min="0"
+                       value="30" autocomplete="off">
+                <select class="form-select" id="ptWidthUnit" aria-label="Width unit">
+                    <option value="mil" selected>mil</option>
+                    <option value="mm">mm</option>
+                    <option value="inch">inch</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="ptOz">Copper weight</label>
+            <select class="form-select" id="ptOz" aria-label="Copper weight">
+                <option value="0.5">½ oz (17 µm)</option>
+                <option value="1" selected>1 oz (35 µm)</option>
+                <option value="2">2 oz (70 µm)</option>
+                <option value="3">3 oz (105 µm)</option>
+            </select>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="ptDeltaT">Allowed temperature rise (°C)</label>
+            <input class="form-control" id="ptDeltaT" type="number" step="any" min="1"
+                   max="260" value="10" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="ptCurrent">Current you want to pass (A, optional)</label>
+            <input class="form-control" id="ptCurrent" type="number" step="any" min="0"
+                   value="2" autocomplete="off">
+        </div>
+        <div class="col-12 d-flex">
+            <button type="button" class="btn btn-outline-secondary ms-auto" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">This trace may carry</div>
+        <div class="tt-result-value big" id="ptHead" aria-live="polite">—</div>
+        <div id="ptOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        IPC-2221 empirical relation, for a trace on a plain FR-4 board in still
+        air. An inner layer carries roughly half of an outer one because it is
+        buried in prepreg. Soldered-up traces, heavy copper pours and forced
+        airflow all do better than these numbers, so treat them as the floor.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

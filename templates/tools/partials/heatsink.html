@@ -1,0 +1,73 @@
+{# Heatsink sizing and junction temperature #}
+<div class="tt-tool" data-tool="heatsink">
+    <h3><i class="bi bi-thermometer-half me-2"></i>Heatsink &amp; Junction Temp</h3>
+    <p class="text-muted mb-3">
+        Heat falls down the same way voltage does: junction to case, case to
+        sink, sink to air, each one a resistance. Fill the path in and read the
+        junction temperature — or leave the sink blank and get the biggest
+        heatsink that still keeps the part legal.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="thPd">Power the part burns</label>
+            <div class="input-group">
+                <input class="form-control" id="thPd" type="number" step="any" min="0"
+                       value="3" autocomplete="off">
+                <select class="form-select" id="thPdUnit" aria-label="Power unit">
+                    <option value="W" selected>W</option>
+                    <option value="mW">mW</option>
+                    <option value="kW">kW</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="thAmbient">Around the board it runs at (°C)</label>
+            <input class="form-control" id="thAmbient" type="number" step="any"
+                   value="40" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="thTjMax">Maximum junction temperature (°C)</label>
+            <input class="form-control" id="thTjMax" type="number" step="any" min="0"
+                   value="150" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="thRjc">RθJC — junction to case (°C/W)</label>
+            <input class="form-control" id="thRjc" type="number" step="any" min="0"
+                   value="3" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="thRcs">RθCS — case to sink (°C/W)</label>
+            <input class="form-control" id="thRcs" type="number" step="any" min="0"
+                   value="0.5" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="thRsa">RθSA — sink to air (°C/W)</label>
+            <input class="form-control" id="thRsa" type="number" step="any" min="0"
+                   value="10" placeholder="blank or 0 = perfect sink" autocomplete="off">
+        </div>
+        <div class="col-12 d-flex">
+            <button type="button" class="btn btn-outline-secondary ms-auto" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Running temperature</div>
+        <div class="tt-result-value big" id="thHead" aria-live="polite">—</div>
+        <div id="thOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        Typical numbers: a TO-220 is about 3–5 °C/W junction-to-case and
+        roughly 50–62 °C/W to still air on its own, so anything above about
+        1.5 W wants a sink. A mica or silicone pad costs 0.5–1 °C/W, grease
+        less. Design for 100 °C, not 150 °C — the electrolytics next to it age
+        twice as fast for every 10 °C.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

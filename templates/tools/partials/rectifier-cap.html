@@ -1,0 +1,109 @@
+{# Rectifier and bulk capacitor — peak voltage, ripple and the fix #}
+<div class="tt-tool" data-tool="rectifier-cap">
+    <h3><i class="bi bi-plug me-2"></i>Rectifier &amp; Bulk Cap</h3>
+    <p class="text-muted mb-3">
+        A bridge and a capacitor give a rail that is never flat — the cap only
+        refills twice per cycle, so the rail sags in between. Enter the load and
+        the capacitance to see the voltage you will actually read, and how much
+        ripple is riding on it.
+    </p>
+
+    <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Rectifier type">
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle active"
+                data-pspath="bridge" data-default-mode>Bridge (2 diodes)</button>
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle"
+                data-pspath="centretap">Centre tap (1 diode)</button>
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle"
+                data-pspath="halfwave">Half wave (1 diode)</button>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="psVrms">AC on the secondary</label>
+            <div class="input-group">
+                <input class="form-control" id="psVrms" type="number" step="any" min="0"
+                       value="24" autocomplete="off">
+                <select class="form-select" id="psVrmsUnit" aria-label="AC voltage unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                    <option value="kV">kV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="psDrop">Drop per diode</label>
+            <div class="input-group">
+                <input class="form-control" id="psDrop" type="number" step="any" min="0"
+                       value="0.7" autocomplete="off">
+                <select class="form-select" id="psDropUnit" aria-label="Diode drop unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <label class="tt-label" for="psFreq">Line frequency (Hz)</label>
+            <input class="form-control" id="psFreq" type="number" step="any" min="0"
+                   value="50" autocomplete="off">
+        </div>
+        <div class="col-sm-4">
+            <label class="tt-label" for="psAmps">DC the load takes</label>
+            <div class="input-group">
+                <input class="form-control" id="psAmps" type="number" step="any" min="0"
+                       value="1" autocomplete="off">
+                <select class="form-select" id="psAmpsUnit" aria-label="Load current unit">
+                    <option value="A" selected>A</option>
+                    <option value="mA">mA</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <label class="tt-label" for="psCap">Bulk capacitance</label>
+            <div class="input-group">
+                <input class="form-control" id="psCap" type="number" step="any" min="0"
+                       value="4700" autocomplete="off">
+                <select class="form-select" id="psCapUnit" aria-label="Capacitance unit">
+                    <option value="pF">pF</option>
+                    <option value="nF">nF</option>
+                    <option value="µF" selected>µF</option>
+                    <option value="mF">mF</option>
+                    <option value="F">F</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="psTarget">Ripple you want (optional)</label>
+            <div class="input-group">
+                <input class="form-control" id="psTarget" type="number" step="any" min="0"
+                       value="" placeholder="e.g. 0.5" autocomplete="off">
+                <select class="form-select" id="psTargetUnit" aria-label="Target ripple unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">On the rail</div>
+        <div class="tt-result-value big" id="psHead" aria-live="polite">—</div>
+        <div id="psOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        This is the linear supply maths: silicon diodes are about 0.7 V each,
+        Schottky about 0.4 V, and 50 Hz is the Indian mains (60 Hz elsewhere).
+        A switching supply's output cap is sized by the ripple <em>current</em>
+        its ESR can take, not by this formula — but a dried-out electrolyte shows
+        up here as exactly the sag a customer complains about.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

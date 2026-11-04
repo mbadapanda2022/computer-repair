@@ -271,7 +271,7 @@ TT.hours = function (h) {
 TT.UNITS = {
     voltage: {V: 1, mV: 1e-3, kV: 1e3},
     current: {A: 1, mA: 1e-3, 'µA': 1e-6},
-    resistance: {'Ω': 1, 'kΩ': 1e3, 'MΩ': 1e6},
+    resistance: {'Ω': 1, 'mΩ': 1e-3, 'kΩ': 1e3, 'MΩ': 1e6},
     power: {W: 1, mW: 1e-3, kW: 1e3},
     capacitance: {pF: 1, nF: 1e3, 'µF': 1e6},
     charge: {mAh: 1, Ah: 1e3},
