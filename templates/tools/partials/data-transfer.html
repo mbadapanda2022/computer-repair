@@ -1,0 +1,86 @@
+{# File transfer time estimator #}
+<div class="tt-tool" data-tool="data-transfer">
+    <h3><i class="bi bi-arrow-down-up me-2"></i>File Transfer Time</h3>
+    <p class="text-muted mb-3">
+        A gigabit link does not move 125 MB every second, and a copy job never
+        runs at the full rate — so this works in the real throughput you
+        measure on a bench, not the number printed on the box.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="dtSize">File or folder size</label>
+            <div class="input-group">
+                <input class="form-control" id="dtSize" type="number" step="any" min="0"
+                       value="25" autocomplete="off">
+                <select class="form-select" id="dtSizeUnit" aria-label="Size unit">
+                    <option value="KB">KB</option>
+                    <option value="MB">MB</option>
+                    <option value="GB" selected>GB</option>
+                    <option value="TB">TB</option>
+                    <option value="KiB">KiB</option>
+                    <option value="MiB">MiB</option>
+                    <option value="GiB">GiB</option>
+                    <option value="TiB">TiB</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="dtSpeed">Link / bus speed</label>
+            <div class="input-group">
+                <input class="form-control" id="dtSpeed" type="number" step="any" min="0"
+                       value="940" autocomplete="off">
+                <select class="form-select" id="dtSpeedUnit" aria-label="Speed unit">
+                    <option value="bps">bps</option>
+                    <option value="Kbps">Kbps</option>
+                    <option value="Mbps" selected>Mbps</option>
+                    <option value="Gbps">Gbps</option>
+                    <option value="B/s">B/s</option>
+                    <option value="KB/s">KB/s</option>
+                    <option value="MB/s">MB/s</option>
+                    <option value="GB/s">GB/s</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="dtEff">Practical share of the link (%)</label>
+            <input class="form-control" id="dtEff" type="number" step="any" min="1"
+                   max="100" value="75" autocomplete="off">
+        </div>
+        <div class="col-sm-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-chips mt-2">
+        <span class="tt-chips-label">Typical rates:</span>
+        <button type="button" class="tt-chip" data-preset="wifi24">WiFi 2.4 GHz</button>
+        <button type="button" class="tt-chip" data-preset="wifi5">WiFi 5</button>
+        <button type="button" class="tt-chip" data-preset="wifi6">WiFi 6</button>
+        <button type="button" class="tt-chip" data-preset="lan100">LAN 100M</button>
+        <button type="button" class="tt-chip" data-preset="lan1g">Gigabit LAN</button>
+        <button type="button" class="tt-chip" data-preset="usb2">USB 2.0</button>
+        <button type="button" class="tt-chip" data-preset="usb3">USB 3.0</button>
+        <button type="button" class="tt-chip" data-preset="nvme">NVMe SSD</button>
+        <button type="button" class="tt-chip" data-preset="ftth">FTTH 100M</button>
+        <button type="button" class="tt-chip" data-preset="lte">4G</button>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Time taken</div>
+        <div class="tt-result-value big" id="dtHead" aria-live="polite">—</div>
+        <div id="dtOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        KB/MB/GB count a thousand (how drive makers and ISPs bill);
+        KiB/MiB/GiB count 1024 (how Windows shows a folder). The exact byte
+        count is printed below, so the two never get mixed up.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

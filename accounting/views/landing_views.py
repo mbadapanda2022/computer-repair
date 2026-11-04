@@ -19,6 +19,7 @@ from ..forms import (BookRepairForm, ContactMessageForm, ServiceForm,
                      TestimonialForm, FAQForm)
 from .utils import is_htmx
 from ..decorators import handle_errors
+from ..tools_registry import TOOLS as TECH_TOOLS
 from ..utils.notification_helpers import send_notification_to_staff
 
 
@@ -301,6 +302,7 @@ def robots_txt(request):
         'Allow: /cookie-policy/',
         'Allow: /terms-of-service/',
         'Allow: /return-policy/',
+        'Allow: /tools/',
         'Disallow: /customer/',
         'Disallow: /accounts/',
         'Disallow: /admin/',
@@ -339,6 +341,12 @@ def sitemap_xml(request):
     add(base + reverse('cookie_policy'), 'yearly', '0.3')
     add(base + reverse('terms_of_service'), 'yearly', '0.3')
     add(base + reverse('return_policy'), 'yearly', '0.3')
+
+    # Every tech tool is a standalone indexable URL, not just a pane.
+    add(base + reverse('tools:tools_index'), 'monthly', '0.6')
+    for tech_tool in TECH_TOOLS:
+        add(base + reverse('tools:tools_detail', args=[tech_tool['slug']]),
+            'monthly', '0.7')
 
     for post in (BlogPost.objects.published()
                  .only('slug', 'updated_at').order_by('-published_at')):

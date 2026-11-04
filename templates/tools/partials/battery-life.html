@@ -1,0 +1,80 @@
+{# Battery runtime and charge time #}
+<div class="tt-tool" data-tool="battery-life">
+    <h3><i class="bi bi-battery-half me-2"></i>Battery Runtime &amp; Charger</h3>
+    <p class="text-muted mb-3">
+        A mAh rating means little without the voltage, so the pack is converted
+        to watt-hours first — that is what a laptop, an inverter or a power
+        bank actually spends.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="batCapacity">Battery capacity</label>
+            <div class="input-group">
+                <input class="form-control" id="batCapacity" type="number" step="any" min="0"
+                       value="5000" autocomplete="off">
+                <select class="form-select" id="batCapacityUnit" aria-label="Capacity unit">
+                    <option value="mAh" selected>mAh</option>
+                    <option value="Ah">Ah</option>
+                    <option value="Wh">Wh</option>
+                    <option value="kWh">kWh</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="batVolts">Pack voltage (V)</label>
+            <input class="form-control" id="batVolts" type="number" step="any" min="0"
+                   value="3.7" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="batLoad">What the device draws</label>
+            <div class="input-group">
+                <input class="form-control" id="batLoad" type="number" step="any" min="0"
+                       value="8" autocomplete="off">
+                <select class="form-select" id="batLoadUnit" aria-label="Draw unit">
+                    <option value="W" selected>W</option>
+                    <option value="kW">kW</option>
+                    <option value="A">A</option>
+                    <option value="mA">mA</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="batUsable">Usable share of the cell (%)</label>
+            <input class="form-control" id="batUsable" type="number" step="any" min="1"
+                   max="100" value="90" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="batChargerA">Charger output (optional)</label>
+            <div class="input-group">
+                <input class="form-control" id="batChargerA" type="number" step="any" min="0"
+                       value="2" autocomplete="off" placeholder="amps">
+                <select class="form-select" id="batChargerUnit" aria-label="Charger unit">
+                    <option value="A" selected>A</option>
+                    <option value="mA">mA</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Runtime on this charge</div>
+        <div class="tt-result-value big" id="batHead" aria-live="polite">—</div>
+        <div id="batOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        Old, hot or cheap cells give less than the label says, so treat this as
+        the best case. Charge time already allows ~30 % for heat and the slow
+        top-off stage.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

@@ -1,0 +1,47 @@
+{# Tech Tools welcome pane — shown at /tools/ until a tool is picked. #}
+<section class="tt-welcome">
+    <h1 class="tt-welcome-title"><i class="bi bi-tools me-2"></i>Tech Tools</h1>
+    <p class="tt-welcome-lead">
+        Free calculators for the work we do on the bench — resistor and capacitor
+        codes, LED drop resistors, battery runtime, subnets, screen sizes and GST.
+        Nothing is uploaded and nothing is stored; the maths runs in your browser.
+    </p>
+
+    <div class="tt-picker">
+        <label class="tt-label" for="ttQuickPick">Open a tool</label>
+        <select id="ttQuickPick" class="form-select">
+            <option value="">Choose…</option>
+            {% for category, items in tool_groups %}
+            <optgroup label="{{ category }}">
+                {% for tool in items %}
+                <option value="{% url 'tools:tools_detail' tool.slug %}"
+                        data-slug="{{ tool.slug }}">{{ tool.name }}</option>
+                {% endfor %}
+            </optgroup>
+            {% endfor %}
+        </select>
+    </div>
+
+    {% for category, items in tool_groups %}
+    <h2 class="tt-group-title">{{ category }}</h2>
+    <div class="row g-3 tt-grid">
+        {% for tool in items %}
+        <div class="col-sm-6 col-xl-4">
+            <a class="tt-card" href="{% url 'tools:tools_detail' tool.slug %}"
+               hx-get="{% url 'tools:tools_detail' tool.slug %}"
+               hx-target="#ttContent" hx-swap="innerHTML" hx-push-url="true">
+                <i class="bi {{ tool.icon }}"></i>
+                <span class="tt-card-name">{{ tool.name }}</span>
+                <span class="tt-card-blurb">{{ tool.blurb }}</span>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        Results are engineering estimates for reference. Verify with a meter
+        before fitting a part, and always discharge a circuit first.
+    </div>
+</section>

@@ -39,6 +39,7 @@ class AccessControlMiddleware:
         'terms_of_service', 'return_policy',
         'demo_guide', 'keepalive', 'book_repair',
         'contact_message', 'validate_contact_field',
+        'tools_index', 'tools_detail',
         'login', 'register', 'logout',
         'password_reset', 'password_reset_done',
         'password_reset_complete', 'password_reset_confirm',

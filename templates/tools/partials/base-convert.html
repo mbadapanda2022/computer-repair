@@ -1,0 +1,84 @@
+{# Number base converter #}
+<div class="tt-tool" data-tool="base-convert">
+    <h3><i class="bi bi-123 me-2"></i>Number Base Converter</h3>
+    <p class="text-muted mb-3">
+        Binary, octal, decimal and hex kept in step. Long values stay exact —
+        a 64-bit register value does not lose its last digits here.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="tt-label" for="bcValue">Value</label>
+            <input class="form-control form-control-lg font-monospace" id="bcValue"
+                   type="text" value="255" autocomplete="off" spellcheck="false"
+                   maxlength="70" aria-describedby="bcHelp"
+                   placeholder="11111111">
+        </div>
+        <div class="col-md-3 col-6">
+            <label class="tt-label" for="bcBase">This value is in</label>
+            <select class="form-select form-select-lg" id="bcBase">
+                <option value="DEC" selected>Decimal</option>
+                <option value="BIN">Binary</option>
+                <option value="OCT">Octal</option>
+                <option value="HEX">Hex</option>
+            </select>
+        </div>
+        <div class="col-md-3 col-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-chips mt-2" id="bcHelp">
+        <span class="tt-chips-label">Try:</span>
+        <button type="button" class="tt-chip" data-target="bcValue" data-value="255"
+                data-unit-target="bcBase" data-unit="DEC">255</button>
+        <button type="button" class="tt-chip" data-target="bcValue" data-value="11111111"
+                data-unit-target="bcBase" data-unit="BIN">11111111 (bin)</button>
+        <button type="button" class="tt-chip" data-target="bcValue" data-value="FF"
+                data-unit-target="bcBase" data-unit="HEX">FF (hex)</button>
+        <button type="button" class="tt-chip" data-target="bcValue" data-value="18446744073709551615"
+                data-unit-target="bcBase" data-unit="DEC">2⁶⁴−1</button>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">All four bases</div>
+        <div class="tt-result-value" id="bcHead" aria-live="polite">—</div>
+        <div id="bcOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="row g-2 mt-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="bcDec">Decimal</label>
+            <input class="form-control font-monospace" id="bcDec" type="text" readonly
+                   aria-label="Decimal result">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="bcHex">Hexadecimal</label>
+            <input class="form-control font-monospace" id="bcHex" type="text" readonly
+                   aria-label="Hexadecimal result">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="bcBin">Binary</label>
+            <input class="form-control font-monospace" id="bcBin" type="text" readonly
+                   aria-label="Binary result">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="bcOct">Octal</label>
+            <input class="form-control font-monospace" id="bcOct" type="text" readonly
+                   aria-label="Octal result">
+        </div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        Prefixes are accepted: <span class="font-monospace">0xFF</span> and
+        <span class="font-monospace">0b1011</span> are read as hex and binary
+        whatever the box says. Grouped bits are in fours from the right, the
+        way a datasheet prints them.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

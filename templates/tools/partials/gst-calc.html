@@ -1,0 +1,65 @@
+{# GST add / remove calculator #}
+<div class="tt-tool" data-tool="gst-calc">
+    <h3><i class="bi bi-percent me-2"></i>GST Add / Remove</h3>
+    <p class="text-muted mb-3">
+        Add GST to a basic amount, or take GST back out of a total a customer
+        already paid. Same rounding a bill uses: every line to paise, and
+        CGST + SGST always adds back to the tax.
+    </p>
+
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center" role="group" aria-label="Direction">
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle active"
+                data-gstmix="mode" data-value="plus" data-default-mode>Add GST</button>
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle"
+                data-gstmix="mode" data-value="minus">Remove GST</button>
+        <span class="vr d-none d-sm-block mx-1" aria-hidden="true"></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary tt-toggle active"
+                data-gstmix="supply" data-value="intra" data-default-mode>Within state (CGST + SGST)</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary tt-toggle"
+                data-gstmix="supply" data-value="inter">Other state (IGST)</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" data-clear>
+            <i class="bi bi-eraser me-1"></i>Reset
+        </button>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="gstAmount">Amount (₹)</label>
+            <input class="form-control form-control-lg" id="gstAmount" type="number"
+                   step="0.01" min="0" value="1000" autocomplete="off">
+        </div>
+        <div class="col-sm-3 col-6">
+            <label class="tt-label" for="gstRatePick">Slab</label>
+            <select class="form-select form-select-lg" id="gstRatePick">
+                <option value="0">0%</option>
+                <option value="3">3%</option>
+                <option value="5">5%</option>
+                <option value="12">12%</option>
+                <option value="18" selected>18%</option>
+                <option value="28">28%</option>
+                <option value="">Custom…</option>
+            </select>
+        </div>
+        <div class="col-sm-3 col-6">
+            <label class="tt-label" for="gstRate">Rate %</label>
+            <input class="form-control form-control-lg" id="gstRate" type="number"
+                   step="0.01" min="0" max="100" value="18" autocomplete="off">
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label" id="gstModeLabel">Added GST to</div>
+        <div class="tt-result-value big" id="gstHead" aria-live="polite">—</div>
+        <div id="gstOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        This is arithmetic for a quote or a cross-check. A tax invoice must
+        follow your registered GSTIN, HSN codes and the slab the item actually
+        falls under.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

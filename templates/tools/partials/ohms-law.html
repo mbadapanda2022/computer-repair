@@ -1,0 +1,85 @@
+{# Ohm's law and power calculator #}
+<div class="tt-tool" data-tool="ohms-law">
+    <h3><i class="bi bi-lightning-charge me-2"></i>Ohm's Law &amp; Power</h3>
+    <p class="text-muted mb-3">
+        Fill in <strong>any two</strong> of the four boxes — the other two are
+        worked out, with the formula used printed beside each answer.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="olV">Voltage</label>
+            <div class="input-group">
+                <input class="form-control" id="olV" type="number" step="any" min="0"
+                       placeholder="12" autocomplete="off" aria-label="Voltage value">
+                <select class="form-select" id="olVUnit" aria-label="Voltage unit">
+                    <option value="V" selected>V</option>
+                    <option value="mV">mV</option>
+                    <option value="kV">kV</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="olI">Current</label>
+            <div class="input-group">
+                <input class="form-control" id="olI" type="number" step="any" min="0"
+                       placeholder="0.02" autocomplete="off" aria-label="Current value">
+                <select class="form-select" id="olIUnit" aria-label="Current unit">
+                    <option value="A" selected>A</option>
+                    <option value="mA">mA</option>
+                    <option value="µA">µA</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="olR">Resistance</label>
+            <div class="input-group">
+                <input class="form-control" id="olR" type="number" step="any" min="0"
+                       placeholder="600" autocomplete="off" aria-label="Resistance value">
+                <select class="form-select" id="olRUnit" aria-label="Resistance unit">
+                    <option value="Ω" selected>Ω</option>
+                    <option value="kΩ">kΩ</option>
+                    <option value="MΩ">MΩ</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="olP">Power</label>
+            <div class="input-group">
+                <input class="form-control" id="olP" type="number" step="any" min="0"
+                       placeholder="0.24" autocomplete="off" aria-label="Power value">
+                <select class="form-select" id="olPUnit" aria-label="Power unit">
+                    <option value="W" selected>W</option>
+                    <option value="mW">mW</option>
+                    <option value="kW">kW</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+        <div class="tt-hint mb-0">
+            <i class="bi bi-lightbulb me-1"></i>
+            Charging a phone at 5 V / 2 A: enter 5 in Voltage, 2 in Current —
+            the resistance and wattage follow.
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-clear>
+            <i class="bi bi-eraser me-1"></i>Clear
+        </button>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">The circuit</div>
+        <div class="tt-result-value big" id="olHead" aria-live="polite">—</div>
+        <div id="olOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        DC or a plain resistive load. Mains appliances, motors and switch-mode
+        supplies have a power factor, so their real current is higher than this.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

@@ -1,0 +1,72 @@
+{# Electricity units and bill calculator #}
+<div class="tt-tool" data-tool="power-cost">
+    <h3><i class="bi bi-cash-coin me-2"></i>Electricity Cost</h3>
+    <p class="text-muted mb-3">
+        One unit on the meter is one kWh. Enter the device wattage, how many
+        hours a day it actually runs, and your own per-unit rate.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="tt-label" for="pcPower">Device power</label>
+            <div class="input-group">
+                <input class="form-control" id="pcPower" type="number" step="any" min="0"
+                       value="100" autocomplete="off">
+                <select class="form-select" id="pcPowerUnit" aria-label="Power unit">
+                    <option value="W" selected>W</option>
+                    <option value="kW">kW</option>
+                </select>
+            </div>
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="pcCount">How many such devices</label>
+            <input class="form-control" id="pcCount" type="number" step="1" min="1"
+                   value="1" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="pcHours">Running hours per day</label>
+            <input class="form-control" id="pcHours" type="number" step="any" min="0"
+                   max="24" value="8" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="pcDays">Billing days per month</label>
+            <input class="form-control" id="pcDays" type="number" step="1" min="1"
+                   max="31" value="30" autocomplete="off">
+        </div>
+        <div class="col-sm-6">
+            <label class="tt-label" for="pcTariff">Your rate per unit (₹)</label>
+            <input class="form-control" id="pcTariff" type="number" step="0.01" min="0"
+                   value="8.50" autocomplete="off">
+        </div>
+        <div class="col-sm-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-chips mt-2">
+        <span class="tt-chips-label">Typical:</span>
+        <button type="button" class="tt-chip" data-target="pcPower" data-value="150">Cabinet freezer</button>
+        <button type="button" class="tt-chip" data-target="pcPower" data-value="1200">Room AC</button>
+        <button type="button" class="tt-chip" data-target="pcPower" data-value="65">Desktop PC</button>
+        <button type="button" class="tt-chip" data-target="pcPower" data-value="40">LED TV</button>
+        <button type="button" class="tt-chip" data-target="pcPower" data-value="1800">Water geyser</button>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">This device costs</div>
+        <div class="tt-result-value big" id="pcHead" aria-live="polite">—</div>
+        <div id="pcOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        Your state slab, fuel surcharge and GST are not in the per-unit rate
+        unless you put them there. A compressor also draws full power only
+        while it runs, so a fridge on 24 hours usually bills like 8 hours on.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

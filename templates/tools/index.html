@@ -1,0 +1,88 @@
+{% extends "base_public.html" %}
+{% load static %}
+{# Tech Tools shell: sidebar navigation + one swap pane. A full page load #}
+{# renders the requested tool server-side, HTMX swaps only the pane. #}
+
+{% block title %}{{ meta.title }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/tech-tools.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="tt-wrapper">
+    <div class="row g-0">
+
+        <aside class="col-lg-3 col-xl-2 tt-sidebar" id="ttSidebar" aria-label="Tech tools list">
+            <div class="tt-sidebar-head">
+                <h5><i class="bi bi-tools me-2"></i>Tech Tools</h5>
+                <button class="tt-sidebar-close d-lg-none" id="ttSidebarClose"
+                        type="button" aria-label="Close tools menu">&times;</button>
+            </div>
+
+            <div class="tt-search">
+                <i class="bi bi-search"></i>
+                <input type="search" id="ttSearch" class="form-control form-control-sm"
+                       placeholder="Search {{ tool_count }} tools"
+                       aria-label="Search tools" autocomplete="off">
+            </div>
+
+            <nav class="tt-nav" id="ttNav">
+                {% for category, items in tool_groups %}
+                <div class="tt-nav-group" data-group>
+                    <div class="tt-nav-heading">{{ category }}</div>
+                    {% for tool in items %}
+                    <a href="{% url 'tools:tools_detail' tool.slug %}"
+                       class="tt-nav-link {% if active_tool == tool.slug %}active{% endif %}"
+                       data-slug="{{ tool.slug }}"
+                       data-title="{{ tool.seo_title }} | {{ site_name }}"
+                       {% if active_tool == tool.slug %}aria-current="page"{% endif %}
+                       hx-get="{% url 'tools:tools_detail' tool.slug %}"
+                       hx-target="#ttContent"
+                       hx-swap="innerHTML"
+                       hx-push-url="true"
+                       hx-indicator="#ttLoader">
+                        <i class="bi {{ tool.icon }}"></i>
+                        <span>{{ tool.name }}</span>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+                <div class="tt-nav-empty" id="ttSearchEmpty" hidden>No tool matches.</div>
+            </nav>
+
+            <div class="tt-sidebar-foot">
+                <a href="{% url 'home' %}"><i class="bi bi-house me-1"></i> Back to site</a>
+                <a href="{% url 'book_repair' %}"><i class="bi bi-calendar-plus me-1"></i> Book a repair</a>
+            </div>
+        </aside>
+
+        <main class="col-lg-9 col-xl-10 tt-main">
+            <button class="tt-sidebar-toggle" id="ttSidebarToggle" type="button"
+                    aria-controls="ttSidebar" aria-expanded="false">
+                <i class="bi bi-list"></i> Tools Menu
+            </button>
+
+            <div class="tt-content-wrap">
+                <div id="ttLoader" class="htmx-indicator tt-loader">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading…</span>
+                    </div>
+                </div>
+                <div id="ttContent" class="tt-content">
+                    {% include initial_partial %}
+                </div>
+            </div>
+        </main>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/tools/common.js' %}"></script>
+{% for file in script_files %}
+<script src="{% static 'js/tools/'|add:file %}"></script>
+{% endfor %}
+<script src="{% static 'js/tech-tools.js' %}"></script>
+{% endblock %}

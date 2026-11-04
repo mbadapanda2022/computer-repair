@@ -1,0 +1,50 @@
+{# SMD chip resistor marking decoder #}
+<div class="tt-tool" data-tool="smd-resistor">
+    <h3><i class="bi bi-cpu me-2"></i>SMD Code → Resistance</h3>
+    <p class="text-muted mb-3">
+        Type what is printed on the chip. The last digit is the number of
+        zeros, and <strong>R</strong> marks the decimal point.
+    </p>
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="tt-label" for="smdCode">Marking on the part</label>
+            <input class="form-control form-control-lg font-monospace" id="smdCode"
+                   type="text" inputmode="text" autocomplete="off" spellcheck="false"
+                   placeholder="103" maxlength="5" aria-describedby="smdHelp">
+        </div>
+        <div class="col-md-3 col-6 d-flex align-items-end">
+            <button type="button" class="btn btn-outline-secondary w-100" data-clear>
+                <i class="bi bi-eraser me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="tt-chips mt-2" id="smdHelp">
+        <span class="tt-chips-label">Try:</span>
+        <button type="button" class="tt-chip" data-target="smdCode" data-value="103">103</button>
+        <button type="button" class="tt-chip" data-target="smdCode" data-value="472">472</button>
+        <button type="button" class="tt-chip" data-target="smdCode" data-value="1502">1502</button>
+        <button type="button" class="tt-chip" data-target="smdCode" data-value="4R7">4R7</button>
+        <button type="button" class="tt-chip" data-target="smdCode" data-value="R22">R22</button>
+        <button type="button" class="tt-chip" data-target="smdCode" data-value="000">000</button>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Resistance</div>
+        <div class="tt-result-value big" id="smdHead" aria-live="polite">—</div>
+        <div id="smdOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-info-circle me-1"></i>
+        A blank (no printing at all) is usually a 0 Ω jumper or a
+        measurement-pad link, not an unmarked resistor. EIA-96 letter codes
+        such as <span class="font-monospace">68C</span> are not decoded here —
+        different published tables disagree, so we would rather show nothing
+        than a wrong value. Check those against the manufacturer's table.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

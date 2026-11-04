@@ -1,0 +1,83 @@
+{# Screen diagonal to width and height #}
+<div class="tt-tool" data-tool="screen-size">
+    <h3><i class="bi bi-aspect-ratio me-2"></i>Screen Size Calculator</h3>
+    <p class="text-muted mb-3">
+        Inches are the diagonal, which is why a "32 inch" TV is not 32 inches
+        wide. Get the real width, height and area before cutting a stand or a
+        wall board.
+    </p>
+
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center" role="group" aria-label="What you know">
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle active"
+                data-mode="diagonal" data-default-mode>I know the diagonal</button>
+        <button type="button" class="btn btn-sm btn-outline-primary tt-toggle"
+                data-mode="sides">I know width &amp; height</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" data-clear>
+            <i class="bi bi-eraser me-1"></i>Reset
+        </button>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6" id="ssDiagRow">
+            <label class="tt-label" for="ssDiagonal">Diagonal</label>
+            <input class="form-control" id="ssDiagonal" type="number" step="any" min="0"
+                   value="32" autocomplete="off">
+        </div>
+        <div class="col-sm-3 col-6">
+            <label class="tt-label" for="ssUnit">Length unit</label>
+            <select class="form-select" id="ssUnit" aria-label="Length unit">
+                <option value="inch" selected>inch</option>
+                <option value="cm">cm</option>
+                <option value="mm">mm</option>
+                <option value="m">m</option>
+            </select>
+        </div>
+        <div class="col-sm-3 col-6" id="ssRatioRow">
+            <label class="tt-label" for="ssRatio">Aspect ratio</label>
+            <select class="form-select" id="ssRatio">
+                <option value="16:9" selected>16:9</option>
+                <option value="16:10">16:10</option>
+                <option value="4:3">4:3</option>
+                <option value="5:4">5:4</option>
+                <option value="21:9">21:9</option>
+                <option value="32:9">32:9</option>
+                <option value="1:1">1:1</option>
+                <option value="custom">Custom…</option>
+            </select>
+        </div>
+        <div class="col-sm-3 col-6" id="ssCustomRow" hidden>
+            <label class="tt-label" for="ssCustom">Custom ratio</label>
+            <input class="form-control" id="ssCustom" type="text" value="20:9"
+                   autocomplete="off" placeholder="20:9" spellcheck="false">
+        </div>
+        <div class="col-sm-6" id="ssWhRow" hidden>
+            <div class="row g-2">
+                <div class="col-6">
+                    <label class="tt-label" for="ssWidth">Width</label>
+                    <input class="form-control" id="ssWidth" type="number" step="any" min="0"
+                           autocomplete="off" placeholder="60">
+                </div>
+                <div class="col-6">
+                    <label class="tt-label" for="ssHeight">Height</label>
+                    <input class="form-control" id="ssHeight" type="number" step="any" min="0"
+                           autocomplete="off" placeholder="40">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tt-result-box">
+        <div class="tt-result-label">Panel measures</div>
+        <div class="tt-result-value big" id="ssHead" aria-live="polite">—</div>
+        <div id="ssOut" class="tt-out-rows mt-2" aria-live="polite"></div>
+    </div>
+
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>
+        Sizes are the display area only. Add the bezel — often 10 mm each side —
+        before cutting a mount.
+    </div>
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-grid me-1"></i> All tools
+    </a>
+</div>

@@ -35,6 +35,7 @@ urlpatterns = [
     path('cookie-policy/', landing_views.cookie_policy, name='cookie_policy'),
     path('terms-of-service/', landing_views.terms_of_service, name='terms_of_service'),
     path('return-policy/', landing_views.return_policy, name='return_policy'),
+    path('tools/', include(('accounting.tools_urls', 'tools'))),
     
     path('blog/', include('accounting.blog_urls')),
 
