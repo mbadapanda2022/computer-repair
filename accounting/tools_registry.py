@@ -14,7 +14,8 @@ from __future__ import annotations
 
 # JS bundles loaded by the tools page. Each file registers one init function
 # per tool into ``TT.tools`` (see static/js/tools/common.js).
-TOOL_SCRIPTS = ('electronics.js', 'board.js', 'computer.js', 'shop.js')
+TOOL_SCRIPTS = ('electronics.js', 'board.js', 'ic-finder.js', 'computer.js',
+                'shop.js')
 
 ELECTRONICS = 'Electronics'
 BOARD = 'Chip-Level Board Repair'
@@ -86,6 +87,20 @@ TOOLS = (
         'seo_description': 'Work out the series resistor for an LED from any '
                            'supply voltage: resistance, power dissipation and '
                            'the nearest standard E24 value to buy.',
+    },
+    {
+        'slug': 'ic-finder',
+        'name': 'IC Marking & Pinout Finder',
+        'icon': 'bi-cpu',
+        'category': BOARD,
+        'blurb': 'Identify a chip from the marking code printed on it, or '
+                 'find it backwards from what its pins do.',
+        'partial': 'tools/partials/ic-finder.html',
+        'pane_view': 'accounting.views.ic_finder.ic_finder',
+        'seo_title': 'IC Marking Code & Pinout Finder — Chip-Level Search',
+        'seo_description': 'Identify an IC from its marking code, or find a '
+                           'chip by its pin functions. Pinout diagrams, pin '
+                           'tables and datasheet links for board-level repair.',
     },
     {
         'slug': 'voltage-divider',

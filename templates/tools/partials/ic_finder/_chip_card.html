@@ -1,0 +1,71 @@
+<article class="ic-card{% if match and match.is_full_match %} ic-card-full{% endif %}">
+    <div class="ic-card-head">
+        <h4 class="ic-part">{{ chip.part_number }}</h4>
+        {% if chip.markings.all %}
+        <span class="ic-pills" aria-label="Marking codes">
+            {% for marking in chip.markings.all %}
+            <span class="ic-pill">{{ marking.code }}</span>
+            {% endfor %}
+        </span>
+        {% endif %}
+    </div>
+
+    <p class="ic-meta">
+        {% if chip.manufacturer %}{{ chip.manufacturer }} · {% endif %}
+        {{ chip.category_display }}
+        {% if chip.package %} · {{ chip.package }}{% endif %}
+        · {{ chip.pin_count }} pin{{ chip.pin_count|pluralize }}
+    </p>
+
+    {% if match %}
+    <p class="ic-score ic-score-{% if match.is_full_match %}exact{% else %}probable{% endif %}">
+        <i class="bi bi-check2-circle me-1"></i>{{ match.percent }}% match
+        <span class="ic-score-detail">({{ match.matched|length }}/{{ match.total }} pin{{ match.total|pluralize }}{% if match.wrong %} · {{ match.wrong|length }} wrong{% endif %}{% if match.missing %} · {{ match.missing|length }} not on this package{% endif %})</span>
+    </p>
+    {% else %}
+    <p class="ic-score ic-score-{{ confidence }}">
+        <span class="ic-conf">{{ confidence }}</span>
+        <span class="ic-score-detail">{{ reason }}</span>
+    </p>
+    {% endif %}
+
+    {% if chip.summary %}<p class="ic-chip-summary">{{ chip.summary }}</p>{% endif %}
+
+    <div class="ic-pin-preview"
+         aria-label="{% if match %}Your pin checks{% else %}First pins{% endif %}">
+        {% if match %}
+            {% for pin in match.checked_pins %}
+            <span class="ic-pin-mini{% if pin.number in match.matched %} ic-hit{% else %} ic-wrong{% endif %}">
+                <b>{{ pin.number }}</b> {{ pin.name }}
+            </span>
+            {% endfor %}
+        {% else %}
+            {% for pin in chip.pins.all|slice:"8" %}
+            <span class="ic-pin-mini">
+                <b>{{ pin.number }}</b> {{ pin.name }}
+            </span>
+            {% endfor %}
+        {% endif %}
+        {% if chip.pin_count > 8 %}
+        <span class="ic-pin-mini ic-pin-more">rest of the pins in the pinout</span>
+        {% endif %}
+    </div>
+
+    <div class="ic-card-actions">
+        <button type="button" class="btn btn-sm btn-primary"
+                data-ic-expand="{{ chip.pk }}"
+                aria-expanded="false" aria-controls="icPinout-{{ chip.pk }}"
+                hx-get="{% url 'tools:ic_pinout' chip.pk %}{% if match %}?matched={{ match.matched|join:',' }}{% endif %}"
+                hx-target="#icPinout-{{ chip.pk }}" hx-swap="innerHTML">
+            <i class="bi bi-view-stacked me-1"></i> See full pinout
+        </button>
+        {% if chip.datasheet_url %}
+        <a class="btn btn-sm btn-outline-primary" href="{{ chip.datasheet_url }}"
+           target="_blank" rel="noopener nofollow">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Datasheet
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="ic-pinout-slot" id="icPinout-{{ chip.pk }}"></div>
+</article>

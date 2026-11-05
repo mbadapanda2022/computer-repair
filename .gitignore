@@ -46,3 +46,6 @@ demo_package/dist/
 demo_package/build/
 demo_package/output/
 demo_package/deadline.txt
+
+# Local QA/scratch scripts
+.qa_*

@@ -815,7 +815,7 @@ def purchase_detail(request, pk):
     balance_due = purchase.balance_due
     for p in paid_payments:
         applied = sum((a.amount for a in p.purchase_allocations.all()), Decimal('0'))
-        remaining = p.net_amount - applied
+        remaining = p.settled_amount - applied
         if remaining >= Decimal('0.01') and balance_due > 0:
             vendor_payments.append({
                 'payment': p,
@@ -870,7 +870,7 @@ def purchase_record_payment(request, pk):
 
     with transaction.atomic():
         payment = form.save()
-        alloc_amt = min(payment.net_amount, purchase.balance_due)
+        alloc_amt = min(payment.settled_amount, purchase.balance_due)
         if alloc_amt > 0:
             PurchaseAllocation.objects.create(
                 payment=payment,
@@ -919,7 +919,7 @@ def purchase_apply_payment(request, pk):
     applied = sum(
         (a.amount for a in payment.purchase_allocations.all()), Decimal('0')
     )
-    remaining = payment.net_amount - applied
+    remaining = payment.settled_amount - applied
     if remaining < Decimal('0.01'):
         return _fail(f"Payment #{payment.pk} is fully applied already.")
 

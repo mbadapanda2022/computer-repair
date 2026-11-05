@@ -965,8 +965,8 @@ class ProductForm(forms.ModelForm):
             except Exception:                       # pragma: no cover
                 self.fields['tax_rate'].initial = Decimal('0')
         self.fields['tax_rate'].help_text = (
-            "GST % for this product/service. Company default se pre-filled "
-            "hai — zaroorat ho to badal dein."
+            "GST % for this product/service. Pre-filled from the company "
+            "default — change it if you need a different rate."
         )
 
     def clean_current_stock(self):
@@ -1390,8 +1390,8 @@ class RepairJobForm(forms.ModelForm, HTMXValidationMixin):
                 allowed = sorted(RepairJob.allowed_next_statuses(old_status))
                 self.add_error(
                     'status',
-                    f"'{RepairJob.status_label(old_status)}' se "
-                    f"'{RepairJob.status_label(status)}' allowed nahi. "
+                    f"'{RepairJob.status_label(old_status)}' to "
+                    f"'{RepairJob.status_label(status)}' is not allowed. "
                     f"Allowed next: "
                     f"{', '.join(RepairJob.status_label(a) for a in allowed) or 'none (terminal state)'}.",
                 )
@@ -1476,17 +1476,17 @@ class RepairStatusTransitionForm(forms.Form):
     """
     status = forms.ChoiceField(
         choices=(), required=True, widget=BS_SELECT(),
-        label='Naya Status',
+        label='New Status',
     )
     remarks = forms.CharField(
         required=False, max_length=300, widget=BS_TEXTAREA(rows=2),
         label='Remarks / Reason',
-        help_text='Audit trail me save hoga (customer ko nahi dikhta).',
+        help_text='Saved in the audit trail (not shown to the customer).',
     )
     force = forms.BooleanField(
         required=False, widget=BS_CHECKBOX(), label='Force (manager override)',
-        help_text='Sirf tab jab workflow ke bahar jaana zaroori ho — audit me '
-                  'FORCED mark ho jata hai.',
+        help_text='Only for when the workflow has to be stepped outside of — '
+                  'the audit trail then marks it FORCED.',
     )
 
     def __init__(self, *args, job=None, allow_force=False, **kwargs):
@@ -1522,8 +1522,8 @@ class RepairStatusTransitionForm(forms.Form):
         if not RepairJob.can_transition_to(self.job.status, value):
             allowed = sorted(RepairJob.allowed_next_statuses(self.job.status))
             raise ValidationError(
-                f"'{RepairJob.status_label(self.job.status)}' se "
-                f"'{RepairJob.status_label(value)}' allowed nahi. "
+                f"'{RepairJob.status_label(self.job.status)}' to "
+                f"'{RepairJob.status_label(value)}' is not allowed. "
                 f"Allowed next: {', '.join(allowed) or 'none (terminal state)'}."
             )
         return value
@@ -1541,7 +1541,7 @@ class RepairStatusTransitionForm(forms.Form):
 
     def save(self, by=None):
         if not self.is_valid():
-            raise ValidationError('Form invalid hai — pehle errors theek karein.')
+            raise ValidationError('The form is not valid — fix the errors shown first.')
         return self.job.change_status(
             self.cleaned_data['status'],
             by=by,
@@ -1622,15 +1622,15 @@ class RepairPartForm(forms.ModelForm):
         # 1. Invoiced job lock (model also blocks it, but give a clear message here)
         if self.repair_job is not None and getattr(self.repair_job, 'invoice_id', None):
             raise ValidationError(
-                f"Is job ka invoice ban chuka hai — part add/change nahi ho "
-                f"sakta. Pehle invoice handle karein."
+                f"An invoice is already raised for this job — the part cannot "
+                f"be added or changed. Deal with the invoice first."
             )
 
         if product.is_service:
             self.add_error(
                 'product',
-                f"'{product.name}' ek SERVICE product hai — ise "
-                f"'Add Service' se add karein, part ke roop me nahi.",
+                f"'{product.name}' is a SERVICE product — add it through "
+                f"'Add Service', not as a part.",
             )
             return cleaned
 
@@ -1649,9 +1649,9 @@ class RepairPartForm(forms.ModelForm):
         if Decimal(qty) > available:
             self.add_error(
                 'quantity',
-                f"Stock kam hai: '{product.name}' me {available} available "
-                f"hai (aap {qty} maang rahe hain). Purchase karein ya "
-                f"quantity kam karein.",
+                f"Not enough stock: only {available} of '{product.name}' is "
+                f"available (you asked for {qty}). Purchase more or reduce "
+                f"the quantity.",
             )
         return cleaned
 
@@ -1711,8 +1711,8 @@ class RepairServiceForm(forms.ModelForm):
         product = self.cleaned_data.get('product')
         if product is not None and not product.is_service:
             raise ValidationError(
-                f"'{product.name}' ek physical product hai — ise "
-                f"'Add Part' se add karein, service ke roop me nahi."
+                f"'{product.name}' is a physical product — add it through "
+                f"'Add Part', not as a service."
             )
         return product
 
@@ -1720,8 +1720,8 @@ class RepairServiceForm(forms.ModelForm):
         cleaned = super().clean()
         if self.repair_job is not None and getattr(self.repair_job, 'invoice_id', None):
             raise ValidationError(
-                "Is job ka invoice ban chuka hai — service add/change nahi ho "
-                "sakta. Pehle invoice handle karein."
+                "An invoice is already raised for this job — the service "
+                "cannot be added or changed. Deal with the invoice first."
             )
         return cleaned
 
@@ -1796,15 +1796,11 @@ class PaymentForm(forms.ModelForm):
         return amount
 
     def clean_discount_amount(self):
+        """Discount is added on top of the cash, so it is capped by nothing
+        here — the bills it is allocated against clamp it on save."""
         disc = self.cleaned_data.get('discount_amount') or Decimal('0')
         if disc < 0:
             raise ValidationError("Discount amount cannot be negative.")
-        if disc > 0:
-            amount = self.cleaned_data.get('amount') or Decimal('0')
-            if disc >= amount:
-                raise ValidationError(
-                    "Discount cannot be equal to or greater than the amount."
-                )
         return disc
 
     def clean(self):

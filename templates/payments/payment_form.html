@@ -52,7 +52,7 @@
 
             <div class="col-md-4">
                 <label for="id_amount" class="form-label fw-semibold">
-                    Amount (₹) <span class="text-danger">*</span>
+                    Amount received / paid (₹) <span class="text-danger">*</span>
                 </label>
                 <input type="number" name="amount" id="id_amount"
                        class="form-control {% if form.amount.errors %}is-invalid{% endif %}"
@@ -61,6 +61,10 @@
                 {% if form.amount.errors %}
                     <div class="invalid-feedback">{{ form.amount.errors|join:", " }}</div>
                 {% endif %}
+                <small class="text-muted d-block mt-1">
+                    Only the cash or UPI that actually changed hands. A discount
+                    goes in the Discount section below and closes bills on top of this.
+                </small>
             </div>
 
             <div class="col-md-4">
@@ -195,8 +199,8 @@
                     {% endif %}
                     <small class="text-muted d-block mt-1">
                         <i class="bi bi-info-circle me-1"></i>
-                        Rent, salary, bijli, staff ka kharcha — koi vendor bill nahi chahiye.
-                        Seedha <strong>Dr Expense / Cr Cash|Bank</strong> post hoga.
+                        Rent, salary, electricity, staff costs — no vendor bill needed.
+                        Posts straight to <strong>Dr Expense / Cr Cash|Bank</strong>.
                         Available only for "Paid to Supplier" payments.
                     </small>
                 </div>
@@ -232,7 +236,7 @@
 
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label for="id_discount_amount" class="form-label fw-semibold">Discount Amount (₹)</label>
+                    <label for="id_discount_amount" class="form-label fw-semibold">Discount (₹)</label>
                     <input type="number" name="discount_amount" id="id_discount_amount"
                            class="form-control {% if form.discount_amount.errors %}is-invalid{% endif %}"
                            step="0.01" min="0"
@@ -240,6 +244,7 @@
                     {% if form.discount_amount.errors %}
                         <div class="invalid-feedback">{{ form.discount_amount.errors|join:", " }}</div>
                     {% endif %}
+                    <small class="text-muted d-block mt-1">Waived on top of the amount above.</small>
                 </div>
                 <div class="col-md-4">
                     <label for="id_discount_type" class="form-label fw-semibold">Discount Type</label>
@@ -254,9 +259,9 @@
                     {% endif %}
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold d-block">Net Amount</label>
-                    <div class="form-control bg-light fw-bold" id="net-amount-display">₹0.00</div>
-                    <small class="text-muted">Amount − Discount</small>
+                    <label class="form-label fw-semibold d-block">Settles on bills</label>
+                    <div class="form-control bg-light fw-bold" id="settled-amount-display">₹0.00</div>
+                    <small class="text-muted">Amount + Discount — what gets allocated</small>
                 </div>
             </div>
             <div class="row g-3 mt-1">
@@ -307,7 +312,7 @@
     var directionSelect = document.getElementById('id_direction');
     var amountInput     = document.getElementById('id_amount');
     var discountInput   = document.getElementById('id_discount_amount');
-    var netDisplay      = document.getElementById('net-amount-display');
+    var settledDisplay  = document.getElementById('settled-amount-display');
     var unpaidContainer = document.getElementById('unpaid-invoices-container');
     var resetAllocFlag  = document.getElementById('reset_allocations');
     var expenseSection  = document.getElementById('expense-account-section');
@@ -505,15 +510,16 @@
         }
         updateExpenseVisibility();
 
-        function updateNetAmount() {
+        function updateSettledAmount() {
             var amount = parseFloat(amountInput ? amountInput.value : 0) || 0;
             var discount = parseFloat(discountInput ? discountInput.value : 0) || 0;
-            var net = Math.max(0, amount - discount);
-            if (netDisplay) netDisplay.textContent = '₹' + net.toFixed(2);
+            if (settledDisplay) {
+                settledDisplay.textContent = '₹' + (amount + discount).toFixed(2);
+            }
         }
-        if (amountInput) amountInput.addEventListener('input', updateNetAmount);
-        if (discountInput) discountInput.addEventListener('input', updateNetAmount);
-        updateNetAmount();
+        if (amountInput) amountInput.addEventListener('input', updateSettledAmount);
+        if (discountInput) discountInput.addEventListener('input', updateSettledAmount);
+        updateSettledAmount();
 
         form.addEventListener('submit', function() {
             if (resetAllocFlag) resetAllocFlag.value = '1';

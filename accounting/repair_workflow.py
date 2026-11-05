@@ -244,11 +244,11 @@ class StatusMachineMixin(models.Model):
             )
             if fresh is None:
                 raise InvalidStatusTransition(
-                    "Ye job ab mojood nahi — shayad delete ho gaya."
+                    "This job no longer exists — it may have been deleted."
                 )
             if getattr(fresh, 'is_deleted', False):
                 raise InvalidStatusTransition(
-                    "Deleted job ka status nahi badal sakte — pehle restore karein."
+                    "Cannot change the status of a deleted job — restore it first."
                 )
             old_status = getattr(fresh, attr)
 
@@ -257,13 +257,13 @@ class StatusMachineMixin(models.Model):
             if idempotent:
                 return False
             raise InvalidStatusTransition(
-                f"Job pehle se '{self.status_label(new_status)}' me hai."
+                f"Job is already '{self.status_label(new_status)}'."
             )
 
         # 3) Valid status
         if new_status not in self.status_choices():
             raise InvalidStatusTransition(
-                f"'{new_status}' ek valid status nahi hai."
+                f"'{new_status}' is not a valid status."
             )
 
         # 4) Transition table
@@ -272,14 +272,14 @@ class StatusMachineMixin(models.Model):
         if meta is None:
             pretty = ', '.join(sorted(rules)) or 'none (terminal state)'
             raise InvalidStatusTransition(
-                f"'{self.status_label(old_status)}' se "
-                f"'{self.status_label(new_status)}' allowed nahi. "
+                f"'{self.status_label(old_status)}' to "
+                f"'{self.status_label(new_status)}' is not allowed. "
                 f"Allowed next: {pretty}."
             )
         if getattr(meta, 'force_only', False) and not force:
             raise InvalidStatusTransition(
-                f"'{self.status_label(new_status)}' sirf manager override "
-                f"(force=True) se ho sakta hai — ye exception hai."
+                f"'{self.status_label(new_status)}' needs a manager override "
+                f"(force=True) — this step is an exception."
             )
 
         # 5) Guards (hard rules apply even under force)
@@ -314,7 +314,7 @@ class StatusMachineMixin(models.Model):
         if not nxt:
             raise InvalidStatusTransition(
                 f"'{self.status_label(getattr(self, STATUS_FIELD))}' terminal "
-                f"state hai — aage kuch nahi."
+                f"state — nothing comes after it."
             )
         self.change_status(nxt, by=by, remarks=remarks, force=force, **kwargs)
         return nxt
@@ -468,10 +468,10 @@ class StatusMachineMixin(models.Model):
         if (self.pk and on_load is not None and current != on_load
                 and not getattr(self, '_allow_direct_status_write', False)):
             raise InvalidStatusTransition(
-                "Status seedha set nahi kiya ja sakta. "
-                f"{type(self).__name__}.change_status('{current}') use karein — "
-                "isse guards, timeline dates, audit history aur notification "
-                "sab chalenge."
+                "Status cannot be set directly. "
+                f"Use {type(self).__name__}.change_status('{current}') so the "
+                "guards, timeline dates, audit history and notifications all "
+                "run."
             )
 
         result = super().save(*args, **kwargs)
@@ -497,7 +497,7 @@ class StatusMachineMixin(models.Model):
         value = getattr(self, STATUS_FIELD)
         if value not in self.status_choices():
             raise ValidationError(
-                {STATUS_FIELD: f"'{value}' valid status nahi hai."}
+                {STATUS_FIELD: f"'{value}' is not a valid status."}
             )
         if not self.pk:
             return
@@ -510,8 +510,8 @@ class StatusMachineMixin(models.Model):
             allowed = sorted(self.allowed_next_statuses(old_status))
             raise ValidationError({
                 STATUS_FIELD: (
-                    f"'{self.status_label(old_status)}' → "
-                    f"'{self.status_label(value)}' allowed nahi. Allowed "
+                    f"'{self.status_label(old_status)}' to "
+                    f"'{self.status_label(value)}' is not allowed. Allowed "
                     f"next: {', '.join(allowed) or 'none (terminal state)'}."
                 )
             })
@@ -549,8 +549,9 @@ class RepairWorkflowMixin:
             # record would never exist).
             if not (old_status == 'ready' and new_status == 'delivered'):
                 raise InvalidStatusTransition(
-                    f"Invoiced job (invoice #{self.invoice_id}) ka status nahi badal "
-                    f"sakta — force se bhi nahi. Pehle invoice reverse/delete karein."
+                    f"Cannot change the status of an invoiced job "
+                    f"(invoice #{self.invoice_id}) — not even with force. "
+                    f"Reverse or delete the invoice first."
                 )
 
         if force:
@@ -563,8 +564,8 @@ class RepairWorkflowMixin:
             )
             if not has_lines:
                 raise InvalidStatusTransition(
-                    "Job ko 'Ready' karne se pehle kam se kam ek part ya service "
-                    "add karein — warna customer ko zero bill jayega."
+                    "Add at least one part or service before marking the job "
+                    "'Ready' — otherwise the customer gets a zero bill."
                 )
 
         if new_status == 'delivered':
@@ -572,16 +573,16 @@ class RepairWorkflowMixin:
             phone = (self.delivered_to_phone or '').strip()
             if not name and not phone:
                 raise InvalidStatusTransition(
-                    "Delivery se pehle 'Received By' (naam ya phone) bharna "
-                    "zaroori hai — warna handover ka record nahi rahega."
+                    "'Received By' (name or phone) is required before delivery — "
+                    "otherwise there is no record of the handover."
                 )
 
         if new_status in ('repairing', 'ready') \
                 and self.estimate_status == 'rejected':
             raise InvalidStatusTransition(
-                "Customer ne estimate reject kar diya hai — aage kaam karne se "
-                "pehle Approve Estimate se naya approval record karein "
-                "(ya cancel karke diagnosis charge bill banayein)."
+                "The customer rejected the estimate — record a new approval "
+                "through Approve Estimate before more work is done "
+                "(or cancel the job and bill the diagnosis charge)."
             )
 
     # ── side-effects ─────────────────────────────────────────────
@@ -681,7 +682,7 @@ class RepairWorkflowMixin:
         kwargs.setdefault('force', True)
         return self.change_status(
             'repairing', by=by,
-            remarks=remarks or 'Delivered job reopen kiya gaya (customer wapas)',
+            remarks=remarks or 'Delivered job reopened (device came back)',
             **kwargs,
         )
 
@@ -774,8 +775,7 @@ class RepairWorkflowMixin:
                 if self.final_amount != invoice.grand_total:
                     logger.warning(
                         "Amount drift after resync | job=%s | invoice=%s vs "
-                        "job=%s (job #%s) — `job.resync_invoice()` dobara "
-                        "chalayein",
+                        "job=%s (job #%s) — run `job.resync_invoice()` again",
                         self.job_number, invoice.grand_total,
                         self.final_amount, self.pk,
                     )
@@ -798,8 +798,8 @@ class RepairWorkflowMixin:
                             _set_ledger_deferred(True)
                 except Exception:
                     logger.exception(
-                        "Ledger sync failed (invoice lines/totals SAFE hain — "
-                        "baad me `sync_invoice_ledger(invoice)` chala lein) | "
+                        "Ledger sync failed (invoice lines/totals are SAFE — "
+                        "run `sync_invoice_ledger(invoice)` later) | "
                         "invoice=%s", invoice.pk,
                     )
 
@@ -958,7 +958,7 @@ REPAIR_TRANSITIONS = {
             {'diagnosis', 'cancelled'},
             label='Device Received', method='mark_received',
             icon='bi-box-arrow-in-down', kind='primary',
-            confirm="Device shop par receive hua? Timeline me aaj ki date lag jayegi.",
+            confirm="Device received at the shop? Today's date goes on the timeline.",
         ),
         # Legacy path: repair starts directly on estimate approval (diagnosis
         # skipped). This was the behaviour of your old views — kept explicit
@@ -968,13 +968,13 @@ REPAIR_TRANSITIONS = {
             {'ready', 'cancelled'},
             label='Start Repair (direct)', method='start_repair',
             icon='bi-tools', kind='primary',
-            confirm="Seedha repair shuru karein? (diagnosis stage skip hoga)",
+            confirm="Start the repair directly? (the diagnosis stage is skipped)",
         ),
         'cancelled': Transition(
             set(), label='Cancel Job', method='cancel',
             icon='bi-x-octagon', kind='danger',
-            confirm="Job cancel karna hai? Ye terminal state hai — aage koi "
-                    "transition nahi (manager force se hi wapas kar sakta hai).",
+            confirm="Cancel this job? This is a terminal state — nothing comes "
+                    "after it (only a manager override can undo it).",
         ),
     },
     'received': {
@@ -986,7 +986,7 @@ REPAIR_TRANSITIONS = {
         'cancelled': Transition(
             set(), label='Cancel Job', method='cancel',
             icon='bi-x-octagon', kind='danger',
-            confirm="Job cancel karna hai?",
+            confirm="Cancel this job?",
         ),
     },
     'diagnosis': {
@@ -994,13 +994,12 @@ REPAIR_TRANSITIONS = {
             {'ready', 'cancelled'},
             label='Start Repair', method='start_repair',
             icon='bi-tools', kind='primary',
-            confirm="Repair shuru karni hai? Rejected estimate par ye block hoga.",
+            confirm="Start the repair? A rejected estimate blocks this.",
         ),
         'cancelled': Transition(
             set(), label='Cancel Job', method='cancel',
             icon='bi-x-octagon', kind='danger',
-            confirm="Job cancel karna hai? Lage hue parts stock me wapas "
-                    "chale jayenge.",
+            confirm="Cancel this job? Parts already fitted go back into stock.",
         ),
     },
     'repairing': {
@@ -1008,21 +1007,21 @@ REPAIR_TRANSITIONS = {
             {'delivered'},
             label='Mark Ready', method='mark_ready',
             icon='bi-check2-circle', kind='success',
-            confirm="Repair poori ho gayi? Customer ko 'ready' notification jayegi.",
+            confirm="Repair finished? The customer gets a 'ready' notification.",
         ),
         'cancelled': Transition(
             set(), label='Cancel Job', method='cancel',
             icon='bi-x-octagon', kind='danger',
-            confirm="Parts lage hue hain — cancel karne par stock wapas jayega. "
-                    "Confirm karein?",
+            confirm="Parts are fitted — cancelling returns them to stock. "
+                    "Continue?",
         ),
     },
     'ready': {
         'delivered': Transition(
             set(), label='Deliver to Customer', method='deliver',
             icon='bi-truck', kind='success',
-            confirm="Device customer ko de diya? 'Received By' (naam ya phone) "
-                    "bhara hona zaroori hai.",
+            confirm="Handing the device to the customer? 'Received By' (name or "
+                    "phone) is required.",
         ),
         # Customer refused delivery / rejected the estimate / device not
         # picked up — cancel is possible from 'ready' too (reason + optional
@@ -1030,8 +1029,8 @@ REPAIR_TRANSITIONS = {
         'cancelled': Transition(
             set(), label='Cancel Job', method='cancel',
             icon='bi-x-octagon', kind='danger',
-            confirm="Device taiyar hai phir bhi cancel? Reason likhein — "
-                    "zaroorat par diagnosis charge ka bill ban sakta hai.",
+            confirm="Cancel even though the device is ready? Write the reason — "
+                    "a diagnosis charge can be billed if needed.",
         ),
     },
     'delivered': {
@@ -1039,8 +1038,8 @@ REPAIR_TRANSITIONS = {
             set(), label='Reopen Job', method='reopen_job',
             icon='bi-arrow-counterclockwise', kind='warning',
             force_only=True,
-            confirm="Delivered job reopen kar rahe hain — ye exception hai aur "
-                    "audit me FORCED mark hoga. Continue?",
+            confirm="Reopening a delivered job — this is an exception and the "
+                    "audit trail will show FORCED. Continue?",
         ),
     },
     'cancelled': {
@@ -1051,8 +1050,8 @@ REPAIR_TRANSITIONS = {
         'delivered': Transition(
             set(), label='Device Returned (Delivered)', method='deliver',
             icon='bi-arrow-return-left', kind='secondary',
-            confirm="Cancelled device customer ko wapas de rahe hain? "
-                    "'Received By' (naam ya phone) zaroori hai.",
+            confirm="Returning a cancelled device to the customer? "
+                    "'Received By' (name or phone) is required.",
         ),
     },
 }
@@ -1134,13 +1133,13 @@ class InvoiceConsistencyMixin:
 
         if locked and not self._edit_allowed(edit_invoiced):
             raise InvalidStatusTransition(
-                f"Invoiced job (invoice #{job.invoice_id}) me "
-                f"{type(self).__name__} add/change nahi kar sakte — warna "
-                f"stock kat jayega par invoice ki rakam nahi badlegi. "
-                f"Raaste: (1) invoice reverse/delete karein, "
-                f"(2) `save(edit_invoiced=True)` use karein (invoice turant "
-                f"resync ho jayega), ya (3) settings me "
-                f"REPAIR_ALLOW_INVOICED_LINE_EDIT = True karein."
+                f"Cannot add or change a {type(self).__name__} on an "
+                f"invoiced job (invoice #{job.invoice_id}) — stock would move "
+                f"while the invoice amount stays the same. "
+                f"Options: (1) reverse or delete the invoice, "
+                f"(2) use `save(edit_invoiced=True)` (the invoice resyncs "
+                f"immediately), or (3) set "
+                f"REPAIR_ALLOW_INVOICED_LINE_EDIT = True in settings."
             )
 
         # ⚠️ Check `_line_changed()` BEFORE save — after save the DB is
@@ -1158,7 +1157,7 @@ class InvoiceConsistencyMixin:
                 # could not sync — log and move on.
                 # (Resync can be re-run via `job.resync_invoice()`.)
                 logger.exception(
-                    "Invoice resync failed after line save (line save hua hai) "
+                    "Invoice resync failed after line save (the line did save) "
                     "| job=%s | %s#%s",
                     getattr(job, 'pk', '?'), type(self).__name__, self.pk,
                 )
@@ -1171,10 +1170,10 @@ class InvoiceConsistencyMixin:
 
         if locked and not self._edit_allowed(edit_invoiced):
             raise InvalidStatusTransition(
-                f"Invoiced job (invoice #{job.invoice_id}) se "
-                f"{type(self).__name__} hata nahi sakte — invoice me ghost "
-                f"line reh jayegi. `delete(edit_invoiced=True)` use karein "
-                f"(invoice turant update ho jayega)."
+                f"Cannot delete a {type(self).__name__} from an invoiced "
+                f"job (invoice #{job.invoice_id}) — it would leave a ghost "
+                f"line on the invoice. Use `delete(edit_invoiced=True)` "
+                f"(the invoice updates immediately)."
             )
 
         # Soft-delete (or legacy hard-delete) — set the authorisation flag on
@@ -1292,10 +1291,10 @@ def apply_repair_workflow(job_model, log_model_name='RepairStatusLog'):
         if (self.pk and on_load is not None and current != on_load
                 and not getattr(self, '_allow_direct_status_write', False)):
             raise InvalidStatusTransition(
-                "Status seedha set nahi kiya ja sakta. "
-                f"{type(self).__name__}.change_status('{current}') use karein — "
-                "isse guards, timeline dates, audit history aur notification "
-                "sab chalenge."
+                "Status cannot be set directly. "
+                f"Use {type(self).__name__}.change_status('{current}') so the "
+                "guards, timeline dates, audit history and notifications all "
+                "run."
             )
 
         # Run the original save — the status notification inside it gets

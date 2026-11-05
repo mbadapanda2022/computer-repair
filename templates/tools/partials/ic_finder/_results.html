@@ -1,0 +1,50 @@
+{% if ic_query %}
+<div class="tt-result-box ic-summary">
+    <div class="tt-result-label">Search</div>
+    <div class="tt-result-value big">{{ ic_hits|length }} IC{{ ic_hits|length|pluralize }}</div>
+    <div class="tt-result-sub">for “{{ ic_query }}”</div>
+</div>
+
+{% if ic_ambiguous > 1 %}
+<div class="ic-warning" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div>
+        <strong>This marking code belongs to {{ ic_ambiguous }} ICs.</strong>
+        Confirm from the package (DIP/SOP/SOT) and where the chip sits on the board —
+        the code alone is not enough.
+    </div>
+</div>
+{% endif %}
+
+{% for hit in ic_hits %}
+{% include 'tools/partials/ic_finder/_chip_card.html' with chip=hit.chip confidence=hit.confidence reason=hit.reason %}
+{% empty %}
+<div class="ic-empty">
+    <p class="mb-2"><strong>Nothing matched “{{ ic_query }}”.</strong></p>
+    <ul class="ic-empty-list">
+        <li>If the code is short, try the full part number (for example <code>UC3842</code>).</li>
+        <li>If the chip is unmarked, use the <strong>Pin Match</strong> tab — searching
+            by what the pins do works far better.</li>
+        <li>Skip the extra marks (manufacturer logo, date code) and type
+            only the code itself.</li>
+    </ul>
+    <button type="button" class="btn btn-sm btn-primary mt-2" data-ic-goto-tab="pins">
+        <i class="bi bi-diagram-3 me-1"></i> Match by pins
+    </button>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="ic-empty">
+    <p class="mb-2">Chip in hand? Type what is printed on it —</p>
+    <ul class="ic-empty-list">
+        <li><strong>Full part number</strong> — <code>UC3842B</code>, <code>TL431</code>,
+            <code>PC817C</code></li>
+        <li><strong>Marking code printed on the package</strong> — <code>3842</code>,
+            <code>431</code>, <code>817</code>, <code>A1</code>, <code>2263</code></li>
+    </ul>
+    <p class="ic-empty-sub mt-2 mb-0">
+        Results update as you type — no need to refresh the page.
+    </p>
+</div>
+{% endif %}

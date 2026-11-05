@@ -1,0 +1,99 @@
+<div class="ic-pinout">
+    <div class="ic-pinout-head">
+        <h4 class="ic-part mb-0">{{ ic_chip.part_number }}</h4>
+        <span class="ic-meta d-block">
+            {{ ic_chip.package }} · {{ ic_chip.pin_count }} pin{{ ic_chip.pin_count|pluralize }}
+            {% if ic_chip.manufacturer %} · {{ ic_chip.manufacturer }}{% endif %}
+        </span>
+    </div>
+
+    {# Diagram drawn from the pin rows themselves — no image to go out of date. #}
+    <div class="ic-chip" role="img"
+         aria-label="Pinout diagram: pin 1 marked, pins listed in the table below">
+        <div class="ic-chip-side">
+            {% for pin in ic_left %}
+            <div class="ic-pin ic-pin-left{% if pin.number in ic_matched %} ic-hit{% endif %}"
+                 data-pin="{{ pin.number }}" tabindex="0">
+                <span class="ic-pin-name">{{ pin.name }}</span>
+                <span class="ic-pin-num">{{ pin.number }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="ic-chip-body">
+            <span class="ic-chip-notch" aria-hidden="true"></span>
+            <span class="ic-chip-title">{{ ic_chip.part_number }}</span>
+            <span class="ic-chip-sub">{{ ic_chip.category_display }}</span>
+        </div>
+
+        <div class="ic-chip-side">
+            {% for pin in ic_right %}
+            <div class="ic-pin ic-pin-right{% if pin.number in ic_matched %} ic-hit{% endif %}"
+                 data-pin="{{ pin.number }}" tabindex="0">
+                <span class="ic-pin-num">{{ pin.number }}</span>
+                <span class="ic-pin-name">{{ pin.name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <p class="ic-legend">
+        {# The match key only means something when a pin match sent us here. #}
+        {% if ic_matched %}<span class="ic-key ic-key-hit"></span> matched a pin you entered
+        &nbsp;·&nbsp; {% endif %}notch/dot = pin 1
+    </p>
+
+    <div class="table-responsive">
+        <table class="table table-sm align-middle ic-pin-table mb-0">
+            <thead>
+                <tr>
+                    <th scope="col" class="ic-col-pin">Pin No.</th>
+                    <th scope="col">Datasheet Name</th>
+                    <th scope="col">Function</th>
+                    <th scope="col" class="ic-col-note">Short Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pin in ic_pins %}
+                <tr data-pin="{{ pin.number }}"{% if pin.number in ic_matched %} class="ic-hit"{% endif %}>
+                    <th scope="row" class="ic-col-pin">{{ pin.number }}</th>
+                    <td><code>{{ pin.name }}</code></td>
+                    <td><span class="ic-fn ic-fn-{{ pin.function }}">{{ pin.function_display }}</span></td>
+                    <td class="ic-col-note">{{ pin.note }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="ic-empty-cell">
+                        This IC's pins are not in the catalog yet — open the
+                        datasheet to check, and tell staff so they get added here.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="ic-pinout-actions">
+        <button type="button" class="btn btn-sm btn-outline-primary" data-ic-copy>
+            <i class="bi bi-clipboard me-1"></i> Copy pinout
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-ic-print>
+            <i class="bi bi-printer me-1"></i> Print
+        </button>
+        {% if ic_chip.datasheet_url %}
+        <a class="btn btn-sm btn-primary" href="{{ ic_chip.datasheet_url }}"
+           target="_blank" rel="noopener nofollow">
+            <i class="bi bi-file-earmark-pdf me-1"></i> Datasheet
+        </a>
+        {% endif %}
+    </div>
+
+    <textarea class="ic-copy-source" rows="1" readonly
+              tabindex="-1" aria-hidden="true">{{ ic_copy_text }}</textarea>
+
+    {% if ic_chip.bench_note %}
+    <div class="tt-hint">
+        <i class="bi bi-lightbulb me-1"></i>{{ ic_chip.bench_note }}
+    </div>
+    {% endif %}
+</div>

@@ -76,7 +76,7 @@
     <div class="amount">₹{{ payment.amount|rupee }}</div>
 </div>
 <div class="in-words">
-    {{ payment.amount|number_to_words_inr }}{% if payment.discount_amount > 0 %} (Net after discount: Rs.{{ payment.net_amount|floatformat:2 }}){% endif %}
+    {{ payment.amount|number_to_words_inr }}{% if payment.discount_amount > 0 %} — plus ₹{{ payment.discount_amount|floatformat:2 }} discount; total settled Rs.{{ payment.settled_amount|floatformat:2 }}{% endif %}
 </div>
 
 <!-- DETAILS GRID -->

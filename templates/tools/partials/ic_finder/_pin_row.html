@@ -1,0 +1,21 @@
+<div class="ic-row">
+    <label class="ic-row-field ic-row-pin">
+        <span class="tt-label">Pin No.</span>
+        <input type="number" class="form-control form-control-sm" name="pin"
+               min="1" max="64" step="1" inputmode="numeric" placeholder="1"
+               aria-label="Pin number">
+    </label>
+    <label class="ic-row-field ic-row-function">
+        <span class="tt-label">Function</span>
+        <select class="form-select form-select-sm" name="function" aria-label="Pin function">
+            <option value="">— choose —</option>
+            {% for value, label in ic_functions %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button type="button" class="btn btn-sm btn-outline-danger ic-row-remove"
+            aria-label="Remove this pin row" title="Remove">
+        <i class="bi bi-x-lg"></i>
+    </button>
+</div>

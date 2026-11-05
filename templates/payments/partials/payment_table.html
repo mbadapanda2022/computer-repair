@@ -4,7 +4,7 @@
     {# ══════════ DESKTOP TABLE (lg and up) ══════════ #}
     <div class="card-body p-0 d-none d-lg-block">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 pp-sticky-last">
                 <thead class="table-light">
                     <tr>
                         <th>Date</th>
@@ -44,7 +44,7 @@
                         <td class="text-end fw-semibold text-nowrap">
                             ₹{{ payment.amount|rupee }}
                             {% if payment.discount_amount > 0 %}
-                                <br><small class="text-muted">Disc ₹{{ payment.discount_amount|rupee }} · Net ₹{{ payment.net_amount|rupee }}</small>
+                                <br><small class="text-muted">Disc ₹{{ payment.discount_amount|rupee }} · Settles ₹{{ payment.settled_amount|rupee }}</small>
                             {% endif %}
                         </td>
                         <td>

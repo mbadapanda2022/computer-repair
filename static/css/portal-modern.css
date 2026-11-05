@@ -587,6 +587,17 @@ body {
 }
 .table-responsive { -webkit-overflow-scrolling: touch; }
 
+/* A staff list is wider than its box, so its last column — the row's ⋮ menu,
+   or the amount you are about to type — fell off the right edge and only
+   appeared after hunting for a horizontal scrollbar at the bottom of a long
+   list. Pinning that column keeps every row's control under the thumb. */
+.table-responsive > .pp-sticky-last > :is(thead, tbody, tfoot) > tr > :last-child {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    box-shadow: -8px 0 8px -8px rgba(15, 23, 42, .28);
+}
+
 /* Status badges — pill style */
 .badge {
     border-radius: var(--pp-radius-pill);

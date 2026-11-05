@@ -308,7 +308,7 @@ def payment_detail_modal(request, pk):
     ) + sum(
         (a.amount for a in payment.purchase_allocations.all()), Decimal('0')
     )
-    unallocated = payment.amount - allocated_total
+    unallocated = payment.allocation_pool - allocated_total
     return render(request, 'payments/partials/payment_detail_modal.html', {
         'payment': payment,
         'allocated_total': allocated_total,
@@ -398,7 +398,7 @@ def payment_list_excel(request):
 
     headers = [
         'Date', 'Payment ID', 'Direction', 'Contact', 'Amount (Rs.)',
-        'Discount (Rs.)', 'Net (Rs.)', 'Method', 'UPI / Ref', 'Account',
+        'Discount (Rs.)', 'Settled (Rs.)', 'Method', 'UPI / Ref', 'Account',
         'Applied To', 'Expense Head', 'Advance', 'Reconciled', 'Description',
     ]
     TOTAL_COLS = len(headers)
@@ -437,7 +437,7 @@ def payment_list_excel(request):
             p.contact.name if p.contact else '',
             float(p.amount),
             float(p.discount_amount or 0),
-            float(p.net_amount),
+            float(p.settled_amount),
             p.get_method_display(),
             p.upi_ref or p.reference or '',
             p.bank_account.name if p.bank_account else 'Cash',
@@ -601,7 +601,7 @@ def payment_create(request, pk=None):
                 if not payment.is_advance and not payment.expense_account_id:
                     # Auto-allocate to target invoice (from ?invoice=)
                     if target_invoice and target_invoice.customer_id == payment.contact_id:
-                        alloc_amt = min(payment.amount, target_invoice.balance_due)
+                        alloc_amt = min(payment.settled_amount, target_invoice.balance_due)
                         if alloc_amt > 0:
                             PaymentAllocation.objects.create(
                                 payment=payment,
@@ -614,7 +614,7 @@ def payment_create(request, pk=None):
 
                     # Auto-allocate to target purchase bill (from ?purchase=)
                     if target_purchase and target_purchase.vendor_id == payment.contact_id:
-                        alloc_amt = min(payment.net_amount, target_purchase.balance_due)
+                        alloc_amt = min(payment.settled_amount, target_purchase.balance_due)
                         if alloc_amt > 0:
                             PurchaseAllocation.objects.create(
                                 payment=payment,
@@ -812,6 +812,16 @@ def payment_update(request, pk):
                         alloc.hard_delete()
                     for alloc in list(payment.purchase_allocations.all()):
                         alloc.hard_delete()
+
+                    # Refresh the stored dues BEFORE re-collecting: the rows we
+                    # just deleted are still counted in invoice.balance_due, and
+                    # _collect_* clamps each allocation to that figure. Without
+                    # this, an edit could never allocate more than the payment
+                    # covered before — so adding a discount to an existing
+                    # payment did nothing, which is exactly how the ₹850 invoice
+                    # stayed half-paid.
+                    payment.update_invoices()
+                    payment.update_purchases()
 
                     _collect_allocations_from_post(request, payment)
                     _collect_purchase_allocations_from_post(request, payment)

@@ -152,7 +152,7 @@ class PurchaseSettlementTests(TestCase):
         self.assertFalse(p.paid)
 
     def test_vendor_payment_discount_ledger_signs_create(self):
-        """Dr Vendor (net+disc) / Cr Cash net / Cr Discount Received disc."""
+        """Dr Vendor (cash+disc) / Cr Cash cash / Cr Discount Received disc."""
         pay = self._payment('950.00', discount_amount=Decimal('50.00'))
         entry = LedgerEntry.objects.get(reference_id=pay.pk, entry_type='payment')
         lines = list(entry.lines.all())
@@ -165,13 +165,14 @@ class PurchaseSettlementTests(TestCase):
         d_lines = [l for l in lines if l.account_id == discount.pk]
         c_lines = [l for l in lines if l.account_id == cash.pk]
 
-        # Vendor debited FULL amount (900 + 100... here net 900 + disc 50 = 950? amount=950, disc=50 → net 900, vendor Dr 900+50=950)
-        self.assertEqual(sum(l.debit for l in v_lines), Decimal('950.00'))
+        # ₹950 handed over plus ₹50 the vendor waived closes a ₹1,000 bill.
+        self.assertEqual(sum(l.debit for l in v_lines), Decimal('1000.00'))
         self.assertEqual(sum(l.credit for l in v_lines), Decimal('0.00'))
         # Discount Received is INCOME → credit side, never debit
         self.assertEqual(sum(l.credit for l in d_lines), Decimal('50.00'))
         self.assertEqual(sum(l.debit for l in d_lines), Decimal('0.00'))
-        self.assertEqual(sum(l.credit for l in c_lines), Decimal('900.00'))
+        # The cash side is the money that moved — a discount is not cash.
+        self.assertEqual(sum(l.credit for l in c_lines), Decimal('950.00'))
 
     def test_vendor_payment_discount_ledger_signs_update(self):
         pay = self._payment('950.00')
@@ -184,7 +185,7 @@ class PurchaseSettlementTests(TestCase):
 
         self.assertEqual(
             sum(l.debit for l in entry.lines.filter(account=vendor)),
-            Decimal('950.00'),
+            Decimal('1000.00'),
         )
         self.assertEqual(
             sum(l.credit for l in entry.lines.filter(account=discount)),

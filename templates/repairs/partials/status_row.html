@@ -9,8 +9,8 @@
         <div class="col-md-9">
             <select name="status" class="form-select form-select-sm" required
                     {% if not available_transitions %}disabled{% endif %}>
-                {# Sirf VALID next transitions — model ka state machine decide
-                   karta hai. Current status marker ke roop me sabse upar. #}
+                {# Only VALID next transitions — the model's state machine decides.
+                   The current status sits first as a marker. #}
                 <option value="{{ job.status }}" selected>
                     {{ job.get_status_display }} (current)
                 </option>
@@ -32,18 +32,18 @@
     {% if available_transitions %}
         <small class="text-muted d-block mt-2">
             <i class="bi bi-info-circle me-1"></i>
-            Sirf valid next steps dikhaye gaye hain. Aage badhne par related
-            details maange jayenge.
+            Only the valid next steps are listed. Moving ahead asks for the
+            details that go with that step.
         </small>
     {% else %}
         <small class="text-muted d-block mt-2">
             <i class="bi bi-lock me-1"></i>
             {% if job.is_invoiced %}
-                Is job ka invoice ban chuka hai — status lock hai. Pehle
-                invoice handle karein.
+                An invoice is already raised for this job — the status is
+                locked. Deal with the invoice first.
             {% else %}
-                {{ job.get_status_display }} final state hai — aage koi
-                transition nahi.
+                {{ job.get_status_display }} is a final state — no transition
+                comes after it.
             {% endif %}
         </small>
     {% endif %}

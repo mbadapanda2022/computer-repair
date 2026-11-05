@@ -19,6 +19,7 @@ from .models import (
     BankAccount, BankTransaction, PaymentAllocation, AdvanceAdjustment,
     Account, AccountGroup, AuditLog, RepairStatusLog, 
     BlogCategory, BlogTag, BlogPost, VisitorSession, PageView,
+    IcChip, IcMarking, IcPin,
 )
 
 from .models import sync_invoice_ledger
@@ -60,10 +61,10 @@ class CompanyProfileAdmin(admin.ModelAdmin):
         ('Repair Defaults', {
             'fields': ('default_labour_product', 'default_service_tax_rate'),
             'description': (
-                'Labour/service lines ke liye defaults. '
-                '`default_labour_product` = Repair Labour ke liye service '
-                'product (naam-string lookup ki jagah). '
-                '`default_service_tax_rate` khali = product ka apna rate.'
+                'Defaults for labour/service lines. '
+                '`default_labour_product` = the service product used for '
+                'Repair Labour (instead of a name lookup). '
+                'default_service_tax_rate blank = use the product rate.'
             ),
         }),
         
@@ -1336,3 +1337,23 @@ class PageViewAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+
+# ── IC catalog behind the public IC Finder tool ─────────────────────────
+class IcMarkingInline(admin.TabularInline):
+    model = IcMarking
+    extra = 1
+
+
+class IcPinInline(admin.TabularInline):
+    model = IcPin
+    extra = 0
+    fields = ('number', 'name', 'function', 'note')
+
+
+@admin.register(IcChip)
+class IcChipAdmin(admin.ModelAdmin):
+    list_display = ('part_number', 'manufacturer', 'category', 'package',
+                    'pin_count', 'popular')
+    list_filter = ('category', 'package', 'popular')
+    search_fields = ('part_number', 'manufacturer', 'markings__code')
+    inlines = (IcMarkingInline, IcPinInline)

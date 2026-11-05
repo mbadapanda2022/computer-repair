@@ -1,0 +1,141 @@
+{% load static %}
+{# IC Finder pane — two jobs on one page: identify a chip from what is #}
+{# printed on it, or find a chip from what its pins do. #}
+<div class="tt-tool" data-tool="ic-finder">
+    <h3><i class="bi bi-cpu"></i> IC Marking &amp; Pinout Finder</h3>
+    <p class="text-muted mb-3">
+        Pick up the chip and type what is printed on it, or describe what its pins do.
+        A full part number works, and so does just the short code on the package.
+    </p>
+
+    <div class="tt-chips mb-3" role="tablist" aria-label="IC Finder mode">
+        <span class="tt-chips-label">Mode</span>
+        <button type="button" role="tab" aria-selected="true" aria-controls="icSearchPanel"
+                class="tt-toggle active" data-ictab="search" data-default-mode>
+            <i class="bi bi-search me-1"></i> IC Search
+        </button>
+        <button type="button" role="tab" aria-selected="false" aria-controls="icPinPanel"
+                class="tt-toggle" data-ictab="pins">
+            <i class="bi bi-diagram-3 me-1"></i> Pin Match
+        </button>
+    </div>
+
+    {# ── JOB A — identify the chip in his hand ────────────────────────── #}
+    <section id="icSearchPanel" class="ic-panel" role="tabpanel">
+        <form class="ic-search-form" autocomplete="off"
+              hx-get="{% url 'tools:ic_search' %}"
+              hx-target="#icResults" hx-swap="innerHTML"
+              hx-trigger="submit, ic-search"
+              hx-indicator="#icSearchLoader">
+            <label class="tt-label" for="icQuery">
+                Part number or marking code
+            </label>
+            <div class="input-group input-group-lg ic-search-group">
+                <span class="input-group-text"><i class="bi bi-cpu"></i></span>
+                <input type="search" class="form-control" id="icQuery" name="q"
+                       placeholder="UC3842&nbsp;/&nbsp;A1&nbsp;/&nbsp;6A&nbsp;/&nbsp;2263"
+                       aria-label="Part number or marking code"
+                       autofocus>
+                <button class="btn btn-outline-secondary" type="submit">
+                    <i class="bi bi-search"></i> <span class="d-none d-sm-inline">Search</span>
+                </button>
+                <button class="btn btn-outline-secondary" type="button" data-clear
+                        title="Reset everything">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+            <div class="tt-chips mt-2" aria-label="Popular chips">
+                <span class="tt-chips-label">Commonly found</span>
+                {% for chip in ic_popular %}
+                <button type="button" class="tt-chip" data-ic-pick="{{ chip.part_number }}">{{ chip.part_number }}</button>
+                {% endfor %}
+            </div>
+        </form>
+
+        <div id="icSearchLoader" class="htmx-indicator ic-loader">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading…</span>
+            </div>
+            <span class="ic-loader-text">Searching the catalog…</span>
+        </div>
+
+        <div id="icResults" class="ic-results" aria-live="polite">
+            {% include 'tools/partials/ic_finder/_results.html' %}
+        </div>
+    </section>
+
+    {# ── JOB B — the unmarked chip, known only by what its pins do ────── #}
+    <section id="icPinPanel" class="ic-panel" role="tabpanel" hidden>
+        <p class="ic-help">
+            Nothing printed on the chip? Trace it and say what each pin does —
+            fill in <strong>Pin No.</strong> and <strong>Function</strong>, adding as
+            many rows as you know. The more pins a chip matches, the higher
+            it ranks.
+        </p>
+
+        <form id="icPinForm" autocomplete="off"
+              hx-get="{% url 'tools:ic_pin_match' %}"
+              hx-target="#icPinResults" hx-swap="innerHTML"
+              hx-indicator="#icPinLoader">
+            <div id="icPinRows" class="ic-rows">
+                {% for row in ic_default_rows %}
+                {% include 'tools/partials/ic_finder/_pin_row.html' %}
+                {% endfor %}
+            </div>
+
+            <div class="ic-form-actions">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="icAddRow">
+                    <i class="bi bi-plus-lg"></i> Add pin row
+                </button>
+                <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="bi bi-search"></i> Find matching ICs
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-clear>
+                    <i class="bi bi-arrow-counterclockwise"></i> Clear
+                </button>
+            </div>
+        </form>
+
+        <div id="icPinLoader" class="htmx-indicator ic-loader">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                <span class="visually-hidden">Loading…</span>
+            </div>
+            <span class="ic-loader-text">Searching the pin tables…</span>
+        </div>
+
+        <div id="icPinResults" class="ic-results" aria-live="polite">
+            {% include 'tools/partials/ic_finder/_pin_results.html' %}
+        </div>
+    </section>
+
+    {# ── Catalog status: how much this finder actually knows ──────────── #}
+    <div class="tt-result-box">
+        <div class="tt-result-label">Catalog</div>
+        <div class="tt-out-rows">
+            <div class="tt-out-row">
+                <span class="tt-out-label">ICs stored</span>
+                <span class="tt-out-value">{{ ic_chip_count }}</span>
+            </div>
+            <div class="tt-out-row">
+                <span class="tt-out-label">Pin records</span>
+                <span class="tt-out-value">{{ ic_pin_count }}</span>
+            </div>
+        </div>
+        <div class="tt-result-sub">
+            The catalog keeps growing — tell staff the part number or marking of any
+            chip you cannot find and it will be added.
+        </div>
+    </div>
+
+    <div class="tt-note">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        <strong>Confirm against the datasheet</strong> — a wrong pin map can damage
+        the board. The pin table shown here is the only reference on this page;
+        one marking code can belong to several chips, so check the package and
+        the PCB location before you power up.
+    </div>
+
+    <a class="tt-alltools" href="{% url 'tools:tools_index' %}">
+        <i class="bi bi-arrow-left me-1"></i> All tools
+    </a>
+</div>

@@ -17,6 +17,7 @@ from pathlib import Path
 from django.conf import settings
 from django.test import Client, TestCase, override_settings
 from django.utils.html import escape
+from django.utils.module_loading import import_string
 
 from accounting.middleware import AccessControlMiddleware
 from accounting.tools_registry import (CATEGORY_ORDER, TOOLS, TOOL_SCRIPTS,
@@ -54,6 +55,25 @@ class TechToolsRegistryTests(TestCase):
         on_disk = {p.name for p in PARTIAL_DIR.glob('*.html')}
         self.assertEqual(on_disk - registered, {'_welcome.html'})
 
+    def test_every_subfolder_fragment_is_referenced(self):
+        # A pane may split into fragments to keep each file readable
+        # (tools/partials/ic_finder/_chip_card.html). The orphan check above
+        # only globs the top level, so fragments are pinned here: a fragment no
+        # template includes and no view renders is dead markup that drifts out
+        # of sync with nothing complaining.
+        panes = {p: p.read_text(encoding='utf-8') for p in PARTIAL_DIR.rglob('*.html')}
+        sources = ' '.join(list(panes.values()) + [
+            (BASE_DIR / 'templates' / 'tools' / 'index.html').read_text(encoding='utf-8'),
+            *(p.read_text(encoding='utf-8')
+              for p in (BASE_DIR / 'accounting' / 'views').glob('*.py'))])
+        referenced = set(re.findall(r"['\"]([\w/-]+\.html)['\"]", sources))
+        for path in panes:
+            if path.parent == PARTIAL_DIR:
+                continue
+            rel = str(path.relative_to(BASE_DIR / 'templates')).replace('\\', '/')
+            with self.subTest(fragment=rel):
+                self.assertIn(rel, referenced)
+
     def test_every_tool_is_registered_in_a_js_bundle(self):
         sources = {name: bundle_source(name) for name in TOOL_SCRIPTS}
         declared = set()
@@ -78,15 +98,23 @@ class TechToolsRegistryTests(TestCase):
     def test_registry_fields_are_complete(self):
         required = {'slug', 'name', 'icon', 'category', 'blurb', 'partial',
                     'seo_title', 'seo_description'}
+        # ``pane_view`` is the only extra key a tool may carry: it marks a pane
+        # that needs server data and is rendered by that dotted view path
+        # instead of being included straight from the template.
         for tool in TOOLS:
             with self.subTest(slug=tool.get('slug')):
-                self.assertEqual(set(tool), required)
+                self.assertEqual(required - set(tool), set())
+                self.assertLessEqual(set(tool) - required, {'pane_view'})
                 for key in required:
                     self.assertTrue(str(tool[key]).strip(), f'{key} is blank')
                 self.assertIn(tool['category'], CATEGORY_ORDER)
                 self.assertTrue(tool['icon'].startswith('bi-'), tool['icon'])
                 # An icon missing from the bundled font renders as an empty box.
                 self.assertIn(f'.{tool["icon"]}::before', ICON_CSS, tool['icon'])
+                view = tool.get('pane_view')
+                if view:
+                    self.assertTrue(callable(import_string(view)),
+                                    f'{view} is not a callable view')
 
     def test_grouping_covers_every_category_in_order(self):
         groups = grouped_tools()
@@ -158,11 +186,20 @@ class TechToolsPaneMarkupTests(TestCase):
                                             'row array closed before its value')
 
     def test_panes_do_not_depend_on_view_context(self):
-        # A pane swapped in by HTMX gets no context, so nothing inside a tool
-        # pane may read a template variable except the url tag.
+        # A plain pane is swapped in with no context at all, so a template
+        # variable inside it renders as an empty string forever and nothing but
+        # a careful read of the pane shows that. Only a tool that declares a
+        # pane_view — a view that actually supplies context — may use variables,
+        # and the contract for its own keys is pinned in tests_ic_finder.py.
         for tool in TOOLS:
             with self.subTest(slug=tool['slug']):
-                self.assertNotIn('{{ tool.', partial_source(tool))
+                if tool.get('pane_view'):
+                    continue
+                self.assertNotIn('{{', partial_source(tool))
+        static = {tool['slug'] for tool in TOOLS if not tool.get('pane_view')}
+        self.assertIn('subnet', static)
+        self.assertIn('ic-finder', {tool['slug'] for tool in TOOLS
+                                    if tool.get('pane_view')})
 
     def test_every_icon_the_pages_draw_is_bundled(self):
         # bootstrap-icons ships locally; a class the font does not define shows

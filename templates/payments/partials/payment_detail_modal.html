@@ -77,14 +77,18 @@
                             <tr><td class="text-muted">Reference #</td><td>{{ payment.reference }}</td></tr>
                             {% endif %}
                             {% if payment.discount_amount > 0 %}
-                            <tr><td class="text-muted">Discount</td>
-                                <td class="text-danger">− ₹{{ payment.discount_amount|rupee }}
+                            <tr><td class="text-muted">Discount waived</td>
+                                <td class="text-danger">
+                                    + ₹{{ payment.discount_amount|rupee }}
                                     {% if payment.discount_type %}
                                         <small class="text-muted d-block">{{ payment.get_discount_type_display }}</small>
                                     {% endif %}
+                                    {% if payment.discount_note %}
+                                        <small class="text-muted d-block">{{ payment.discount_note }}</small>
+                                    {% endif %}
                                 </td></tr>
-                            <tr class="table-success"><td class="fw-bold">Net Amount</td>
-                                <td class="fw-bold">₹{{ payment.net_amount|rupee }}</td></tr>
+                            <tr class="table-success"><td class="fw-bold">Settles on bills</td>
+                                <td class="fw-bold">₹{{ payment.settled_amount|rupee }}</td></tr>
                             {% endif %}
                         </table>
                     </div>

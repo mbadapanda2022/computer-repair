@@ -519,3 +519,426 @@ input[readonly] { background: #f8fafc; cursor: text; }
 /* Sidebar is a column so the footer link block sits at the bottom. */
 .tt-sidebar { display: flex; flex-direction: column; }
 .tt-nav { flex: 1 0 auto; }
+
+/* ============ IC FINDER ============ */
+/* Everything below is new structure for the IC Finder pane only; no existing
+   Tech Tools rule is redefined. */
+
+.ic-panel { margin-top: 1rem; }
+
+.ic-help {
+    color: #475569;
+    font-size: .88rem;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+.ic-search-group .input-group-text {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #0891b2;
+}
+
+.ic-search-group .form-control { font-size: 1.05rem; }
+.ic-search-group .form-control:focus {
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 3px rgba(6,182,212,.15);
+}
+
+/* htmx only fades indicators, so an idle spinner would still leave a blank
+   band between the form and its results. */
+.ic-loader {
+    display: none;
+    align-items: center;
+    gap: .5rem;
+    margin: .75rem 0 .25rem;
+}
+
+.ic-loader.htmx-request { display: flex; }
+
+.ic-loader-text { color: #64748b; font-size: .82rem; }
+
+.ic-results { margin-top: 1rem; }
+
+.ic-summary .tt-result-sub { text-transform: none; letter-spacing: 0; }
+
+/* Marking-code ambiguity is the one thing that must not look optional. */
+.ic-warning {
+    display: flex;
+    gap: .65rem;
+    align-items: flex-start;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    border-left: 4px solid #f97316;
+    border-radius: .55rem;
+    padding: .8rem .95rem;
+    margin: 1rem 0;
+    color: #7c2d12;
+    font-size: .88rem;
+    line-height: 1.55;
+}
+
+.ic-warning .bi { color: #ea580c; font-size: 1.1rem; flex: 0 0 auto; }
+
+.ic-empty {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: .75rem;
+    padding: 1.1rem 1.2rem;
+    color: #334155;
+    font-size: .9rem;
+    margin-top: 1rem;
+}
+
+.ic-empty-list { margin: .4rem 0 0 1.1rem; padding: 0; }
+.ic-empty-list li { margin-bottom: .3rem; line-height: 1.5; }
+.ic-empty-sub { color: #64748b; font-size: .84rem; }
+.ic-empty-cell { color: #64748b; font-size: .85rem; }
+
+/* ---- result cards ---- */
+.ic-card {
+    border: 1px solid #e2e8f0;
+    border-radius: .85rem;
+    padding: 1.1rem 1.2rem;
+    margin-bottom: 1rem;
+    background: #fff;
+    transition: border-color .15s, box-shadow .15s;
+}
+
+.ic-card:hover { border-color: #cbd5e1; }
+
+.ic-card-full {
+    border-color: #16a34a;
+    box-shadow: 0 6px 18px rgba(22,163,74,.12);
+}
+
+.ic-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .6rem;
+}
+
+.ic-part {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0a1f3c;
+    margin: 0;
+    letter-spacing: .2px;
+    word-break: break-word;
+    font-family: "SF Mono", Consolas, monospace;
+}
+
+.ic-pills { display: inline-flex; flex-wrap: wrap; gap: .3rem; }
+
+.ic-pill {
+    background: #ecfeff;
+    border: 1px solid #a5f3fc;
+    color: #155e75;
+    border-radius: 2rem;
+    padding: .1rem .55rem;
+    font-size: .74rem;
+    font-weight: 700;
+    font-family: "SF Mono", Consolas, monospace;
+}
+
+.ic-meta {
+    color: #64748b;
+    font-size: .82rem;
+    margin: .35rem 0 0;
+}
+
+.ic-score {
+    font-size: .82rem;
+    margin: .5rem 0 0;
+    color: #334155;
+}
+
+.ic-conf {
+    display: inline-block;
+    text-transform: uppercase;
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .6px;
+    border-radius: .3rem;
+    padding: .12rem .45rem;
+    margin-right: .4rem;
+}
+
+.ic-score-exact .ic-conf,
+.ic-score-exact i { color: #15803d; }
+.ic-score-exact .ic-conf { background: #dcfce7; }
+.ic-score-strong .ic-conf { background: #e0f2fe; color: #075985; }
+.ic-score-probable .ic-conf { background: #fef9c3; color: #854d0e; }
+.ic-score-possible .ic-conf { background: #f1f5f9; color: #475569; }
+
+.ic-score-detail { color: #64748b; }
+
+.ic-chip-summary {
+    color: #475569;
+    font-size: .88rem;
+    line-height: 1.55;
+    margin: .6rem 0 0;
+}
+
+.ic-pin-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+    margin-top: .7rem;
+}
+
+.ic-pin-mini {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: .4rem;
+    padding: .15rem .5rem;
+    font-size: .76rem;
+    color: #475569;
+    font-family: "SF Mono", Consolas, monospace;
+}
+
+.ic-pin-mini b { color: #0a1f3c; }
+.ic-pin-mini.ic-hit { background: #dcfce7; border-color: #86efac; color: #14532d; }
+.ic-pin-mini.ic-wrong { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+
+/* Not a pin — a promise that the rest of them are one click away. */
+.ic-pin-mini.ic-pin-more {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #3730a3;
+    font-family: inherit;
+    font-style: italic;
+}
+
+.ic-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .9rem;
+}
+
+.ic-pinout-slot:not(:empty) {
+    margin-top: 1rem;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 1rem;
+}
+
+/* ---- pinout card ---- */
+.ic-pinout-head { margin-bottom: .9rem; }
+
+.ic-chip {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: .4rem;
+    align-items: center;
+    margin: 0 auto 1rem;
+    max-width: 640px;
+}
+
+.ic-chip-side { display: flex; flex-direction: column; gap: .3rem; }
+
+.ic-chip-body {
+    position: relative;
+    background: linear-gradient(180deg, #1e293b, #0f172a);
+    color: #e2e8f0;
+    border-radius: .5rem;
+    min-width: 130px;
+    padding: 1.4rem .9rem;
+    text-align: center;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+
+.ic-chip-notch {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 16px;
+    height: 8px;
+    border-radius: 0 0 10px 10px;
+    background: #0b1220;
+    box-shadow: inset 0 1px 2px rgba(255,255,255,.25);
+}
+
+.ic-chip-title {
+    display: block;
+    font-weight: 800;
+    font-size: .95rem;
+    font-family: "SF Mono", Consolas, monospace;
+    color: #38bdf8;
+    word-break: break-word;
+}
+
+.ic-chip-sub {
+    display: block;
+    font-size: .7rem;
+    color: #94a3b8;
+    margin-top: .25rem;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+}
+
+.ic-pin {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: .35rem;
+    padding: .28rem .5rem;
+    font-size: .78rem;
+    cursor: pointer;
+    transition: background .12s, border-color .12s, transform .12s;
+}
+
+/* The two sides of the drawn chip mirror each other, so the pin name sits
+   next to the body on both. */
+.ic-pin-left { justify-content: flex-start; }
+.ic-pin-right { justify-content: flex-end; }
+
+.ic-pin-num {
+    font-family: "SF Mono", Consolas, monospace;
+    font-weight: 800;
+    color: #0a1f3c;
+    min-width: 1.2em;
+    text-align: center;
+}
+
+.ic-pin-name { color: #334155; font-family: "SF Mono", Consolas, monospace; }
+
+.ic-pin.ic-hit { background: #dcfce7; border-color: #86efac; }
+
+.ic-pin.ic-hot,
+.ic-pin:focus {
+    background: #0891b2;
+    border-color: #0e7490;
+    transform: translateX(2px);
+}
+
+.ic-pin.ic-hot .ic-pin-num,
+.ic-pin.ic-hot .ic-pin-name,
+.ic-pin:focus .ic-pin-num,
+.ic-pin:focus .ic-pin-name { color: #fff; }
+
+.ic-legend {
+    text-align: center;
+    color: #64748b;
+    font-size: .76rem;
+    margin-bottom: 1rem;
+}
+
+.ic-key {
+    display: inline-block;
+    width: .8rem;
+    height: .8rem;
+    border-radius: .2rem;
+    vertical-align: -2px;
+    margin-right: .25rem;
+}
+
+.ic-key-hit { background: #86efac; border: 1px solid #4ade80; }
+
+.ic-pin-table { font-size: .85rem; }
+.ic-pin-table th, .ic-pin-table td { vertical-align: middle; }
+.ic-pin-table code { color: #0f172a; font-size: .82rem; }
+.ic-col-pin { width: 4.2rem; }
+.ic-col-note { color: #475569; font-size: .82rem; }
+
+.ic-pin-table tr.ic-hit th,
+.ic-pin-table tr.ic-hit td { background: #f0fdf4; }
+
+.ic-pin-table tr.ic-hot th,
+.ic-pin-table tr.ic-hot td { background: #cffafe; }
+
+/* Function pills are colour-coded so a whole column can be scanned at once. */
+.ic-fn {
+    display: inline-block;
+    border-radius: .3rem;
+    padding: .1rem .45rem;
+    font-size: .74rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.ic-fn-vcc, .ic-fn-drain { background: #fee2e2; color: #991b1b; }
+.ic-fn-gnd { background: #e2e8f0; color: #1e293b; }
+.ic-fn-fb, .ic-fn-comp, .ic-fn-ref, .ic-fn-ss { background: #ede9fe; color: #5b21b6; }
+.ic-fn-cs { background: #fef3c7; color: #92400e; }
+.ic-fn-gate, .ic-fn-out { background: #dcfce7; color: #166534; }
+.ic-fn-in { background: #dbeafe; color: #1e40af; }
+.ic-fn-en, .ic-fn-freq { background: #cffafe; color: #155e75; }
+.ic-fn-nc { background: #f1f5f9; color: #64748b; }
+.ic-fn-other { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+
+.ic-pinout-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: 1rem;
+}
+
+.ic-copy-source {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+/* ---- pin match rows ---- */
+.ic-rows { display: flex; flex-direction: column; gap: .6rem; }
+
+.ic-row {
+    display: grid;
+    grid-template-columns: 7rem 1fr auto;
+    gap: .6rem;
+    align-items: end;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: .6rem;
+    padding: .65rem .75rem;
+}
+
+.ic-row-field { display: block; margin: 0; }
+.ic-row-field .tt-label { margin-bottom: .25rem; }
+.ic-row-pin input { font-family: "SF Mono", Consolas, monospace; }
+/* A grid item holding a select needs min-width:0 or it pushes the row past the
+   phone screen instead of shrinking. */
+.ic-row-function { min-width: 0; }
+
+.ic-row-remove { flex: 0 0 auto; }
+
+.ic-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .9rem;
+}
+
+@media (max-width: 575.98px) {
+    .ic-row { grid-template-columns: 5.5rem 1fr auto; }
+    .ic-chip-body { min-width: 92px; padding: 1.2rem .5rem; }
+    .ic-pin { font-size: .7rem; padding: .22rem .35rem; }
+    .ic-part { font-size: 1.15rem; }
+}
+
+/* Bench copy: print one pinout, pin it to the wall, nothing else from the
+   page comes out. */
+@media print {
+    body * { visibility: hidden; }
+    .ic-printing, .ic-printing * { visibility: visible; }
+    .ic-printing {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        border: none;
+        box-shadow: none;
+    }
+    .ic-card-actions, .ic-pinout-actions, .ic-copy-source { display: none !important; }
+    .ic-pin, .ic-pin-table tr.ic-hit th, .ic-pin-table tr.ic-hit td {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

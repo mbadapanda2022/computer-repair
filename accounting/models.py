@@ -388,7 +388,7 @@ class CompanyProfile(SoftDeleteModel):
     default_service_tax_rate = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True,
         validators=POSITIVE_VALIDATOR,
-        help_text="Service/labour ka fallback GST %. Khali = product ka rate.",
+        help_text="Fallback GST % for service/labour lines. Blank = the product's own rate.",
     )
     financial_year_start = models.DateField(default=timezone.localdate)
     state = models.CharField(max_length=100, blank=True)
@@ -2450,14 +2450,14 @@ class RepairStatusLog(models.Model):
     remarks = models.CharField(max_length=300, blank=True)
     forced = models.BooleanField(
         default=False,
-        help_text="Guard bypass karke kiya gaya transition (manager override).",
+        help_text="Transition made by bypassing the guards (manager override).",
     )
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.CharField(max_length=255, blank=True)
     changed_at = models.DateTimeField(auto_now_add=True, db_index=True)
     notified_at = models.DateTimeField(
         null=True, blank=True,
-        help_text="Customer notification bhejne ka waqt (duplicate rokne ke liye).",
+        help_text="When the customer notification was sent (prevents duplicates).",
     )
 
     class Meta:
@@ -2561,25 +2561,25 @@ class RepairJob(SoftDeleteModel):
     )
     estimate_decided_at = models.DateTimeField(
         null=True, blank=True,
-        help_text="Auto: jab estimate hold/rejected mark hua (approved ke liye "
-                  "estimate_approved_at dekhein).",
+        help_text="Auto: when the estimate was marked hold/rejected (for an "
+                  "approval see estimate_approved_at).",
     )
 
     # ---------- Cancellation ----------
     cancellation_reason = models.TextField(
         blank=True, null=True,
-        help_text="Job cancel/reject hone ka karan (staff) — tracking page par "
-                  "customer ko dikhta hai.",
+        help_text="Why the job was cancelled or rejected (staff note) — shown "
+                  "to the customer on the tracking page.",
     )
     cancelled_at = models.DateTimeField(
         null=True, blank=True,
-        help_text="Auto: status 'cancelled' hote hi stamp hota hai.",
+        help_text="Auto: stamped as soon as the status becomes 'cancelled'.",
     )
     cancellation_charge = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0'),
         validators=POSITIVE_VALIDATOR,
-        help_text="Cancel/reject par customer se liya gaya charge (diagnosis etc.) "
-                  "— is amount ka invoice cancel ke waqt ban jaata hai.",
+        help_text="Charge taken from the customer on cancel/reject (diagnosis, "
+                  "etc.) — an invoice for this amount is raised while cancelling.",
     )
     approval_source = models.CharField(
         max_length=30,
@@ -3600,8 +3600,8 @@ class Payment(SoftDeleteModel):
         null=True, blank=True,
         related_name='expense_payments',
         limit_choices_to={'account_type': 'expense'},
-        help_text="Paid me seedha kharcha (Rent, Salary, Bijli…) — yeh account debit hoga, "
-                  "koi vendor bill nahi chahiye.",
+        help_text="Direct expense on a paid entry (rent, salary, electricity…) — "
+                  "this account is debited; no vendor bill needed.",
     )
     
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
@@ -3635,8 +3635,29 @@ class Payment(SoftDeleteModel):
         ]
 
     @property
-    def net_amount(self):
-        return self.amount - self.discount_amount
+    def settled_amount(self):
+        """What this payment closes against a bill: the cash plus the discount.
+
+        ``amount`` is always the money that actually moved, so the till and the
+        bank statement can be reconciled against it directly. A discount granted
+        on the payment never becomes cash — it is the shop giving up part of what
+        the customer owes — so a bill is settled by amount + discount. Reading
+        the discount as a subtraction from ``amount`` was what left an ₹850 bill
+        half-paid when ₹800 cash and ₹50 discount were entered.
+        """
+        return (self.amount + (self.discount_amount or Decimal('0'))).quantize(
+            TAX_PRECISION)
+
+    @property
+    def allocation_pool(self):
+        """How much of this payment may be spread over bills.
+
+        Equal to ``settled_amount`` normally. An advance is the exception: only
+        the money actually banked becomes a liability that can be applied later,
+        because an advance's discount was already booked straight against the
+        receivable when the entry was posted.
+        """
+        return self.amount if self.is_advance else self.settled_amount
 
     @property
     def whatsapp_share_url(self):
@@ -3663,7 +3684,7 @@ class Payment(SoftDeleteModel):
             if self.discount_amount:
                 lines.append(
                     f"Discount: Rs.{self.discount_amount:.2f}, "
-                    f"Net: Rs.{self.net_amount:.2f}"
+                    f"Total settled: Rs.{self.settled_amount:.2f}"
                 )
             lines.append(f"Date: {self.date.strftime('%d %b %Y')}")
             lines.append(f"Mode: {mode}")
@@ -3699,13 +3720,15 @@ class Payment(SoftDeleteModel):
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
-        old_amount = None
+        old_pool = None
         if not is_new:
-            # Capture previous amount so we can detect a decrease
+            # Capture what the payment could pay before this edit, so a smaller
+            # value can drop the allocations it no longer covers.
             try:
-                old_amount = Payment.all_objects.get(pk=self.pk).amount
+                previous = Payment.all_objects.get(pk=self.pk)
+                old_pool = previous.allocation_pool
             except Payment.DoesNotExist:
-                old_amount = None
+                old_pool = None
 
         with transaction.atomic():
             super().save(*args, **kwargs)
@@ -3725,12 +3748,14 @@ class Payment(SoftDeleteModel):
                 self.update_ledger_entry()
                 self.update_bank_transaction()
 
-                # ── Auto-trim overallocations when amount decreases ──
+                # ── Auto-trim overallocations when the payment shrinks ──
                 # Without this, editing a payment to a smaller value leaves
-                # allocations exceeding the new amount → invoices show
+                # allocations exceeding what it can pay → invoices show
                 # paid_amount > grand_total and status flags go wrong.
-                if old_amount is not None and self.amount < old_amount:
-                    self._trim_allocations_to_amount()
+                # Compared on settled_amount, not amount: adding a discount
+                # grows what the payment can close, removing one shrinks it.
+                if old_pool is not None and self.allocation_pool < old_pool:
+                    self._trim_allocations_to_pool()
 
             # Update contact balances
             if self.contact:
@@ -3743,12 +3768,12 @@ class Payment(SoftDeleteModel):
             # Update purchase bill settlement
             self.update_purchases()
 
-    def _trim_allocations_to_amount(self):
+    def _trim_allocations_to_pool(self):
         """
         Trim allocations AND advance adjustments from the newest first
-        until the total committed ≤ payment.amount.
+        until the total committed ≤ payment.settled_amount.
 
-        Called automatically when Payment.amount decreases on edit.
+        Called automatically when a payment's settled value decreases on edit.
         """
         rows = list(
             self.allocations.select_related('invoice').order_by('-id')
@@ -3762,9 +3787,9 @@ class Payment(SoftDeleteModel):
         total = sum((r.amount for r in rows), Decimal('0'))
 
         for row in rows:
-            if total <= self.amount:
+            if total <= self.allocation_pool:
                 break
-            excess = total - self.amount
+            excess = total - self.allocation_pool
             if row.amount <= excess:
                 # Remove this row entirely — HARD delete so the
                 # (payment, invoice) unique constraint is freed for reuse.
@@ -3801,68 +3826,79 @@ class Payment(SoftDeleteModel):
             f"{self.direction} from/to {self.contact.name}"
         )
 
+    def _post_ledger_lines(self, entry):
+        """Write this payment's debit/credit lines onto ``entry``.
+
+        The money side is always ``amount`` — what actually moved — while the
+        receivable/payable side is ``settled_amount``. The difference is the
+        discount, which goes to a concession account instead of quietly
+        shrinking the cash. That is what lets "₹800 received + ₹50 discount"
+        close an ₹850 bill and still leave ₹800 in the till.
+
+        Both the create and the edit path run through here; they used to be two
+        copies of the same branch ladder and drifted apart.
+        """
+        cash_acc = self._get_account_name()
+        discount = self.discount_amount or Decimal('0')
+        settled = self.settled_amount
+
+        def line(account, debit=Decimal('0'), credit=Decimal('0'), contact=None):
+            LedgerLine.objects.create(ledger_entry=entry, account=account,
+                                      contact=contact, debit=debit, credit=credit)
+
+        customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
+        vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
+
+        if self.direction == 'received':
+            if self.is_advance:
+                # Cash sits against the advance liability; any discount granted
+                # still reduces what the customer owes, so it is booked now.
+                line(cash_acc, debit=self.amount)
+                line(get_account('1012', 'Advance from Customer', 'liability', '2'),
+                     credit=self.amount, contact=self.contact)
+                if discount > 0:
+                    line(get_account('5010', 'Discount Allowed', 'expense', '5'),
+                         debit=discount)
+                    line(customer_acc, credit=discount, contact=self.contact)
+            else:
+                line(cash_acc, debit=self.amount)
+                line(customer_acc, credit=settled, contact=self.contact)
+                if discount > 0:
+                    line(get_account('5010', 'Discount Allowed', 'expense', '5'),
+                         debit=discount)
+        else:
+            if self.expense_account_id:
+                # Direct expense: Dr Expense / Cr Cash|Bank — no vendor payable,
+                # no allocation, and the form refuses a discount here.
+                line(self.expense_account, debit=self.amount)
+                line(cash_acc, credit=self.amount)
+            elif self.is_advance:
+                line(get_account('1014', 'Advance to Vendor', 'asset', '1'),
+                     debit=self.amount, contact=self.contact)
+                line(cash_acc, credit=self.amount)
+                if discount > 0:
+                    line(vendor_acc, debit=discount, contact=self.contact)
+                    line(get_account('4011', 'Discount Received', 'income', '4'),
+                         credit=discount)
+            else:
+                line(vendor_acc, debit=settled, contact=self.contact)
+                line(cash_acc, credit=self.amount)
+                if discount > 0:
+                    line(get_account('4011', 'Discount Received', 'income', '4'),
+                         credit=discount)
+
     def create_ledger_entry(self):
         """Create ledger entry for payment (with advance and discount support)."""
         entry = LedgerEntry.objects.create(
             date=self.date,
-            entry_type='advance_received' if self.is_advance and self.direction == 'received' 
+            entry_type='advance_received' if self.is_advance and self.direction == 'received'
                       else 'advance_paid' if self.is_advance and self.direction == 'paid'
                       else 'payment',
             reference_id=self.id,
             description=self._ledger_description(),
-            total_amount=self.amount
+            total_amount=self.amount if self.expense_account_id else self.settled_amount
         )
-        
-        bank_acc = self._get_account_name()
-        net_amount = self.amount - self.discount_amount
-        
-        if self.direction == 'received':
-            if self.is_advance:
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=net_amount, credit=0)
-                advance_acc = get_account('1012', 'Advance from Customer', 'liability', '2')
-                LedgerLine.objects.create(ledger_entry=entry, account=advance_acc, contact=self.contact, debit=0, credit=net_amount)
-                
-                if self.discount_amount > 0:
-                    discount_acc = get_account('5010', 'Discount Allowed', 'expense', '5')
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
-                    customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
-                    LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=self.discount_amount)
-            else:
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=net_amount, credit=0)
-                customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
-                LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=net_amount)
-                
-                if self.discount_amount > 0:
-                    discount_acc = get_account('5010', 'Discount Allowed', 'expense', '5')
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
-                    LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=self.discount_amount)
-        else:
-            if self.expense_account_id:
-                # Direct expense: Dr Expense / Cr Cash|Bank — no vendor payable, no allocation.
-                LedgerLine.objects.create(ledger_entry=entry, account=self.expense_account, debit=self.amount, credit=0)
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=self.amount)
-            elif self.is_advance:
-                advance_acc = get_account('1014', 'Advance to Vendor', 'asset', '1')
-                LedgerLine.objects.create(ledger_entry=entry, account=advance_acc, contact=self.contact, debit=net_amount, credit=0)
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
-                
-                if self.discount_amount > 0:
-                    discount_acc = get_account('4011', 'Discount Received', 'income', '4')
-                    vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
-                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=self.discount_amount, credit=0)
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
-            else:
-                vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
-                LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=net_amount, credit=0)
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
-                
-                if self.discount_amount > 0:
-                    # Reduce the bill by the discount: Dr Vendor Payable /
-                    # Cr Discount Received (like the advance branch). Previously the signs
-                    # were reversed — the vendor was debited less and income turned into an expense.
-                    discount_acc = get_account('4011', 'Discount Received', 'income', '4')
-                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=self.discount_amount, credit=0)
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
+        self._post_ledger_lines(entry)
 
     def update_ledger_entry(self):
         """Update existing ledger entry for this payment."""
@@ -3870,7 +3906,7 @@ class Payment(SoftDeleteModel):
         if not entry:
             self.create_ledger_entry()
             return
-        
+
         new_entry_type = 'payment'
         if self.is_advance:
             new_entry_type = 'advance_received' if self.direction == 'received' else 'advance_paid'
@@ -3879,52 +3915,10 @@ class Payment(SoftDeleteModel):
         entry.lines.all().delete()
         entry.date = self.date
         entry.description = self._ledger_description()
-        entry.total_amount = self.amount
+        entry.total_amount = self.amount if self.expense_account_id else self.settled_amount
         entry.save()
-        
-        bank_acc = self._get_account_name()
-        net_amount = self.amount - self.discount_amount
-        
-        if self.direction == 'received':
-            if self.is_advance:
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=net_amount, credit=0)
-                advance_acc = get_account('1012', 'Advance from Customer', 'liability', '2')
-                LedgerLine.objects.create(ledger_entry=entry, account=advance_acc, contact=self.contact, debit=0, credit=net_amount)
-                if self.discount_amount > 0:
-                    discount_acc = get_account('5010', 'Discount Allowed', 'expense', '5')
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
-                    customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
-                    LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=self.discount_amount)
-            else:
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=net_amount, credit=0)
-                customer_acc = get_account('1011', 'Customer Receivable', 'asset', '1')
-                LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=net_amount)
-                if self.discount_amount > 0:
-                    discount_acc = get_account('5010', 'Discount Allowed', 'expense', '5')
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=self.discount_amount, credit=0)
-                    LedgerLine.objects.create(ledger_entry=entry, account=customer_acc, contact=self.contact, debit=0, credit=self.discount_amount)
-        else:
-            if self.expense_account_id:
-                LedgerLine.objects.create(ledger_entry=entry, account=self.expense_account, debit=self.amount, credit=0)
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=self.amount)
-            elif self.is_advance:
-                advance_acc = get_account('1014', 'Advance to Vendor', 'asset', '1')
-                LedgerLine.objects.create(ledger_entry=entry, account=advance_acc, contact=self.contact, debit=net_amount, credit=0)
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
-                if self.discount_amount > 0:
-                    discount_acc = get_account('4011', 'Discount Received', 'income', '4')
-                    vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
-                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=self.discount_amount, credit=0)
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
-            else:
-                vendor_acc = get_account('2011', 'Vendor Payable', 'liability', '2')
-                LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=net_amount, credit=0)
-                LedgerLine.objects.create(ledger_entry=entry, account=bank_acc, debit=0, credit=net_amount)
-                if self.discount_amount > 0:
-                    # Same as create path: Dr Vendor Payable / Cr Discount Received
-                    discount_acc = get_account('4011', 'Discount Received', 'income', '4')
-                    LedgerLine.objects.create(ledger_entry=entry, account=vendor_acc, contact=self.contact, debit=self.discount_amount, credit=0)
-                    LedgerLine.objects.create(ledger_entry=entry, account=discount_acc, debit=0, credit=self.discount_amount)
+
+        self._post_ledger_lines(entry)
 
     def create_bank_transaction(self):
         # Cash never moves through a bank account — it stays in the till.
@@ -3941,7 +3935,7 @@ class Payment(SoftDeleteModel):
             bank_account=self.bank_account,
             transaction_type=txn_type,
             source_type=source_type,
-            amount=self.amount - self.discount_amount,  # Net amount
+            amount=self.amount,  # what actually moved — a discount is not cash
             date=self.date,
             description=f"{self.get_direction_display()} - {self.contact.name}" + (f" ({self.description})" if self.description else ""),
             reference=self.reference or self.upi_ref,
@@ -3968,7 +3962,7 @@ class Payment(SoftDeleteModel):
             txn.bank_account = self.bank_account
             txn.transaction_type = 'deposit' if self.direction == 'received' else 'withdrawal'
             txn.source_type = 'payment_received' if self.direction == 'received' else 'payment_made'
-            txn.amount = self.amount - self.discount_amount
+            txn.amount = self.amount
             txn.date = self.date
             txn.description = f"{self.get_direction_display()} - {self.contact.name}" + (f" ({self.description})" if self.description else "")
             txn.reference = self.reference or self.upi_ref
@@ -4539,7 +4533,7 @@ class BlogPost(models.Model):
     # ── Content ──
     excerpt = models.TextField(
         max_length=500, blank=True,
-        help_text="List page ka short summary (khali chodo to body se auto-trim).",
+        help_text="Short summary for list pages (auto-trimmed from the body if left blank).",
     )
     # ⬇⬇⬇  FREE RICH-TEXT EDITOR  ⬇⬇⬇
     body = CKEditor5Field(
@@ -4987,3 +4981,148 @@ class StorageSnapshot(models.Model):
 
     def __str__(self):
         return f"{self.created_at:%Y-%m-%d} {self.db_bytes / 1048576:.1f} MB"
+
+
+# ============================================================
+# IC CATALOG — marking-code identification and pinout lookup
+# (public Tech Tools "IC Finder"; see accounting/ic_catalog.py)
+# ============================================================
+
+def normalize_ic_code(value):
+    """Uppercase, no spaces/hyphens — the form both a part number and the
+    short marking printed on a chip are compared in. 'uc 3842 n' and
+    'UC3842N' must find each other."""
+    return re.sub(r'[\s\-_]+', '', str(value or '')).upper()
+
+
+class IcChip(models.Model):
+    """One real IC a technician can hold: what it is, how it is marked on the
+    package, and what every pin does."""
+
+    CATEGORY_CHOICES = (
+        ('pwm', 'PWM Controller'),
+        ('regulator', 'Linear Regulator'),
+        ('dc-dc', 'Switching Regulator'),
+        ('reference', 'Voltage Reference'),
+        ('optocoupler', 'Optocoupler'),
+        ('opamp', 'Op-Amp'),
+        ('comparator', 'Comparator'),
+        ('timer', 'Timer'),
+        ('driver', 'Driver IC'),
+        ('other', 'Other'),
+    )
+
+    # The vocabulary a pin can have. Kept short on purpose: these are the
+    # functions a technician can recognise from the PCB alone, when the chip
+    # is unmarked and only the traces tell him anything.
+    PIN_FUNCTION_CHOICES = (
+        ('vcc', 'VCC / Supply'),
+        ('gnd', 'GND'),
+        ('fb', 'Feedback'),
+        ('gate', 'Drive / Gate'),
+        ('drain', 'Drain'),
+        ('cs', 'Current Sense'),
+        ('ref', 'Reference'),
+        ('en', 'Enable'),
+        ('freq', 'Frequency / Timing'),
+        ('ss', 'Soft Start'),
+        ('comp', 'Compensation'),
+        ('out', 'Output'),
+        ('in', 'Input'),
+        ('nc', 'Not Connected'),
+        ('other', 'Other'),
+    )
+
+    part_number = models.CharField(max_length=60, db_index=True)
+    # Denormalised so a search can use the index on both SQLite and Postgres.
+    norm_part = models.CharField(max_length=60, blank=True, default='', db_index=True)
+    manufacturer = models.CharField(max_length=60, blank=True, default='')
+    category = models.CharField(max_length=14, choices=CATEGORY_CHOICES, default='other')
+    package = models.CharField(max_length=30, blank=True, default='',
+                               help_text="As printed on the package, e.g. DIP-8, SOP-8, TO-220")
+    pin_count = models.PositiveSmallIntegerField(default=8)
+    summary = models.CharField(max_length=160, blank=True, default='',
+                               help_text="One line: what this chip does on a board")
+    bench_note = models.TextField(blank=True, default='',
+                                  help_text="What to check first when this chip is suspected")
+    datasheet_url = models.URLField(max_length=300, blank=True, default='')
+    popular = models.BooleanField(default=False,
+                                  help_text="Offer as a quick pick when the search box is empty")
+
+    class Meta:
+        ordering = ['part_number']
+        verbose_name = 'IC'
+        verbose_name_plural = 'ICs'
+
+    def __str__(self):
+        return self.part_number
+
+    def save(self, *args, **kwargs):
+        self.norm_part = normalize_ic_code(self.part_number)
+        super().save(*args, **kwargs)
+
+    @property
+    def category_display(self):
+        return dict(self.CATEGORY_CHOICES).get(self.category, 'Other')
+
+    @property
+    def marking_list(self):
+        return [m.code for m in self.markings.all()]
+
+    @property
+    def pinout_text(self):
+        """Plain-text pin table for the Copy button and for printing."""
+        lines = [self.part_number]
+        if self.package:
+            lines.append(self.package)
+        lines.append('Pin | Name | Function')
+        for pin in self.pins.all():
+            lines.append(f'{pin.number} | {pin.name} | {pin.function_display}')
+        return '\n'.join(lines)
+
+
+class IcMarking(models.Model):
+    """A code printed on the package. Several codes can point at one chip, and
+    one code can be printed on several chips — that ambiguity is the whole
+    reason the finder shows candidates instead of one guess."""
+
+    chip = models.ForeignKey(IcChip, on_delete=models.CASCADE, related_name='markings')
+    code = models.CharField(max_length=24, db_index=True)
+    norm_code = models.CharField(max_length=24, blank=True, default='', db_index=True)
+
+    class Meta:
+        ordering = ['code']
+        constraints = [
+            models.UniqueConstraint(fields=['chip', 'code'], name='unique_marking_per_ic'),
+        ]
+
+    def __str__(self):
+        return f'{self.code} → {self.chip.part_number}'
+
+    def save(self, *args, **kwargs):
+        self.norm_code = normalize_ic_code(self.code)
+        super().save(*args, **kwargs)
+
+
+class IcPin(models.Model):
+    """One pin of one chip, exactly as the datasheet numbers and names it."""
+
+    chip = models.ForeignKey(IcChip, on_delete=models.CASCADE, related_name='pins')
+    number = models.PositiveSmallIntegerField()
+    name = models.CharField(max_length=30, help_text="As printed in the datasheet, e.g. VFB, ISENSE")
+    function = models.CharField(max_length=8, choices=IcChip.PIN_FUNCTION_CHOICES, default='other')
+    note = models.CharField(max_length=160, blank=True, default='',
+                            help_text="What to expect on this pin while testing")
+
+    class Meta:
+        ordering = ['number']
+        constraints = [
+            models.UniqueConstraint(fields=['chip', 'number'], name='unique_pin_per_ic'),
+        ]
+
+    def __str__(self):
+        return f'{self.chip.part_number} pin {self.number} ({self.name})'
+
+    @property
+    def function_display(self):
+        return dict(IcChip.PIN_FUNCTION_CHOICES).get(self.function, 'Other')

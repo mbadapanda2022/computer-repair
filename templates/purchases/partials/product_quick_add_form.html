@@ -150,7 +150,7 @@
             <div class="col-md-6" id="field-low_stock_threshold">
                 <label for="{{ form.low_stock_threshold.id_for_label }}" class="form-label fw-semibold">Low Stock Alert</label>
                 {{ form.low_stock_threshold }}
-                <small class="text-muted">Alert jab stock isse neeche jaaye</small>
+                <small class="text-muted">Alert when stock falls below this</small>
                 {% if form.low_stock_threshold.errors %}
                     <div class="invalid-feedback d-block">
                         {% for error in form.low_stock_threshold.errors %}

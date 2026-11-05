@@ -12,7 +12,7 @@
     </div>
     {% endif %}
     <div class="table-responsive border rounded">
-        <table class="table table-sm table-hover align-middle mb-0">
+        <table class="table table-sm table-hover align-middle mb-0 pp-sticky-last">
             <thead class="table-light">
                 <tr>
                     <th style="width: 110px;">Invoice #</th>
@@ -123,8 +123,9 @@
         if (s.remainingSpan && s.amountInput) {
             const amount   = parseFloat(s.amountInput.value) || 0;
             const discount = parseFloat(s.discountInput ? s.discountInput.value : 0) || 0;
-            const net      = Math.max(0, amount - discount);
-            const remaining = net - total;
+            // A discount closes a bill without being cash, so the pool the
+            // allocation inputs must not exceed is amount + discount.
+            const remaining = (amount + discount) - total;
 
             s.remainingSpan.classList.remove('text-muted', 'text-success', 'text-danger', 'fw-bold');
 
@@ -165,7 +166,7 @@
                 const s = getState();
                 const amount   = parseFloat(s.amountInput ? s.amountInput.value : 0) || 0;
                 const discount = parseFloat(s.discountInput ? s.discountInput.value : 0) || 0;
-                let remaining = Math.max(0, amount - discount);
+                let remaining = (amount + discount);
 
                 s.inputs.forEach(function (el) {
                     const bal = parseFloat(el.dataset.balance) || 0;
@@ -192,18 +193,19 @@
             const s = getState();
             const amount   = parseFloat(s.amountInput ? s.amountInput.value : 0) || 0;
             const discount = parseFloat(s.discountInput ? s.discountInput.value : 0) || 0;
-            const net      = Math.max(0, amount - discount);
+            const settled  = amount + discount;
 
             let total = 0;
             s.inputs.forEach(function (el) {
                 total += parseFloat(el.value) || 0;
             });
 
-            if (total > net + 0.01) {
+            if (total > settled + 0.01) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 const msg = 'Total allocation (₹' + total.toFixed(2) +
-                            ') exceeds payment amount (₹' + net.toFixed(2) + '). Please adjust.';
+                            ') is more than this payment settles (₹' + settled.toFixed(2) +
+                            ' = amount + discount). Please adjust.';
                 if (window.showToast) {
                     window.showToast('danger', msg);
                 } else {

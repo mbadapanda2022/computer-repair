@@ -209,10 +209,19 @@ class PaymentListFeatureTests(TestCase):
 
     # ---------- model properties ----------
 
-    def test_net_amount_subtracts_discount(self):
+    def test_settled_amount_adds_discount(self):
+        """The amount is the cash; the discount closes bills on top of it."""
         pay = self.make_payment(amount='1000.00',
                                 discount_amount=Decimal('100'))
-        self.assertEqual(pay.net_amount, Decimal('900.00'))
+        self.assertEqual(pay.settled_amount, Decimal('1100.00'))
+        self.assertEqual(pay.allocation_pool, Decimal('1100.00'))
+
+    def test_an_advance_only_pools_its_cash(self):
+        pay = self.make_payment(self.customer, direction='received',
+                                amount='1000.00', is_advance=True,
+                                discount_amount=Decimal('100'))
+        self.assertEqual(pay.settled_amount, Decimal('1100.00'))
+        self.assertEqual(pay.allocation_pool, Decimal('1000.00'))
 
     # ---------- list page (HTMX + filters + responsive) ----------
 

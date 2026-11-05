@@ -196,7 +196,7 @@ def _create_cancellation_invoice(job, charge, user, reason):
             unit_price=charge,
             tax_rate=Decimal('0'),
             description=(
-                f"Diagnosis/service charge — repair complete nahi hui "
+                f"Diagnosis/service charge — the repair was not completed "
                 f"(cancelled). {reason}"
             )[:200],
             stock_already_deducted=True,
@@ -1089,8 +1089,8 @@ def update_repair_status(request, pk):
                 {
                     'level': 'danger',
                     'message': (
-                        'Cancel karne se pehle reason likhein — ye customer ko '
-                        'tracking page par dikhta hai.'
+                        'Write the reason before cancelling — the customer sees it '
+                        'on the tracking page.'
                     ),
                 },
                 status=400,
@@ -2201,7 +2201,7 @@ def staff_estimate_hold(request, pk):
     repair = get_object_or_404(RepairJob, pk=pk)
 
     if repair.estimate_status == 'approved':
-        messages.warning(request, "Approved estimate ko hold nahi kar sakte.")
+        messages.warning(request, "An approved estimate cannot be put on hold.")
         return redirect('accounting:repair_detail', pk=repair.pk)
 
     if request.method == 'POST':
@@ -2212,7 +2212,7 @@ def staff_estimate_hold(request, pk):
             # Row lock + re-check against concurrent approve
             repair = RepairJob.objects.select_for_update().get(pk=pk)
             if repair.estimate_status == 'approved':
-                messages.warning(request, "Approved estimate ko hold nahi kar sakte.")
+                messages.warning(request, "An approved estimate cannot be put on hold.")
                 return redirect('accounting:repair_detail', pk=repair.pk)
 
             repair.estimate_status = 'on_hold'
@@ -2255,7 +2255,7 @@ def staff_estimate_reject(request, pk):
     repair = get_object_or_404(RepairJob, pk=pk)
 
     if repair.estimate_status == 'approved':
-        messages.warning(request, "Approved estimate ko reject nahi kar sakte.")
+        messages.warning(request, "An approved estimate cannot be rejected.")
         return redirect('accounting:repair_detail', pk=repair.pk)
 
     if request.method == 'POST':
@@ -2269,7 +2269,7 @@ def staff_estimate_reject(request, pk):
             # Row lock + re-check against concurrent approve
             repair = RepairJob.objects.select_for_update().get(pk=pk)
             if repair.estimate_status == 'approved':
-                messages.warning(request, "Approved estimate ko reject nahi kar sakte.")
+                messages.warning(request, "An approved estimate cannot be rejected.")
                 return redirect('accounting:repair_detail', pk=repair.pk)
 
             repair.estimate_status = 'rejected'
@@ -2286,11 +2286,12 @@ def staff_estimate_reject(request, pk):
         if cancel_job:
             if repair.invoice_id or repair.status in ('delivered', 'cancelled'):
                 cancel_error = (
-                    "Estimate reject ho gaya, lekin job cancel nahi hui "
-                    "(invoice already hai ya device deliver/cancel ho chuka hai)."
+                    "The estimate was rejected, but the job was not cancelled "
+                    "(an invoice already exists, or the device was already "
+                    "delivered or cancelled)."
                 )
             else:
-                reason = cancel_reason or remarks or "Customer ne estimate reject kiya"
+                reason = cancel_reason or remarks or "The customer rejected the estimate"
                 try:
                     with transaction.atomic():
                         repair = RepairJob.objects.get(pk=pk)
@@ -2315,9 +2316,9 @@ def staff_estimate_reject(request, pk):
             title=f"Repair {repair.job_number} estimate rejected",
             message=(
                 f"The estimate for {repair.device_model} was marked rejected. "
-                + ("Device ka kaam band kar diya gaya hai."
+                + ("Work on the device has been stopped."
                    if repair.status == 'cancelled' else
-                   "Aap chahein toh naya estimate approve karwa sakte hain.")
+                   "You can ask us to approve a new estimate any time.")
             ),
             link=reverse('customer:customer_repair_detail', args=[repair.pk]),
             notif_type='warning',

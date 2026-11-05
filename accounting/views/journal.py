@@ -68,23 +68,23 @@ def _choices_for_contact(contact):
 
     if contact.contact_type == 'both':
         return [
-            ('discount_allowed', 'Discount Allowed (हमने छूट दी)'),
-            ('discount_received', 'Discount Received (उन्होंने छूट दी)'),
-            ('advance_received', 'Advance Received (उनसे मिला)'),
-            ('advance_paid', 'Advance Paid (उन्हें दिया)'),
+            ('discount_allowed', 'Discount Allowed (we waived)'),
+            ('discount_received', 'Discount Received (they waived)'),
+            ('advance_received', 'Advance Received (from them)'),
+            ('advance_paid', 'Advance Paid (to them)'),
         ], 'discount_allowed'
 
     if contact.contact_type == 'vendor':
         return [
-            ('discount_received', 'Discount Received (Vendor से मिला)'),
-            ('advance_paid', 'Advance Paid (Vendor को)'),
+            ('discount_received', 'Discount Received (from vendor)'),
+            ('advance_paid', 'Advance Paid (to vendor)'),
             ('general', 'General Journal'),
         ], 'discount_received'
 
     # customer
     return [
-        ('discount_allowed', 'Discount Allowed (Customer को दिया)'),
-        ('advance_received', 'Advance Received (Customer से)'),
+        ('discount_allowed', 'Discount Allowed (to customer)'),
+        ('advance_received', 'Advance Received (from customer)'),
         ('general', 'General Journal'),
     ], 'discount_allowed'
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from django.http import Http404
 from django.shortcuts import render
+from django.utils.module_loading import import_string
 from django.views.decorators.http import require_GET
 
 from ..models import CompanyProfile
@@ -30,7 +31,7 @@ def _company_name():
     return CompanyProfile.get_instance().name or 'My Company'
 
 
-def _shell(request, tool):
+def shell_context(request, tool):
     """Context for the page shell, with per-tool SEO metadata when open."""
     company = _company_name()
     index_title = 'Tech Tools | ' + company
@@ -39,12 +40,11 @@ def _shell(request, tool):
         description = tool['seo_description']
     else:
         title = index_title
-        description = ('Free calculators for repair work — resistor and '
-                       'capacitor codes, Ohm\'s law, LED and base resistors, '
-                       'voltage dividers, RC timing, PCB trace current, '
-                       'heatsink and regulator heat, fuse and sense-resistor '
-                       f'choices, battery runtime, subnets and GST. Tools by '
-                       f'{company}.')
+        # Stays under 160 characters so search results show the whole line
+        # instead of an ellipsis in the middle of the offer.
+        description = ('Free bench calculators and an IC marking-code and '
+                       'pinout finder for electronics and computer repair — '
+                       f'resistors, fuses, subnets, GST. By {company}.')
     return {
         'tool_groups': grouped_tools(),
         'tool_count': len(TOOLS),
@@ -63,7 +63,7 @@ def _shell(request, tool):
 
 @require_GET
 def tools_index(request):
-    return render(request, SHELL_TEMPLATE, _shell(request, None))
+    return render(request, SHELL_TEMPLATE, shell_context(request, None))
 
 
 @require_GET
@@ -72,9 +72,17 @@ def tools_detail(request, slug):
     if not tool:
         raise Http404('Unknown tech tool')
 
+    # Most tools are pure browser maths: their pane is markup with no context,
+    # so the same partial is served for a page load and an HTMX swap. A tool
+    # that needs the server (a database-backed one, like the IC Finder) names
+    # a view here, and that view owns both modes.
+    pane_view = tool.get('pane_view')
+    if pane_view:
+        return import_string(pane_view)(request, tool=tool)
+
     # HTMX only wants the pane; the shell (and its SEO tags) is already there.
     # Tool panes are markup only — static/js/tools/* binds them by slug.
     if request.headers.get('HX-Request', '').lower() == 'true':
         return render(request, tool['partial'])
 
-    return render(request, SHELL_TEMPLATE, _shell(request, tool))
+    return render(request, SHELL_TEMPLATE, shell_context(request, tool))
