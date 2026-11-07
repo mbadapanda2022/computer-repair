@@ -123,23 +123,23 @@ def identify(query, limit=DEFAULT_LIMIT):
     offer(full.filter(norm_part=code), SCORE_EXACT_PART,
           'Part number matches exactly')
     offer(full.filter(norm_part__startswith=code), SCORE_PART_PREFIX,
-          'Part number starts with this')
+          'Part number isse shuru hota hai')
     offer(IcChip.objects.filter(markings__norm_code=code)
           .distinct(), SCORE_EXACT_MARKING,
           'Marking code matches exactly')
     offer(IcChip.objects.filter(markings__norm_code__startswith=code)
           .distinct(), SCORE_MARKING_PREFIX,
-          'Marking code starts with this')
+          'Marking code isse shuru hota hai')
     if len(code) >= 3:
         offer(full.filter(norm_part__contains=code), SCORE_PART_CONTAINS,
-              'Part number contains this')
+              'Part number me yeh contained hai')
         offer(IcChip.objects.filter(markings__norm_code__contains=code)
               .distinct(), SCORE_MARKING_CONTAINS,
-              'Marking code contains this')
+              'Marking code me yeh contained hai')
         offer(full.filter(Q(manufacturer__icontains=code)
                           | Q(summary__icontains=code)
                           | Q(package__icontains=code)).distinct(),
-              SCORE_TEXT_MATCH, 'Matches the maker, package or description')
+              SCORE_TEXT_MATCH, 'Maker, package ya description se match hua')
 
     ranked = sorted(found.values(),
                     key=lambda row: (-row[1], row[0].pin_count,
