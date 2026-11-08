@@ -20,7 +20,7 @@
     {% if match %}
     <p class="ic-score ic-score-{% if match.is_full_match %}exact{% else %}probable{% endif %}">
         <i class="bi bi-check2-circle me-1"></i>{{ match.percent }}% match
-        <span class="ic-score-detail">({{ match.matched|length }}/{{ match.total }} pin{{ match.total|pluralize }}{% if match.wrong %} · {{ match.wrong|length }} wrong{% endif %}{% if match.missing %} · {{ match.missing|length }} not on this package{% endif %})</span>
+        <span class="ic-score-detail">({{ match.matched|length }}/{{ match.total }} pin{{ match.total|pluralize }}{% if match.wrong %} · {{ match.wrong|length }} galat{% endif %}{% if match.missing %} · {{ match.missing|length }} is package par nahi{% endif %})</span>
     </p>
     {% else %}
     <p class="ic-score ic-score-{{ confidence }}">
@@ -32,7 +32,7 @@
     {% if chip.summary %}<p class="ic-chip-summary">{{ chip.summary }}</p>{% endif %}
 
     <div class="ic-pin-preview"
-         aria-label="{% if match %}Your pin checks{% else %}First pins{% endif %}">
+         aria-label="{% if match %}Aapke pin checks{% else %}Pehle pins{% endif %}">
         {% if match %}
             {% for pin in match.checked_pins %}
             <span class="ic-pin-mini{% if pin.number in match.matched %} ic-hit{% else %} ic-wrong{% endif %}">
@@ -47,7 +47,7 @@
             {% endfor %}
         {% endif %}
         {% if chip.pin_count > 8 %}
-        <span class="ic-pin-mini ic-pin-more">rest of the pins in the pinout</span>
+        <span class="ic-pin-mini ic-pin-more">baaki pins pinout me</span>
         {% endif %}
     </div>
 
@@ -57,7 +57,7 @@
                 aria-expanded="false" aria-controls="icPinout-{{ chip.pk }}"
                 hx-get="{% url 'tools:ic_pinout' chip.pk %}{% if match %}?matched={{ match.matched|join:',' }}{% endif %}"
                 hx-target="#icPinout-{{ chip.pk }}" hx-swap="innerHTML">
-            <i class="bi bi-view-stacked me-1"></i> See full pinout
+            <i class="bi bi-view-stacked me-1"></i> Poora pinout dekho
         </button>
         {% if chip.datasheet_url %}
         <a class="btn btn-sm btn-outline-primary" href="{{ chip.datasheet_url }}"

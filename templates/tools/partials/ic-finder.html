@@ -4,8 +4,9 @@
 <div class="tt-tool" data-tool="ic-finder">
     <h3><i class="bi bi-cpu"></i> IC Marking &amp; Pinout Finder</h3>
     <p class="text-muted mb-3">
-        Pick up the chip and type what is printed on it, or describe what its pins do.
-        A full part number works, and so does just the short code on the package.
+        Chip haath me lo aur us par jo likha hai wo type karo — ya batao ki uske
+        pins kya kaam karte hain. Poora part number chalega, aur sirf package
+        par likha chhota code bhi.
     </p>
 
     <div class="tt-chips mb-3" role="tablist" aria-label="IC Finder mode">
@@ -28,7 +29,7 @@
               hx-trigger="submit, ic-search"
               hx-indicator="#icSearchLoader">
             <label class="tt-label" for="icQuery">
-                Part number or marking code
+                Part number ya marking code
             </label>
             <div class="input-group input-group-lg ic-search-group">
                 <span class="input-group-text"><i class="bi bi-cpu"></i></span>
@@ -40,12 +41,12 @@
                     <i class="bi bi-search"></i> <span class="d-none d-sm-inline">Search</span>
                 </button>
                 <button class="btn btn-outline-secondary" type="button" data-clear
-                        title="Reset everything">
+                        title="Sab reset karo">
                     <i class="bi bi-arrow-counterclockwise"></i>
                 </button>
             </div>
             <div class="tt-chips mt-2" aria-label="Popular chips">
-                <span class="tt-chips-label">Commonly found</span>
+                <span class="tt-chips-label">Aksar milne wale</span>
                 {% for chip in ic_popular %}
                 <button type="button" class="tt-chip" data-ic-pick="{{ chip.part_number }}">{{ chip.part_number }}</button>
                 {% endfor %}
@@ -56,7 +57,7 @@
             <div class="spinner-border spinner-border-sm text-primary" role="status">
                 <span class="visually-hidden">Loading…</span>
             </div>
-            <span class="ic-loader-text">Searching the catalog…</span>
+            <span class="ic-loader-text">Catalog me dhoond raha hoon…</span>
         </div>
 
         <div id="icResults" class="ic-results" aria-live="polite">
@@ -67,10 +68,10 @@
     {# ── JOB B — the unmarked chip, known only by what its pins do ────── #}
     <section id="icPinPanel" class="ic-panel" role="tabpanel" hidden>
         <p class="ic-help">
-            Nothing printed on the chip? Trace it and say what each pin does —
-            fill in <strong>Pin No.</strong> and <strong>Function</strong>, adding as
-            many rows as you know. The more pins a chip matches, the higher
-            it ranks.
+            Chip par kuch bhi likha nahi hai? Circuit trace karke batao har pin
+            kya kaam karta hai — <strong>Pin No.</strong> aur <strong>Function</strong>
+            bharo, jitne pins pata hain utni rows jodo. Jitne zyada pins match
+            honge, IC utna upar rank karega.
         </p>
 
         <form id="icPinForm" autocomplete="off"
@@ -85,10 +86,10 @@
 
             <div class="ic-form-actions">
                 <button type="button" class="btn btn-sm btn-outline-primary" id="icAddRow">
-                    <i class="bi bi-plus-lg"></i> Add pin row
+                    <i class="bi bi-plus-lg"></i> Pin row jodo
                 </button>
                 <button type="submit" class="btn btn-sm btn-primary">
-                    <i class="bi bi-search"></i> Find matching ICs
+                    <i class="bi bi-search"></i> Matching ICs dhoondo
                 </button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-clear>
                     <i class="bi bi-arrow-counterclockwise"></i> Clear
@@ -100,7 +101,7 @@
             <div class="spinner-border spinner-border-sm text-primary" role="status">
                 <span class="visually-hidden">Loading…</span>
             </div>
-            <span class="ic-loader-text">Searching the pin tables…</span>
+            <span class="ic-loader-text">Pin tables me dhoond raha hoon…</span>
         </div>
 
         <div id="icPinResults" class="ic-results" aria-live="polite">
@@ -113,26 +114,26 @@
         <div class="tt-result-label">Catalog</div>
         <div class="tt-out-rows">
             <div class="tt-out-row">
-                <span class="tt-out-label">ICs stored</span>
+                <span class="tt-out-label">Total ICs</span>
                 <span class="tt-out-value">{{ ic_chip_count }}</span>
             </div>
             <div class="tt-out-row">
-                <span class="tt-out-label">Pin records</span>
+                <span class="tt-out-label">Total pin records</span>
                 <span class="tt-out-value">{{ ic_pin_count }}</span>
             </div>
         </div>
         <div class="tt-result-sub">
-            The catalog keeps growing — tell staff the part number or marking of any
-            chip you cannot find and it will be added.
+            Catalog badhta hi jaata hai — jo chip nahi mila uska part number ya
+            marking staff ko bata do, wo yahan add ho jayega.
         </div>
     </div>
 
     <div class="tt-note">
         <i class="bi bi-exclamation-triangle me-1"></i>
-        <strong>Confirm against the datasheet</strong> — a wrong pin map can damage
-        the board. The pin table shown here is the only reference on this page;
-        one marking code can belong to several chips, so check the package and
-        the PCB location before you power up.
+        <strong>Datasheet se confirm karo</strong> — galat pin map board ko
+        nuksaan pahuncha sakta hai. Is page ka yehi ek reference hai; ek marking
+        code kai ICs par hota hai, isliye power lagaane se pehle package aur
+        PCB par chip ki jagah check karo.
     </div>
 
     <a class="tt-alltools" href="{% url 'tools:tools_index' %}">

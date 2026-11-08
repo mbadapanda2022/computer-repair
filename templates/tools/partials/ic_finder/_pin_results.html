@@ -3,8 +3,8 @@
     <div class="tt-result-label">Pin search</div>
     <div class="tt-result-value big">{{ ic_matches|length }} IC{{ ic_matches|length|pluralize }}</div>
     <div class="tt-result-sub">
-        Against {{ ic_constraints }} pin constraint{{ ic_constraints|pluralize }} —
-        {% if ic_matches %}best match {{ ic_matches.0.percent }}%{% else %}no matches yet{% endif %}
+        {{ ic_constraints }} pin constraint{{ ic_constraints|pluralize }} ke against —
+        {% if ic_matches %}best match {{ ic_matches.0.percent }}%{% else %}abhi koi match nahi{% endif %}
     </div>
 </div>
 
@@ -12,25 +12,25 @@
 {% include 'tools/partials/ic_finder/_chip_card.html' with chip=match.chip match=match %}
 {% empty %}
 <div class="ic-empty">
-    <p class="mb-2"><strong>No IC matched these pins.</strong></p>
+    <p class="mb-2"><strong>In pins se koi IC match nahi hua.</strong></p>
     <ul class="ic-empty-list">
-        <li>Remove one pin at a time and retry — start with only the power pins (VCC, GND).</li>
-        <li>Pin numbering can run the other way; confirm pin 1 from the dot/notch on the board.</li>
-        <li>If any part of the number is readable, the <strong>IC Search</strong> tab works better.</li>
+        <li>Ek-ek pin hata kar dobara try karo — pehle sirf power pins (VCC, GND) rakho.</li>
+        <li>Pin numbering ulta bhi ho sakta hai; board par dot/notch se pin 1 confirm karo.</li>
+        <li>Number ka koi hissa padh raha ho to <strong>IC Search</strong> tab better kaam karta hai.</li>
     </ul>
     <button type="button" class="btn btn-sm btn-primary mt-2" data-ic-goto-tab="search">
-        <i class="bi bi-search me-1"></i> Search by IC number
+        <i class="bi bi-search me-1"></i> IC number se dhoondo
     </button>
 </div>
 {% endfor %}
 
 {% else %}
 <div class="ic-empty">
-    <p class="mb-2">Fill in at least <strong>one pin</strong> — its number and what it does.</p>
+    <p class="mb-2">Kam se kam <strong>ek pin</strong> bharo — uska number aur uska kaam.</p>
     <ul class="ic-empty-list">
-        <li>For example: <b>Pin 7 = VCC</b>, <b>Pin 5 = GND</b>, <b>Pin 3 = Drive / Gate</b>.</li>
-        <li>The more pins you fill in, the surer the result.</li>
-        <li>Leave blank, or remove, the row for any pin you are not sure about.</li>
+        <li>Jaise: <b>Pin 7 = VCC</b>, <b>Pin 5 = GND</b>, <b>Pin 3 = Drive / Gate</b>.</li>
+        <li>Jitne zyada pins bharoge, result utna pakka.</li>
+        <li>Jis pin ka paka pata nahi uski row khali chhodo, ya hata do.</li>
     </ul>
 </div>
 {% endif %}
