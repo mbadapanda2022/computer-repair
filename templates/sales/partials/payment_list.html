@@ -1,26 +1,43 @@
 {% load math_filters %}
 <div class="table-responsive">
-    <table class="table table-sm table-hover mb-0">
+    <table class="table table-sm table-hover mb-0 align-middle">
         <thead class="table-light">
             <tr>
                 <th>Date</th>
-                <th>Amount</th>
+                <th class="text-end">Received</th>
+                <th class="text-end">Discount</th>
+                <th class="text-end">Settled on Bill</th>
                 <th>Method</th>
                 <th>Reference</th>
-                <th>Allocated Amount</th>
             </tr>
         </thead>
         <tbody>
             {% for alloc in payment_allocations %}
             <tr>
                 <td>{{ alloc.payment.date|date:"d M Y" }}</td>
-                <td class="fw-bold">₹{{ alloc.payment.amount|rupee }}</td>
+                <td class="text-end">₹{{ alloc.payment.amount|rupee }}</td>
+                <td class="text-end">
+                    {% if alloc.payment.discount_amount > 0 %}
+                        <span class="text-danger fw-semibold">₹{{ alloc.payment.discount_amount|rupee }}</span>
+                        {% if alloc.payment.discount_type %}<br><small class="text-muted">{{ alloc.payment.get_discount_type_display }}</small>{% endif %}
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td class="text-end fw-bold">₹{{ alloc.amount|rupee }}</td>
                 <td>{{ alloc.payment.get_method_display }}</td>
-                <td>{{ alloc.payment.reference|default:"—" }}</td>
-                <td>₹{{ alloc.amount|rupee }}</td>
+                <td>{{ alloc.payment.reference|default:alloc.payment.upi_ref|default:"—" }}</td>
             </tr>
+            {% if alloc.payment.discount_note %}
+            <tr class="table-light">
+                <td></td>
+                <td colspan="5" class="small text-muted py-1">
+                    <i class="bi bi-tag me-1"></i>Discount note: {{ alloc.payment.discount_note }}
+                </td>
+            </tr>
+            {% endif %}
             {% empty %}
-            <tr><td colspan="5" class="text-center text-muted py-2">No payments recorded yet.</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-3">No payments recorded yet.</td></tr>
             {% endfor %}
         </tbody>
     </table>

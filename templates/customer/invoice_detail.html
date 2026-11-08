@@ -613,10 +613,18 @@
                         </div>
                         <div class="col-6">
                             <div class="amount-card success">
-                                <div class="label">Paid</div>
+                                <div class="label">Paid / Settled</div>
                                 <div class="amount">₹{{ invoice.paid_amount|rupee }}</div>
                             </div>
                         </div>
+                        {% if invoice.payment_discount_total > 0 %}
+                        <div class="col-12">
+                            <div class="amount-card warning">
+                                <div class="label">Payment Discount (Waiver)</div>
+                                <div class="amount" style="color:#b45309;">₹{{ invoice.payment_discount_total|rupee }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
                         <div class="col-12">
                             <div class="amount-card {% if invoice.balance_due > 0 %}danger{% else %}success{% endif %}">
                                 <div class="label">Balance Due</div>
@@ -636,8 +644,14 @@
                         </div>
                         {% if invoice.discount_amount > 0 %}
                         <div class="gst-row">
-                            <span>Discount</span>
+                            <span>Invoice Discount</span>
                             <span>-₹{{ invoice.discount_amount|rupee }}</span>
+                        </div>
+                        {% endif %}
+                        {% if invoice.payment_discount_total > 0 %}
+                        <div class="gst-row">
+                            <span>Payment Discount / Waiver</span>
+                            <span>-₹{{ invoice.payment_discount_total|rupee }}</span>
                         </div>
                         {% endif %}
 

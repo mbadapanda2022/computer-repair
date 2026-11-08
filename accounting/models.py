@@ -1252,6 +1252,30 @@ class Invoice(SoftDeleteModel):
                 'cgst': Decimal('0'),
                 'sgst': Decimal('0'),
             }
+
+    @property
+    def payment_discount_total(self):
+        """Discount granted on payments allocated to this invoice.
+
+        Payment allocations store the *settled* amount (cash + waiver), so a
+        discount given while receiving a payment is otherwise invisible on the
+        invoice. We prorate each payment's discount by the share of that
+        payment settled against this invoice; multi-invoice payments therefore
+        contribute only the discount that actually closed this bill. Advance
+        adjustments carry no payment discount (their waiver is booked against
+        the receivable when the advance is taken).
+        """
+        total = Decimal('0')
+        for alloc in self.payment_allocations.select_related('payment').all():
+            pay = alloc.payment
+            if not pay or not pay.discount_amount:
+                continue
+            settled = pay.settled_amount or Decimal('0')
+            if settled <= 0:
+                continue
+            share = (alloc.amount / settled) * pay.discount_amount
+            total += share
+        return total.quantize(TAX_PRECISION)
             
     # ════════════════════════════════════════════════════════════
     # OVERDUE & SHARE HELPERS 
@@ -1351,7 +1375,10 @@ class Invoice(SoftDeleteModel):
         is_new = self.pk is None
         super().save(*args, **kwargs)
 
-        if self.pk and self.items.exists():
+        # No items.exists() guard: sync_invoice_ledger() clears the entry of an
+        # emptied invoice, and a batched edit deletes every line before this
+        # save — skipping it here would leave the old amounts in the ledger.
+        if self.pk and not invoice_sync_deferred(self.pk):
             self.calculate_totals()
             self.recompute_payment_state()
             super().save(update_fields=['subtotal', 'tax_amount', 'grand_total', 'balance_due', 'payment_status'])
@@ -1380,10 +1407,11 @@ class Invoice(SoftDeleteModel):
         contact recalc on its own because the items now exist."""
         if self.is_deleted:
             with transaction.atomic():
-                for item in InvoiceItem.all_objects.filter(
-                    invoice=self, is_deleted=True,
-                ).order_by('pk'):
-                    item.restore()
+                with defer_invoice_sync(self):
+                    for item in InvoiceItem.all_objects.filter(
+                        invoice=self, is_deleted=True,
+                    ).order_by('pk'):
+                        item.restore()
                 super().restore()
 
     def calculate_totals(self):
@@ -1540,6 +1568,7 @@ class InvoiceItem(SoftDeleteModel):
     )
 
     class Meta:
+        ordering = ['id']  # entry order; Postgres has no implicit row order
         indexes = [models.Index(fields=['invoice', 'product'])]
 
     @transaction.atomic
@@ -1605,7 +1634,7 @@ class InvoiceItem(SoftDeleteModel):
                 }
             )
 
-        if self.invoice:
+        if self.invoice_id and not invoice_sync_deferred(self.invoice_id):
             self.invoice.calculate_totals()
             self.invoice.recompute_payment_state()
             self.invoice.save(update_fields=[
@@ -1626,63 +1655,83 @@ class InvoiceItem(SoftDeleteModel):
                 source_object_id=self.pk
             ).delete()
 
-        invoice = self.invoice
+        invoice_id = self.invoice_id
         super().delete(*args, **kwargs)
 
-        if invoice:
-            invoice.calculate_totals()
-            invoice.recompute_payment_state()
-            invoice.save(update_fields=[
-                'subtotal', 'tax_amount', 'grand_total',
-                'balance_due', 'payment_status',
-            ])
+        if not invoice_id or invoice_sync_deferred(invoice_id):
+            return
 
-            # ── Re-sync the ledger (deferred during repair resync, same
-            # guard as Invoice.save — else a ledger failure would roll back
-            # the resync's line edits) ──
-            try:
-                from .repair_workflow import ledger_sync_deferred
-                _defer_ledger = ledger_sync_deferred()
-            except Exception:
-                _defer_ledger = False
+        invoice = self.invoice
+        invoice.calculate_totals()
+        invoice.recompute_payment_state()
+        invoice.save(update_fields=[
+            'subtotal', 'tax_amount', 'grand_total',
+            'balance_due', 'payment_status',
+        ])
 
-            if not _defer_ledger:
-                sync_invoice_ledger(invoice)
+        # ── Re-sync the ledger (deferred during repair resync, same
+        # guard as Invoice.save — else a ledger failure would roll back
+        # the resync's line edits) ──
+        try:
+            from .repair_workflow import ledger_sync_deferred
+            _defer_ledger = ledger_sync_deferred()
+        except Exception:
+            _defer_ledger = False
 
-            if invoice.customer:
-                invoice.customer.recalc_balance()
-                invoice.customer.recalc_advance_balance()
+        if not _defer_ledger:
+            sync_invoice_ledger(invoice)
+
+        if invoice.customer:
+            invoice.customer.recalc_balance()
+            invoice.customer.recalc_advance_balance()
 
 
 # ============================================================
 # 10. PURCHASE INVOICE (With Soft Delete & Advance Support)
 # ============================================================
 
-# ── Batching a multi-line purchase change ──────────────────────────────
-# Every PurchaseItem save/delete used to rebuild the whole ledger and
-# recalc the vendor balance. A 5-line edit did that ~20 times (906 SQL
-# statements); against the production Postgres pooler that ran past the
-# request time limit, the worker was killed and edit/delete answered
-# "Internal Server Error". Callers that touch many lines at once wrap the
-# loop in defer_purchase_sync() and rebuild exactly once afterwards.
-# A ContextVar (not an instance attribute) because the related-manager
-# items carry their own freshly fetched Purchase object.
-_deferred_purchase_sync = ContextVar(
-    'deferred_purchase_sync', default=frozenset())
+# ── Batching a multi-line bill change ──────────────────────────────────
+# Every line-item save/delete used to rebuild the parent's whole ledger and
+# recalc the contact balance. A 5-line purchase edit did that ~20 times (906
+# SQL statements), a 5-line invoice edit 19 times (1134 statements); against
+# the production Postgres pooler that ran past the request time limit, the
+# worker was killed and edit/delete answered "Internal Server Error".
+# Callers that touch many lines at once wrap the loop in defer_ledger_sync()
+# and rebuild exactly once afterwards.
+# A ContextVar (not an instance attribute) because the related-manager items
+# carry their own freshly fetched parent object, so a flag set on the caller's
+# instance would never be seen by them.
+_deferred_ledger_sync = ContextVar('deferred_ledger_sync', default=frozenset())
 
 
 @contextmanager
-def defer_purchase_sync(purchase):
-    token = _deferred_purchase_sync.set(
-        _deferred_purchase_sync.get() | {purchase.pk})
+def defer_ledger_sync(parent):
+    key = (parent._meta.label_lower, parent.pk)
+    token = _deferred_ledger_sync.set(_deferred_ledger_sync.get() | {key})
     try:
         yield
     finally:
-        _deferred_purchase_sync.reset(token)
+        _deferred_ledger_sync.reset(token)
+
+
+def ledger_sync_deferred_for(label, pk):
+    return (label, pk) in _deferred_ledger_sync.get()
+
+
+def defer_purchase_sync(purchase):
+    return defer_ledger_sync(purchase)
 
 
 def purchase_sync_deferred(purchase_id):
-    return purchase_id in _deferred_purchase_sync.get()
+    return ledger_sync_deferred_for('accounting.purchase', purchase_id)
+
+
+def defer_invoice_sync(invoice):
+    return defer_ledger_sync(invoice)
+
+
+def invoice_sync_deferred(invoice_id):
+    return ledger_sync_deferred_for('accounting.invoice', invoice_id)
 
 
 def sync_purchase_ledger(purchase):
@@ -2085,6 +2134,11 @@ class PurchaseItem(SoftDeleteModel):
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     is_office_use = models.BooleanField(default=False, help_text="Check if this item is for office consumption (not for resale)")
 
+    class Meta:
+        # Entry order must survive an edit — Postgres has no implicit row
+        # order, so without this a delete+recreate shuffles the bill's lines.
+        ordering = ['id']
+
     @property
     def base_amount(self):
         """Line value before tax, rounded per line. The subtotal, the line
@@ -2411,6 +2465,9 @@ class CreditNoteItem(SoftDeleteModel):
     tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0'), validators=POSITIVE_VALIDATOR)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
+
+    class Meta:
+        ordering = ['id']  # entry order; Postgres has no implicit row order
 
     @transaction.atomic
     def save(self, *args, **kwargs):
@@ -3057,6 +3114,9 @@ class RepairPart(SoftDeleteModel):
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, validators=POSITIVE_VALIDATOR)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, editable=False, validators=POSITIVE_VALIDATOR)
+
+    class Meta:
+        ordering = ['id']  # entry order; Postgres has no implicit row order
 
     def save(self, *args, **kwargs):
         if not self.unit_price:

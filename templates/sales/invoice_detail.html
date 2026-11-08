@@ -187,8 +187,14 @@
                         </tr>
                         {% if invoice.discount_amount > 0 %}
                         <tr>
-                            <td class="text-danger">Discount</td>
+                            <td class="text-danger">Invoice Discount</td>
                             <td class="text-end text-danger">−₹{{ invoice.discount_amount|rupee }}</td>
+                        </tr>
+                        {% endif %}
+                        {% if invoice.payment_discount_total > 0 %}
+                        <tr>
+                            <td class="text-danger">Payment Discount (Waiver)</td>
+                            <td class="text-end text-danger">−₹{{ invoice.payment_discount_total|rupee }}</td>
                         </tr>
                         {% endif %}
                         {% if invoice.is_tax_invoice %}
@@ -202,9 +208,15 @@
                             <td class="text-end fw-bold fs-5 text-primary">₹{{ invoice.grand_total|rupee }}</td>
                         </tr>
                         <tr>
-                            <td class="text-success">Paid</td>
+                            <td class="text-success">Paid / Settled</td>
                             <td class="text-end text-success fw-bold">₹{{ invoice.paid_amount|rupee }}</td>
                         </tr>
+                        {% if invoice.payment_discount_total > 0 %}
+                        <tr>
+                            <td class="text-muted small ps-3">incl. payment waiver</td>
+                            <td class="text-end text-muted small">₹{{ invoice.payment_discount_total|rupee }}</td>
+                        </tr>
+                        {% endif %}
                         {% if advance_applied_total > 0 %}
                         <tr>
                             <td class="text-muted small ps-3">incl. advance applied</td>

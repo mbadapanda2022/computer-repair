@@ -208,19 +208,20 @@ def invoice_create(request):
                 invoice = form.save(commit=False)
                 invoice.save()  # Save to get an ID
 
-                for item_data in temp_items:
-                    InvoiceItem.objects.create(
-                        invoice=invoice,
-                        product_id=item_data['product_id'],
-                        quantity=Decimal(item_data['quantity']),
-                        unit_price=Decimal(item_data['unit_price']),
-                        tax_rate=Decimal(item_data['tax_rate']),
-                        description=item_data.get('description', '')
-                    )
+                with defer_invoice_sync(invoice):
+                    for item_data in temp_items:
+                        InvoiceItem.objects.create(
+                            invoice=invoice,
+                            product_id=item_data['product_id'],
+                            quantity=Decimal(item_data['quantity']),
+                            unit_price=Decimal(item_data['unit_price']),
+                            tax_rate=Decimal(item_data['tax_rate']),
+                            description=item_data.get('description', '')
+                        )
 
                 # Calculate totals and save again (this will also sync ledger)
                 invoice.calculate_totals()
-                invoice.save()  # This calls sync_invoice_ledger automatically
+                invoice.save()  # one ledger rebuild for the whole invoice
             request.session['temp_invoice_items'] = []
 
             logger.info(f"Invoice {invoice.invoice_number} created by {request.user.username}")
@@ -296,21 +297,22 @@ def invoice_update(request, pk):
             # must not destroy the existing invoice's items/stock movements.
             with transaction.atomic():
                 invoice = form.save(commit=False)
-                # Delete existing items
-                invoice.items.all().delete()
-                # Create new items from session
-                for item_data in request.session.get('temp_invoice_items', []):
-                    InvoiceItem.objects.create(
-                        invoice=invoice,
-                        product_id=item_data['product_id'],
-                        quantity=Decimal(item_data['quantity']),
-                        unit_price=Decimal(item_data['unit_price']),
-                        tax_rate=Decimal(item_data['tax_rate']),
-                        description=item_data.get('description', '')
-                    )
+                with defer_invoice_sync(invoice):
+                    # Delete existing items
+                    invoice.items.all().delete()
+                    # Create new items from session
+                    for item_data in request.session.get('temp_invoice_items', []):
+                        InvoiceItem.objects.create(
+                            invoice=invoice,
+                            product_id=item_data['product_id'],
+                            quantity=Decimal(item_data['quantity']),
+                            unit_price=Decimal(item_data['unit_price']),
+                            tax_rate=Decimal(item_data['tax_rate']),
+                            description=item_data.get('description', '')
+                        )
 
                 invoice.calculate_totals()
-                invoice.save()  # This syncs ledger automatically
+                invoice.save()  # one ledger rebuild for the whole invoice
             request.session['temp_invoice_items'] = []
 
             logger.info(f"Invoice {invoice.invoice_number} updated by {request.user.username}")
@@ -411,11 +413,20 @@ def invoice_delete(request, pk):
                 entry.delete()
 
             # ── 3. Soft-delete items (reverses stock) ──
-            for item in list(invoice.items.all()):
-                item.delete()
+            # The ledger entries are already gone above, so the per-item
+            # rebuild must stay off — it would recreate them line by line.
+            with defer_invoice_sync(invoice):
+                for item in list(invoice.items.all()):
+                    item.delete()
 
             # ── 4. Soft-delete invoice header ──
             invoice.soft_delete()
+
+            # One balance pass for the whole delete; the per-item recalcs
+            # are batched away above.
+            if customer:
+                customer.recalc_balance()
+                customer.recalc_advance_balance()
 
     except Exception as e:
         logger.exception(
@@ -670,15 +681,30 @@ def invoice_unapply_advance(request, pk):
 # 9. INVOICE PRINT
 # ============================================================
 def invoice_print(request, pk):
-    invoice = get_object_or_404(Invoice.objects.select_related('customer'), pk=pk)
+    invoice = get_object_or_404(
+        Invoice.objects.select_related('customer').prefetch_related(
+            'payment_allocations__payment',
+            'advance_adjustments__payment',
+        ),
+        pk=pk,
+    )
     company = CompanyProfile.get_instance()
     logo_exists = bool(company.logo and company.logo.name and company.logo.storage.exists(company.logo.name))
     gst_breakup = invoice.get_gst_breakup()  # Ensure this method exists; if not, implement
+    payment_discount_total = sum(
+        ((pa.amount / pa.payment.settled_amount) * pa.payment.discount_amount)
+        for pa in invoice.payment_allocations.all()
+        if pa.payment and pa.payment.discount_amount and pa.payment.settled_amount
+    ) if invoice.payment_allocations.exists() else 0
     context = {
         'invoice': invoice,
         'company': company,
         'logo_exists': logo_exists,
         'gst_breakup': gst_breakup,
+        'payment_discount_total': payment_discount_total,
+        'advance_applied_total': sum(
+            (a.amount for a in invoice.advance_adjustments.all()), 0
+        ),
     }
     return render(request, 'sales/invoice_print.html', context)
 
@@ -935,15 +961,16 @@ def invoice_duplicate(request, pk):
             notes=source.notes,
         )
 
-        for item in source.items.all():
-            InvoiceItem.objects.create(
-                invoice=new_invoice,
-                product=item.product,
-                description=item.description,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                tax_rate=item.tax_rate,
-            )
+        with defer_invoice_sync(new_invoice):
+            for item in source.items.all():
+                InvoiceItem.objects.create(
+                    invoice=new_invoice,
+                    product=item.product,
+                    description=item.description,
+                    quantity=item.quantity,
+                    unit_price=item.unit_price,
+                    tax_rate=item.tax_rate,
+                )
 
         new_invoice.calculate_totals()
         new_invoice.save()
