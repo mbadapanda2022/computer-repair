@@ -277,6 +277,7 @@ class Command(BaseCommand):
                     purchase=purchase, product=products[pname],
                     description=pname, quantity=Decimal(qty),
                     unit_price=Decimal(price),
+                    tax_rate=products[pname].tax_rate,
                 )
             purchase.refresh_from_db()
             sync_purchase_ledger(purchase)

@@ -1,7 +1,7 @@
 # accounting/views/purchases.py
 import json
 import logging
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
@@ -17,7 +17,7 @@ from django.urls import reverse
 
 from ..models import (
     Purchase, PurchaseItem, Product, Contact, CompanyProfile,
-    LedgerEntry, Payment, PurchaseAllocation, BankAccount,
+    Payment, PurchaseAllocation, BankAccount, defer_purchase_sync,
 )
 from ..forms import PurchaseForm, PurchaseItemForm, ProductForm, PaymentForm
 from accounting.utils.notification_helpers import send_notification_to_staff
@@ -462,19 +462,20 @@ def purchase_create(request):
                 purchase = form.save(commit=False)
                 purchase.save()
 
-                for item_data in _session_items(request, 'new'):
-                    PurchaseItem.objects.create(
-                        purchase=purchase,
-                        product_id=item_data['product_id'],
-                        quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
-                        unit_price=_safe_decimal(item_data['unit_price']),
-                        tax_rate=_safe_decimal(item_data['tax_rate']),
-                        is_office_use=item_data.get('is_office_use', False),
-                    )
+                with defer_purchase_sync(purchase):
+                    for item_data in _session_items(request, 'new'):
+                        PurchaseItem.objects.create(
+                            purchase=purchase,
+                            product_id=item_data['product_id'],
+                            quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
+                            unit_price=_safe_decimal(item_data['unit_price']),
+                            tax_rate=_safe_decimal(item_data['tax_rate']),
+                            is_office_use=item_data.get('is_office_use', False),
+                        )
 
                 _set_session_items(request, 'new', [])
                 purchase.calculate_totals()
-                purchase.save()  # triggers sync_purchase_ledger
+                purchase.save()  # one ledger rebuild for the whole bill
 
             logger.info(
                 f"Purchase {purchase.purchase_number} created "
@@ -567,25 +568,26 @@ def purchase_update(request, pk):
         form = PurchaseForm(request.POST, instance=purchase)
         if form.is_valid():
             with transaction.atomic():
-                purchase = form.save()
+                with defer_purchase_sync(purchase):
+                    purchase = form.save()
 
-                # Delete old items (this reverses stock via StockMovement.delete)
-                purchase.items.all().delete()
+                    # Delete old items (this reverses stock via StockMovement.delete)
+                    purchase.items.all().delete()
 
-                # Create new items
-                for item_data in _session_items(request, scope):
-                    PurchaseItem.objects.create(
-                        purchase=purchase,
-                        product_id=item_data['product_id'],
-                        quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
-                        unit_price=_safe_decimal(item_data['unit_price']),
-                        tax_rate=_safe_decimal(item_data['tax_rate']),
-                        is_office_use=item_data.get('is_office_use', False),
-                    )
+                    # Create new items
+                    for item_data in _session_items(request, scope):
+                        PurchaseItem.objects.create(
+                            purchase=purchase,
+                            product_id=item_data['product_id'],
+                            quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
+                            unit_price=_safe_decimal(item_data['unit_price']),
+                            tax_rate=_safe_decimal(item_data['tax_rate']),
+                            is_office_use=item_data.get('is_office_use', False),
+                        )
 
                 _set_session_items(request, scope, [])
                 purchase.calculate_totals()
-                purchase.save()
+                purchase.save()  # one ledger rebuild for the whole bill
                 # Bill total may have changed — keep Paid flag honest
                 purchase.recalc_settlement()
 
@@ -660,18 +662,9 @@ def purchase_delete(request, pk):
     vendor = purchase.vendor
 
     with transaction.atomic():
-        # Delete ledger entry AND its lines (Purchase.delete does not auto-delete ledger)
-        for entry in LedgerEntry.objects.filter(
-            reference_id=purchase.id, entry_type='purchase'
-        ):
-            for line in list(entry.lines.all()):
-                line.delete()
-            entry.delete()
-
-        for item in purchase.items.all():
-            item.delete()
-
-        # Now soft-delete the purchase header itself.
+        # Purchase.delete() cleans the ledger entries (lines first, so
+        # signals fire), reverses stock via the items, and soft-deletes
+        # the header — one pass, no duplicate ledger rebuilds mid-delete.
         purchase.delete()
 
     logger.info(f"Purchase {purchase_name} deleted by {request.user.username}")
@@ -731,7 +724,11 @@ def add_purchase_item(request):
         if tax < 0 or tax > 100:
             return HttpResponse("Tax rate must be between 0 and 100.", status=400)
 
-        line_total = (qty * price * (1 + tax / 100)).quantize(Decimal('0.01'))
+        # Same per-line rounding as PurchaseItem.save so the form preview
+        # matches what the bill will actually store.
+        base = (qty * price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        tax_amt = (base * tax / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        line_total = base + tax_amt
 
         item = {
             'product_id': product.id,

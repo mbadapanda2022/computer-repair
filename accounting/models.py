@@ -1,8 +1,10 @@
 # accounting/models.py
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from django.utils.text import slugify
 from django_ckeditor_5.fields import CKEditor5Field
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import json
 import logging
 from datetime import datetime, time, timedelta, date
@@ -1542,14 +1544,16 @@ class InvoiceItem(SoftDeleteModel):
 
     @transaction.atomic
     def save(self, *args, **kwargs):
-        if not self.unit_price:
+        # `is None` — an explicitly entered 0 price / 0% tax must survive
+        # (free item, exempt goods) instead of snapping to product defaults.
+        if self.unit_price is None:
             self.unit_price = self.product.selling_price
 
         if self.invoice and self.invoice.gst_type == 'non_gst':
             self.tax_rate = Decimal('0')
             self.tax_amount = Decimal('0')
         else:
-            if not self.tax_rate:
+            if self.tax_rate is None:
                 self.tax_rate = Decimal(str(self.product.tax_rate or 0))
             line_amount = self.quantity * self.unit_price
             self.tax_amount = ((line_amount * Decimal(str(self.tax_rate or 0))) / 100).quantize(TAX_PRECISION)
@@ -1654,6 +1658,33 @@ class InvoiceItem(SoftDeleteModel):
 # 10. PURCHASE INVOICE (With Soft Delete & Advance Support)
 # ============================================================
 
+# ── Batching a multi-line purchase change ──────────────────────────────
+# Every PurchaseItem save/delete used to rebuild the whole ledger and
+# recalc the vendor balance. A 5-line edit did that ~20 times (906 SQL
+# statements); against the production Postgres pooler that ran past the
+# request time limit, the worker was killed and edit/delete answered
+# "Internal Server Error". Callers that touch many lines at once wrap the
+# loop in defer_purchase_sync() and rebuild exactly once afterwards.
+# A ContextVar (not an instance attribute) because the related-manager
+# items carry their own freshly fetched Purchase object.
+_deferred_purchase_sync = ContextVar(
+    'deferred_purchase_sync', default=frozenset())
+
+
+@contextmanager
+def defer_purchase_sync(purchase):
+    token = _deferred_purchase_sync.set(
+        _deferred_purchase_sync.get() | {purchase.pk})
+    try:
+        yield
+    finally:
+        _deferred_purchase_sync.reset(token)
+
+
+def purchase_sync_deferred(purchase_id):
+    return purchase_id in _deferred_purchase_sync.get()
+
+
 def sync_purchase_ledger(purchase):
     """
     Enterprise Purchase Ledger Sync with Freight, Discount, Advance, and Office Use.
@@ -1713,21 +1744,22 @@ def sync_purchase_ledger(purchase):
         vendor_account = get_account('2011', 'Vendor Payable', 'liability', '2')
         discount_received = get_account('4011', 'Discount Received', 'income', '4')
 
-        # Debit: Purchases / Office Expenses (Item-wise)
+        # Debit: Purchases / Office Expenses (Item-wise, rounded per line so
+        # debits always equal the quantized header the vendor credit uses)
         for item in purchase.items.all():
             if item.is_office_use:
                 office_expense_account = get_account('5013', 'Office Expenses', 'expense', '5')
                 LedgerLine.objects.create(
                     ledger_entry=entry,
                     account=office_expense_account,
-                    debit=item.quantity * item.unit_price,
+                    debit=item.base_amount,
                     credit=0
                 )
             else:
                 LedgerLine.objects.create(
                     ledger_entry=entry,
                     account=purchases_account,
-                    debit=item.quantity * item.unit_price,
+                    debit=item.base_amount,
                     credit=0
                 )
 
@@ -1878,9 +1910,12 @@ class Purchase(SoftDeleteModel):
                 line.delete()
             entry.delete()
 
-        # Delete items (reverses stock via StockMovement.delete)
-        for item in list(self.items.all()):
-            item.delete()
+        # Delete items (reverses stock via StockMovement.delete). The
+        # ledger entries are already gone above, so the per-item rebuild
+        # must stay off — it would recreate them line by line.
+        with defer_purchase_sync(self):
+            for item in list(self.items.all()):
+                item.delete()
 
         # Finally soft-delete the purchase header
         super().delete(*args, **kwargs)
@@ -1936,21 +1971,25 @@ class Purchase(SoftDeleteModel):
         else:
             should_sync = bool(SYNC_TRIGGERS & set(update_fields))
 
-        if should_sync and self.pk and self.items.exists():
+        # No items.exists() guard: sync_purchase_ledger() clears the entry of
+        # an emptied bill, and a batched edit deletes every line before this
+        # save — skipping it here would leave the old amounts in the ledger.
+        if (should_sync and self.pk
+                and not purchase_sync_deferred(self.pk)):
             sync_purchase_ledger(self)
             if self.vendor:
                 self.vendor.recalc_balance()
 
     def restore(self):
-        """Purchase restore = mirror of delete(): items first (stock re-apply),
-        then the header. The header save comes via update_fields, which skips
-        ledger sync, so we re-sync totals+ledger explicitly."""
+        """Mirror of delete(): items first (stock re-apply), then the header.
+        The final totals save rebuilds the ledger exactly once."""
         if self.is_deleted:
             with transaction.atomic():
-                for item in PurchaseItem.all_objects.filter(
-                    purchase=self, is_deleted=True,
-                ).order_by('pk'):
-                    item.restore()
+                with defer_purchase_sync(self):
+                    for item in PurchaseItem.all_objects.filter(
+                        purchase=self, is_deleted=True,
+                    ).order_by('pk'):
+                        item.restore()
                 super().restore()
                 self.calculate_totals()
                 self.save(update_fields=['subtotal', 'tax_amount', 'grand_total'])
@@ -1960,8 +1999,10 @@ class Purchase(SoftDeleteModel):
         # NOTE: start value Decimal('0') is MANDATORY — same reason as
         # Invoice.calculate_totals(). Prevents int-vs-Decimal crash when
         # the last item is removed.
+        # Per-line rounded base amounts (PurchaseItem.base_amount) so the
+        # header subtotal is exactly what the ledger debits line by line.
         self.subtotal = sum(
-            (item.quantity * item.unit_price for item in items),
+            (item.base_amount for item in items),
             Decimal('0'),
         )
         self.tax_amount = sum(
@@ -2044,16 +2085,28 @@ class PurchaseItem(SoftDeleteModel):
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=POSITIVE_VALIDATOR)
     is_office_use = models.BooleanField(default=False, help_text="Check if this item is for office consumption (not for resale)")
 
+    @property
+    def base_amount(self):
+        """Line value before tax, rounded per line. The subtotal, the line
+        total and the ledger debit must all use THIS value — posting the raw
+        unrounded product made LedgerEntry.full_clean() reject the entry
+        (debit != credit) on any bill with fractional quantities."""
+        return (self.quantity * self.unit_price).quantize(
+            TAX_PRECISION, rounding=ROUND_HALF_UP)
+
     @transaction.atomic
     def save(self, *args, **kwargs):
-        if not self.unit_price:
+        # `is None` — an explicitly entered 0 price / 0% tax is a real value
+        # (free sample, exempt goods) and must NOT snap back to product defaults.
+        if self.unit_price is None:
             self.unit_price = self.product.purchase_price
-        if not self.tax_rate:
+        if self.tax_rate is None:
             self.tax_rate = Decimal(str(self.product.tax_rate or 0))
 
-        line_amount = self.quantity * self.unit_price
-        self.tax_amount = ((line_amount * Decimal(str(self.tax_rate or 0))) / 100).quantize(TAX_PRECISION)
-        self.line_total = (line_amount + self.tax_amount).quantize(TAX_PRECISION)
+        line_amount = self.base_amount
+        self.tax_amount = ((line_amount * Decimal(str(self.tax_rate or 0))) / 100).quantize(
+            TAX_PRECISION, rounding=ROUND_HALF_UP)
+        self.line_total = line_amount + self.tax_amount
 
         super().save(*args, **kwargs)
 
@@ -2073,7 +2126,7 @@ class PurchaseItem(SoftDeleteModel):
             )
 
 
-        if self.purchase:
+        if self.purchase_id and not purchase_sync_deferred(self.purchase_id):
             self.purchase.calculate_totals()
             self.purchase.save(update_fields=['subtotal', 'tax_amount', 'grand_total'])
             if self.purchase.vendor:
@@ -2086,20 +2139,23 @@ class PurchaseItem(SoftDeleteModel):
                 source_object_id=self.pk
             ).delete()
 
-        purchase = self.purchase
+        purchase_id = self.purchase_id
         super().delete(*args, **kwargs)
 
-        if purchase:
-            purchase.calculate_totals()
-            purchase.save(update_fields=[
-                'subtotal', 'tax_amount', 'grand_total',
-            ])
+        if not purchase_id or purchase_sync_deferred(purchase_id):
+            return
 
-            # ── Re-sync the ledger (save() may skip it) ──
-            sync_purchase_ledger(purchase)
+        purchase = self.purchase
+        purchase.calculate_totals()
+        purchase.save(update_fields=[
+            'subtotal', 'tax_amount', 'grand_total',
+        ])
 
-            if purchase.vendor:
-                purchase.vendor.recalc_balance()
+        # ── Re-sync the ledger (save() may skip it) ──
+        sync_purchase_ledger(purchase)
+
+        if purchase.vendor:
+            purchase.vendor.recalc_balance()
                 
 # ============================================================
 # 9.1 SALES RETURNS / CREDIT NOTES

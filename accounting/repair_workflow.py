@@ -842,6 +842,7 @@ class RepairWorkflowMixin:
                     description=f"[{self.job_number}] Repair Part",
                     quantity=Decimal(part.quantity),
                     unit_price=part.unit_price,
+                    tax_rate=part.product.tax_rate,
                     repair_part=part, stock_already_deducted=True,
                 )
                 created += 1
@@ -867,6 +868,7 @@ class RepairWorkflowMixin:
                     invoice=invoice, product=service.product,
                     description=description, quantity=Decimal('1.00'),
                     unit_price=service.amount,
+                    tax_rate=service.product.tax_rate,
                     repair_service=service,
                     stock_already_deducted=True,
                 )
