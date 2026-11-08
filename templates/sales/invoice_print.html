@@ -152,22 +152,34 @@
             <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">GRAND TOTAL</td>
             <td class="text-end">₹{{ invoice.grand_total|rupee }}</td>
         </tr>
-        {% if payment_discount_total|default:invoice.payment_discount_total > 0 %}
+        {% with disc=payment_discount_total|default:invoice.payment_discount_total adv=advance_applied_total|default:invoice.advance_applied_total cash=cash_received_total|default:invoice.cash_received_total %}
+        {% if disc > 0 %}
         <tr class="total-row">
-            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end" style="color: #dc3545;">Payment Discount / Waiver</td>
-            <td class="text-end" style="color: #dc3545;">−₹{{ payment_discount_total|default:invoice.payment_discount_total|rupee }}</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end" style="color: #b45309;">Less: Payment Discount / Waiver</td>
+            <td class="text-end" style="color: #b45309;">−₹{{ disc|rupee }}</td>
         </tr>
         {% endif %}
-        {% if invoice.paid_amount > 0 or advance_applied_total > 0 %}
+        {% if cash > 0 or adv > 0 or disc > 0 %}
         <tr class="total-row">
-            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">Paid / Settled</td>
-            <td class="text-end" style="color: #198754;">₹{{ invoice.paid_amount|rupee }}{% if advance_applied_total > 0 %} <span style="font-weight:normal;color:#555;">(incl. ₹{{ advance_applied_total|rupee }} advance)</span>{% endif %}</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end" style="color: #198754;">Amount Received (Cash/Bank/UPI)</td>
+            <td class="text-end" style="color: #198754;">₹{{ cash|rupee }}</td>
         </tr>
+        {% if adv > 0 %}
+        <tr class="total-row">
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end" style="color: #0d6efd;">Advance Applied</td>
+            <td class="text-end" style="color: #0d6efd;">₹{{ adv|rupee }}</td>
+        </tr>
+        {% endif %}
+        <tr class="total-row" style="background:#eef6ff;">
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end"><strong>Total Settled</strong> <span style="font-weight:normal;color:#555;font-size:8.5pt;">(Received + Advance + Waiver)</span></td>
+            <td class="text-end"><strong>₹{{ invoice.paid_amount|rupee }}</strong></td>
+        </tr>
+        {% endif %}
         <tr class="total-row" style="background: {% if invoice.balance_due > 0 %}#f8d7da{% else %}#d4edda{% endif %};">
-            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end">Balance Due</td>
-            <td class="text-end" style="color: {% if invoice.balance_due > 0 %}#dc3545{% else %}#155724{% endif %};">₹{{ invoice.balance_due|rupee }}</td>
+            <td colspan="{{ invoice.is_tax_invoice|yesno:'6,4' }}" class="text-end"><strong>Balance Due</strong></td>
+            <td class="text-end" style="color: {% if invoice.balance_due > 0 %}#dc3545{% else %}#155724{% endif %};"><strong>₹{{ invoice.balance_due|rupee }}</strong></td>
         </tr>
-        {% endif %}
+        {% endwith %}
     </tfoot>
 </table>
 

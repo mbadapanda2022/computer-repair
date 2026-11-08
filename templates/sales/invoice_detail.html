@@ -208,19 +208,26 @@
                             <td class="text-end fw-bold fs-5 text-primary">₹{{ invoice.grand_total|rupee }}</td>
                         </tr>
                         <tr>
-                            <td class="text-success">Paid / Settled</td>
-                            <td class="text-end text-success fw-bold">₹{{ invoice.paid_amount|rupee }}</td>
-                        </tr>
                         {% if invoice.payment_discount_total > 0 %}
                         <tr>
-                            <td class="text-muted small ps-3">incl. payment waiver</td>
-                            <td class="text-end text-muted small">₹{{ invoice.payment_discount_total|rupee }}</td>
+                            <td class="text-danger">Less: Payment Discount / Waiver</td>
+                            <td class="text-end text-danger">−₹{{ invoice.payment_discount_total|rupee }}</td>
                         </tr>
                         {% endif %}
+                        {% if invoice.cash_received_total > 0 or invoice.payment_discount_total > 0 or advance_applied_total > 0 %}
+                        <tr>
+                            <td class="text-success">Amount Received (Cash/Bank/UPI)</td>
+                            <td class="text-end text-success fw-bold">₹{{ invoice.cash_received_total|rupee }}</td>
+                        </tr>
                         {% if advance_applied_total > 0 %}
                         <tr>
-                            <td class="text-muted small ps-3">incl. advance applied</td>
-                            <td class="text-end text-muted small">₹{{ advance_applied_total|rupee }}</td>
+                            <td class="text-primary small ps-3">Advance Applied</td>
+                            <td class="text-end text-primary small">₹{{ advance_applied_total|rupee }}</td>
+                        </tr>
+                        {% endif %}
+                        <tr>
+                            <td class="text-muted">Total Settled <span class="small">(Received + Advance + Waiver)</span></td>
+                            <td class="text-end text-muted fw-semibold">₹{{ invoice.paid_amount|rupee }}</td>
                         </tr>
                         {% endif %}
                         <tr class="border-top">

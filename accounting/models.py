@@ -1276,6 +1276,29 @@ class Invoice(SoftDeleteModel):
             share = (alloc.amount / settled) * pay.discount_amount
             total += share
         return total.quantize(TAX_PRECISION)
+
+    @property
+    def advance_applied_total(self):
+        """Advance (previously received) applied to settle this invoice."""
+        total = self.advance_adjustments.aggregate(
+            total=Sum('amount')
+        )['total'] or Decimal('0')
+        return total.quantize(TAX_PRECISION)
+
+    @property
+    def cash_received_total(self):
+        """Actual money received/allocated towards this invoice (excl. waiver & advance).
+
+        paid_amount (settled total) = cash_received + advance_applied + payment_discount.
+        Showing paid_amount as "Paid" next to a waiver confuses customers; this is the
+        real amount received.
+        """
+        value = (
+            (self.paid_amount or Decimal('0'))
+            - self.advance_applied_total
+            - self.payment_discount_total
+        )
+        return max(Decimal('0.00'), value).quantize(TAX_PRECISION)
             
     # ════════════════════════════════════════════════════════════
     # OVERDUE & SHARE HELPERS 

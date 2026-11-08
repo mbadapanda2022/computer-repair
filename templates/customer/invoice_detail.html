@@ -613,15 +613,23 @@
                         </div>
                         <div class="col-6">
                             <div class="amount-card success">
-                                <div class="label">Paid / Settled</div>
-                                <div class="amount">₹{{ invoice.paid_amount|rupee }}</div>
+                                <div class="label">Amount Received</div>
+                                <div class="amount">₹{{ invoice.cash_received_total|rupee }}</div>
                             </div>
                         </div>
                         {% if invoice.payment_discount_total > 0 %}
-                        <div class="col-12">
+                        <div class="col-6">
                             <div class="amount-card warning">
-                                <div class="label">Payment Discount (Waiver)</div>
+                                <div class="label">Discount / Waiver</div>
                                 <div class="amount" style="color:#b45309;">₹{{ invoice.payment_discount_total|rupee }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if invoice.advance_applied_total > 0 %}
+                        <div class="col-6">
+                            <div class="amount-card info">
+                                <div class="label">Advance Applied</div>
+                                <div class="amount" style="color:#0d6efd;">₹{{ invoice.advance_applied_total|rupee }}</div>
                             </div>
                         </div>
                         {% endif %}
@@ -629,6 +637,7 @@
                             <div class="amount-card {% if invoice.balance_due > 0 %}danger{% else %}success{% endif %}">
                                 <div class="label">Balance Due</div>
                                 <div class="amount">₹{{ invoice.balance_due|rupee }}</div>
+                                <small class="text-muted d-block mt-1">Total Settled: ₹{{ invoice.paid_amount|rupee }} (Received + Advance + Waiver)</small>
                             </div>
                         </div>
                     </div>

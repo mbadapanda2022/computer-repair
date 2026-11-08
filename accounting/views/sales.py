@@ -705,6 +705,12 @@ def invoice_print(request, pk):
         'advance_applied_total': sum(
             (a.amount for a in invoice.advance_adjustments.all()), 0
         ),
+        'cash_received_total': max(
+            (invoice.paid_amount or 0)
+            - payment_discount_total
+            - sum((a.amount for a in invoice.advance_adjustments.all()), 0),
+            0,
+        ),
     }
     return render(request, 'sales/invoice_print.html', context)
 
