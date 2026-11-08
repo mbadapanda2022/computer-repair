@@ -76,7 +76,13 @@
     <div class="amount">₹{{ payment.amount|rupee }}</div>
 </div>
 <div class="in-words">
-    {{ payment.amount|number_to_words_inr }}{% if payment.discount_amount > 0 %} — plus ₹{{ payment.discount_amount|floatformat:2 }} discount; total settled Rs.{{ payment.settled_amount|floatformat:2 }}{% endif %}
+    {% if payment.discount_amount > 0 %}
+        Amount received: ₹{{ payment.amount|rupee }} ({{ payment.amount|number_to_words_inr }})<br>
+        <span style="color:#b45309;">Less: Discount/Waiver: ₹{{ payment.discount_amount|rupee }}</span><br>
+        <strong>Total settled on bills: Rs.{{ payment.settled_amount|rupee }}</strong>
+    {% else %}
+        {{ payment.amount|number_to_words_inr }}
+    {% endif %}
 </div>
 
 <!-- DETAILS GRID -->
