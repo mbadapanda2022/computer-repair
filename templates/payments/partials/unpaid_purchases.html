@@ -43,7 +43,8 @@
                                min="0"
                                max="{{ p.edit_available|default:p.balance_due }}"
                                placeholder="0.00"
-                               {% if p.existing_allocation %}value="{{ p.existing_allocation|floatformat:2 }}"{% endif %}>
+                               {% if p.has_posted_allocation %}value="{% if p.posted_allocation %}{{ p.posted_allocation|floatformat:2 }}{% endif %}"
+                               {% elif p.existing_allocation %}value="{{ p.existing_allocation|floatformat:2 }}"{% endif %}>
                     </td>
                 </tr>
                 {% endfor %}

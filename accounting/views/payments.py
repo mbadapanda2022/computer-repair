@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -10,6 +11,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.db.models import Q, Sum, F
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
@@ -92,6 +94,62 @@ def _payment_budget(payment):
         payment.advance_adjustments.aggregate(s=Sum('amount'))['s'] or Decimal('0')
     )
     return _AllocationBudget(payment.allocation_pool - used)
+
+
+DUPLICATE_LOOKBACK = timedelta(hours=24)
+
+
+def _find_matching_payments(contact, direction, amount, date, method):
+    """Live payments that look like the one being saved right now.
+
+    Re-entering a receipt because the first attempt appeared to fail is how
+    a customer gets credited twice (₹4,400 became ₹8,800 in production).
+    Same contact + direction + amount + date + method inside the last day
+    is the signature of that mistake, so it needs an explicit confirmation.
+    """
+    return Payment.objects.filter(
+        contact=contact,
+        direction=direction,
+        amount=amount,
+        date=date,
+        method=method,
+        created_at__gte=timezone.now() - DUPLICATE_LOOKBACK,
+    ).order_by('created_at')
+
+
+def _attach_posted_allocations(rows, post, field_prefix):
+    """Keep typed allocation amounts when the form re-renders.
+
+    Without this, any validation error wiped every allocation box and a
+    resubmit silently saved the payment unallocated — invoices then stayed
+    unpaid even though the shop had filled the amounts in.
+    """
+    for row in rows:
+        key = f'{field_prefix}{row.pk}'
+        raw = (post.get(key) or '').strip()
+        amount = _safe_decimal(raw) if raw else Decimal('0')
+        row.has_posted_allocation = key in post
+        row.posted_allocation = amount if amount > 0 else Decimal('0')
+        if amount > 0 and amount > (row.balance_due or Decimal('0')):
+            row.edit_available = amount.quantize(TAX_PRECISION)
+    return rows
+
+
+def _posted_allocation_context(request, contact, direction):
+    """Unpaid rows for the bound form, with typed amounts preserved."""
+    unpaid_invoices = Invoice.objects.none()
+    unpaid_purchases = Purchase.objects.none()
+    if contact and direction == 'received':
+        unpaid_invoices = _attach_posted_allocations(
+            list(get_unpaid_invoices_for_contact(contact, 'received')),
+            request.POST, 'allocation_amount_',
+        )
+    elif contact and direction == 'paid':
+        unpaid_purchases = _attach_posted_allocations(
+            list(get_unpaid_purchases_for_contact(contact)),
+            request.POST, 'purchase_alloc_',
+        )
+    return unpaid_invoices, unpaid_purchases
 
 
 def _recalc_invoices_by_ids(invoice_ids):
@@ -692,6 +750,43 @@ def payment_create(request, pk=None):
         if form.is_valid():
             allocation_summary = []
 
+            # ── 0. Duplicate guard ──
+            # A second identical entry is nearly always a re-submit after
+            # the first one looked like it failed, not a separate receipt.
+            if not request.POST.get('confirm_duplicate'):
+                duplicates = _find_matching_payments(
+                    form.cleaned_data['contact'],
+                    form.cleaned_data['direction'],
+                    form.cleaned_data['amount'],
+                    form.cleaned_data['date'],
+                    form.cleaned_data['method'],
+                )
+                if duplicates.exists():
+                    unpaid_invoices, unpaid_purchases = (
+                        _posted_allocation_context(
+                            request,
+                            form.cleaned_data['contact'],
+                            form.cleaned_data['direction'],
+                        )
+                    )
+                    context = {
+                        'form': form,
+                        'payment': None,
+                        'target_invoice': target_invoice,
+                        'target_purchase': target_purchase,
+                        'pre_contact': form.cleaned_data['contact'],
+                        'unpaid_invoices': unpaid_invoices,
+                        'unpaid_purchases': unpaid_purchases,
+                        'duplicate_payments': duplicates,
+                    }
+                    if is_htmx(request):
+                        response = render(
+                            request, 'payments/payment_form.html', context)
+                        response['HX-Retarget'] = '#mainModalContent'
+                        return response
+                    return render(
+                        request, 'payments/payment_form_page.html', context)
+
             # ── 1. Save payment atomically ──
             with transaction.atomic():
                 payment = form.save()
@@ -803,19 +898,30 @@ def payment_create(request, pk=None):
                 logger.exception("Payment notification failed for #%s", payment.pk)
 
             # ── 3. Response ──
+            if allocation_summary:
+                success_msg = (
+                    f'Payment Rs.{payment.amount} recorded. '
+                    f'Applied: {", ".join(allocation_summary)}.'
+                )
+            else:
+                success_msg = (
+                    f'Payment Rs.{payment.amount} recorded — no invoice '
+                    f'applied, so it stays as unapplied credit.'
+                )
+
             if is_htmx(request):
                 context = _get_paginated_payments_context(request)
                 response = render(request, 'payments/partials/payment_table.html', context)
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {
                         'level': 'success',
-                        'message': f'Payment Rs.{payment.amount} recorded successfully.',
+                        'message': success_msg,
                     },
                     'closeModal': '',
                 })
                 return response
 
-            messages.success(request, f"Payment Rs.{payment.amount} recorded successfully.")
+            messages.success(request, success_msg)
             next_url = _safe_next_url(request)
             if next_url:
                 return redirect(next_url)
@@ -824,16 +930,16 @@ def payment_create(request, pk=None):
         # ── Invalid form — re-render with full context ──
         if is_htmx(request):
             pre_contact = None
-            pre_unpaid = Invoice.objects.none()
-            pre_unpaid_purchases = Purchase.objects.none()
             try:
-                pre_contact = form.data.get('contact') and Contact.objects.get(pk=form.data.get('contact'))
-                if pre_contact and form.data.get('direction') == 'received':
-                    pre_unpaid = get_unpaid_invoices_for_contact(pre_contact, 'received')
-                elif pre_contact and form.data.get('direction') == 'paid':
-                    pre_unpaid_purchases = get_unpaid_purchases_for_contact(pre_contact)
+                pre_contact = (
+                    form.data.get('contact')
+                    and Contact.objects.get(pk=form.data.get('contact'))
+                )
             except (Contact.DoesNotExist, ValueError, TypeError):
                 pass
+
+            pre_unpaid, pre_unpaid_purchases = _posted_allocation_context(
+                request, pre_contact, form.data.get('direction'))
 
             response = render(request, 'payments/payment_form.html', {
                 'form': form,
@@ -1025,8 +1131,14 @@ def payment_update(request, pk):
 
         # Invalid form — re-render with full context
         if is_htmx(request):
-            unpaid_invoices = _unpaid_invoices_for_edit(payment)
-            unpaid_purchases = _unpaid_purchases_for_edit(payment)
+            unpaid_invoices = _attach_posted_allocations(
+                _unpaid_invoices_for_edit(payment),
+                request.POST, 'allocation_amount_',
+            )
+            unpaid_purchases = _attach_posted_allocations(
+                _unpaid_purchases_for_edit(payment),
+                request.POST, 'purchase_alloc_',
+            )
             response = render(request, 'payments/payment_form.html', {
                 'form': form,
                 'payment': payment,

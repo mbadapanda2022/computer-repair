@@ -116,7 +116,10 @@
 
         if (status === 400) msg = 'Please check the form and try again.';
         else if (status === 401) msg = 'Please log in again to continue.';
-        else if (status === 403) msg = 'You do not have permission for this action.';
+        else if (status === 403) {
+            msg = 'Your session expired or the page is out of date. '
+                + 'Reload the page and try the action again.';
+        }
         else if (status === 404) msg = 'The requested record was not found.';
         else if (status === 429) msg = 'Too many requests. Please wait a moment.';
         else if (status >= 500) msg = 'Server error. Please try again in a moment.';
@@ -140,11 +143,17 @@
         console.error('[HTMX responseError]', status, evt.detail);
     });
 
-    // Fires when network request fails entirely (offline, timeout, DNS)
-    // document.body.addEventListener('htmx:sendError', function (evt) {
-    //     showToast('danger', 'Network error. Please check your connection and try again.');
-    //     console.error('[HTMX sendError]', evt.detail);
-    // });
+    // Fires when the request never reaches the server (offline, dropped
+    // connection). Without this the button just looked dead and staff
+    // assumed the action (e.g. a delete) had gone through.
+    document.body.addEventListener('htmx:sendError', function (evt) {
+        showToast(
+            'danger',
+            'Network error — the action may not have been saved. '
+            + 'Please check the record and try again.'
+        );
+        console.error('[HTMX sendError]', evt.detail);
+    });
 
     // Fires when hx-request hits a timeout
     document.body.addEventListener('htmx:timeout', function (evt) {
@@ -184,7 +193,13 @@
                     data.showToast.title || ''
                 );
             }
-            if (data.closeModal) document.dispatchEvent(new CustomEvent('closeModal'));
+            if (data.closeModal) {
+                // Listeners live on document.body; dispatching on document
+                // never reaches them (CustomEvent does not propagate down),
+                // which left the save modal open after a successful save —
+                // staff assumed it failed and saved the payment twice.
+                document.body.dispatchEvent(new CustomEvent('closeModal'));
+            }
             if (data.redirect) window.location.href = data.redirect;
             if (data.event) document.dispatchEvent(new CustomEvent(data.event, { detail: data.detail || {} }));
             for (const [key, value] of Object.entries(data)) {

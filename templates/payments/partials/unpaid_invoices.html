@@ -52,7 +52,8 @@
                                min="0"
                                max="{{ inv.edit_available|default:inv.balance_due }}"
                                placeholder="0.00"
-                               {% if inv.existing_allocation %}value="{{ inv.existing_allocation|floatformat:2 }}"{% endif %}>
+                               {% if inv.has_posted_allocation %}value="{% if inv.posted_allocation %}{{ inv.posted_allocation|floatformat:2 }}{% endif %}"
+                               {% elif inv.existing_allocation %}value="{{ inv.existing_allocation|floatformat:2 }}"{% endif %}>
                     </td>
                 </tr>
                 {% endfor %}

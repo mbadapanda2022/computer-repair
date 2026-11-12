@@ -30,6 +30,30 @@
             </div>
         {% endif %}
 
+        {% if duplicate_payments %}
+            <div class="alert alert-warning">
+                <h6 class="alert-heading mb-2">
+                    <i class="bi bi-exclamation-triangle me-2"></i>This looks like a duplicate entry
+                </h6>
+                <p class="small mb-2">A matching payment is already recorded:</p>
+                <ul class="small mb-2">
+                    {% for p in duplicate_payments %}
+                    <li>
+                        <strong>₹{{ p.amount|rupee }}</strong> ·
+                        {{ p.get_direction_display }} · {{ p.get_method_display }} ·
+                        {{ p.date|date:"d M Y" }} · entered at {{ p.created_at|date:"h:i A" }}
+                        {% if p.contact %}· {{ p.contact.name }}{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                <p class="small mb-0">
+                    If the earlier entry is the correct one, close this form — otherwise
+                    delete that entry from the payments list first. Only save this one
+                    if it is a genuinely separate payment.
+                </p>
+            </div>
+        {% endif %}
+
         <!-- SECTION 1: Payment Basics -->
         <h6 class="text-primary border-bottom pb-2 mb-3">
             <i class="bi bi-cash-stack me-2"></i>Payment Details
@@ -293,11 +317,20 @@
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
             <i class="bi bi-x-circle me-1"></i>Cancel
         </button>
-        <button type="submit" class="btn btn-primary" id="payment-submit">
-            <span id="payment-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
-            <i class="bi bi-check-circle me-1"></i>
-            <span id="payment-submit-text">{% if payment %}Update{% else %}Create{% endif %} Payment</span>
-        </button>
+        {% if duplicate_payments %}
+            <button type="submit" name="confirm_duplicate" value="1"
+                    class="btn btn-warning" id="payment-submit">
+                <span id="payment-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <i class="bi bi-plus-circle me-1"></i>
+                <span id="payment-submit-text">Save anyway (separate payment)</span>
+            </button>
+        {% else %}
+            <button type="submit" class="btn btn-primary" id="payment-submit">
+                <span id="payment-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                <i class="bi bi-check-circle me-1"></i>
+                <span id="payment-submit-text">{% if payment %}Update{% else %}Create{% endif %} Payment</span>
+            </button>
+        {% endif %}
     </div>
 </form>
 
@@ -463,7 +496,8 @@
         return new window.TomSelect(contactSelect, {
             placeholder: 'Search by name or phone...',
             allowEmptyOption: true,
-            maxOptions: 500,
+            openOnFocus: true,
+            maxOptions: 1000,
             searchField: ['text'],
             sortField: { field: 'text', direction: 'asc' },
             render: {
@@ -576,6 +610,31 @@
     // ============================================================
     initPaymentForm();
 
+    // ============================================================
+    // NATIVE FALLBACK — if TomSelect cannot load, still give the user a
+    // search box; scrolling a raw name list is the slow path we're
+    // removing, not an acceptable fallback.
+    // ============================================================
+    function installContactFilterFallback() {
+        if (!contactSelect || contactSelect.tomselect) return;
+        if (document.getElementById('contact-native-search')) return;
+        var search = document.createElement('input');
+        search.type = 'search';
+        search.id = 'contact-native-search';
+        search.className = 'form-control form-control-sm mb-2';
+        search.placeholder = 'Type a name or phone to filter the list…';
+        search.setAttribute('autocomplete', 'off');
+        contactSelect.parentNode.insertBefore(search, contactSelect);
+        search.addEventListener('input', function () {
+            var q = search.value.trim().toLowerCase();
+            Array.prototype.forEach.call(contactSelect.options, function (opt) {
+                if (!opt.value) return;
+                var text = (opt.textContent || '').toLowerCase();
+                opt.hidden = q.length > 0 && text.indexOf(q) === -1;
+            });
+        });
+    }
+
     (function upgradeContactPicker() {
         if (!contactSelect || contactSelect.tomselect) return;
         if (typeof window.TomSelect !== 'undefined') {
@@ -590,7 +649,8 @@
                 initTomSelect();
             } else if (++attempts >= maxAttempts) {
                 clearInterval(iv);
-                console.warn('[payment_form] TomSelect not available; using native select.');
+                installContactFilterFallback();
+                console.warn('[payment_form] TomSelect not available; using native filter.');
             }
         }, 100);
     })();
