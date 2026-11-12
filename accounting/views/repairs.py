@@ -1714,6 +1714,34 @@ def remove_repair_invoice_item(request, pk, index):
 # ════════════════════════════════════════════════════════════
 # 10. CREATE INVOICE FROM REPAIR
 # ════════════════════════════════════════════════════════════
+def _render_repair_invoice_modal(request, job, items, discount_error=None,
+                                 posted=None):
+    """Render the repair→invoice modal with the current cart.
+
+    ``posted`` keeps the typed discount/notes/GST when the server rejects the
+    POST, so the user fixes one field instead of re-entering the whole form.
+    """
+    effective_gst = _auto_detect_gst_type(job, CompanyProfile.get_instance())
+    _, tax_gross, _ = _session_totals(items)
+    subtotal, tax_total, grand_total = _preview_totals(items, effective_gst)
+    context = {
+        'job': job,
+        'items': items,
+        'subtotal': subtotal,
+        'tax_total': tax_total,
+        'grand_total': grand_total,
+        'tax_gross': tax_gross,
+        'effective_gst': effective_gst,
+        'gst_type_choices': Invoice.GST_TYPE,
+        'today': timezone.now().date(),
+    }
+    if discount_error:
+        context['discount_error'] = discount_error
+    if posted:
+        context.update(posted)
+    return render(request, 'repairs/partials/create_invoice_modal.html', context)
+
+
 @login_required
 @csrf_protect
 @handle_errors(default_redirect='accounting:repair_list')
@@ -1761,21 +1789,7 @@ def create_invoice_from_repair(request, pk):
         _ensure_repair_invoice_session(request, job)
 
         items = request.session.get(SK_REPAIR_INVOICE_ITEMS, [])
-        effective_gst = _auto_detect_gst_type(job, CompanyProfile.get_instance())
-        _, tax_gross, _ = _session_totals(items)
-        subtotal, tax_total, grand_total = _preview_totals(items, effective_gst)
-
-        return render(request, 'repairs/partials/create_invoice_modal.html', {
-            'job': job,
-            'items': items,
-            'subtotal': subtotal,
-            'tax_total': tax_total,
-            'grand_total': grand_total,
-            'tax_gross': tax_gross,
-            'effective_gst': effective_gst,
-            'gst_type_choices': Invoice.GST_TYPE,
-            'today': timezone.now().date(),
-        })
+        return _render_repair_invoice_modal(request, job, items)
 
     # ════════════════════════════════════════════════════════
     # POST — build invoice
@@ -1829,6 +1843,33 @@ def create_invoice_from_repair(request, pk):
             "No items in the invoice. Please add at least one item."
         )
         return redirect_to_staff('create_invoice_from_repair', pk=job.pk)
+
+    # Discount is applied to the pre-tax items subtotal; a larger one would
+    # credit the customer receivable by money no line accounts for. Re-render
+    # the modal instead of redirecting so HTMX keeps the user in the form.
+    items_subtotal = _session_totals(items)[0]
+    if discount_amount < 0:
+        discount_error = 'Discount amount cannot be negative.'
+    elif discount_amount > items_subtotal:
+        discount_error = (
+            f'Discount Rs.{discount_amount:.2f} is more than the items '
+            f'subtotal Rs.{items_subtotal:.2f}. Lower the discount.'
+        )
+    else:
+        discount_error = None
+    if discount_error:
+        return _render_repair_invoice_modal(
+            request, job, items, discount_error=discount_error,
+            posted={
+                'form_invoice_date': invoice_date.isoformat(),
+                'form_due_date': due_date.isoformat() if due_date else '',
+                'form_gst_type': gst_type or '',
+                'form_notes': notes_override,
+                'form_discount': f'{discount_amount:.2f}',
+                'form_discount_type': discount_type,
+                'form_discount_note': discount_note,
+            },
+        )
 
     # ════════════════════════════════════════════════════════
     # Build invoice atomically

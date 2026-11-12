@@ -96,6 +96,58 @@ def _payment_budget(payment):
     return _AllocationBudget(payment.allocation_pool - used)
 
 
+class _PaymentDiscountTooLarge(Exception):
+    """Discount is not backed by any bill this payment settles."""
+
+
+def _assert_discount_matches_allocations(payment):
+    """A discount is a concession ON a bill, not free credit.
+
+    The ledger credits the contact by ``amount + discount``. If the discount
+    is bigger than what the payment actually applies to bills, the receivable
+    (or vendor payable) goes negative by a number no bill explains — a ₹5,000
+    discount on a ₹100 receipt once pushed the customer to −₹1,200.
+
+    Advances never allocate themselves; their discount is only allowed up to
+    the open balance it reduces, so it can waive part of a bill but never
+    flip the contact into an unexplained credit.
+    """
+    discount = payment.discount_amount or Decimal('0')
+    if discount <= 0:
+        return
+
+    if payment.is_advance:
+        contact = payment.contact
+        contact.recalc_balance()
+        if payment.direction == 'received':
+            balance_after = contact.receivable_balance
+        else:
+            balance_after = contact.payable_balance
+        # recalc_balance already includes this payment's discount credit, so
+        # add it back to get what was owed before the waiver.
+        open_before = balance_after + discount
+        if balance_after < Decimal('0'):
+            raise _PaymentDiscountTooLarge(
+                f'Discount Rs.{discount:.2f} is more than the '
+                f'Rs.{open_before:.2f} open on this contact. A discount on '
+                f'an advance can only waive part of an open bill.'
+            )
+        return
+
+    applied = (
+        payment.allocations.aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    ) + (
+        payment.purchase_allocations.aggregate(s=Sum('amount'))['s'] or Decimal('0')
+    )
+    if discount > applied:
+        raise _PaymentDiscountTooLarge(
+            f'Discount Rs.{discount:.2f} is more than the '
+            f'Rs.{applied:.2f} applied to bills. A discount can only settle '
+            f'the bill it is given against — allocate the payment to a bill '
+            f'or lower the discount.'
+        )
+
+
 DUPLICATE_LOOKBACK = timedelta(hours=24)
 
 
@@ -788,81 +840,112 @@ def payment_create(request, pk=None):
                         request, 'payments/payment_form_page.html', context)
 
             # ── 1. Save payment atomically ──
-            with transaction.atomic():
-                payment = form.save()
+            try:
+                with transaction.atomic():
+                    payment = form.save()
 
-                if not payment.is_advance and not payment.expense_account_id:
-                    # Fields the user actually filled in win over the prefill
-                    # fallback: if they typed a different amount for the
-                    # ?invoice= / ?purchase= bill, honour it instead of also
-                    # auto-allocating the full settled amount.
-                    explicit_invoice_ids = {
-                        int(k.rsplit('_', 1)[1])
-                        for k in request.POST
-                        if k.startswith('allocation_amount_')
-                        and k.rsplit('_', 1)[1].isdigit()
-                        and request.POST.get(k, '').strip()
-                    }
-                    explicit_purchase_ids = {
-                        int(k.rsplit('_', 1)[1])
-                        for k in request.POST
-                        if k.startswith('purchase_alloc_')
-                        and k.rsplit('_', 1)[1].isdigit()
-                        and request.POST.get(k, '').strip()
-                    }
-                    budget = _payment_budget(payment)
+                    if not payment.is_advance and not payment.expense_account_id:
+                        # Fields the user actually filled in win over the prefill
+                        # fallback: if they typed a different amount for the
+                        # ?invoice= / ?purchase= bill, honour it instead of also
+                        # auto-allocating the full settled amount.
+                        explicit_invoice_ids = {
+                            int(k.rsplit('_', 1)[1])
+                            for k in request.POST
+                            if k.startswith('allocation_amount_')
+                            and k.rsplit('_', 1)[1].isdigit()
+                            and request.POST.get(k, '').strip()
+                        }
+                        explicit_purchase_ids = {
+                            int(k.rsplit('_', 1)[1])
+                            for k in request.POST
+                            if k.startswith('purchase_alloc_')
+                            and k.rsplit('_', 1)[1].isdigit()
+                            and request.POST.get(k, '').strip()
+                        }
+                        budget = _payment_budget(payment)
+                        auto_invoice_ids = []
+                        auto_purchase_ids = []
 
-                    # Auto-allocate to target invoice (from ?invoice=)
-                    if (target_invoice
-                            and target_invoice.customer_id == payment.contact_id
-                            and target_invoice.pk not in explicit_invoice_ids):
-                        alloc_amt = budget.take(
-                            min(payment.allocation_pool, target_invoice.balance_due))
-                        if alloc_amt > 0:
-                            PaymentAllocation.objects.create(
-                                payment=payment,
-                                invoice=target_invoice,
-                                amount=alloc_amt,
-                            )
-                            allocation_summary.append(
-                                f"{target_invoice.invoice_number} Rs.{alloc_amt}"
-                            )
+                        # Auto-allocate to target invoice (from ?invoice=)
+                        if (target_invoice
+                                and target_invoice.customer_id == payment.contact_id
+                                and target_invoice.pk not in explicit_invoice_ids):
+                            alloc_amt = budget.take(
+                                min(payment.allocation_pool, target_invoice.balance_due))
+                            if alloc_amt > 0:
+                                PaymentAllocation.objects.create(
+                                    payment=payment,
+                                    invoice=target_invoice,
+                                    amount=alloc_amt,
+                                )
+                                auto_invoice_ids.append(target_invoice.pk)
+                                allocation_summary.append(
+                                    f"{target_invoice.invoice_number} Rs.{alloc_amt}"
+                                )
 
-                    # Auto-allocate to target purchase bill (from ?purchase=)
-                    if (target_purchase
-                            and target_purchase.vendor_id == payment.contact_id
-                            and target_purchase.pk not in explicit_purchase_ids):
-                        alloc_amt = budget.take(
-                            min(payment.allocation_pool, target_purchase.balance_due))
-                        if alloc_amt > 0:
-                            PurchaseAllocation.objects.create(
-                                payment=payment,
-                                purchase=target_purchase,
-                                amount=alloc_amt,
-                            )
-                            allocation_summary.append(
-                                f"{target_purchase.purchase_number} Rs.{alloc_amt}"
-                            )
+                        # Auto-allocate to target purchase bill (from ?purchase=)
+                        if (target_purchase
+                                and target_purchase.vendor_id == payment.contact_id
+                                and target_purchase.pk not in explicit_purchase_ids):
+                            alloc_amt = budget.take(
+                                min(payment.allocation_pool, target_purchase.balance_due))
+                            if alloc_amt > 0:
+                                PurchaseAllocation.objects.create(
+                                    payment=payment,
+                                    purchase=target_purchase,
+                                    amount=alloc_amt,
+                                )
+                                auto_purchase_ids.append(target_purchase.pk)
+                                allocation_summary.append(
+                                    f"{target_purchase.purchase_number} Rs.{alloc_amt}"
+                                )
 
-                    # Multi-invoice allocations from POST
-                    allocation_summary += _collect_allocations_from_post(
-                        request, payment,
-                        existing_invoice_ids=[target_invoice.pk] if target_invoice else [],
-                        budget=budget,
-                    )
+                        # Multi-invoice allocations from POST. Only skip a
+                        # target bill when the auto-allocation above actually
+                        # created its row — an explicitly typed box for the
+                        # target must still be honoured.
+                        allocation_summary += _collect_allocations_from_post(
+                            request, payment,
+                            existing_invoice_ids=auto_invoice_ids,
+                            budget=budget,
+                        )
 
-                    # Vendor bill allocations from POST
-                    allocation_summary += _collect_purchase_allocations_from_post(
-                        request, payment,
-                        existing_purchase_ids=(
-                            [target_purchase.pk] if target_purchase else []
-                        ),
-                        budget=budget,
-                    )
+                        # Vendor bill allocations from POST
+                        allocation_summary += _collect_purchase_allocations_from_post(
+                            request, payment,
+                            existing_purchase_ids=auto_purchase_ids,
+                            budget=budget,
+                        )
+
+                    # Runs for advances/direct expenses too: they never allocate,
+                    # so a discount on them is rejected here.
+                    _assert_discount_matches_allocations(payment)
 
                     if allocation_summary:
                         payment.update_invoices()
                         payment.update_purchases()
+            except _PaymentDiscountTooLarge as exc:
+                # Roll back the payment, its allocations and ledger lines; keep
+                # the typed allocation boxes so one correction is enough.
+                form.add_error(None, str(exc))
+                unpaid_invoices, unpaid_purchases = _posted_allocation_context(
+                    request, form.cleaned_data['contact'],
+                    form.cleaned_data['direction'])
+                context = {
+                    'form': form,
+                    'payment': None,
+                    'target_invoice': target_invoice,
+                    'target_purchase': target_purchase,
+                    'pre_contact': form.cleaned_data['contact'],
+                    'unpaid_invoices': unpaid_invoices,
+                    'unpaid_purchases': unpaid_purchases,
+                }
+                if is_htmx(request):
+                    response = render(request, 'payments/payment_form.html', context)
+                    response['HX-Retarget'] = '#mainModalContent'
+                    return response
+                return render(request, 'payments/payment_form_page.html', context)
 
             logger.info(
                 "Payment #%s created by %s (Rs.%s %s). Allocations: %s",
@@ -1023,83 +1106,118 @@ def payment_update(request, pk):
                 payment.advance_adjustments.values_list('invoice_id', flat=True))
             affected_invoice_ids |= advance_invoice_ids
 
-            with transaction.atomic():
-                payment = form.save()
+            try:
+                with transaction.atomic():
+                    payment = form.save()
 
-                # The rendered form always carries one field per candidate
-                # bill, so their presence means the POST is authoritative:
-                # a cleared box must remove that allocation. The hidden flag
-                # is still honoured for older clients/tests.
-                reset_flag = (
-                    request.POST.get('reset_allocations', '0') == '1'
-                    or any(
-                        k.startswith('allocation_amount_')
-                        or k.startswith('purchase_alloc_')
-                        for k in request.POST
+                    # The rendered form always carries one field per candidate
+                    # bill, so their presence means the POST is authoritative:
+                    # a cleared box must remove that allocation. The hidden flag
+                    # is still honoured for older clients/tests.
+                    reset_flag = (
+                        request.POST.get('reset_allocations', '0') == '1'
+                        or any(
+                            k.startswith('allocation_amount_')
+                            or k.startswith('purchase_alloc_')
+                            for k in request.POST
+                        )
                     )
-                )
-                identity_changed = (
-                    payment.contact_id != original_contact_id
-                    or payment.direction != original_direction
-                    or payment.is_advance != original_is_advance
-                    or bool(payment.expense_account_id) != bool(original_expense_id)
-                )
-                # Applied advances belong to the old contact/direction. Toggling
-                # is_advance alone must NOT release them — the cash was already
-                # settled against real bills.
-                advance_identity_changed = (
-                    payment.contact_id != original_contact_id
-                    or payment.direction != original_direction
-                    or bool(payment.expense_account_id) != bool(original_expense_id)
-                )
+                    identity_changed = (
+                        payment.contact_id != original_contact_id
+                        or payment.direction != original_direction
+                        or payment.is_advance != original_is_advance
+                        or bool(payment.expense_account_id) != bool(original_expense_id)
+                    )
+                    # Applied advances belong to the old contact/direction. Toggling
+                    # is_advance alone must NOT release them — the cash was already
+                    # settled against real bills.
+                    advance_identity_changed = (
+                        payment.contact_id != original_contact_id
+                        or payment.direction != original_direction
+                        or bool(payment.expense_account_id) != bool(original_expense_id)
+                    )
 
-                # A direct-expense payment never settles invoices/bills, an
-                # advance pools its own cash for later, and a receipt cannot
-                # sit on vendor bills (or vice versa). On any identity change
-                # the old rows are meaningless — drop them and reopen the bills.
-                must_drop = bool(
-                    payment.expense_account_id
-                    or payment.is_advance
-                    or identity_changed
-                )
-                if not must_drop:
-                    if payment.direction == 'received' and affected_purchase_ids:
-                        must_drop = True
-                    elif payment.direction == 'paid' and affected_invoice_ids:
-                        must_drop = True
+                    # A direct-expense payment never settles invoices/bills, an
+                    # advance pools its own cash for later, and a receipt cannot
+                    # sit on vendor bills (or vice versa). On any identity change
+                    # the old rows are meaningless — drop them and reopen the bills.
+                    must_drop = bool(
+                        payment.expense_account_id
+                        or payment.is_advance
+                        or identity_changed
+                    )
+                    if not must_drop:
+                        if payment.direction == 'received' and affected_purchase_ids:
+                            must_drop = True
+                        elif payment.direction == 'paid' and affected_invoice_ids:
+                            must_drop = True
 
-                if must_drop or reset_flag:
-                    # HARD delete — unique constraint (payment, invoice/purchase)
-                    # does NOT respect soft-delete; soft rows would block
-                    # re-creation.
-                    for alloc in list(payment.allocations.all()):
-                        alloc.hard_delete()
-                    for alloc in list(payment.purchase_allocations.all()):
-                        alloc.hard_delete()
+                    if must_drop or reset_flag:
+                        # HARD delete — unique constraint (payment, invoice/purchase)
+                        # does NOT respect soft-delete; soft rows would block
+                        # re-creation.
+                        for alloc in list(payment.allocations.all()):
+                            alloc.hard_delete()
+                        for alloc in list(payment.purchase_allocations.all()):
+                            alloc.hard_delete()
 
-                    if advance_identity_changed:
-                        for adj in list(payment.advance_adjustments.all()):
-                            adj.hard_delete()
+                        if advance_identity_changed:
+                            for adj in list(payment.advance_adjustments.all()):
+                                adj.hard_delete()
 
-                    # Dropped rows no longer show up in payment.update_invoices(),
-                    # so the bills they used to settle have to be reopened from
-                    # the IDs captured earlier. Without this the stale
-                    # balance_due also clamped the fresh allocation and an edit
-                    # could never fully pay a bill.
-                    _recalc_invoices_by_ids(affected_invoice_ids)
-                    _recalc_purchases_by_ids(affected_purchase_ids)
+                        # Dropped rows no longer show up in payment.update_invoices(),
+                        # so the bills they used to settle have to be reopened from
+                        # the IDs captured earlier. Without this the stale
+                        # balance_due also clamped the fresh allocation and an edit
+                        # could never fully pay a bill.
+                        _recalc_invoices_by_ids(affected_invoice_ids)
+                        _recalc_purchases_by_ids(affected_purchase_ids)
 
-                # Re-collect only what the (possibly new) form says this
-                # payment settles, sharing one pool across both bill types.
-                allocation_summary = []
-                if not payment.is_advance and not payment.expense_account_id:
-                    budget = _payment_budget(payment)
-                    allocation_summary = _collect_allocations_from_post(
-                        request, payment, budget=budget)
-                    allocation_summary += _collect_purchase_allocations_from_post(
-                        request, payment, budget=budget)
+                    # Re-collect only what the (possibly new) form says this
+                    # payment settles, sharing one pool across both bill types.
+                    allocation_summary = []
+                    if not payment.is_advance and not payment.expense_account_id:
+                        budget = _payment_budget(payment)
+                        allocation_summary = _collect_allocations_from_post(
+                            request, payment, budget=budget)
+                        allocation_summary += _collect_purchase_allocations_from_post(
+                            request, payment, budget=budget)
+
+                    # Advance/expense edits carry no allocations, so a discount
+                    # on them fails this check too.
+                    _assert_discount_matches_allocations(payment)
                     payment.update_invoices()
                     payment.update_purchases()
+            except _PaymentDiscountTooLarge as exc:
+                # Undo the whole edit (fields, dropped rows, ledger) and show
+                # the reason on the bound form with the typed boxes intact.
+                payment.refresh_from_db()
+                form.add_error(None, str(exc))
+                if is_htmx(request):
+                    unpaid_invoices = _attach_posted_allocations(
+                        _unpaid_invoices_for_edit(payment),
+                        request.POST, 'allocation_amount_',
+                    )
+                    unpaid_purchases = _attach_posted_allocations(
+                        _unpaid_purchases_for_edit(payment),
+                        request.POST, 'purchase_alloc_',
+                    )
+                    response = render(request, 'payments/payment_form.html', {
+                        'form': form,
+                        'payment': payment,
+                        'unpaid_invoices': unpaid_invoices,
+                        'unpaid_purchases': unpaid_purchases,
+                        'pre_contact': payment.contact,
+                    })
+                    response['HX-Retarget'] = '#mainModalContent'
+                    return response
+                return render(request, 'payments/payment_form_page.html', {
+                    'form': form,
+                    'payment': payment,
+                    'unpaid_invoices': _unpaid_invoices_for_edit(payment),
+                    'unpaid_purchases': _unpaid_purchases_for_edit(payment),
+                    'pre_contact': payment.contact,
+                })
 
             logger.info("Payment #%s updated by %s", pk, request.user.username)
 

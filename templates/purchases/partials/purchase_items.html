@@ -1,5 +1,5 @@
 <!-- templates/purchases/partials/purchase_items.html -->
-{% load math_filters %}
+{% load math_filters l10n %}
 
 <!-- ===== ADD ITEM ROW ===== -->
 <div class="row g-2 mb-3 align-items-end p-2 bg-light rounded-3">
@@ -103,16 +103,85 @@
             {% endfor %}
         </tbody>
         {% if items %}
-        <tfoot class="table-light fw-bold">
+        <tfoot class="table-light fw-bold"
+               data-items-total="{% localize off %}{{ items_total }}{% endlocalize %}">
             <tr>
-                <td colspan="4" class="text-end">Total</td>
+                <td colspan="4" class="text-end">Items Total (incl. tax)</td>
                 <td class="text-end">₹{{ items_total|rupee }}</td>
+                <td></td>
+            </tr>
+            <tr class="text-success fw-normal">
+                <td colspan="4" class="text-end">Discount</td>
+                <td class="text-end" id="purchase-discount-value">−₹0.00</td>
+                <td></td>
+            </tr>
+            <tr class="fw-normal">
+                <td colspan="4" class="text-end">Freight</td>
+                <td class="text-end" id="purchase-freight-value">+₹0.00</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="4" class="text-end">Net Bill Total</td>
+                <td class="text-end" id="purchase-net-total">₹{{ items_total|rupee }}</td>
                 <td></td>
             </tr>
         </tfoot>
         {% endif %}
     </table>
 </div>
+
+<script>
+(function () {
+    'use strict';
+
+    // Live discount/freight + net bill total. Bound once; recalculated after
+    // every items swap so the footer never disagrees with the bill.
+    if (window.__purchaseTotalsBound) return;
+    window.__purchaseTotalsBound = true;
+
+    function money(value) {
+        return '₹' + value.toLocaleString('en-IN', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
+    }
+
+    function recalc() {
+        var foot = document.querySelector(
+            '#purchase-items-container tfoot[data-items-total]');
+        if (!foot) return;
+        var gross = parseFloat(foot.dataset.itemsTotal) || 0;
+        var discountInput = document.getElementById('id_discount_amount');
+        var freightInput = document.getElementById('id_freight_charge');
+        var discount = discountInput ? (parseFloat(discountInput.value) || 0) : 0;
+        var freight = freightInput ? (parseFloat(freightInput.value) || 0) : 0;
+        if (discount < 0) discount = 0;
+        if (freight < 0) freight = 0;
+        var shownDiscount = Math.min(discount, gross);
+        var discountEl = document.getElementById('purchase-discount-value');
+        var freightEl = document.getElementById('purchase-freight-value');
+        var netEl = document.getElementById('purchase-net-total');
+        if (discountEl) discountEl.textContent = '−' + money(shownDiscount);
+        if (freightEl) freightEl.textContent = '+ ' + money(freight);
+        if (netEl) {
+            netEl.textContent = money(
+                Math.max(0, gross - shownDiscount) + freight);
+        }
+    }
+
+    document.addEventListener('input', function (e) {
+        if (!e.target) return;
+        if (e.target.id === 'id_discount_amount'
+                || e.target.id === 'id_freight_charge') {
+            recalc();
+        }
+    });
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+        if (e.target && e.target.id === 'purchase-items-container') recalc();
+    });
+    if (document.readyState !== 'loading') recalc();
+    else document.addEventListener('DOMContentLoaded', recalc);
+})();
+</script>
 
 <script>
 (function() {

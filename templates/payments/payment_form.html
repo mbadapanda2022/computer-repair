@@ -268,7 +268,10 @@
                     {% if form.discount_amount.errors %}
                         <div class="invalid-feedback">{{ form.discount_amount.errors|join:", " }}</div>
                     {% endif %}
-                    <small class="text-muted d-block mt-1">Waived on top of the amount above.</small>
+                    <small class="text-muted d-block mt-1">
+                        Waived on top of the amount above. Allocate the payment
+                        to the bill this discount is given against.
+                    </small>
                 </div>
                 <div class="col-md-4">
                     <label for="id_discount_type" class="form-label fw-semibold">Discount Type</label>

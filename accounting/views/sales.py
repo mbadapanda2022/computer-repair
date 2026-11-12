@@ -23,8 +23,32 @@ from ..decorators import handle_errors
 logger = logging.getLogger(__name__)
 
 
-class _InvoiceBelowSettled(Exception):
+class _InvoiceEditBlocked(Exception):
+    """An edit would leave the invoice in a state that cannot be settled."""
+
+
+class _InvoiceBelowSettled(_InvoiceEditBlocked):
     """An edit would drop the invoice total below money already on it."""
+
+
+class _InvoiceDiscountTooLarge(_InvoiceEditBlocked):
+    """Discount is bigger than the items it is meant to reduce."""
+
+
+def _assert_discount_within_subtotal(invoice):
+    """Discount is applied to the pre-tax subtotal, so it cannot exceed it.
+
+    ``calculate_totals`` clamps the discounted subtotal at zero, but the tax
+    still lands on the bill and the ledger credits the full discount to the
+    customer receivable — a ₹5,000 discount on a ₹3,900 bill pushed the
+    receivable to −₹1,100 with nothing explaining the credit.
+    """
+    discount = invoice.discount_amount or Decimal('0')
+    if discount > invoice.subtotal:
+        raise _InvoiceDiscountTooLarge(
+            f'Discount Rs.{discount:.2f} is more than the items subtotal '
+            f'Rs.{invoice.subtotal:.2f}. Lower the discount or remove a line.'
+        )
 
 
 def _assert_total_covers_settlements(invoice):
@@ -289,6 +313,20 @@ def product_search(request):
 # ============================================================
 # 3. INVOICE CREATE
 # ============================================================
+def _invoice_create_context(request, form, items_key):
+    temp_items = request.session.get(items_key, [])
+    return {
+        'form': form,
+        'items': temp_items,
+        'items_total': _items_total(temp_items),
+        'items_scope': 'new',
+        'products': Product.objects.filter(is_active=True).order_by('name'),
+        'customers': Contact.objects.filter(
+            contact_type__in=['customer', 'both']).order_by('name'),
+        'is_htmx': is_htmx(request),
+    }
+
+
 @csrf_protect
 @handle_errors(default_redirect='accounting:invoice_list', htmx_template='sales/partials/invoice_form_modal.html')
 def invoice_create(request):
@@ -309,24 +347,32 @@ def invoice_create(request):
             temp_items = request.session.get(items_key, [])
             # All DB writes in one transaction: a bad item mid-loop must not
             # leave an orphan invoice with partial items/stock movements.
-            with transaction.atomic():
-                invoice = form.save(commit=False)
-                invoice.save()  # Save to get an ID
+            try:
+                with transaction.atomic():
+                    invoice = form.save(commit=False)
+                    invoice.save()  # Save to get an ID
 
-                with defer_invoice_sync(invoice):
-                    for item_data in temp_items:
-                        InvoiceItem.objects.create(
-                            invoice=invoice,
-                            product_id=item_data['product_id'],
-                            quantity=Decimal(item_data['quantity']),
-                            unit_price=Decimal(item_data['unit_price']),
-                            tax_rate=Decimal(item_data['tax_rate']),
-                            description=item_data.get('description', '')
-                        )
+                    with defer_invoice_sync(invoice):
+                        for item_data in temp_items:
+                            InvoiceItem.objects.create(
+                                invoice=invoice,
+                                product_id=item_data['product_id'],
+                                quantity=Decimal(item_data['quantity']),
+                                unit_price=Decimal(item_data['unit_price']),
+                                tax_rate=Decimal(item_data['tax_rate']),
+                                description=item_data.get('description', '')
+                            )
 
-                # Calculate totals and save again (this will also sync ledger)
-                invoice.calculate_totals()
-                invoice.save()  # one ledger rebuild for the whole invoice
+                    # Calculate totals and save again (this will also sync ledger)
+                    invoice.calculate_totals()
+                    _assert_discount_within_subtotal(invoice)
+                    invoice.save()  # one ledger rebuild for the whole invoice
+            except _InvoiceEditBlocked as exc:
+                # Roll the half-built invoice back and keep the cart so the
+                # user can correct the discount instead of losing the lines.
+                form.add_error(None, str(exc))
+                return render(request, template_name,
+                              _invoice_create_context(request, form, items_key))
             request.session[items_key] = []
 
             logger.info(f"Invoice {invoice.invoice_number} created by {request.user.username}")
@@ -359,33 +405,17 @@ def invoice_create(request):
             return redirect_to_staff('invoice_detail', pk=invoice.pk)
 
         else:
-            temp_items = request.session.get(items_key, [])
-            context = {
-                'form': form,
-                'items': temp_items,
-                'items_total': _items_total(temp_items),
-                'items_scope': 'new',
-                'products': Product.objects.filter(is_active=True).order_by('name'),
-                'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
-                'is_htmx': is_htmx(request),
-            }
             if is_htmx(request):
-                return render(request, 'sales/partials/invoice_form_modal.html', context)
-            return render(request, 'sales/invoice_form.html', context)
+                return render(
+                    request, 'sales/partials/invoice_form_modal.html',
+                    _invoice_create_context(request, form, items_key))
+            return render(request, 'sales/invoice_form.html',
+                          _invoice_create_context(request, form, items_key))
 
     else:
         form = InvoiceForm()
-        temp_items = request.session.get(items_key, [])
-        context = {
-            'form': form,
-            'items': temp_items,
-            'items_total': _items_total(temp_items),
-            'items_scope': 'new',
-            'products': Product.objects.filter(is_active=True).order_by('name'),
-            'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
-            'is_htmx': is_htmx(request),
-        }
-        return render(request, template_name, context)
+        return render(request, template_name,
+                      _invoice_create_context(request, form, items_key))
 
 
 # ============================================================
@@ -422,9 +452,10 @@ def invoice_update(request, pk):
                         )
 
                     invoice.calculate_totals()
+                    _assert_discount_within_subtotal(invoice)
                     _assert_total_covers_settlements(invoice)
                     invoice.save()  # one ledger rebuild for the whole invoice
-            except _InvoiceBelowSettled as exc:
+            except _InvoiceEditBlocked as exc:
                 # Roll back the rewritten lines, keep what the user typed and
                 # show the reason instead of leaving an over-paid invoice.
                 invoice.refresh_from_db()

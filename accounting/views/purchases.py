@@ -25,8 +25,31 @@ from .utils import htmx_field_error_response, is_htmx, htmx_response, redirect_t
 from ..decorators import handle_errors
 
 
-class _PurchaseBelowSettled(Exception):
+class _PurchaseEditBlocked(Exception):
+    """An edit would leave the vendor bill in an unsettleable state."""
+
+
+class _PurchaseBelowSettled(_PurchaseEditBlocked):
     """An edit would drop the bill total below money already paid on it."""
+
+
+class _PurchaseDiscountTooLarge(_PurchaseEditBlocked):
+    """Discount is bigger than the items it is meant to reduce."""
+
+
+def _assert_discount_within_subtotal(purchase):
+    """Purchase discount reduces the pre-tax subtotal, so it cannot exceed it.
+
+    Without this a discount larger than the goods still credited the vendor
+    payable with the full amount, leaving the vendor at −₹1,000 with no bill
+    behind the credit.
+    """
+    discount = purchase.discount_amount or Decimal('0')
+    if discount > purchase.subtotal:
+        raise _PurchaseDiscountTooLarge(
+            f'Discount Rs.{discount:.2f} is more than the items subtotal '
+            f'Rs.{purchase.subtotal:.2f}. Lower the discount or remove a line.'
+        )
 
 
 def _assert_total_covers_settlements(purchase):
@@ -466,6 +489,20 @@ def purchase_list_excel(request):
 # ============================================================
 # PURCHASE CREATE
 # ============================================================
+def _purchase_create_context(request, form):
+    items = _session_items(request, 'new')
+    return {
+        'form': form,
+        'items': items,
+        'items_total': sum(
+            (_safe_decimal(i.get('line_total')) for i in items), Decimal('0')),
+        'products': Product.objects.filter(
+            is_service=False, is_active=True).order_by('name'),
+        'purchase': None,
+        'is_htmx': is_htmx(request),
+    }
+
+
 @csrf_protect
 @handle_errors(default_redirect='accounting:purchase_list')
 def purchase_create(request):
@@ -480,24 +517,32 @@ def purchase_create(request):
     if request.method == 'POST':
         form = PurchaseForm(request.POST)
         if form.is_valid():
-            with transaction.atomic():
-                purchase = form.save(commit=False)
-                purchase.save()
+            try:
+                with transaction.atomic():
+                    purchase = form.save(commit=False)
+                    purchase.save()
 
-                with defer_purchase_sync(purchase):
-                    for item_data in _session_items(request, 'new'):
-                        PurchaseItem.objects.create(
-                            purchase=purchase,
-                            product_id=item_data['product_id'],
-                            quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
-                            unit_price=_safe_decimal(item_data['unit_price']),
-                            tax_rate=_safe_decimal(item_data['tax_rate']),
-                            is_office_use=item_data.get('is_office_use', False),
-                        )
+                    with defer_purchase_sync(purchase):
+                        for item_data in _session_items(request, 'new'):
+                            PurchaseItem.objects.create(
+                                purchase=purchase,
+                                product_id=item_data['product_id'],
+                                quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
+                                unit_price=_safe_decimal(item_data['unit_price']),
+                                tax_rate=_safe_decimal(item_data['tax_rate']),
+                                is_office_use=item_data.get('is_office_use', False),
+                            )
 
-                _set_session_items(request, 'new', [])
-                purchase.calculate_totals()
-                purchase.save()  # one ledger rebuild for the whole bill
+                    purchase.calculate_totals()
+                    _assert_discount_within_subtotal(purchase)
+                    purchase.save()  # one ledger rebuild for the whole bill
+            except _PurchaseEditBlocked as exc:
+                # Roll the bill back and keep the cart; the discount is the
+                # only thing the user needs to correct.
+                form.add_error(None, str(exc))
+                return render(request, template_name,
+                              _purchase_create_context(request, form))
+            _set_session_items(request, 'new', [])
 
             logger.info(
                 f"Purchase {purchase.purchase_number} created "
@@ -530,21 +575,7 @@ def purchase_create(request):
             return redirect('accounting:purchase_detail', pk=purchase.pk)
 
         else:
-            items = _session_items(request, 'new')
-            items_total = sum(
-                (_safe_decimal(i.get('line_total')) for i in items),
-                Decimal('0')
-            )
-            context = {
-                'form': form,
-                'items': items,
-                'items_total': items_total,
-                'products': Product.objects.filter(
-                    is_service=False, is_active=True
-                ).order_by('name'),
-                'purchase': None,
-                'is_htmx': is_htmx(request),
-            }
+            context = _purchase_create_context(request, form)
             if is_htmx(request):
                 return render(
                     request, 'purchases/partials/purchase_form_partial.html', context
@@ -553,22 +584,8 @@ def purchase_create(request):
 
     else:
         form = PurchaseForm(initial={'date': timezone.localdate()})
-        items = _session_items(request, 'new')
-        items_total = sum(
-            (_safe_decimal(i.get('line_total')) for i in items),
-            Decimal('0')
-        )
-        context = {
-            'form': form,
-            'items': items,
-            'items_total': items_total,
-            'products': Product.objects.filter(
-                is_service=False, is_active=True
-            ).order_by('name'),
-            'purchase': None,
-            'is_htmx': is_htmx(request),
-        }
-        return render(request, template_name, context)
+        return render(request, template_name,
+                      _purchase_create_context(request, form))
 
 
 # ============================================================
@@ -609,12 +626,13 @@ def purchase_update(request, pk):
                             )
 
                     purchase.calculate_totals()
+                    _assert_discount_within_subtotal(purchase)
                     _assert_total_covers_settlements(purchase)
                     purchase.save()  # one ledger rebuild for the whole bill
                     # Bill total may have changed — keep Paid flag honest
                     purchase.recalc_settlement()
                     _set_session_items(request, scope, [])
-            except _PurchaseBelowSettled as exc:
+            except _PurchaseEditBlocked as exc:
                 # Roll the line rewrite back; keep the typed cart so the shop
                 # can adjust it instead of silently over-paying the bill.
                 purchase.refresh_from_db()

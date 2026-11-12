@@ -180,6 +180,24 @@ class PaymentDiscountTests(TestCase):
         alloc = PaymentAllocation.objects.get(payment=pay, invoice=inv)
         self.assertEqual(alloc.amount, Decimal('850.00'))
 
+    def test_a_typed_allocation_for_the_target_invoice_is_saved(self):
+        """The form lists the ?invoice= bill with its own allocation box. When
+        the shop types a partial amount there, that number is authoritative —
+        dropping it used to leave the bill unpaid and fail the discount check."""
+        inv = self.invoice()
+        resp = self.pay_from_invoice(inv, '400.00', '50.00', **{
+            f'allocation_amount_{inv.pk}': '450.00',
+        })
+        self.assertEqual(resp.status_code, 302, resp.content[:400])
+
+        inv.refresh_from_db()
+        pay = Payment.objects.get(contact=self.customer)
+        alloc = PaymentAllocation.objects.get(payment=pay, invoice=inv)
+        self.assertEqual(alloc.amount, Decimal('450.00'))
+        self.assertEqual(inv.paid_amount, Decimal('450.00'))
+        self.assertEqual(inv.balance_due, Decimal('400.00'))
+        self.assertEqual(inv.payment_status, 'partial')
+
     def test_a_bank_or_upi_payment_moves_the_cash_amount(self):
         inv = self.invoice('1,000.00'.replace(',', ''))
         self.pay_from_invoice(inv, '950.00', '50.00',

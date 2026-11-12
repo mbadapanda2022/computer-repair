@@ -18,6 +18,13 @@
 
     <div class="modal-body">
 
+        {% if discount_error %}
+        <div class="alert alert-danger d-flex align-items-start" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+            <div>{{ discount_error }}</div>
+        </div>
+        {% endif %}
+
         <!-- Repair Summary (readonly) -->
         <div class="alert alert-light border mb-3">
             <div class="row g-2 small">
@@ -52,11 +59,12 @@
                 </label>
                 <input type="date" name="invoice_date" id="invoice_date"
                        class="form-control"
-                       value="{{ today|date:'Y-m-d' }}" required>
+                       value="{% if form_invoice_date %}{{ form_invoice_date }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}" required>
             </div>
             <div class="col-md-4">
                 <label for="due_date" class="form-label fw-semibold">Due Date</label>
-                <input type="date" name="due_date" id="due_date" class="form-control">
+                <input type="date" name="due_date" id="due_date" class="form-control"
+                       value="{{ form_due_date|default:'' }}">
                 <small class="text-muted">Optional</small>
             </div>
             <div class="col-md-4">
@@ -64,7 +72,7 @@
                 <select name="gst_type" id="gst_type" class="form-select">
                     <option value="">Auto-detect</option>
                     {% for value, label in gst_type_choices %}
-                        <option value="{{ value }}">{{ label }}</option>
+                        <option value="{{ value }}" {% if form_gst_type == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
                 <small class="text-muted">
@@ -75,7 +83,7 @@
             <div class="col-12">
                 <label for="notes" class="form-label fw-semibold">Notes</label>
                 <textarea name="notes" id="notes" rows="2" class="form-control"
-                          placeholder="Leave blank to auto-generate from repair details"></textarea>
+                          placeholder="Leave blank to auto-generate from repair details">{{ form_notes|default:'' }}</textarea>
             </div>
         </div>
 
@@ -157,24 +165,25 @@
                 </label>
                 <input type="number" name="discount_amount" id="discount_amount"
                        class="form-control" step="0.01" min="0"
-                       value="0" placeholder="0.00">
+                       value="{{ form_discount|default:'0' }}" placeholder="0.00">
             </div>
             <div class="col-md-4">
                 <label for="discount_type" class="form-label fw-semibold">Type</label>
                 <select name="discount_type" id="discount_type" class="form-select">
                     <option value="">— None —</option>
-                    <option value="early_payment">Early Payment Discount</option>
-                    <option value="volume">Volume/Bulk Discount</option>
-                    <option value="seasonal">Seasonal Sale</option>
-                    <option value="damage">Damaged Goods</option>
-                    <option value="staff">Staff Discount</option>
-                    <option value="other">Other</option>
+                    <option value="early_payment" {% if form_discount_type == 'early_payment' %}selected{% endif %}>Early Payment Discount</option>
+                    <option value="volume" {% if form_discount_type == 'volume' %}selected{% endif %}>Volume/Bulk Discount</option>
+                    <option value="seasonal" {% if form_discount_type == 'seasonal' %}selected{% endif %}>Seasonal Sale</option>
+                    <option value="damage" {% if form_discount_type == 'damage' %}selected{% endif %}>Damaged Goods</option>
+                    <option value="staff" {% if form_discount_type == 'staff' %}selected{% endif %}>Staff Discount</option>
+                    <option value="other" {% if form_discount_type == 'other' %}selected{% endif %}>Other</option>
                 </select>
             </div>
             <div class="col-md-4">
                 <label for="discount_note" class="form-label fw-semibold">Note</label>
                 <input type="text" name="discount_note" id="discount_note"
                        class="form-control"
+                       value="{{ form_discount_note|default:'' }}"
                        placeholder="Reason for discount">
             </div>
         </div>

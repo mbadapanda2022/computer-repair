@@ -1796,8 +1796,12 @@ class PaymentForm(forms.ModelForm):
         return amount
 
     def clean_discount_amount(self):
-        """Discount is added on top of the cash, so it is capped by nothing
-        here — the bills it is allocated against clamp it on save."""
+        """Only checks the sign here.
+
+        How much discount is allowed depends on the bills the payment gets
+        allocated to, which are parsed from the POST in the view — that is
+        where the cap is enforced.
+        """
         disc = self.cleaned_data.get('discount_amount') or Decimal('0')
         if disc < 0:
             raise ValidationError("Discount amount cannot be negative.")
