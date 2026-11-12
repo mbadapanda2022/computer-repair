@@ -1091,16 +1091,40 @@ def payment_update(request, pk):
 
                 # Re-collect only what the (possibly new) form says this
                 # payment settles, sharing one pool across both bill types.
+                allocation_summary = []
                 if not payment.is_advance and not payment.expense_account_id:
                     budget = _payment_budget(payment)
-                    _collect_allocations_from_post(request, payment,
-                                                   budget=budget)
-                    _collect_purchase_allocations_from_post(request, payment,
-                                                            budget=budget)
+                    allocation_summary = _collect_allocations_from_post(
+                        request, payment, budget=budget)
+                    allocation_summary += _collect_purchase_allocations_from_post(
+                        request, payment, budget=budget)
                     payment.update_invoices()
                     payment.update_purchases()
 
             logger.info("Payment #%s updated by %s", pk, request.user.username)
+
+            # Say what the edit actually settled. A cleared allocation box
+            # leaves money on the payment, and without this the invoice
+            # looked unpaid while the customer balance showed settled.
+            if payment.is_advance:
+                update_msg = (
+                    'Payment updated. The amount stays available as advance.')
+            elif payment.expense_account_id:
+                update_msg = 'Payment updated.'
+            elif allocation_summary:
+                update_msg = (
+                    f'Payment updated. Applied: {", ".join(allocation_summary)}.'
+                )
+                unapplied = _payment_budget(payment).remaining
+                if unapplied > 0:
+                    update_msg += (
+                        f' Rs.{unapplied} is not applied to any bill.'
+                    )
+            else:
+                update_msg = (
+                    f'Payment updated — no bill applied, so the amount '
+                    f'stays as unapplied credit.'
+                )
 
             # Notifications OUTSIDE atomic
             try:
@@ -1121,12 +1145,12 @@ def payment_update(request, pk):
                 context = _get_paginated_payments_context(request)
                 response = render(request, 'payments/partials/payment_table.html', context)
                 response['HX-Trigger'] = json.dumps({
-                    'showToast': {'level': 'success', 'message': 'Payment updated successfully.'},
+                    'showToast': {'level': 'success', 'message': update_msg},
                     'closeModal': '',
                 })
                 return response
 
-            messages.success(request, "Payment updated successfully.")
+            messages.success(request, update_msg)
             return redirect_to_staff('payment_list')
 
         # Invalid form — re-render with full context
@@ -1245,12 +1269,26 @@ def payment_delete(request, pk):
     contact = payment.contact
     amount = payment.amount
     direction = payment.direction
+    reopened_invoices = set(
+        payment.allocations.values_list('invoice_id', flat=True)
+    ) | set(
+        payment.advance_adjustments.values_list('invoice_id', flat=True)
+    )
+    reopened_purchases = set(
+        payment.purchase_allocations.values_list('purchase_id', flat=True))
+    reopened = len(reopened_invoices) + len(reopened_purchases)
 
     # Model cleanup re-adjusts invoices/purchases/ledger across tables —
     # must be one all-or-nothing unit.
     with transaction.atomic():
         payment.delete()  # model-level cleanup
     logger.info("Payment #%s deleted by %s", pk, request.user.username)
+
+    delete_msg = (
+        f'Payment deleted — {reopened} bill{"s" if reopened != 1 else ""} '
+        f'reopened.'
+        if reopened else 'Payment deleted.'
+    )
 
     # Notify staff AFTER delete
     try:
@@ -1272,11 +1310,11 @@ def payment_delete(request, pk):
         context = _get_paginated_payments_context(request)
         response = render(request, 'payments/partials/payment_table.html', context)
         response['HX-Trigger'] = json.dumps({
-            'showToast': {'level': 'success', 'message': 'Payment deleted successfully.'}
+            'showToast': {'level': 'success', 'message': delete_msg}
         })
         return response
 
-    messages.success(request, "Payment deleted.")
+    messages.success(request, delete_msg)
     return redirect_to_staff('payment_list')
 
 

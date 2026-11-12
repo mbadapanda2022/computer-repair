@@ -23,6 +23,32 @@ from ..decorators import handle_errors
 logger = logging.getLogger(__name__)
 
 
+class _InvoiceBelowSettled(Exception):
+    """An edit would drop the invoice total below money already on it."""
+
+
+def _assert_total_covers_settlements(invoice):
+    """Refuse to shrink a bill under the payments/advances it already holds.
+
+    Without this an edit of a fully paid invoice left the allocation above
+    the new total and pushed the customer's receivable negative, with no
+    invoice showing the credit. The shop must release the payment first.
+    """
+    settled = (
+        invoice.payment_allocations.aggregate(s=Sum('amount'))['s']
+        or Decimal('0')
+    ) + (
+        invoice.advance_adjustments.aggregate(s=Sum('amount'))['s']
+        or Decimal('0')
+    )
+    if settled > invoice.grand_total:
+        raise _InvoiceBelowSettled(
+            f'{invoice.invoice_number} cannot be reduced to '
+            f'Rs.{invoice.grand_total:.2f}: Rs.{settled:.2f} is already '
+            f'recorded against it. Remove or reallocate that payment first.'
+        )
+
+
 # ============================================================
 # HELPER 1: SESSION ITEM SCOPE + SYNC
 # ============================================================
@@ -386,16 +412,42 @@ def invoice_update(request, pk):
         if form.is_valid():
             # Item sync + totals in one transaction: a mid-loop failure must
             # not leave the invoice half-rewritten.
-            with transaction.atomic():
-                invoice = form.save(commit=False)
-                with defer_invoice_sync(invoice):
-                    _apply_invoice_items(
-                        invoice,
-                        request.session.get(items_key, []),
-                    )
+            try:
+                with transaction.atomic():
+                    invoice = form.save(commit=False)
+                    with defer_invoice_sync(invoice):
+                        _apply_invoice_items(
+                            invoice,
+                            request.session.get(items_key, []),
+                        )
 
-                invoice.calculate_totals()
-                invoice.save()  # one ledger rebuild for the whole invoice
+                    invoice.calculate_totals()
+                    _assert_total_covers_settlements(invoice)
+                    invoice.save()  # one ledger rebuild for the whole invoice
+            except _InvoiceBelowSettled as exc:
+                # Roll back the rewritten lines, keep what the user typed and
+                # show the reason instead of leaving an over-paid invoice.
+                invoice.refresh_from_db()
+                form.add_error(None, str(exc))
+                temp_items = request.session.get(items_key, [])
+                return render(
+                    request,
+                    'sales/partials/invoice_form_modal.html' if is_htmx(request)
+                    else 'sales/invoice_form.html',
+                    {
+                        'form': form,
+                        'invoice': invoice,
+                        'items': temp_items,
+                        'items_total': _items_total(temp_items),
+                        'items_scope': scope,
+                        'products': Product.objects.filter(
+                            is_active=True).order_by('name'),
+                        'customers': Contact.objects.filter(
+                            contact_type__in=['customer', 'both']
+                        ).order_by('name'),
+                        'is_htmx': is_htmx(request),
+                    },
+                )
             request.session[items_key] = []
 
             logger.info(f"Invoice {invoice.invoice_number} updated by {request.user.username}")

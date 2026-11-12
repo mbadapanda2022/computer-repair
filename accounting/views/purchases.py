@@ -24,6 +24,28 @@ from accounting.utils.notification_helpers import send_notification_to_staff
 from .utils import htmx_field_error_response, is_htmx, htmx_response, redirect_to_staff, toast_only_response
 from ..decorators import handle_errors
 
+
+class _PurchaseBelowSettled(Exception):
+    """An edit would drop the bill total below money already paid on it."""
+
+
+def _assert_total_covers_settlements(purchase):
+    """Refuse to shrink a bill under the vendor payments it already holds.
+
+    Otherwise the allocation stayed above the new total, the vendor payable
+    went negative with no bill explaining the credit. The shop must release
+    the payment first.
+    """
+    settled = purchase.payment_allocations.aggregate(
+        s=Sum('amount'))['s'] or Decimal('0')
+    if settled > purchase.grand_total:
+        raise _PurchaseBelowSettled(
+            f'{purchase.purchase_number} cannot be reduced to '
+            f'Rs.{purchase.grand_total:.2f}: Rs.{settled:.2f} is already paid '
+            f'against it. Remove or reallocate that payment first.'
+        )
+
+
 try:
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, numbers
@@ -567,29 +589,56 @@ def purchase_update(request, pk):
     if request.method == 'POST':
         form = PurchaseForm(request.POST, instance=purchase)
         if form.is_valid():
-            with transaction.atomic():
-                with defer_purchase_sync(purchase):
-                    purchase = form.save()
+            try:
+                with transaction.atomic():
+                    with defer_purchase_sync(purchase):
+                        purchase = form.save()
 
-                    # Delete old items (this reverses stock via StockMovement.delete)
-                    purchase.items.all().delete()
+                        # Delete old items (this reverses stock via StockMovement.delete)
+                        purchase.items.all().delete()
 
-                    # Create new items
-                    for item_data in _session_items(request, scope):
-                        PurchaseItem.objects.create(
-                            purchase=purchase,
-                            product_id=item_data['product_id'],
-                            quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
-                            unit_price=_safe_decimal(item_data['unit_price']),
-                            tax_rate=_safe_decimal(item_data['tax_rate']),
-                            is_office_use=item_data.get('is_office_use', False),
-                        )
+                        # Create new items
+                        for item_data in _session_items(request, scope):
+                            PurchaseItem.objects.create(
+                                purchase=purchase,
+                                product_id=item_data['product_id'],
+                                quantity=_safe_decimal(item_data['quantity'], Decimal('1')),
+                                unit_price=_safe_decimal(item_data['unit_price']),
+                                tax_rate=_safe_decimal(item_data['tax_rate']),
+                                is_office_use=item_data.get('is_office_use', False),
+                            )
 
-                _set_session_items(request, scope, [])
-                purchase.calculate_totals()
-                purchase.save()  # one ledger rebuild for the whole bill
-                # Bill total may have changed — keep Paid flag honest
-                purchase.recalc_settlement()
+                    purchase.calculate_totals()
+                    _assert_total_covers_settlements(purchase)
+                    purchase.save()  # one ledger rebuild for the whole bill
+                    # Bill total may have changed — keep Paid flag honest
+                    purchase.recalc_settlement()
+                    _set_session_items(request, scope, [])
+            except _PurchaseBelowSettled as exc:
+                # Roll the line rewrite back; keep the typed cart so the shop
+                # can adjust it instead of silently over-paying the bill.
+                purchase.refresh_from_db()
+                form.add_error(None, str(exc))
+                items = _session_items(request, scope)
+                context = {
+                    'form': form,
+                    'purchase': purchase,
+                    'items': items,
+                    'items_total': sum(
+                        (_safe_decimal(i.get('line_total')) for i in items),
+                        Decimal('0')
+                    ),
+                    'products': Product.objects.filter(
+                        is_service=False, is_active=True
+                    ).order_by('name'),
+                    'is_htmx': is_htmx(request),
+                }
+                return render(
+                    request,
+                    'purchases/partials/purchase_form_partial.html'
+                    if is_htmx(request) else 'purchases/purchase_form.html',
+                    context,
+                )
 
             logger.info(
                 f"Purchase {purchase.purchase_number} updated "
