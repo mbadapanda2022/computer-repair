@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if payment %}Edit Payment{% else %}New Payment{% endif %} – {{ company.name|default:"Staff Portal" }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3" style="max-width: 960px;">
+    <div class="card shadow-sm border-0">
+        <div class="modal-content border-0">
+            {% include 'payments/payment_form.html' %}
+        </div>
+    </div>
+</div>
+{% endblock %}

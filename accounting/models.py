@@ -1729,6 +1729,9 @@ _deferred_ledger_sync = ContextVar('deferred_ledger_sync', default=frozenset())
 
 @contextmanager
 def defer_ledger_sync(parent):
+    # A brand-new object has pk=None; the saved row then gets a real pk, so
+    # keying only on pk would miss it. The (label, None) key lets callers wrap
+    # creation + line inserts in one deferral and sync exactly once afterwards.
     key = (parent._meta.label_lower, parent.pk)
     token = _deferred_ledger_sync.set(_deferred_ledger_sync.get() | {key})
     try:
@@ -1738,7 +1741,8 @@ def defer_ledger_sync(parent):
 
 
 def ledger_sync_deferred_for(label, pk):
-    return (label, pk) in _deferred_ledger_sync.get()
+    deferred = _deferred_ledger_sync.get()
+    return (label, pk) in deferred or (label, None) in deferred
 
 
 def defer_purchase_sync(purchase):

@@ -254,32 +254,39 @@
             <div class="card-footer bg-white py-2">
                 <div class="d-flex flex-wrap gap-1 justify-content-end">
                     <button class="btn btn-sm btn-outline-primary"
+                            title="View payment details" aria-label="View payment details"
                             hx-get="{% url 'accounting:payment_detail_modal' payment.pk %}"
                             hx-target="#mainModalContent">
                         <i class="bi bi-eye"></i>
                     </button>
                     <a class="btn btn-sm btn-outline-info"
+                       title="Print receipt" aria-label="Print receipt"
                        href="{% url 'accounting:payment_print' payment.pk %}" target="_blank">
                         <i class="bi bi-printer"></i>
                     </a>
                     {% if payment.whatsapp_share_url %}
                     <a class="btn btn-sm btn-outline-success"
+                       title="Share on WhatsApp" aria-label="Share on WhatsApp"
                        href="{{ payment.whatsapp_share_url }}" target="_blank">
                         <i class="bi bi-whatsapp"></i>
                     </a>
                     {% endif %}
                     <button class="btn btn-sm btn-outline-warning"
+                            title="Edit payment" aria-label="Edit payment"
                             hx-get="{% url 'accounting:payment_update' payment.pk %}"
                             hx-target="#mainModalContent">
                         <i class="bi bi-pencil"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-success"
+                            title="{% if payment.reconciled %}Mark as unreconciled{% else %}Mark as reconciled{% endif %}"
+                            aria-label="Toggle reconciliation"
                             hx-post="{% url 'accounting:reconcile_payment' payment.pk %}"
                             hx-vals='{"reconciled": "{% if payment.reconciled %}false{% else %}true{% endif %}"}'
                             hx-target="#payment-table-container">
                         <i class="bi bi-check2-circle"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-danger"
+                            title="Delete payment" aria-label="Delete payment"
                             hx-delete="{% url 'accounting:payment_delete' payment.pk %}"
                             hx-target="#payment-table-container"
                             hx-confirm="Delete this payment? Related invoices will be recalculated.">

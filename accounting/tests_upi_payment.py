@@ -22,7 +22,8 @@ from django.utils import timezone
 from accounting.forms import CompanyProfileForm
 from accounting.models import (
     BankAccount, BankTransaction, CompanyProfile, Contact, Invoice,
-    Notification, Payment, PaymentAllocation, RepairJob, UpiPaymentRequest,
+    InvoiceItem, Notification, Payment, PaymentAllocation, Product,
+    RepairJob, UpiPaymentRequest,
 )
 from accounting.utils.tracking import generate_tracking_token
 from accounting.utils.upi import (
@@ -140,10 +141,36 @@ class UpiTestCase(TestCase):
         self.client = Client()
 
     def invoice(self, total='1500.00', customer=None):
+        """A real invoice has lines — Invoice.save() derives grand_total from
+        them, so a header-only fixture would silently be worth ₹0."""
         amount = Decimal(total)
-        return Invoice.objects.create(
-            customer=customer or self.customer,
-            subtotal=amount, grand_total=amount, balance_due=amount)
+        inv = Invoice.objects.create(customer=customer or self.customer)
+        product = Product.objects.create(
+            name=f'UPI Svc {total} {timezone.now().strftime("%H%M%S%f")[:10]}',
+            selling_price=amount, purchase_price=amount,
+            tax_rate=Decimal('0'), current_stock=Decimal('0'),
+            is_service=True, is_active=True,
+        )
+        InvoiceItem.objects.create(
+            invoice=inv, product=product, quantity=Decimal('1'),
+            unit_price=amount, tax_rate=Decimal('0'),
+        )
+        inv.refresh_from_db()
+        return inv
+
+    def mark_settled(self, inv, amount):
+        """Force the stored settlement fields.
+
+        ``Invoice.save()`` recomputes them from allocations, so a fixture that
+        just assigns balance_due/paid_amount would be rejected; the queryset
+        update writes the state the screen is being tested against.
+        """
+        Invoice.objects.filter(pk=inv.pk).update(
+            balance_due=Decimal('0'),
+            paid_amount=Decimal(amount),
+            payment_status='paid',
+        )
+        inv.refresh_from_db()
 
     def claim(self, invoice=None, amount='1500.00', reference='4630123456789012'):
         return UpiPaymentRequest.objects.create(
@@ -203,10 +230,7 @@ class CustomerPayScreenTests(UpiTestCase):
     def test_fully_paid_invoice_shows_nothing_to_pay(self):
         self.client.force_login(self.portal_user)
         inv = self.invoice('500.00')
-        inv.balance_due = Decimal('0')
-        inv.paid_amount = Decimal('500')
-        inv.payment_status = 'paid'
-        inv.save()
+        self.mark_settled(inv, '500')
         r = self.client.get(self.pay_url(inv))
         self.assertContains(r, 'fully paid')
         self.assertNotContains(r, 'data:image/png;base64,')
@@ -217,10 +241,7 @@ class CustomerPayScreenTests(UpiTestCase):
         self.client.force_login(self.portal_user)
         inv = self.invoice('600.00')
         self.claim(inv, amount='600.00', reference='4630SETTLED01')
-        inv.balance_due = Decimal('0')
-        inv.paid_amount = Decimal('600')
-        inv.payment_status = 'paid'
-        inv.save()
+        self.mark_settled(inv, '600')
 
         r = self.client.get(self.pay_url(inv))
         self.assertContains(r, 'Your payment reports')
@@ -528,10 +549,7 @@ class UpiPlacementTests(UpiTestCase):
     def test_staff_print_hides_code_when_settled(self):
         self.client.force_login(self.staff)
         inv = self.invoice('900.00')
-        inv.balance_due = Decimal('0')
-        inv.paid_amount = Decimal('900')
-        inv.payment_status = 'paid'
-        inv.save()
+        self.mark_settled(inv, '900')
         r = self.client.get(reverse('accounting:invoice_print', args=[inv.pk]))
         self.assertNotContains(r, 'Scan to pay')
 
@@ -572,10 +590,7 @@ class UpiPlacementTests(UpiTestCase):
 
     def test_tracking_page_has_no_pay_block_when_settled(self):
         inv = self.invoice('1300.00')
-        inv.balance_due = Decimal('0')
-        inv.paid_amount = Decimal('1300')
-        inv.payment_status = 'paid'
-        inv.save()
+        self.mark_settled(inv, '1300')
         job = RepairJob.objects.create(
             customer=self.customer, device_model='HP 15',
             issue_description='dead battery', invoice=inv, status='ready')

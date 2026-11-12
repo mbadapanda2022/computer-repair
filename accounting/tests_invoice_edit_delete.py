@@ -170,7 +170,7 @@ class InvoiceSyncBatchingTests(TestCase):
         # Empty the session the same way the UI's remove buttons do, then
         # POST without a fresh GET (a GET would re-seed it from the DB).
         session = self.client.session
-        session['temp_invoice_items'] = []
+        session[f'temp_invoice_items_{invoice.pk}'] = []
         session.save()
         resp = self.client.post(
             reverse('accounting:invoice_update', args=[invoice.pk]),

@@ -28,8 +28,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounting.models import (
-    Account, BankAccount, Contact, Invoice, LedgerEntry, Payment,
-    PaymentAllocation, Purchase,
+    Account, BankAccount, Contact, Invoice, InvoiceItem, LedgerEntry,
+    Payment, PaymentAllocation, Product, Purchase,
 )
 
 User = get_user_model()
@@ -69,13 +69,23 @@ class PaymentDiscountTests(TestCase):
     # ── helpers ──
 
     def invoice(self, amount='850.00'):
-        return Invoice.objects.create(
-            customer=self.customer,
-            subtotal=Decimal(amount),
-            grand_total=Decimal(amount),
-            balance_due=Decimal(amount),
-            date=timezone.localdate(),
+        """A real invoice carries a line — Invoice.save() derives grand_total
+        from its items, so a header-only fixture would collapse to ₹0."""
+        inv = Invoice.objects.create(
+            customer=self.customer, date=timezone.localdate(),
         )
+        product = Product.objects.create(
+            name=f'Disc Svc {timezone.now().strftime("%H%M%S%f")[:12]}',
+            selling_price=Decimal(amount), purchase_price=Decimal(amount),
+            tax_rate=Decimal('0'), current_stock=Decimal('0'),
+            is_service=True, is_active=True,
+        )
+        InvoiceItem.objects.create(
+            invoice=inv, product=product, quantity=Decimal('1'),
+            unit_price=Decimal(amount), tax_rate=Decimal('0'),
+        )
+        inv.refresh_from_db()
+        return inv
 
     def purchase(self, amount='1000.00'):
         return Purchase.objects.create(

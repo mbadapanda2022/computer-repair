@@ -114,6 +114,8 @@
     // with urls.py without hardcoding.
     var REMOVE_URL_TEMPLATE = "{% url 'accounting:remove_invoice_item' 99999999 %}";
     var ADD_URL = "{% url 'accounting:add_invoice_item' %}";
+    // One cart per invoice — the server keys its session row by this scope.
+    var ITEMS_SCOPE = "{{ items_scope|default:'new' }}";
 
     function getContainer() {
         return document.getElementById('invoice-items-container');
@@ -185,7 +187,8 @@
                 product: pid,
                 quantity: (qty && qty.value) || 1,
                 unit_price: (price && price.value) || 0,
-                tax_rate: (tax && tax.value) || 0
+                tax_rate: (tax && tax.value) || 0,
+                items_scope: ITEMS_SCOPE
             }
         });
     });
@@ -209,7 +212,8 @@
 
         htmx.ajax('POST', url, {
             target: '#invoice-items-container',
-            swap: 'innerHTML'
+            swap: 'innerHTML',
+            values: { items_scope: ITEMS_SCOPE }
         });
     });
 

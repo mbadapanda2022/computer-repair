@@ -54,12 +54,18 @@ class ProfitLossTradingSplitTests(TestCase):
         self._cust = self._cust or Contact.objects.create(
             contact_type='customer', name='PL Cust', phone='9000000111',
         )
-        return Invoice.objects.create(
+        invoice = Invoice.objects.create(
             customer=self._cust,
-            subtotal=Decimal(total), grand_total=Decimal(total),
-            balance_due=Decimal(total),
             date=datetime.date.fromisoformat(day),
         )
+        # Invoice.save() recomputes totals from line items; this fixture exists
+        # to prove P&L reads stored sales, so persist the amount directly.
+        Invoice.objects.filter(pk=invoice.pk).update(
+            subtotal=Decimal(total), grand_total=Decimal(total),
+            balance_due=Decimal(total),
+        )
+        invoice.refresh_from_db()
+        return invoice
 
     def make_ledger(self, entry_type, day, debit_acc=None, debit='0',
                      credit_acc=None, credit='0'):

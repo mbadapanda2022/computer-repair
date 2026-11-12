@@ -22,7 +22,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounting.models import (
-    AdvanceAdjustment, Contact, Invoice, Payment, PaymentAllocation,
+    AdvanceAdjustment, Contact, Invoice, InvoiceItem, Payment,
+    PaymentAllocation, Product,
 )
 
 User = get_user_model()
@@ -59,12 +60,18 @@ class AdvanceSettlementTests(TestCase):
         )
 
     def invoice(self, total):
-        inv = Invoice.objects.create(
-            customer=self.customer,
-            subtotal=Decimal(total),
-            grand_total=Decimal(total),
-            balance_due=Decimal(total),
+        inv = Invoice.objects.create(customer=self.customer)
+        product = Product.objects.create(
+            name=f'Settle Svc {total} {timezone.now().strftime("%H%M%S%f")[:10]}',
+            selling_price=Decimal(total), purchase_price=Decimal(total),
+            tax_rate=Decimal('0'), current_stock=Decimal('0'),
+            is_service=True, is_active=True,
         )
+        InvoiceItem.objects.create(
+            invoice=inv, product=product, quantity=Decimal('1'),
+            unit_price=Decimal(total), tax_rate=Decimal('0'),
+        )
+        inv.refresh_from_db()
         return inv
 
     def pay_balance(self, inv, amount):

@@ -24,30 +24,105 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# HELPER 1: SYNC SESSION ITEMS (FOR EDIT MODE)
+# HELPER 1: SESSION ITEM SCOPE + SYNC
 # ============================================================
-def sync_session_items(request, invoice=None):
+def _invoice_items_key(scope):
+    """One line-item cart per invoice (and one for the create form).
+
+    A single global ``temp_invoice_items`` cart meant opening invoice B after
+    leaving invoice A still carried A's lines — saving B then replaced B's
+    items with A's, and repair-linked lines were duplicated. Purchases already
+    scopes its cart this way; sales now matches.
     """
-    Ensures session contains items from the invoice (for edit mode).
-    If invoice is provided and session is empty, loads invoice items.
+    return f'temp_invoice_items_{scope or "new"}'
+
+
+def _invoice_items_scope(invoice):
+    return invoice.pk if invoice is not None and invoice.pk else 'new'
+
+
+def _items_total(items):
+    """Sum the cart's stored line totals for the form footer."""
+    return sum((_safe_decimal(i.get('line_total')) for i in items), Decimal('0'))
+
+
+def sync_session_items(request, invoice=None, force=False):
+    """Ensure the scoped cart holds this invoice's current items.
+
+    On a fresh GET the cart is rebuilt from the database (``force=True``) so
+    reopening an edit always reflects what is actually stored; on a failed
+    POST the user's unsaved lines are preserved.
     """
-    session_key = 'temp_invoice_items'
-    if invoice:
-        if session_key not in request.session or not request.session[session_key]:
-            items = []
-            for item in invoice.items.select_related('product').all():
-                items.append({
-                    'product_id': item.product.id,
-                    'product_name': item.product.name,
-                    'quantity': str(item.quantity),
-                    'unit_price': str(item.unit_price),
-                    'tax_rate': str(item.tax_rate),
-                    'line_total': str(item.line_total),
-                    'description': item.description or '',
-                    'db_item_id': item.id,
-                })
-            request.session[session_key] = items
-    return request.session.get(session_key, [])
+    key = _invoice_items_key(_invoice_items_scope(invoice))
+    if invoice and (force or key not in request.session):
+        # An existing key — even an empty list — is the user's cart: an
+        # explicitly emptied cart means "remove every line", not "reload".
+        items = []
+        for item in invoice.items.select_related('product').all():
+            items.append({
+                'product_id': item.product.id,
+                'product_name': item.product.name,
+                'quantity': str(item.quantity),
+                'unit_price': str(item.unit_price),
+                'tax_rate': str(item.tax_rate),
+                'line_total': str(item.line_total),
+                'description': item.description or '',
+                'db_item_id': item.id,
+            })
+        request.session[key] = items
+    return request.session.get(key, [])
+
+
+def _apply_invoice_items(invoice, item_rows):
+    """Persist the cart onto ``invoice`` without destroying existing rows.
+
+    Update-in-place instead of delete-and-recreate: recreating used to drop
+    ``stock_already_deducted`` (repair parts deducted stock a second time) and
+    the ``repair_part`` / ``repair_service`` links, and it made every line look
+    new in the audit trail. Existing rows keep their identity; only genuinely
+    removed lines are deleted (which reverses their stock through
+    ``InvoiceItem.delete()``).
+    """
+    existing = {item.pk: item for item in invoice.items.select_related('product')}
+    seen = set()
+
+    for data in item_rows:
+        try:
+            db_id = int(data.get('db_item_id'))
+        except (TypeError, ValueError):
+            db_id = None
+
+        item = existing.get(db_id)
+        if item is not None and item.pk in seen:
+            item = None  # duplicate reference — create a fresh row
+
+        if item is not None and str(item.product_id) != str(data['product_id']):
+            # A different product means the old stock deduction must reverse;
+            # delete first, then create the replacement below.
+            item.delete()
+            item = None
+            seen.discard(db_id)
+
+        if item is not None:
+            item.quantity = Decimal(str(data['quantity']))
+            item.unit_price = Decimal(str(data['unit_price']))
+            item.tax_rate = Decimal(str(data['tax_rate']))
+            item.description = data.get('description', '') or ''
+            item.save()
+            seen.add(item.pk)
+        else:
+            InvoiceItem.objects.create(
+                invoice=invoice,
+                product_id=data['product_id'],
+                quantity=Decimal(str(data['quantity'])),
+                unit_price=Decimal(str(data['unit_price'])),
+                tax_rate=Decimal(str(data['tax_rate'])),
+                description=data.get('description', '') or '',
+            )
+
+    for pk, item in existing.items():
+        if pk not in seen and not item.is_deleted:
+            item.delete()
 
 
 # ============================================================
@@ -120,8 +195,11 @@ def get_paginated_invoices_context(request, queryset=None):
     customers = Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name')
 
     total_sales = queryset.aggregate(total=Sum('grand_total'))['total'] or Decimal('0')
-    total_received = queryset.filter(payment_status='paid').aggregate(total=Sum('grand_total'))['total'] or Decimal('0')
-    total_unpaid = total_sales - total_received
+    # Received = money actually collected (allocations + advances), not just
+    # invoices that reached "paid" — a partial ₹500 payment on a ₹2,000 bill
+    # used to be reported as ₹0 received and the full ₹2,000 as unpaid.
+    total_received = queryset.aggregate(total=Sum('paid_amount'))['total'] or Decimal('0')
+    total_unpaid = queryset.aggregate(total=Sum('balance_due'))['total'] or Decimal('0')
 
     context = {
         'invoices': page_invoices,      
@@ -191,17 +269,18 @@ def invoice_create(request):
     # ── Fresh open (GET): always reset session items ──
     # This prevents leaking old items from a previously-cancelled form.
     # POST failures keep the session (form re-renders with items intact).
+    items_key = _invoice_items_key('new')
     if request.method == 'GET' and request.GET.get('keep') != '1':
-        request.session['temp_invoice_items'] = []
-    elif 'temp_invoice_items' not in request.session:
-        request.session['temp_invoice_items'] = []
+        request.session[items_key] = []
+    elif items_key not in request.session:
+        request.session[items_key] = []
 
     template_name = 'sales/partials/invoice_form_modal.html' if is_htmx(request) else 'sales/invoice_form.html'
 
     if request.method == 'POST':
         form = InvoiceForm(request.POST)
         if form.is_valid():
-            temp_items = request.session.get('temp_invoice_items', [])
+            temp_items = request.session.get(items_key, [])
             # All DB writes in one transaction: a bad item mid-loop must not
             # leave an orphan invoice with partial items/stock movements.
             with transaction.atomic():
@@ -222,7 +301,7 @@ def invoice_create(request):
                 # Calculate totals and save again (this will also sync ledger)
                 invoice.calculate_totals()
                 invoice.save()  # one ledger rebuild for the whole invoice
-            request.session['temp_invoice_items'] = []
+            request.session[items_key] = []
 
             logger.info(f"Invoice {invoice.invoice_number} created by {request.user.username}")
 
@@ -254,10 +333,12 @@ def invoice_create(request):
             return redirect_to_staff('invoice_detail', pk=invoice.pk)
 
         else:
-            temp_items = request.session.get('temp_invoice_items', [])
+            temp_items = request.session.get(items_key, [])
             context = {
                 'form': form,
                 'items': temp_items,
+                'items_total': _items_total(temp_items),
+                'items_scope': 'new',
                 'products': Product.objects.filter(is_active=True).order_by('name'),
                 'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
                 'is_htmx': is_htmx(request),
@@ -268,10 +349,12 @@ def invoice_create(request):
 
     else:
         form = InvoiceForm()
-        temp_items = request.session.get('temp_invoice_items', [])
+        temp_items = request.session.get(items_key, [])
         context = {
             'form': form,
             'items': temp_items,
+            'items_total': _items_total(temp_items),
+            'items_scope': 'new',
             'products': Product.objects.filter(is_active=True).order_by('name'),
             'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
             'is_htmx': is_htmx(request),
@@ -286,34 +369,34 @@ def invoice_create(request):
 @handle_errors(default_redirect='accounting:invoice_list', htmx_template='sales/partials/invoice_form_modal.html')
 def invoice_update(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
-    sync_session_items(request, invoice)
+    scope = _invoice_items_scope(invoice)
+    items_key = _invoice_items_key(scope)
+
+    if request.method == 'GET':
+        # Reopening an edit always reflects what is stored, never a cart left
+        # behind by an earlier, abandoned edit.
+        sync_session_items(request, invoice, force=True)
+    else:
+        sync_session_items(request, invoice)
 
     template_name = 'sales/partials/invoice_form_modal.html' if is_htmx(request) else 'sales/invoice_form.html'
 
     if request.method == 'POST':
         form = InvoiceForm(request.POST, instance=invoice)
         if form.is_valid():
-            # Delete-recreate + totals in one transaction: a mid-loop failure
-            # must not destroy the existing invoice's items/stock movements.
+            # Item sync + totals in one transaction: a mid-loop failure must
+            # not leave the invoice half-rewritten.
             with transaction.atomic():
                 invoice = form.save(commit=False)
                 with defer_invoice_sync(invoice):
-                    # Delete existing items
-                    invoice.items.all().delete()
-                    # Create new items from session
-                    for item_data in request.session.get('temp_invoice_items', []):
-                        InvoiceItem.objects.create(
-                            invoice=invoice,
-                            product_id=item_data['product_id'],
-                            quantity=Decimal(item_data['quantity']),
-                            unit_price=Decimal(item_data['unit_price']),
-                            tax_rate=Decimal(item_data['tax_rate']),
-                            description=item_data.get('description', '')
-                        )
+                    _apply_invoice_items(
+                        invoice,
+                        request.session.get(items_key, []),
+                    )
 
                 invoice.calculate_totals()
                 invoice.save()  # one ledger rebuild for the whole invoice
-            request.session['temp_invoice_items'] = []
+            request.session[items_key] = []
 
             logger.info(f"Invoice {invoice.invoice_number} updated by {request.user.username}")
 
@@ -327,11 +410,13 @@ def invoice_update(request, pk):
             return redirect_to_staff('invoice_detail', pk=invoice.pk)
 
         else:
-            temp_items = request.session.get('temp_invoice_items', [])
+            temp_items = request.session.get(items_key, [])
             context = {
                 'form': form,
                 'invoice': invoice,
                 'items': temp_items,
+                'items_total': _items_total(temp_items),
+                'items_scope': scope,
                 'products': Product.objects.filter(is_active=True).order_by('name'),
                 'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
                 'is_htmx': is_htmx(request),
@@ -342,11 +427,13 @@ def invoice_update(request, pk):
 
     else:
         form = InvoiceForm(instance=invoice)
-        temp_items = request.session.get('temp_invoice_items', [])
+        temp_items = request.session.get(items_key, [])
         context = {
             'form': form,
             'invoice': invoice,
             'items': temp_items,
+            'items_total': _items_total(temp_items),
+            'items_scope': scope,
             'products': Product.objects.filter(is_active=True).order_by('name'),
             'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
             'is_htmx': is_htmx(request),
@@ -384,6 +471,46 @@ def invoice_delete(request, pk):
                 'message': (
                     f'Cannot delete {invoice.invoice_number} — '
                     f'payments are linked. Remove/reallocate payments first.'
+                )
+            },
+            status=400,
+        )
+
+    # ── Safety: other records that assume this invoice still exists ──
+    # Deleting the header under them left advances pointing at a ghost bill,
+    # credit notes with no original, and customer UPI claims unverifiable.
+    if invoice.advance_adjustments.exists():
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    f'Cannot delete {invoice.invoice_number} — an advance is '
+                    f'applied to it. Remove that advance application first.'
+                )
+            },
+            status=400,
+        )
+
+    if invoice.credit_notes.exists():
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    f'Cannot delete {invoice.invoice_number} — credit notes '
+                    f'exist against it. Delete those first.'
+                )
+            },
+            status=400,
+        )
+
+    pending_upi = invoice.upi_requests.filter(status='pending').exists()
+    if pending_upi:
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    f'Cannot delete {invoice.invoice_number} — a customer UPI '
+                    f'claim is pending verification. Verify or reject it first.'
                 )
             },
             status=400,
@@ -513,6 +640,8 @@ def add_invoice_item(request):
         qty = _safe_decimal(request.POST.get('quantity'), Decimal('1'))
         price = _safe_decimal(request.POST.get('unit_price'), product.selling_price or Decimal('0'))
         tax = _safe_decimal(request.POST.get('tax_rate'), product.tax_rate or Decimal('0'))
+        scope = request.POST.get('items_scope') or 'new'
+        items_key = _invoice_items_key(scope)
 
         if qty <= 0:
             return HttpResponse("Quantity must be positive.", status=400)
@@ -522,13 +651,30 @@ def add_invoice_item(request):
             return HttpResponse("Tax rate must be between 0 and 100.", status=400)
 
         # Fail fast with a clear message instead of letting the whole invoice
-        # save blow up on the stock floor at Create time.
+        # save blow up on the stock floor at save time. On an edit, lines that
+        # already exist in the DB have already deducted their stock — count
+        # only the extra quantity the cart adds.
         if not product.is_service:
-            already_in_cart = sum(
-                (_safe_decimal(i['quantity']) for i in request.session.get('temp_invoice_items', [])
-                 if str(i['product_id']) == str(product.id)),
-                Decimal('0')
-            )
+            original_qty = {}
+            if str(scope).isdigit():
+                original_qty = {
+                    item.pk: item.quantity
+                    for item in InvoiceItem.objects.filter(
+                        invoice_id=int(scope), product_id=product.id)
+                }
+            already_in_cart = Decimal('0')
+            for i in request.session.get(items_key, []):
+                if str(i['product_id']) != str(product.id):
+                    continue
+                q = _safe_decimal(i.get('quantity'))
+                db_id = i.get('db_item_id')
+                try:
+                    db_id = int(db_id)
+                except (TypeError, ValueError):
+                    db_id = None
+                if db_id in original_qty:
+                    q = max(Decimal('0'), q - original_qty[db_id])
+                already_in_cart += q
             needed = qty + already_in_cart
             if product.current_stock < needed:
                 return HttpResponse(
@@ -549,12 +695,15 @@ def add_invoice_item(request):
             'description': request.POST.get('description', '')
         }
 
-        items = request.session.get('temp_invoice_items', [])
+        items = request.session.get(items_key, [])
         items.append(item)
-        request.session['temp_invoice_items'] = items
+        request.session[items_key] = items
 
         items_total = sum(Decimal(i['line_total']) for i in items)
-        return render(request, 'sales/partials/invoice_items.html', {'items': items, 'items_total': items_total})
+        return render(request, 'sales/partials/invoice_items.html', {
+            'items': items, 'items_total': items_total,
+            'items_scope': scope,
+        })
 
     except Exception as e:
         logger.error(f"Error adding invoice item: {e}")
@@ -567,11 +716,13 @@ def add_invoice_item(request):
 @csrf_protect
 def remove_invoice_item(request, index):
     try:
-        items = request.session.get('temp_invoice_items', [])
+        scope = request.POST.get('items_scope') or request.GET.get('items_scope') or 'new'
+        items_key = _invoice_items_key(scope)
+        items = request.session.get(items_key, [])
         idx = int(index)
         if 0 <= idx < len(items):
             items.pop(idx)
-            request.session['temp_invoice_items'] = items
+            request.session[items_key] = items
         else:
             return HttpResponse("Invalid index.", status=400)
 
@@ -579,7 +730,8 @@ def remove_invoice_item(request, index):
             _safe_decimal(i.get('line_total')) for i in items
         )
         return render(request, 'sales/partials/invoice_items.html', {
-            'items': items, 'items_total': items_total
+            'items': items, 'items_total': items_total,
+            'items_scope': scope,
         })
 
     except (ValueError, IndexError):
@@ -955,7 +1107,7 @@ def invoice_duplicate(request, pk):
     source = get_object_or_404(Invoice, pk=pk)
 
     with transaction.atomic():
-        new_invoice = Invoice.objects.create(
+        new_invoice = Invoice(
             customer=source.customer,
             date=timezone.now().date(),
             due_date=None,
@@ -967,7 +1119,11 @@ def invoice_duplicate(request, pk):
             notes=source.notes,
         )
 
+        # Create the header and all lines under one deferral, then sync once:
+        # without this the empty header synced (and cleared) a ledger entry
+        # before every line was copied, doubling the work on each duplicate.
         with defer_invoice_sync(new_invoice):
+            new_invoice.save()
             for item in source.items.all():
                 InvoiceItem.objects.create(
                     invoice=new_invoice,

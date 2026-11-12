@@ -34,22 +34,25 @@
                     </td>
                     <td class="text-nowrap small">{{ inv.date|date:"d M Y" }}</td>
                     <td class="text-end">₹{{ inv.grand_total|rupee }}</td>
-                    <td class="text-end text-danger fw-bold">₹{{ inv.balance_due|rupee }}</td>
+                    <td class="text-end text-danger fw-bold">
+                        ₹{{ inv.balance_due|rupee }}
+                        {% if inv.existing_allocation %}
+                            <small class="d-block fw-normal text-muted">
+                                ₹{{ inv.existing_allocation|rupee }} already applied
+                            </small>
+                        {% endif %}
+                    </td>
                     <td class="text-end">
                         <input type="number"
                                class="form-control form-control-sm text-end allocation-input"
                                name="allocation_amount_{{ inv.pk }}"
                                data-invoice-id="{{ inv.pk }}"
-                               data-balance="{{ inv.balance_due }}"
+                               data-balance="{{ inv.edit_available|default:inv.balance_due }}"
                                step="0.01"
                                min="0"
-                               max="{{ inv.balance_due }}"
+                               max="{{ inv.edit_available|default:inv.balance_due }}"
                                placeholder="0.00"
-                               {% if payment %}
-                                   {% for alloc in payment.allocations.all %}
-                                       {% if alloc.invoice_id == inv.pk %}value="{{ alloc.amount }}"{% endif %}
-                                   {% endfor %}
-                               {% endif %}>
+                               {% if inv.existing_allocation %}value="{{ inv.existing_allocation|floatformat:2 }}"{% endif %}>
                     </td>
                 </tr>
                 {% endfor %}

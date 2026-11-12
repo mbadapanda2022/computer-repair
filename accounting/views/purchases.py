@@ -661,6 +661,20 @@ def purchase_delete(request, pk):
     purchase_name = purchase.purchase_number
     vendor = purchase.vendor
 
+    # A vendor payment already applied to this bill means deleting it would
+    # orphan that allocation and silently reopen the vendor's payable.
+    if purchase.payment_allocations.exists():
+        return toast_only_response(
+            {
+                'level': 'danger',
+                'message': (
+                    f'Cannot delete {purchase_name} — vendor payments are '
+                    f'applied to it. Remove/reallocate those payments first.'
+                )
+            },
+            status=400,
+        )
+
     with transaction.atomic():
         # Purchase.delete() cleans the ledger entries (lines first, so
         # signals fire), reverses stock via the items, and soft-deletes

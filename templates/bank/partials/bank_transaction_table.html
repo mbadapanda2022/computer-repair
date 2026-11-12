@@ -35,6 +35,12 @@
                             {% if txn.transaction_type == 'deposit' %}+{% else %}−{% endif %}₹{{ txn.amount|rupee }}
                         </td>
                         <td class="text-center">
+                            {% if txn.payment_id %}
+                                <span class="badge bg-light text-secondary border"
+                                      title="Generated from a payment — edit/delete it from the Payments page">
+                                    <i class="bi bi-link-45deg me-1"></i>Payment #{{ txn.payment_id }}
+                                </span>
+                            {% else %}
                             <button class="btn btn-sm btn-outline-warning"
                                     hx-get="{% url 'accounting:bank_transaction_edit' txn.id %}"
                                     hx-target="#mainModalContent">
@@ -47,6 +53,7 @@
                                     hx-swap="none">
                                 <i class="bi bi-trash"></i>
                             </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}

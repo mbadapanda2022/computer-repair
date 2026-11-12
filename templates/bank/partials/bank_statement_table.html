@@ -52,6 +52,12 @@
                         </td>
                         <td class="text-end fw-bold">₹{{ line.balance|rupee }}</td>
                         <td class="text-center">
+                            {% if line.payment_id %}
+                                <span class="badge bg-light text-secondary border"
+                                      title="Generated from a payment — edit/delete it from the Payments page">
+                                    <i class="bi bi-link-45deg me-1"></i>Payment #{{ line.payment_id }}
+                                </span>
+                            {% else %}
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
                                         type="button" data-bs-toggle="dropdown">
@@ -74,6 +80,7 @@
                                     </li>
                                 </ul>
                             </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}

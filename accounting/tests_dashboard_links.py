@@ -46,13 +46,17 @@ class DashboardCardLinkTests(TestCase):
     def make_invoice(self, status):
         total = Decimal('1000.00')
         paid = {'paid': total, 'partial': Decimal('400.00'), 'unpaid': Decimal('0')}[status]
-        return Invoice.objects.create(
-            customer=self.customer,
+        invoice = Invoice.objects.create(customer=self.customer)
+        # Invoice.save() derives totals from line items; these fixtures have no
+        # items, so write the simulated state directly.
+        Invoice.objects.filter(pk=invoice.pk).update(
             subtotal=total, grand_total=total,
             paid_amount=paid,
             balance_due=total - paid,
             payment_status=status,
         )
+        invoice.refresh_from_db()
+        return invoice
 
     def make_job(self, status):
         return RepairJob.objects.create(

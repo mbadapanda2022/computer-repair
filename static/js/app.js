@@ -79,6 +79,32 @@
 
 
     // ================================================================
+    // GLOBAL HTMX PROGRESS BAR
+    // ================================================================
+    // One slim bar at the top for every HTMX round-trip, so long-running
+    // saves look alive instead of frozen. Reference-counted because several
+    // requests can overlap (e.g. row action + background table refresh).
+    const htmxProgressBar = document.getElementById('htmx-progress-bar');
+    let htmxActiveRequests = 0;
+
+    function htmxProgressStart() {
+        htmxActiveRequests += 1;
+        if (htmxProgressBar) htmxProgressBar.classList.add('htmx-request');
+    }
+
+    function htmxProgressStop() {
+        htmxActiveRequests = Math.max(0, htmxActiveRequests - 1);
+        if (htmxProgressBar && htmxActiveRequests === 0) {
+            htmxProgressBar.classList.remove('htmx-request');
+        }
+    }
+
+    document.body.addEventListener('htmx:beforeRequest', htmxProgressStart);
+    document.body.addEventListener('htmx:afterRequest', htmxProgressStop);
+    document.body.addEventListener('htmx:sendError', htmxProgressStop);
+    document.body.addEventListener('htmx:timeout', htmxProgressStop);
+
+    // ================================================================
     // GLOBAL HTMX ERROR HANDLING
     // ================================================================
     // Fires when server returns 4xx/5xx

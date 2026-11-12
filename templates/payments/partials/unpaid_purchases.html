@@ -25,22 +25,25 @@
                     </td>
                     <td class="text-nowrap small">{{ p.date|date:"d M Y" }}</td>
                     <td class="text-end">₹{{ p.grand_total|rupee }}</td>
-                    <td class="text-end text-danger fw-bold">₹{{ p.balance_due|rupee }}</td>
+                    <td class="text-end text-danger fw-bold">
+                        ₹{{ p.balance_due|rupee }}
+                        {% if p.existing_allocation %}
+                            <small class="d-block fw-normal text-muted">
+                                ₹{{ p.existing_allocation|rupee }} already applied
+                            </small>
+                        {% endif %}
+                    </td>
                     <td class="text-end">
                         <input type="number"
                                class="form-control form-control-sm text-end purchase-allocation-input"
                                name="purchase_alloc_{{ p.pk }}"
                                data-purchase-id="{{ p.pk }}"
-                               data-balance="{{ p.balance_due }}"
+                               data-balance="{{ p.edit_available|default:p.balance_due }}"
                                step="0.01"
                                min="0"
-                               max="{{ p.balance_due }}"
+                               max="{{ p.edit_available|default:p.balance_due }}"
                                placeholder="0.00"
-                               {% if payment %}
-                                   {% for alloc in payment.purchase_allocations.all %}
-                                       {% if alloc.purchase_id == p.pk %}value="{{ alloc.amount }}"{% endif %}
-                                   {% endfor %}
-                               {% endif %}>
+                               {% if p.existing_allocation %}value="{{ p.existing_allocation|floatformat:2 }}"{% endif %}>
                     </td>
                 </tr>
                 {% endfor %}

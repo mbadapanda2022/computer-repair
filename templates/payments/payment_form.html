@@ -318,11 +318,13 @@
     var expenseSection  = document.getElementById('expense-account-section');
     var expenseSelect   = document.getElementById('id_expense_account');
     var allocationSection = document.getElementById('allocation-section');
+    var advanceCheck    = document.getElementById('id_is_advance');
     var paymentPk       = '{{ payment.pk|default:"" }}';
 
     // ============================================================
     // HELPER: Expense account only for 'paid' direction; selecting one
-    // means no invoice allocation applies.
+    // means no invoice allocation applies. An advance deliberately has no
+    // bill to allocate either — its own pool is applied later.
     // ============================================================
     function updateExpenseVisibility() {
         var direction = directionSelect ? directionSelect.value : '';
@@ -334,7 +336,8 @@
         }
         if (allocationSection) {
             var hasExpense = expenseSelect && expenseSelect.value;
-            allocationSection.classList.toggle('d-none', !!hasExpense);
+            var isAdvance = advanceCheck && advanceCheck.checked;
+            allocationSection.classList.toggle('d-none', !!(hasExpense || isAdvance));
         }
     }
 
@@ -361,6 +364,27 @@
             }
         }
         return '';
+    }
+
+    // ============================================================
+    // HELPER: run once the HTMX runtime is on the page
+    // The form can initialise before base.html's bottom scripts load.
+    // ============================================================
+    function whenHtmxReady(callback) {
+        if (typeof window.htmx !== 'undefined') {
+            callback();
+            return;
+        }
+        var tries = 0;
+        var iv = setInterval(function() {
+            if (typeof window.htmx !== 'undefined') {
+                clearInterval(iv);
+                callback();
+            } else if (++tries >= 100) {
+                clearInterval(iv);
+                setPlaceholder('Could not load unpaid bills. Please refresh the page.');
+            }
+        }, 100);
     }
 
     // ============================================================
@@ -391,9 +415,11 @@
             url += '&payment=' + paymentPk;
         }
 
-        htmx.ajax('GET', url, {
-            target: '#unpaid-invoices-container',
-            swap: 'innerHTML'
+        whenHtmxReady(function() {
+            htmx.ajax('GET', url, {
+                target: '#unpaid-invoices-container',
+                swap: 'innerHTML'
+            });
         });
     }
 
@@ -430,6 +456,7 @@
     // INIT TOM SELECT
     // ============================================================
     function initTomSelect() {
+        if (!window.TomSelect) return null;
         if (!contactSelect) return null;
         if (contactSelect.tomselect) return contactSelect.tomselect;
 
@@ -508,6 +535,9 @@
         if (expenseSelect) {
             expenseSelect.addEventListener('change', updateExpenseVisibility);
         }
+        if (advanceCheck) {
+            advanceCheck.addEventListener('change', updateExpenseVisibility);
+        }
         updateExpenseVisibility();
 
         function updateSettledAmount() {
@@ -540,25 +570,30 @@
     }
 
     // ============================================================
-    // DEFENSIVE READY-CHECK: wait for TomSelect if not loaded yet
-    // (Safety net if base.html script is slow / cached miss)
+    // INIT — the form must work even when the TomSelect CDN is slow or
+    // blocked. Totals/listeners are wired immediately; the fancy contact
+    // picker is upgraded in the background when the library arrives.
     // ============================================================
-    if (typeof window.TomSelect !== 'undefined') {
-        initPaymentForm();
-    } else {
+    initPaymentForm();
+
+    (function upgradeContactPicker() {
+        if (!contactSelect || contactSelect.tomselect) return;
+        if (typeof window.TomSelect !== 'undefined') {
+            initTomSelect();
+            return;
+        }
         var attempts = 0;
         var maxAttempts = 60; // 60 * 100ms = 6 seconds
         var iv = setInterval(function() {
             if (typeof window.TomSelect !== 'undefined') {
                 clearInterval(iv);
-                initPaymentForm();
+                initTomSelect();
             } else if (++attempts >= maxAttempts) {
                 clearInterval(iv);
-                console.error('[payment_form] TomSelect failed to load after 6s. Falling back to native select.');
-                initPaymentForm(); // still init form logic; TomSelect will be skipped
+                console.warn('[payment_form] TomSelect not available; using native select.');
             }
         }, 100);
-    }
+    })();
 
     // ============================================================
     // Restore submit button state (bound ONCE globally)
