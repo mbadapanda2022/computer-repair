@@ -2,6 +2,7 @@
 import json
 import logging
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, JsonResponse
@@ -27,6 +28,16 @@ except ImportError:
     Workbook = None
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# HELPER: Active list filters carried through the create/edit modal
+# ============================================================
+def _form_filters_qs(request):
+    """Query string of active list filters (without pagination)."""
+    params = request.GET.copy()
+    params.pop('page', None)
+    return params.urlencode()
 
 
 # ============================================================
@@ -87,6 +98,15 @@ def get_paginated_products_context(request, queryset=None):
 
     categories = ProductCategory.objects.all().order_by('name')
 
+    filters_qs = urlencode({
+        k: v for k, v in (
+            ('search', search),
+            ('category', category_id),
+            ('is_active', is_active),
+            ('stock_filter', stock_filter),
+        ) if v
+    })
+
     return {
         'products': page_obj.object_list,
         'page_obj': page_obj,
@@ -95,6 +115,7 @@ def get_paginated_products_context(request, queryset=None):
         'selected_category_id': category_id,
         'is_active_filter': is_active,
         'stock_filter': stock_filter,
+        'filters_qs': filters_qs,
         'total_products': total_products,
         'low_stock_count': low_stock_count,
         'service_count': service_count,
@@ -171,8 +192,7 @@ def product_list_print(request):
 # ============================================================
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:product_list',
-               htmx_template='products/product_form.html')
+@handle_errors(default_redirect='accounting:product_list')
 def product_create(request):
     if request.method == 'POST':
         form = ProductForm(request.POST)
@@ -196,12 +216,15 @@ def product_create(request):
                 return htmx_response(
                     request,
                     'products/product_form.html',
-                    context={'form': form, 'product': None},
+                    context={'form': form, 'product': None,
+                             'filters_qs': _form_filters_qs(request)},
                     extra_headers={'HX-Retarget': '#mainModalContent'},
                 )
     else:
         form = ProductForm()
-    return render(request, 'products/product_form.html', {'form': form})
+    return render(request, 'products/product_form.html', {
+        'form': form, 'filters_qs': _form_filters_qs(request),
+    })
 
 
 # ============================================================
@@ -209,8 +232,7 @@ def product_create(request):
 # ============================================================
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:product_list',
-               htmx_template='products/product_form.html')
+@handle_errors(default_redirect='accounting:product_list')
 def product_update(request, pk):
     product = get_object_or_404(Product, pk=pk)
     if request.method == 'POST':
@@ -234,12 +256,16 @@ def product_update(request, pk):
                 return htmx_response(
                     request,
                     'products/product_form.html',
-                    context={'form': form, 'product': product},
+                    context={'form': form, 'product': product,
+                             'filters_qs': _form_filters_qs(request)},
                     extra_headers={'HX-Retarget': '#mainModalContent'},
                 )
     else:
         form = ProductForm(instance=product)
-    return render(request, 'products/product_form.html', {'form': form, 'product': product})
+    return render(request, 'products/product_form.html', {
+        'form': form, 'product': product,
+        'filters_qs': _form_filters_qs(request),
+    })
 
 
 # ============================================================

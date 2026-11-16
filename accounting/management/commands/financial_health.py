@@ -73,15 +73,20 @@ class Command(BaseCommand):
                 _sum(inv.payment_allocations.all())
                 + _sum(inv.advance_adjustments.all())
             ).quantize(STEP)
-            if actual_paid <= 0:
-                expected_status = 'unpaid'
-            elif inv.grand_total > 0 and actual_paid >= inv.grand_total:
-                expected_status = 'paid'
-            else:
-                expected_status = 'partial'
-            expected_due = max(
-                ZERO, inv.grand_total - actual_paid
+            # Active credit notes settle part of the bill in the ledger.
+            credited = (
+                inv.credit_notes.aggregate(t=Sum('total_amount'))['t'] or ZERO
             ).quantize(STEP)
+            settled = actual_paid + credited
+            expected_due = max(
+                ZERO, inv.grand_total - settled
+            ).quantize(STEP)
+            if expected_due <= 0:
+                expected_status = 'paid'
+            elif settled > 0 and expected_due < inv.grand_total:
+                expected_status = 'partial'
+            else:
+                expected_status = 'unpaid'
             expected_paid = actual_paid.quantize(STEP)
 
             drift = (

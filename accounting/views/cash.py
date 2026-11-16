@@ -4,12 +4,14 @@
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 from django.utils import timezone
@@ -103,11 +105,20 @@ def cash_book(request):
 @handle_errors(default_redirect='accounting:cash_book')
 def contra_create(request):
     """Record a cash ⇄ bank movement (contra entry)."""
+    # Keep the register on the same date range the user was viewing.
+    back_params = urlencode({
+        k: request.POST.get(k) for k in ('date_from', 'date_to')
+        if request.POST.get(k)
+    })
+    cash_book_url = reverse('accounting:cash_book')
+    if back_params:
+        cash_book_url = f'{cash_book_url}?{back_params}'
+
     form = ContraForm(request.POST)
     if not form.is_valid():
         for field, error in form.errors.items():
             messages.error(request, str(error[0]))
-        return redirect('accounting:cash_book')
+        return redirect(cash_book_url)
 
     cd = form.cleaned_data
     is_deposit = cd['direction'] == 'deposit'
@@ -131,4 +142,4 @@ def contra_create(request):
         f"₹{cd['amount']} {'deposited into' if is_deposit else 'withdrawn from'} "
         f"{cd['bank_account'].name} recorded in the Cash Book."
     )
-    return redirect('accounting:cash_book')
+    return redirect(cash_book_url)

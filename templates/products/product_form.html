@@ -2,9 +2,9 @@
 {% load static %}
 
 <form method="post"
-      action="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}"
+      action="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"
       id="productForm"
-      hx-post="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}"
+      hx-post="{% if product %}{% url 'accounting:product_update' product.pk %}{% else %}{% url 'accounting:product_create' %}{% endif %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"
       hx-target="#product-table-container"
       hx-swap="innerHTML"
       novalidate>

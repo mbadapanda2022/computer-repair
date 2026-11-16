@@ -196,7 +196,7 @@ def dashboard(request):
         },
     )
 
-    today = date.today()
+    today = timezone.localdate()
     month_start = today.replace(day=1)
 
     # ── Invoices ─────────────────────────────────────
@@ -206,47 +206,63 @@ def dashboard(request):
         total_due=Sum('balance_due'),
         month_total=Sum('grand_total', filter=Q(date__gte=month_start)),
         month_paid=Sum('paid_amount', filter=Q(date__gte=month_start)),
+        total_invoices=Count('id'),
+        paid_invoices=Count('id', filter=Q(payment_status='paid')),
+        unpaid_invoices=Count('id', filter=Q(
+            payment_status__in=['unpaid', 'partial'])),
     )
 
     # ── Repairs ──────────────────────────────────────
     repairs = RepairJob.objects.filter(customer=contact)
+    repair_agg = repairs.aggregate(
+        total_repairs=Count('id'),
+        pending_repairs=Count('id', filter=Q(status__in=[
+            'pending', 'received', 'diagnosis', 'repairing'])),
+        ready_repairs=Count('id', filter=Q(status='ready')),
+        completed_repairs=Count('id', filter=Q(status='delivered')),
+        cancelled_repairs=Count('id', filter=Q(status='cancelled')),
+        approved_estimates=Count('id', filter=Q(estimate_status='approved')),
+        pending_estimates=Count('id', filter=Q(estimate_status='pending')),
+        hold_estimates=Count('id', filter=Q(estimate_status='on_hold')),
+        rejected_estimates=Count('id', filter=Q(estimate_status='rejected')),
+    )
 
     # ── Payments ─────────────────────────────────────
     payments = Payment.objects.filter(contact=contact, direction='received')
+    payment_agg = payments.aggregate(
+        total=Sum('amount'),
+        month=Sum('amount', filter=Q(date__gte=month_start)),
+    )
 
     # ── Context ──────────────────────────────────────
     context = {
         'customer': contact,
 
         # Invoices
-        'total_invoices': invoices.count(),
-        'paid_invoices': invoices.filter(payment_status='paid').count(),
-        'unpaid_invoices': invoices.filter(payment_status__in=['unpaid', 'partial']).count(),
+        'total_invoices': agg['total_invoices'] or 0,
+        'paid_invoices': agg['paid_invoices'] or 0,
+        'unpaid_invoices': agg['unpaid_invoices'] or 0,
         'total_paid': agg['total_paid'] or Decimal('0'),
         'total_due': agg['total_due'] or Decimal('0'),
         'month_sales': agg['month_total'] or Decimal('0'),
         'month_paid': agg['month_paid'] or Decimal('0'),
 
         # Repairs
-        'total_repairs': repairs.count(),
-        'pending_repairs': repairs.filter(
-            status__in=['pending', 'received', 'diagnosis', 'repairing']
-        ).count(),
-        'ready_repairs': repairs.filter(status='ready').count(),
-        'completed_repairs': repairs.filter(status='delivered').count(),
-        'cancelled_repairs': repairs.filter(status='cancelled').count(),
+        'total_repairs': repair_agg['total_repairs'] or 0,
+        'pending_repairs': repair_agg['pending_repairs'] or 0,
+        'ready_repairs': repair_agg['ready_repairs'] or 0,
+        'completed_repairs': repair_agg['completed_repairs'] or 0,
+        'cancelled_repairs': repair_agg['cancelled_repairs'] or 0,
 
         # Estimate status
-        'approved_estimates': repairs.filter(estimate_status='approved').count(),
-        'pending_estimates': repairs.filter(estimate_status='pending').count(),
-        'hold_estimates': repairs.filter(estimate_status='on_hold').count(),
-        'rejected_estimates': repairs.filter(estimate_status='rejected').count(),
+        'approved_estimates': repair_agg['approved_estimates'] or 0,
+        'pending_estimates': repair_agg['pending_estimates'] or 0,
+        'hold_estimates': repair_agg['hold_estimates'] or 0,
+        'rejected_estimates': repair_agg['rejected_estimates'] or 0,
 
         # Payments
-        'total_payments': payments.aggregate(t=Sum('amount'))['t'] or Decimal('0'),
-        'month_payments': payments.filter(date__gte=month_start).aggregate(
-            t=Sum('amount')
-        )['t'] or Decimal('0'),
+        'total_payments': payment_agg['total'] or Decimal('0'),
+        'month_payments': payment_agg['month'] or Decimal('0'),
 
         # Misc
         'unread_count': get_unread_count(request.user),
@@ -279,7 +295,7 @@ def dashboard_stats_json(request):
     """
     customer = _get_customer(request)
 
-    today = date.today()
+    today = timezone.localdate()
     week_ago = today - timedelta(days=6)
 
     # ── Daily invoices (single query, group by date) ─────
@@ -871,8 +887,7 @@ def repair_create(request):
 
 @csrf_protect
 @login_required
-@handle_errors(default_redirect='customer:customer_repairs',
-               htmx_template='customer/repair_edit.html')
+@handle_errors(default_redirect='customer:customer_repairs')
 def repair_update(request, pk):
     """
     Customer edits their repair — only while status='pending'
@@ -2341,7 +2356,7 @@ def _customer_invoices_excel(customer, qs, request):
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = (
-        f'attachment; filename="invoices_{customer.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+        f'attachment; filename="invoices_{customer.name}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     )
     wb.save(response)
     return response
@@ -2426,7 +2441,7 @@ def _customer_purchases_excel(customer, qs):
     )
     safe = customer.name.replace(' ', '_').replace('/', '_')
     response['Content-Disposition'] = (
-        f'attachment; filename="my_purchases_{safe}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+        f'attachment; filename="my_purchases_{safe}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     )
     wb.save(response)
     return response
@@ -2636,7 +2651,7 @@ def _customer_statement_excel(customer, request):
     )
     safe = customer.name.replace(' ', '_').replace('/', '_')
     response['Content-Disposition'] = (
-        f'attachment; filename="statement_{safe}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+        f'attachment; filename="statement_{safe}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     )
     wb.save(response)
     return response
@@ -2713,7 +2728,7 @@ def _customer_payments_excel(customer, qs):
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = (
-        f'attachment; filename="payments_{customer.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+        f'attachment; filename="payments_{customer.name}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     )
     wb.save(response)
     return response

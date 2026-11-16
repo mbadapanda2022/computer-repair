@@ -172,6 +172,74 @@
     });
 
     // ================================================================
+    // VALIDATION ERRORS RETURNED AS 400/422
+    // ================================================================
+    // Several views re-render a form/modal with field errors and status
+    // 400/422. htmx does not swap error responses by default, so staff
+    // only saw a generic toast and no indication of which field failed.
+    // Swap rendered HTML errors in place; JSON and plain-text bodies keep
+    // the default behaviour (toast via htmx:responseError).
+    document.body.addEventListener('htmx:beforeSwap', function (evt) {
+        const xhr = evt.detail.xhr;
+        if (!xhr) return;
+        const status = xhr.status;
+        if (status !== 400 && status !== 422) return;
+
+        const ct = (xhr.getResponseHeader('Content-Type') || '').toLowerCase();
+        const body = (xhr.responseText || '').trim();
+        if (!ct.includes('text/html') || !body) return;
+
+        evt.detail.shouldSwap = true;
+        evt.detail.isError = false;
+    });
+
+    // ================================================================
+    // GLOBAL DOUBLE-SUBMIT GUARD
+    // ================================================================
+    // On Supabase (remote DB) a save can take seconds. Without a guard a
+    // double-click sent two POSTs and created duplicate payments/invoices.
+    // The submit button is only made inert visually — disabling it would
+    // drop its name/value from the payload.
+    function setFormBusy(elt, busy) {
+        if (!elt || !elt.querySelectorAll) return;
+        elt.querySelectorAll('button[type="submit"]').forEach(function (btn) {
+            btn.classList.toggle('disabled', busy);
+            btn.style.pointerEvents = busy ? 'none' : '';
+            if (busy) btn.setAttribute('aria-disabled', 'true');
+            else btn.removeAttribute('aria-disabled');
+        });
+    }
+
+    document.body.addEventListener('htmx:beforeRequest', function (evt) {
+        const elt = evt.detail.elt;
+        const config = evt.detail.requestConfig || {};
+        const verb = (config.verb || 'get').toLowerCase();
+        if (verb === 'get' || !elt || !elt.dataset) return;
+
+        if (elt.dataset.htmxInflight === '1') {
+            // The progress listener above already counted this event; undo it
+            // because no request will be sent (no afterRequest will fire).
+            htmxProgressStop();
+            // Stop later beforeRequest listeners (per-form spinners) too: they
+            // would show a spinner that no afterRequest ever clears.
+            evt.stopImmediatePropagation();
+            evt.preventDefault();
+            return;
+        }
+        elt.dataset.htmxInflight = '1';
+        setFormBusy(elt, true);
+    });
+
+    function clearInflight(evt) {
+        const elt = evt.detail && evt.detail.elt;
+        if (!elt || !elt.dataset || elt.dataset.htmxInflight !== '1') return;
+        delete elt.dataset.htmxInflight;
+        setFormBusy(elt, false);
+    }
+
+    document.body.addEventListener('htmx:afterRequest', clearInflight);
+
+    // ================================================================
     // HTMX: HANDLE HX-TRIGGER HEADER
     // ================================================================
     document.addEventListener('htmx:afterRequest', function (evt) {

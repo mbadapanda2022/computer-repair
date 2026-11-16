@@ -49,7 +49,24 @@
 
                         <td class="text-end fw-bold">₹{{ journal.total_amount|rupee }}</td>
                         <td>{{ journal.description|truncatechars:40 }}</td>
-                        <td class="text-center">
+                        <td class="text-center text-nowrap">
+                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                    title="Edit journal entry"
+                                    hx-get="{% url 'accounting:journal_update' journal.pk %}"
+                                    hx-target="#mainModalContent"
+                                    hx-swap="innerHTML">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger"
+                                    title="Delete journal entry"
+                                    hx-delete="{% url 'accounting:journal_delete' journal.pk %}"
+                                    hx-target="#journal-table-container"
+                                    hx-swap="innerHTML"
+                                    hx-confirm="Delete this journal entry of ₹{{ journal.total_amount|rupee }}? Ledger balances will be reversed.">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
                     {% empty %}
                     <tr>
                         <td colspan="6" class="text-center py-4 text-muted">

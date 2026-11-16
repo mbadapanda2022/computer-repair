@@ -409,6 +409,8 @@ def service_create(request):
                 services = Service.objects.all().order_by('order', 'created_at')
                 html = render_to_string('landing/partials/_service_list.html', {'services': services, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
+                response['HX-Retarget'] = '#service-list'
+                response['HX-Reswap'] = 'outerHTML'
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': f'Service "{service.title}" created successfully.'},
                     'closeModal': ''
@@ -434,6 +436,8 @@ def service_edit(request, pk):
                 services = Service.objects.all().order_by('order', 'created_at')
                 html = render_to_string('landing/partials/_service_list.html', {'services': services, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
+                response['HX-Retarget'] = '#service-list'
+                response['HX-Reswap'] = 'outerHTML'
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': f'Service "{service.title}" updated successfully.'},
                     'closeModal': ''
@@ -487,6 +491,8 @@ def testimonial_create(request):
                 testimonials = Testimonial.objects.all().order_by('order', '-created_at')
                 html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
+                response['HX-Retarget'] = '#testimonial-list'
+                response['HX-Reswap'] = 'outerHTML'
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': f'Testimonial from "{testimonial.customer_name}" created.'},
                     'closeModal': ''
@@ -511,6 +517,8 @@ def testimonial_edit(request, pk):
                 testimonials = Testimonial.objects.all().order_by('order', '-created_at')
                 html = render_to_string('landing/partials/_testimonial_list.html', {'testimonials': testimonials, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
+                response['HX-Retarget'] = '#testimonial-list'
+                response['HX-Reswap'] = 'outerHTML'
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': 'Testimonial updated successfully.'},
                     'closeModal': ''
@@ -563,6 +571,8 @@ def faq_create(request):
                 faqs = FAQ.objects.all().order_by('order', 'created_at')
                 html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
+                response['HX-Retarget'] = '#faqAccordion'
+                response['HX-Reswap'] = 'outerHTML'
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': 'FAQ added successfully.'},
                     'closeModal': ''
@@ -587,6 +597,8 @@ def faq_edit(request, pk):
                 faqs = FAQ.objects.all().order_by('order', 'created_at')
                 html = render_to_string('landing/partials/_faq_list.html', {'faqs': faqs, 'include_controls': True}, request=request)
                 response = HttpResponse(html)
+                response['HX-Retarget'] = '#faqAccordion'
+                response['HX-Reswap'] = 'outerHTML'
                 response['HX-Trigger'] = json.dumps({
                     'showToast': {'level': 'success', 'message': 'FAQ updated successfully.'},
                     'closeModal': ''

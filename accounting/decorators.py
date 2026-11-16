@@ -7,14 +7,15 @@ from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import Http404, HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
+from django.utils.html import escape
 
 from .views.utils import is_htmx
 
 logger = logging.getLogger(__name__)
 
 
-def handle_errors(default_redirect=None, htmx_template=None):
+def handle_errors(default_redirect=None):
     """
     Wrap a view with centralized error handling.
 
@@ -49,36 +50,22 @@ def handle_errors(default_redirect=None, htmx_template=None):
                     status_code = 400
 
                 if is_htmx(request):
-                    # Attempt to render the provided template (form re-display).
-                    if htmx_template:
-                        try:
-                            response = render(
-                                request,
-                                htmx_template,
-                                {'error': user_error_msg},
-                                status=status_code,
-                            )
-                            response['HX-Retarget'] = '#mainModalContent'
-                            response['HX-Trigger'] = json.dumps({
-                                'showToast': {
-                                    'level': 'danger',
-                                    'message': user_error_msg,
-                                }
-                            })
-                            return response
-                        except Exception:
-                            logger.exception(
-                                "handle_errors: htmx_template render failed"
-                            )
-
-                    # Generic fallback alert.
+                    # Do NOT re-render the form template from here: it needs
+                    # the view's bound form, and with only {'error': ...} it
+                    # silently renders empty inputs — staff see a blank form
+                    # and think their data vanished. Show an explicit alert
+                    # in the modal instead.
+                    safe_msg = escape(user_error_msg)
                     response = HttpResponse(
-                        f'<div class="alert alert-danger alert-dismissible fade show" role="alert">'
-                        f'  {user_error_msg}'
-                        f'  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
-                        f'</div>',
+                        '<div class="alert alert-danger alert-dismissible fade show" role="alert">'
+                        '<i class="bi bi-exclamation-triangle me-1"></i>'
+                        f'{safe_msg}'
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
+                        '</div>',
                         status=status_code,
                     )
+                    response['HX-Retarget'] = '#mainModalContent'
+                    response['HX-Reswap'] = 'innerHTML'
                     response['HX-Trigger'] = json.dumps({
                         'showToast': {
                             'level': 'danger',

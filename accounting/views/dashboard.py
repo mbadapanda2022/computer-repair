@@ -37,7 +37,7 @@ except ImportError:
 @handle_errors(default_redirect='accounting:dashboard')
 def dashboard(request):
     """Complete staff dashboard with stats, charts, and recent activity."""
-    today = date.today()
+    today = timezone.localdate()
     month_start = today.replace(day=1)
     week_start = today - timedelta(days=7)
     
@@ -197,7 +197,7 @@ def dashboard(request):
 def dashboard_stats(request):
     """Return chart data as JSON for dashboard charts."""
     try:
-        today = date.today()
+        today = timezone.localdate()
         week_start = today - timedelta(days=6)
         days = [week_start + timedelta(days=i) for i in range(7)]
         labels = [d.strftime('%d %b') for d in days]
@@ -278,7 +278,7 @@ def dashboard_stats(request):
 @handle_errors(default_redirect='accounting:dashboard')
 def refresh_stats(request):
     """Refresh dashboard stats cards via HTMX."""
-    today = date.today()
+    today = timezone.localdate()
     month_start = today.replace(day=1)
     
     context = {
@@ -363,7 +363,7 @@ def dashboard_export(request):
         return redirect('accounting:dashboard')
     
     try:
-        today = date.today()
+        today = timezone.localdate()
         
         wb = openpyxl.Workbook()
         ws = wb.active

@@ -29,6 +29,13 @@ python manage.py migrate --no-input --verbosity 2
 echo "→ Importing IC catalog (ic_data/master_ics.json)..."
 python manage.py import_ics --verbosity 1 || echo "⚠ IC catalog import skipped/failed (check logs); deploy continues."
 
+# Recompute derived financial caches (invoice due, purchase settlement,
+# contact and bank balances) from source rows. Idempotent; never changes
+# user-entered amounts. This also heals invoice dues that predate the
+# credit-note-aware calculation.
+echo "→ Recalculating derived financial totals..."
+python manage.py financial_health --fix || echo "⚠ financial_health skipped/failed (check logs); deploy continues."
+
 
 echo "→ Creating cache table..."
 python manage.py createcachetable

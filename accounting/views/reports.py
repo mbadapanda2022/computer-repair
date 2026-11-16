@@ -63,7 +63,7 @@ def export_excel(request, data, headers, filename, title, summary=None):
     ws['A2'] = title
     ws['A2'].font = Font(bold=True, size=12)
     ws.merge_cells(f'A3:{openpyxl.utils.get_column_letter(len(headers))}3')
-    ws['A3'] = f"Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}"
+    ws['A3'] = f"Generated: {timezone.localtime().strftime('%d-%m-%Y %H:%M')}"
     ws['A3'].alignment = Alignment(horizontal="center")
     
     # Headers
@@ -110,7 +110,7 @@ def export_excel(request, data, headers, filename, title, summary=None):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="{filename}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="{filename}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
 
@@ -506,6 +506,80 @@ def gst_report(request):
 # 4. PROFIT & LOSS (Enhanced with Direct/Indirect Expenses)
 # ============================================================
 
+def _profit_loss_totals(date_from=None, date_to=None):
+    """
+    Shared P&L figures (used by the P&L report and balance-sheet equity).
+
+    Revenue is GST-exclusive and repairs that were converted to an invoice
+    are not counted twice: the invoice subtotal already carries their
+    service lines.
+    """
+    sales = Invoice.objects.all()
+    if date_from:
+        sales = sales.filter(date__gte=date_from)
+    if date_to:
+        sales = sales.filter(date__lte=date_to)
+    sales_total = sales.aggregate(Sum('subtotal'))['subtotal__sum'] or Decimal('0')
+
+    repairs = RepairJob.objects.all()
+    if date_from:
+        repairs = repairs.filter(date_in__gte=date_from)
+    if date_to:
+        repairs = repairs.filter(date_in__lte=date_to)
+    repair_income = (
+        RepairService.objects
+        .filter(repair_job__in=repairs)
+        .filter(
+            Q(repair_job__invoice__isnull=True)
+            | Q(repair_job__invoice__is_deleted=True)
+        )
+        .aggregate(total=Sum('line_total'))['total']
+    ) or Decimal('0')
+
+    entry_q = Q(ledger_entry__is_deleted=False)
+    if date_from:
+        entry_q &= Q(ledger_entry__date__gte=date_from)
+    if date_to:
+        entry_q &= Q(ledger_entry__date__lte=date_to)
+
+    direct_expenses = Account.objects.filter(
+        group__code='51', account_type='expense'
+    ).values_list('id', flat=True)
+    total_direct_expenses = LedgerLine.objects.filter(
+        account_id__in=direct_expenses,
+    ).filter(entry_q).aggregate(total=Sum('debit'))['total'] or Decimal('0')
+
+    indirect_expenses = Account.objects.filter(
+        group__code='52', account_type='expense'
+    ).values_list('id', flat=True)
+    total_indirect_expenses = LedgerLine.objects.filter(
+        account_id__in=indirect_expenses,
+    ).filter(entry_q).aggregate(total=Sum('debit'))['total'] or Decimal('0')
+
+    other_income_accounts = Account.objects.filter(
+        group__code='4', account_type='income'
+    ).exclude(name__in=['Sales Revenue', 'Discount Received'])
+    other_income_total = LedgerLine.objects.filter(
+        account_id__in=other_income_accounts,
+        ledger_entry__entry_type__in=['journal', 'contra'],
+    ).filter(entry_q).aggregate(total=Sum('credit'))['total'] or Decimal('0')
+
+    gross_profit = sales_total + repair_income - total_direct_expenses
+    net_profit = gross_profit + other_income_total - total_indirect_expenses
+
+    return {
+        'sales_total': sales_total,
+        'repair_income': repair_income,
+        'other_income_total': other_income_total,
+        'total_direct_expenses': total_direct_expenses,
+        'total_indirect_expenses': total_indirect_expenses,
+        'gross_profit': gross_profit,
+        'net_profit': net_profit,
+        'total_income': sales_total + repair_income + other_income_total,
+        'total_expenses': total_direct_expenses + total_indirect_expenses,
+    }
+
+
 @handle_errors(default_redirect='accounting:profit_loss')
 def profit_loss(request):
     try:
@@ -513,76 +587,17 @@ def profit_loss(request):
         date_to = request.GET.get('date_to', '').strip()
         is_excel = request.GET.get('excel') == '1'
         is_print = request.GET.get('print') == '1'
-        
-        # Sales Income
-        sales = Invoice.objects.all()
-        if date_from:
-            sales = sales.filter(date__gte=date_from)
-        if date_to:
-            sales = sales.filter(date__lte=date_to)
-        sales_total = sales.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
-        
-        # Repair Income (labour charges from repairs)
-        repairs = RepairJob.objects.all()
-        if date_from:
-            repairs = repairs.filter(date_in__gte=date_from)
-        if date_to:
-            repairs = repairs.filter(date_in__lte=date_to)
-        # Labour income comes from RepairService lines.
-        repair_income = (
-            RepairService.objects
-            .filter(repair_job__in=repairs)
-            .aggregate(total=Sum('line_total'))['total']
-        ) or Decimal('0')
-        
-        # Ledger-based heads (expenses/other income) are counted within this
-        # report's date range — otherwise selecting a period would still pull
-        # in all-time expenses.
-        entry_q = Q(ledger_entry__is_deleted=False)
-        if date_from:
-            entry_q &= Q(ledger_entry__date__gte=date_from)
-        if date_to:
-            entry_q &= Q(ledger_entry__date__lte=date_to)
 
-        # DIRECT EXPENSES (Trading Account) - Cost of Goods Sold
-        # Group code 51: Direct Expenses
-        direct_expenses = Account.objects.filter(
-            group__code='51', account_type='expense'
-        ).values_list('id', flat=True)
-        
-        # Purchase entries + direct expense journal/expense-payment entries
-        total_direct_expenses = LedgerLine.objects.filter(
-            account_id__in=direct_expenses,
-        ).filter(entry_q).aggregate(total=Sum('debit'))['total'] or Decimal('0')
-        
-        # INDIRECT EXPENSES (Profit & Loss Account)  
-        # Group code 52: Indirect Expenses
-        indirect_expenses = Account.objects.filter(
-            group__code='52', account_type='expense'
-        ).values_list('id', flat=True)
-        
-        total_indirect_expenses = LedgerLine.objects.filter(
-            account_id__in=indirect_expenses,
-        ).filter(entry_q).aggregate(total=Sum('debit'))['total'] or Decimal('0')
-        
-        # Other income (non-operational)
-        other_income_accounts = Account.objects.filter(
-            group__code='4', account_type='income'
-        ).exclude(name__in=['Sales Revenue', 'Discount Received'])  # Exclude sales-related
-        other_income_total = LedgerLine.objects.filter(
-            account_id__in=other_income_accounts,
-            ledger_entry__entry_type__in=['journal', 'contra'],
-        ).filter(entry_q).aggregate(total=Sum('credit'))['total'] or Decimal('0')
-        
-        # Calculate profits
-        gross_profit = sales_total + repair_income - total_direct_expenses
-        net_profit = gross_profit + other_income_total - total_indirect_expenses
-        
-        # Total Income
-        total_income = sales_total + repair_income + other_income_total
-        
-        # Total Expenses
-        total_expenses = total_direct_expenses + total_indirect_expenses
+        figures = _profit_loss_totals(date_from or None, date_to or None)
+        sales_total = figures['sales_total']
+        repair_income = figures['repair_income']
+        other_income_total = figures['other_income_total']
+        total_direct_expenses = figures['total_direct_expenses']
+        total_indirect_expenses = figures['total_indirect_expenses']
+        gross_profit = figures['gross_profit']
+        net_profit = figures['net_profit']
+        total_income = figures['total_income']
+        total_expenses = figures['total_expenses']
         
         # Summary data for Tally-style presentation
         summary_data = [
@@ -763,7 +778,7 @@ def trial_balance(request):
         if as_on:
             as_on_date = date.fromisoformat(as_on)
         else:
-            as_on_date = date.today()
+            as_on_date = timezone.localdate()
         
         accounts = LedgerLine.objects.filter(
             ledger_entry__is_deleted=False,
@@ -837,6 +852,36 @@ def trial_balance(request):
 # 7. BALANCE SHEET (Enhanced)
 # ============================================================
 
+def _subledger_open_total(subledger_type, as_on_date):
+    """
+    Gross receivable/payable as on a date, netted per contact.
+
+    ``Contact.balance`` nets receivable against payable (so a contact who
+    is both customer and vendor hides one side); the balance sheet needs
+    each side separately.
+    """
+    rows = (
+        LedgerLine.objects
+        .filter(
+            subledger_type=subledger_type,
+            contact__isnull=False,
+            contact__is_deleted=False,
+            ledger_entry__is_deleted=False,
+            ledger_entry__date__lte=as_on_date,
+        )
+        .values('contact_id')
+        .annotate(dr=Sum('debit'), cr=Sum('credit'))
+    )
+    total = Decimal('0')
+    for row in rows:
+        balance = (row['dr'] or Decimal('0')) - (row['cr'] or Decimal('0'))
+        if subledger_type == 'payable':
+            balance = -balance
+        if balance > 0:
+            total += balance
+    return total.quantize(Decimal('0.01'))
+
+
 @handle_errors(default_redirect='accounting:balance_sheet')
 def balance_sheet(request):
     try:
@@ -847,60 +892,48 @@ def balance_sheet(request):
         if as_on:
             as_on_date = date.fromisoformat(as_on)
         else:
-            as_on_date = date.today()
+            as_on_date = timezone.localdate()
         
         # ===== ASSETS =====
 
         # 1. Cash Balance
-        cash_balance = LedgerLine.objects.filter(account__name='Cash').aggregate(
-            total=Sum('debit') - Sum('credit')
-        )['total'] or Decimal('0')
+        cash_balance = LedgerLine.objects.filter(
+            account__name='Cash',
+            ledger_entry__is_deleted=False,
+            ledger_entry__date__lte=as_on_date,
+        ).aggregate(total=Sum('debit') - Sum('credit'))['total'] or Decimal('0')
 
-        # 2. Bank Balances (all bank accounts)
-        bank_balance = LedgerLine.objects.filter(account__name__icontains='Bank').aggregate(
-            total=Sum('debit') - Sum('credit')
+        # 2. Bank Balances (asset accounts only — excludes Bank Charges etc.)
+        bank_balance = LedgerLine.objects.filter(
+            account__account_type='asset',
+            account__name__icontains='Bank',
+            ledger_entry__is_deleted=False,
+            ledger_entry__date__lte=as_on_date,
+        ).aggregate(total=Sum('debit') - Sum('credit'))['total'] or Decimal('0')
+        
+        # 3. Accounts Receivable / 4. Accounts Payable (gross per contact)
+        ar_total = _subledger_open_total('receivable', as_on_date)
+        
+        # 5. Inventory Value
+        inventory_value = Product.objects.filter(is_service=False).aggregate(
+            total=Sum(F('current_stock') * F('purchase_price'))
         )['total'] or Decimal('0')
-        
-        # 3. Accounts Receivable (Customer Balances)
-        ar_total = Decimal('0')
-        customers = Contact.objects.filter(contact_type__in=['customer', 'both'])
-        for cust in customers:
-            bal = cust.balance
-            if bal > 0:
-                ar_total += bal
-        
-        # 4. Inventory Value
-        inventory_value = Decimal('0')
-        for p in Product.objects.filter(is_service=False):
-            inventory_value += p.current_stock * p.purchase_price
         
         # Total Assets
         total_assets = cash_balance + bank_balance + ar_total + inventory_value
         
         # ===== LIABILITIES =====
-        
-        # 1. Accounts Payable (Vendor Balances)
-        ap_total = Decimal('0')
-        vendors = Contact.objects.filter(contact_type__in=['vendor', 'both'])
-        for ven in vendors:
-            bal = ven.balance
-            if bal < 0:
-                ap_total += abs(bal)
+
+        ap_total = _subledger_open_total('payable', as_on_date)
         
         # Total Liabilities
         total_liabilities = ap_total
         
         # ===== EQUITY =====
         
-        # 1. Capital/Profit (simplified)
-        sales_total = Invoice.objects.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
-        purchase_total = Purchase.objects.aggregate(Sum('grand_total'))['grand_total__sum'] or Decimal('0')
-        profit = sales_total - purchase_total
-        # Labour income → RepairService (legacy field is dead)
-        repair_income = (
-            RepairService.objects.aggregate(total=Sum('line_total'))['total']
-        ) or Decimal('0')
-        net_profit = profit + repair_income
+        # Net profit as of the balance-sheet date, using the same ledger
+        # figures as the P&L report (GST-exclusive, no double-counted repairs).
+        net_profit = _profit_loss_totals(None, as_on_date)['net_profit']
         
         # Total Equity
         total_equity = net_profit
@@ -988,7 +1021,7 @@ def aging_report(request):
     try:
         as_on_str = request.GET.get('as_on')
         if not as_on_str:
-            as_on = date.today()
+            as_on = timezone.localdate()
         else:
             as_on = date.fromisoformat(as_on_str)
         
@@ -1152,6 +1185,6 @@ def aging_report(request):
         return render(request, 'reports/aging_report.html', {
             'aging_data': [],
             'totals': {'0_30': 0, '31_60': 0, '61_90': 0, '90_plus': 0, 'total': 0},
-            'as_on': date.today(),
+            'as_on': timezone.localdate(),
             'type': 'customer',
         })

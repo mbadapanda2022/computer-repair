@@ -24,13 +24,10 @@ from .models import (
 
 from .models import sync_invoice_ledger
 
-try:  # DB may not exist yet during first migrate
-    _cp = CompanyProfile.objects.first()
-    _admin_brand = _cp.name if _cp and _cp.name else 'Staff Portal'
-except Exception:
-    _admin_brand = 'Staff Portal'
-admin.site.site_header = _admin_brand
-admin.site.site_title = f"{_admin_brand} Admin"
+# Static branding: querying CompanyProfile at import time ran a DB query
+# during app initialisation (RuntimeWarning) and delayed every gunicorn boot.
+admin.site.site_header = 'Staff Portal'
+admin.site.site_title = 'Staff Portal Admin'
 admin.site.index_title = "Welcome to the Dashboard"
 
 

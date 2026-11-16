@@ -206,10 +206,11 @@
                             {% endif %}
 
                             <li>
-                                <a class="dropdown-item"
-                                   href="{% url 'accounting:journal_create_for_contact' contact.pk %}">
+                                <button class="dropdown-item"
+                                        hx-get="{% url 'accounting:journal_create_for_contact' contact.pk %}"
+                                        hx-target="#mainModalContent">
                                     <i class="bi bi-journal-text me-2 text-secondary"></i>New Journal
-                                </a>
+                                </button>
                             </li>
 
                             <li><hr class="dropdown-divider"></li>

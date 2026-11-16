@@ -23,6 +23,10 @@
     </table>
 </div>
 
+{% if request.htmx %}
+<span id="total-count" class="badge bg-secondary" hx-swap-oob="true">{{ page_obj.paginator.count }}</span>
+{% endif %}
+
 {% if page_obj.has_other_pages %}
 <nav aria-label="Messages pagination" class="mt-3">
     <ul class="pagination pagination-sm justify-content-center mb-0">

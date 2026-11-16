@@ -10,6 +10,7 @@ from django.http import HttpResponse
 from django.contrib import messages
 from django.db.models import Q, Sum
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.utils import timezone
 
 from ..models import (
     Contact, LedgerEntry, LedgerLine, Invoice, RepairJob,
@@ -177,11 +178,18 @@ def _get_customer_opening_balance(contact, date_from=None):
 def _get_vendor_opening_balance(contact, date_from=None):
     """
     Vendor statement opening balance.
-    - Starts from contact.opening_balance
+    - Only a pure vendor's opening_balance sits on the payable side.
+      For ``both`` contacts the opening balance is posted to the
+      receivable side (matching _get_combined_opening_balances and the
+      Contact opening-balance signal), so it must not be added here.
     - If date_from given, adds up prior *payable* transactions
     - Vendor: +ve = we owe (Cr - Dr)
     """
-    opening_balance = contact.opening_balance or Decimal('0')
+    opening_balance = (
+        (contact.opening_balance or Decimal('0'))
+        if contact.contact_type == 'vendor'
+        else Decimal('0')
+    )
 
     if date_from:
         prior_lines = LedgerLine.objects.filter(contact=contact) \
@@ -232,7 +240,7 @@ def _batch_fetch_related(entry_lines):
     repairs = {
         r.invoice_id: r
         for r in RepairJob.objects.filter(invoice_id__in=inv_ids).only(
-            'id', 'invoice_id', 'device_model', 'job_number'
+            'id', 'invoice_id', 'device_model', 'job_number', 'status'
         )
     }
     purchases = {p.pk: p for p in Purchase.objects.filter(pk__in=pur_ids)}
@@ -788,7 +796,7 @@ def customer_statement_excel(request, contact_id):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="customer_statement_{contact.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="customer_statement_{contact.name}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
 
@@ -1057,7 +1065,7 @@ def vendor_statement_csv(request, contact_id):
     opening_balance = _get_vendor_opening_balance(contact, date_from)
 
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="vendor_statement_{contact.name}_{datetime.now().strftime("%Y%m%d")}.csv"'
+    response['Content-Disposition'] = f'attachment; filename="vendor_statement_{contact.name}_{timezone.localtime().strftime("%Y%m%d")}.csv"'
     response.write('\ufeff')
     writer = csv.writer(response)
     writer.writerow(['Date', 'Transaction Type', 'Reference', 'Description', 'Debit (₹)', 'Credit (₹)', 'Balance (₹)'])
@@ -1302,7 +1310,7 @@ def vendor_statement_excel(request, contact_id):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="vendor_statement_{contact.name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="vendor_statement_{contact.name}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
 
@@ -1846,7 +1854,7 @@ def combined_statement_excel(request, contact_id):
     )
     safe_name = contact.name.replace(' ', '_').replace('/', '_')
     response['Content-Disposition'] = (
-        f'attachment; filename="statement_{safe_name}_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+        f'attachment; filename="statement_{safe_name}_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     )
     wb.save(response)
     return response

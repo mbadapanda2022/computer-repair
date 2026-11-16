@@ -134,13 +134,15 @@
                                             <i class="bi bi-printer me-2 text-info"></i>Print Receipt
                                         </a>
                                     </li>
-                                    {% if payment.whatsapp_share_url %}
+                                    {% with wa_url=payment.whatsapp_share_url %}
+                                    {% if wa_url %}
                                     <li>
-                                        <a class="dropdown-item" href="{{ payment.whatsapp_share_url }}" target="_blank">
+                                        <a class="dropdown-item" href="{{ wa_url }}" target="_blank">
                                             <i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp
                                         </a>
                                     </li>
                                     {% endif %}
+                                    {% endwith %}
                                     <li>
                                         <button class="dropdown-item"
                                                 hx-get="{% url 'accounting:payment_update' payment.pk %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}"
@@ -264,13 +266,15 @@
                        href="{% url 'accounting:payment_print' payment.pk %}" target="_blank">
                         <i class="bi bi-printer"></i>
                     </a>
-                    {% if payment.whatsapp_share_url %}
+                    {% with wa_url=payment.whatsapp_share_url %}
+                    {% if wa_url %}
                     <a class="btn btn-sm btn-outline-success"
                        title="Share on WhatsApp" aria-label="Share on WhatsApp"
-                       href="{{ payment.whatsapp_share_url }}" target="_blank">
+                       href="{{ wa_url }}" target="_blank">
                         <i class="bi bi-whatsapp"></i>
                     </a>
                     {% endif %}
+                    {% endwith %}
                     <button class="btn btn-sm btn-outline-warning"
                             title="Edit payment" aria-label="Edit payment"
                             hx-get="{% url 'accounting:payment_update' payment.pk %}"

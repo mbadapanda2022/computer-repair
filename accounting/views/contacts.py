@@ -353,7 +353,6 @@ def export_contacts_excel(request):
 @csrf_protect
 @handle_errors(
     default_redirect='accounting:contact_list',
-    htmx_template='contacts/contact_form.html',
 )
 def contact_create(request):
     if request.method == 'POST':
@@ -417,7 +416,6 @@ def contact_create(request):
 @csrf_protect
 @handle_errors(
     default_redirect='accounting:contact_list',
-    htmx_template='contacts/contact_form.html',
 )
 def contact_update(request, pk):
     contact = get_object_or_404(Contact, pk=pk)

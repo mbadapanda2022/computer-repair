@@ -207,7 +207,12 @@
                             <td class="fw-bold">Grand Total</td>
                             <td class="text-end fw-bold fs-5 text-primary">₹{{ invoice.grand_total|rupee }}</td>
                         </tr>
+                        {% if invoice.credit_note_total > 0 %}
                         <tr>
+                            <td class="text-danger">Less: Credit Notes</td>
+                            <td class="text-end text-danger">−₹{{ invoice.credit_note_total|rupee }}</td>
+                        </tr>
+                        {% endif %}
                         {% if invoice.payment_discount_total > 0 %}
                         <tr>
                             <td class="text-danger">Less: Payment Discount / Waiver</td>

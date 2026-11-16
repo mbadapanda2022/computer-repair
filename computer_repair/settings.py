@@ -117,6 +117,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'accounting.context_processors.company_profile',
+                'accounting.context_processors.navigation_counts',
             ],
             'builtins': [
                 'accounting.templatetags.math_filters',

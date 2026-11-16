@@ -7,6 +7,7 @@ from django_ckeditor_5.fields import CKEditor5Field
 from decimal import Decimal, ROUND_HALF_UP
 import json
 import logging
+import time as _time
 from datetime import datetime, time, timedelta, date
 from django.db import models, transaction, IntegrityError
 from django.conf import settings
@@ -443,6 +444,7 @@ class CompanyProfile(SoftDeleteModel):
         # Invalidate cached copy so context processor picks up changes
         from django.core.cache import cache
         cache.delete('company_profile_singleton')
+        _COMPANY_MESSAGE_NAME['value'] = None
 
     @classmethod
     def get_instance(cls):
@@ -470,10 +472,24 @@ class CompanyProfile(SoftDeleteModel):
 # ============================================================
 
 
+_COMPANY_MESSAGE_NAME = {'value': None, 'at': 0.0}
+
+
 def company_message_name():
-    """Company name for customer-facing messages (WhatsApp bodies etc.)."""
-    cp = CompanyProfile.objects.first()
-    return cp.name if cp and cp.name else 'our store'
+    """
+    Company name for customer-facing messages (WhatsApp bodies etc.).
+
+    Called from per-row template properties, so it is memoised in-process
+    for 5 minutes — a DB round-trip per invoice/payment row was one of the
+    biggest query sinks on the list pages.
+    """
+    now = _time.monotonic()
+    cached = _COMPANY_MESSAGE_NAME
+    if cached['value'] is None or (now - cached['at']) > 300:
+        cp = CompanyProfile.objects.first()
+        cached['value'] = cp.name if cp and cp.name else 'our store'
+        cached['at'] = now
+    return cached['value']
 
 class Service(SoftDeleteModel):
     title = models.CharField(max_length=200)
@@ -1299,7 +1315,7 @@ class Invoice(SoftDeleteModel):
             - self.payment_discount_total
         )
         return max(Decimal('0.00'), value).quantize(TAX_PRECISION)
-            
+
     # ════════════════════════════════════════════════════════════
     # OVERDUE & SHARE HELPERS 
     # ════════════════════════════════════════════════════════════
@@ -1311,7 +1327,7 @@ class Invoice(SoftDeleteModel):
             return False
         if not self.due_date:
             return False
-        return self.due_date < timezone.now().date()
+        return self.due_date < timezone.localdate()
 
     @property
     def days_overdue(self):
@@ -1370,9 +1386,10 @@ class Invoice(SoftDeleteModel):
     @property
     def credit_note_total(self):
         """Total amount credited against this invoice (active CNs only)."""
-        return self.credit_notes.aggregate(
+        total = self.credit_notes.aggregate(
             total=Sum('total_amount')
         )['total'] or Decimal('0')
+        return total.quantize(TAX_PRECISION)
 
     @property
     def net_amount(self):
@@ -1458,35 +1475,52 @@ class Invoice(SoftDeleteModel):
         self.subtotal = self.subtotal.quantize(TAX_PRECISION)
         self.tax_amount = self.tax_amount.quantize(TAX_PRECISION)
 
-    def recompute_payment_state(self):
+    def recompute_payment_state(self, total_paid=None):
         """
-        Set balance_due / payment_status from the allocations + advances aggregates
-        (source of truth). We do NOT use paid_amount here —
-        the Payment-side sync (update_invoices / _recalculate_invoice_payment)
-        already adds advance into paid_amount, so
-        `paid_amount + advance` would double-count the advance.
+        Set balance_due / payment_status from the allocations + advances
+        aggregates (source of truth) plus active credit notes.
+
+        Credit notes reduce the invoice's receivable in the ledger, so the
+        stored due must follow — otherwise the invoice page, payment prefill
+        and UPI QR keep asking for money that was already credited.
+
+        ``total_paid`` may be supplied by callers that already aggregated
+        allocations/advances, avoiding duplicate queries.
         """
-        total_allocations = self.payment_allocations.aggregate(
-            total=Sum('amount')
+        if total_paid is None:
+            total_allocations = self.payment_allocations.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0')
+            total_advance = self.advance_adjustments.aggregate(
+                total=Sum('amount')
+            )['total'] or Decimal('0')
+            total_paid = total_allocations + total_advance
+        total_credit_notes = self.credit_notes.aggregate(
+            total=Sum('total_amount')
         )['total'] or Decimal('0')
-        total_advance = self.advance_adjustments.aggregate(
-            total=Sum('amount')
-        )['total'] or Decimal('0')
-        total_paid = total_allocations + total_advance
+        settled = total_paid + total_credit_notes
 
         # On over-payment (advance > bill) we do NOT store a negative due —
         # the field has MinValueValidator(0), and displays would
         # show "₹-200 Due". The exact credit amount stays
         # tracked in Payment/AdvanceAdjustment and Contact.advance_balance.
         self.balance_due = max(
-            Decimal('0'), self.grand_total - total_paid
+            Decimal('0'), self.grand_total - settled
         ).quantize(TAX_PRECISION)
         if self.balance_due <= 0:
             self.payment_status = 'paid'
-        elif total_paid > 0 and self.balance_due < self.grand_total:
+        elif settled > 0 and self.balance_due < self.grand_total:
             self.payment_status = 'partial'
         else:
             self.payment_status = 'unpaid'
+
+    def sync_credit_note_effect(self):
+        """Persist due/status after a credit note is created, edited/removed."""
+        self.recompute_payment_state()
+        Invoice.objects.filter(pk=self.pk).update(
+            balance_due=self.balance_due,
+            payment_status=self.payment_status,
+        )
 
     def apply_available_advance(self, note=''):
         """
@@ -1602,7 +1636,8 @@ class InvoiceItem(SoftDeleteModel):
             self.unit_price = self.product.selling_price
 
         if self.invoice and self.invoice.gst_type == 'non_gst':
-            self.tax_rate = Decimal('0')
+            # Keep the real rate: zeroing it here permanently destroyed the
+            # line's tax rate, so switching the invoice back to GST billed 0%.
             self.tax_amount = Decimal('0')
         else:
             if self.tax_rate is None:
@@ -2418,6 +2453,8 @@ class CreditNote(SoftDeleteModel):
                 sync_credit_note_ledger(self)
                 if self.customer:
                     self.customer.recalc_balance()
+                if self.invoice_id:
+                    self.invoice.sync_credit_note_effect()
             except Exception as e:
                 logger.error(
                     f"CN ledger sync failed for {self.credit_note_number}: {e}",
@@ -2535,6 +2572,8 @@ class CreditNoteItem(SoftDeleteModel):
                 tax_amount=self.credit_note.tax_amount,
                 total_amount=self.credit_note.total_amount,
             )
+            if self.credit_note.invoice_id:
+                self.credit_note.invoice.sync_credit_note_effect()
 
     def delete(self, *args, **kwargs):
         """Reverse stock effect + re-sync ledger after delete."""
@@ -2561,6 +2600,8 @@ class CreditNoteItem(SoftDeleteModel):
 
             if cn.customer:
                 cn.customer.recalc_balance()
+            if cn.invoice_id:
+                cn.invoice.sync_credit_note_effect()
 
 
 # ============================================================
@@ -2996,6 +3037,11 @@ class RepairJob(SoftDeleteModel):
             extra = []
             if 'date_in' not in update_fields:
                 extra.append('date_in')
+            # final_amount is recomputed above on every save; a narrow
+            # update_fields (e.g. save(update_fields=['invoice'])) must not
+            # silently drop it, or invoiced jobs keep showing ₹0.
+            if 'final_amount' not in update_fields:
+                extra.append('final_amount')
             if old_status and old_status != self.status:
                 for f in ['received_at', 'ready_at', 'delivered_at', 'delivery_date']:
                     if getattr(self, f, None) and f not in update_fields:
@@ -3831,7 +3877,11 @@ class Payment(SoftDeleteModel):
                 )
             lines.append(f"Date: {self.date.strftime('%d %b %Y')}")
             lines.append(f"Mode: {mode}")
-            allocs = list(self.allocations.select_related('invoice').all())
+            allocations = self.allocations.all()
+            if 'allocations' not in getattr(
+                    self, '_prefetched_objects_cache', {}):
+                allocations = allocations.select_related('invoice')
+            allocs = list(allocations)
             if allocs:
                 lines.append("Applied to:")
                 lines += [
@@ -3849,7 +3899,11 @@ class Payment(SoftDeleteModel):
             ]
             if self.expense_account_id:
                 lines.append(f"Towards: {self.expense_account.name}")
-            purchase_allocs = list(self.purchase_allocations.select_related('purchase').all())
+            purchase_allocs = self.purchase_allocations.all()
+            if 'purchase_allocations' not in getattr(
+                    self, '_prefetched_objects_cache', {}):
+                purchase_allocs = purchase_allocs.select_related('purchase')
+            purchase_allocs = list(purchase_allocs)
             if purchase_allocs:
                 lines.append("Applied to:")
                 lines += [
@@ -4123,17 +4177,7 @@ class Payment(SoftDeleteModel):
         """Update invoice paid amounts based on PaymentAllocation and AdvanceAdjustment."""
         if self.direction == 'received':
             for allocation in self.allocations.all():
-                inv = allocation.invoice
-                total_paid = inv.payment_allocations.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-                total_advance = inv.advance_adjustments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
-                inv.paid_amount = total_paid + total_advance
-                inv.balance_due = max(
-                    Decimal('0'), inv.grand_total - inv.paid_amount
-                ).quantize(TAX_PRECISION)
-                if inv.balance_due <= 0: inv.payment_status = 'paid'
-                elif inv.paid_amount > 0 and inv.balance_due < inv.grand_total: inv.payment_status = 'partial'
-                else: inv.payment_status = 'unpaid'
-                inv.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
+                _recalculate_invoice_payment(allocation.invoice)
 
     def update_purchases(self):
         """Recalculate purchase bills settled by this payment (PurchaseAllocation rows)."""
@@ -4203,23 +4247,7 @@ class Payment(SoftDeleteModel):
 
         # ── Recalculate affected invoices (now that allocations are gone) ──
         for inv in Invoice.objects.filter(pk__in=affected_invoice_ids):
-            total_paid = inv.payment_allocations.aggregate(
-                total=Sum('amount')
-            )['total'] or Decimal('0')
-            total_advance = inv.advance_adjustments.aggregate(
-                total=Sum('amount')
-            )['total'] or Decimal('0')
-            inv.paid_amount = total_paid + total_advance
-            inv.balance_due = max(
-                Decimal('0'), inv.grand_total - inv.paid_amount
-            ).quantize(TAX_PRECISION)
-            if inv.balance_due <= 0:
-                inv.payment_status = 'paid'
-            elif inv.paid_amount > 0 and inv.balance_due < inv.grand_total:
-                inv.payment_status = 'partial'
-            else:
-                inv.payment_status = 'unpaid'
-            inv.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
+            _recalculate_invoice_payment(inv)
 
         # ── Recalculate affected purchase bills (allocations are gone) ──
         for p in Purchase.objects.filter(pk__in=affected_purchase_ids):
@@ -4401,17 +4429,7 @@ def _recalculate_invoice_payment(invoice):
     )['total'] or Decimal('0')
 
     invoice.paid_amount = total_paid + total_advance
-    invoice.balance_due = max(
-        Decimal('0'),
-        invoice.grand_total - invoice.paid_amount,
-    ).quantize(TAX_PRECISION)
-
-    if invoice.balance_due <= 0:
-        invoice.payment_status = 'paid'
-    elif invoice.paid_amount > 0 and invoice.balance_due < invoice.grand_total:
-        invoice.payment_status = 'partial'
-    else:
-        invoice.payment_status = 'unpaid'
+    invoice.recompute_payment_state(total_paid + total_advance)
 
     invoice.save(update_fields=['paid_amount', 'balance_due', 'payment_status'])
 
@@ -4976,6 +4994,16 @@ def _cleanup_ledger_on_soft_delete(sender, instance, created, **kwargs):
                     logger.exception(
                         "Contact recalc failed after %s soft-delete | id=%s",
                         sender.__name__, instance.pk,
+                    )
+
+            # A removed credit note must reopen the invoice it settled.
+            if sender.__name__ == 'CreditNote' and instance.invoice_id:
+                try:
+                    instance.invoice.sync_credit_note_effect()
+                except Exception:
+                    logger.exception(
+                        "Invoice due sync failed after CreditNote delete | id=%s",
+                        instance.pk,
                     )
     except Exception:
         logger.exception(

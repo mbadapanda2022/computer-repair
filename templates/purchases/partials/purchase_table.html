@@ -94,15 +94,17 @@
                                             <i class="bi bi-file-text me-2 text-secondary"></i>Vendor Statement
                                         </a>
                                     </li>
-                                    {% if purchase.whatsapp_share_url %}
+                                    {% with wa_url=purchase.whatsapp_share_url %}
+                                    {% if wa_url %}
                                     <li>
                                         <a class="dropdown-item"
-                                           href="{{ purchase.whatsapp_share_url }}"
+                                           href="{{ wa_url }}"
                                            target="_blank">
                                             <i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp
                                         </a>
                                     </li>
                                     {% endif %}
+                                    {% endwith %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
                                         <button class="dropdown-item text-danger"

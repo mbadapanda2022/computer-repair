@@ -73,7 +73,9 @@ def get_paginated_stock_context(request, queryset=None):
     Filters, paginates, and annotates stock movements with running balance (Tally style).
     """
     if queryset is None:
-        queryset = StockMovement.objects.select_related('product').all().order_by('-date')
+        queryset = StockMovement.objects.select_related('product').all().order_by(
+            '-date', '-id'
+        )
 
     # ---------- Filters ----------
     product_filter = request.GET.get('product', '').strip()
@@ -102,15 +104,44 @@ def get_paginated_stock_context(request, queryset=None):
         page_obj = paginator.page(paginator.num_pages)
 
     # ---------- Running Balance (Tally style) ----------
+    # Each page must carry the balance forward: page 2 previously restarted
+    # the sum at 0, showing e.g. 5 instead of 105. One grouped query fetches
+    # the closing quantity of every product BEFORE the earliest row on this
+    # page; rows on the page are then accumulated oldest → newest.
     movements_list = list(page_obj.object_list)
-    page_list_reversed = list(reversed(movements_list))
-    product_balances = {}
-    for movement in page_list_reversed:
-        prod_id = movement.product_id
-        cum_sum = product_balances.get(prod_id, 0)
-        cum_sum += movement.quantity
-        product_balances[prod_id] = cum_sum
-        movement.running_balance = cum_sum
+    if movements_list:
+        earliest = {}
+        for movement in movements_list:
+            key = (movement.date, movement.id)
+            current = earliest.get(movement.product_id)
+            if current is None or key < current:
+                earliest[movement.product_id] = key
+
+        prior_q = Q()
+        for product_id, (row_date, row_id) in earliest.items():
+            prior_q |= (
+                Q(product_id=product_id, date__lt=row_date)
+                | Q(product_id=product_id, date=row_date, id__lt=row_id)
+            )
+
+        balance_qs = StockMovement.objects.all()
+        if product_filter:
+            balance_qs = balance_qs.filter(product_id=product_filter)
+        if movement_type:
+            balance_qs = balance_qs.filter(movement_type=movement_type)
+        product_balances = {
+            row['product_id']: row['total'] or Decimal('0')
+            for row in balance_qs.filter(prior_q).values('product_id').annotate(
+                total=Sum('quantity')
+            )
+        }
+
+        for movement in reversed(movements_list):
+            prod_id = movement.product_id
+            product_balances[prod_id] = (
+                product_balances.get(prod_id, Decimal('0')) + movement.quantity
+            )
+            movement.running_balance = product_balances[prod_id]
 
     # ---------- Summary totals ----------
     total_in = queryset.filter(quantity__gt=0).aggregate(total=Sum('quantity'))['total'] or Decimal('0')
@@ -150,7 +181,7 @@ def stock_adjustment_list(request):
 # 2. STOCK ADJUSTMENT ADD (Manual correction via Modal)
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:stock_adjustment_list', htmx_template='stock/partials/stock_adjustment_form.html')
+@handle_errors(default_redirect='accounting:stock_adjustment_list')
 def stock_adjustment_add(request):
     """
     Add a manual stock adjustment (HTMX modal).
@@ -347,7 +378,7 @@ def export_stock_excel(request):
     ws['A2'] = "Stock Movement Report"
     ws['A2'].font = Font(bold=True, size=12)
     ws.merge_cells('A3:G3')
-    ws['A3'] = f"Generated: {datetime.now().strftime('%d-%b-%Y %H:%M')}"
+    ws['A3'] = f"Generated: {timezone.localtime().strftime('%d-%b-%Y %H:%M')}"
     ws['A3'].alignment = Alignment(horizontal="center")
 
     # Headers
@@ -413,6 +444,6 @@ def export_stock_excel(request):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="stock_movements_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="stock_movements_{timezone.localtime().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response

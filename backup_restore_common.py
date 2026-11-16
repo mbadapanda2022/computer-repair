@@ -7,6 +7,7 @@ PostgreSQL. Works regardless of which database engine the backup
 was created from.
 """
 import json
+import logging
 import os
 import sys
 import contextlib
@@ -25,14 +26,23 @@ import django  # noqa: E402
 django.setup()
 
 from django.apps import apps  # noqa: E402
-from django.db import connection  # noqa: E402
+from django.db import DatabaseError, connection, transaction  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_value(value):
-    """Convert a field value to a JSON-serialisable form."""
+    """Convert a field value to a JSON-serialisable form.
+
+    dict/list values must stay structured — JSONField columns (e.g. the
+    IC ``categories`` field) would otherwise be restored as a Python-repr
+    string and permanently corrupt the stored document.
+    """
     if value is None:
         return None
     if isinstance(value, (int, float, str, bool)):
+        return value
+    if isinstance(value, (dict, list)):
         return value
     return str(value)
 
@@ -175,6 +185,73 @@ def _sort_models_by_dependency():
     return ordered
 
 
+def _sqlite_set_foreign_keys(enabled):
+    """Toggle SQLite FK enforcement. Must be called outside a transaction."""
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'PRAGMA foreign_keys = %s;' % ('ON' if enabled else 'OFF')
+            )
+            cursor.execute('PRAGMA foreign_keys;')
+            row = cursor.fetchone()
+        return not row or bool(row[0]) == enabled
+    except DatabaseError as exc:
+        logger.warning("Could not toggle SQLite foreign_keys: %s", exc)
+        return False
+
+
+def _pg_disable_triggers():
+    """
+    Best-effort disable of FK triggers inside the current transaction.
+
+    ``session_replication_role`` requires elevated privileges; on managed
+    Postgres (Supabase) it may be rejected. Returning False simply means
+    the restore falls back to dependency-ordered inserts with checks on.
+    """
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("SET LOCAL session_replication_role = 'replica';")
+        return True
+    except DatabaseError as exc:
+        logger.warning("Could not disable FK triggers for restore: %s", exc)
+        return False
+
+
+def _payload_records(payload):
+    """Accept both supported backup payload shapes, else return None."""
+    if isinstance(payload, dict) and 'records' in payload:
+        return payload['records']
+    if isinstance(payload, list):
+        return payload
+    return None
+
+
+def _reset_postgres_sequences(models):
+    """Advance serial sequences past the explicitly restored PK values."""
+    from django.db import connection as _connection
+
+    for model in models:
+        table = _connection.ops.quote_name(model._meta.db_table)
+        column = _connection.ops.quote_name(model._meta.pk.column)
+        try:
+            with _connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT setval(
+                        pg_get_serial_sequence(%s, %s),
+                        COALESCE((SELECT MAX({column}) FROM {table}), 1),
+                        (SELECT MAX({column}) FROM {table}) IS NOT NULL
+                    )
+                    """,
+                    [model._meta.db_table, model._meta.pk.column],
+                )
+        except DatabaseError as exc:
+            logger.warning(
+                "Could not reset sequence for %s: %s", model._meta.db_table, exc
+            )
+
+
 def restore_from_json(json_data):
     """
     Restore the database from a JSON string or dict.
@@ -182,11 +259,20 @@ def restore_from_json(json_data):
     Handles BOTH backup formats:
       Format A (backup_db.py):      {"data": {"model": [record, ...]}}
       Format B (manage.py command): {"data": {"model": {"table": "...", "records": [...]}}}
+
+    The wipe and the insert run in a single transaction: any failure
+    rolls the database back to its pre-restore state instead of leaving
+    it half-empty.
     """
     if isinstance(json_data, (bytes, str)):
         backup_data = json.loads(json_data)
     else:
         backup_data = json_data
+
+    if not isinstance(backup_data, dict) or not isinstance(
+        backup_data.get('data'), dict
+    ):
+        raise ValueError("Invalid backup: missing 'data' section.")
 
     metadata = backup_data.get('metadata', {})
     print(
@@ -195,135 +281,154 @@ def restore_from_json(json_data):
     )
 
     models = _sort_models_by_dependency()
+    data = backup_data['data']
 
-    # ── Clear existing data ──────────────────────────────────
-    print("Clearing existing data...")
-    with connection.cursor() as cursor:
-        if connection.vendor == 'postgresql':
-            cursor.execute("SET session_replication_role = 'replica.';")
-        else:
-            cursor.execute("PRAGMA foreign_keys = OFF;")
+    # Resolve every payload BEFORE touching the database so a malformed
+    # file cannot wipe live data.
+    resolved = []
+    total_records = 0
+    for model in models:
+        model_key = f"{model._meta.app_label}.{model._meta.object_name}"
+        if model_key not in data:
+            continue
+        records = _payload_records(data[model_key])
+        if records is None:
+            print(
+                f"  [SKIP] {model_key}: unrecognized payload type "
+                f"{type(data[model_key]).__name__}"
+            )
+            continue
+        resolved.append((model, records))
+        total_records += len(records)
 
-        for model in models:
-            cursor.execute(f'DELETE FROM "{model._meta.db_table}";')
+    known_keys = {
+        f"{m._meta.app_label}.{m._meta.object_name}" for m in models
+    }
+    for model_key in data:
+        if model_key not in known_keys:
+            print(f"  [SKIP] {model_key}: model not found")
 
-    # ── Restore data (two-pass: concrete fields, then M2M) ──
-    # Pass 1 — insert every record with FK values set directly
-    # Pass 2 — wire up M2M relationships after ALL models exist
+    if not resolved:
+        raise ValueError(
+            "Backup contains no recognizable model data — existing data "
+            "was left untouched."
+        )
 
-    # Collect M2M data per model for the second pass
-    m2m_queue = []  # list of (model, obj, field_name, ids)
+    print(f"  Restoring {total_records} records across {len(resolved)} models")
 
+    is_sqlite = connection.vendor == 'sqlite'
+    fk_disabled = False
+    if is_sqlite:
+        # PRAGMA foreign_keys is a no-op inside a transaction, so it must
+        # be toggled before starting one.
+        fk_disabled = _sqlite_set_foreign_keys(False)
+        if not fk_disabled:
+            logger.warning(
+                "SQLite FK enforcement is still on; relying on "
+                "dependency ordering for this restore."
+            )
+
+    m2m_queue = []  # (model, obj, field_name, ids)
     total_restored = 0
 
-    with _preserve_auto_fields():
-        for model_key, payload in backup_data['data'].items():
-            try:
-                app_label, model_name = model_key.split('.')
-                model = apps.get_model(app_label, model_name)
-            except LookupError:
-                print(f"  [SKIP] {model_key}: model not found")
-                continue
+    try:
+        with transaction.atomic():
+            if connection.vendor == 'postgresql':
+                _pg_disable_triggers()
 
-            # Support both backup formats
-            if isinstance(payload, dict) and 'records' in payload:
-                records = payload['records']
-            elif isinstance(payload, list):
-                records = payload
-            else:
-                print(
-                    f"  [SKIP] {model_key}: unrecognized payload type "
-                    f"{type(payload).__name__}"
-                )
-                continue
-
-            print(f"  Restoring {model_key}... ({len(records)} records)")
-
-            # Use all_objects (includes soft-deleted records) when available,
-            # falling back to default manager.
-            manager = getattr(model, 'all_objects', None) or model.objects
-
-            objs = []
-            for record in records:
-                if not isinstance(record, dict):
-                    print(f"    [WARN] Skipping non-dict record: {type(record).__name__}")
-                    continue
-                # Separate M2M data — will be restored in pass 2
-                m2m_fields = {}
-                record_copy = {}
-                for key, val in record.items():
-                    try:
-                        field = model._meta.get_field(key)
-                        if field.many_to_many:
-                            m2m_fields[key] = val
-                        else:
-                            record_copy[key] = val
-                    except Exception:
-                        # key is not a real field — store it anyway
-                        # (harmless for bulk_create which ignores unknown attrs)
-                        record_copy[key] = val
-
-                obj = model(**record_copy)
-                objs.append(obj)
-                for m2m_name, ids in m2m_fields.items():
-                    m2m_queue.append((model, obj, m2m_name, ids))
-
-            if objs:
-                manager.bulk_create(objs, ignore_conflicts=True)
-                total_restored += len(objs)
-
-            print(f"    [OK] Restored {len(records)} records")
-
-    # ── Pass 2: restore M2M relationships ─────────────────────
-    print("Restoring M2M relationships...")
-    if m2m_queue:
-        m2m_count = 0
-        for model, obj, field_name, ids in m2m_queue:
-            if not ids:
-                continue
-            try:
-                field = model._meta.get_field(field_name)
-                related_model = field.related_model
-                related_objs = related_model.objects.filter(id__in=ids)
-                getattr(obj, field.name).set(related_objs)
-                m2m_count += len(related_objs)
-            except Exception as e:
-                print(f"    Warning M2M {field_name}: {e}")
-        print(f"  Restored {m2m_count} M2M relations")
-
-    # ── Reset auto-increment sequences (PostgreSQL) ─────────
-    # After bulk-inserting explicit PKs, the serial sequence may lag
-    # behind.  Reset it so future INSERTs don't collide.
-    if connection.vendor == 'postgresql':
-        from django.db import transaction as _tx
-        with _tx.atomic():
+            # ── Clear existing data, children first ──────────
+            print("Clearing existing data...")
             with connection.cursor() as cursor:
-                for model in models:
-                    pk_col = model._meta.pk.attname
+                # Children first: safe even when FK triggers are still on.
+                for model in reversed(models):
                     cursor.execute(
-                        """
-                        SELECT setval(
-                            pg_get_serial_sequence(%s, %s),
-                            COALESCE((SELECT MAX(%s) FROM %s), 1),
-                            (SELECT MAX(%s) FROM %s) IS NOT NULL
-                        )
-                        """,
-                        [
-                            model._meta.db_table,
-                            pk_col,
-                            pk_col,
-                            model._meta.db_table,
-                            pk_col,
-                            model._meta.db_table,
-                        ],
+                        f'DELETE FROM "{model._meta.db_table}";'
                     )
-        # Re-enable FK checks on PostgreSQL (session-level, not transactional)
-        with connection.cursor() as cursor:
-            cursor.execute("SET session_replication_role = 'origin.';")
-    else:
-        # Re-enable FK checks on SQLite
-        with connection.cursor() as cursor:
-            cursor.execute("PRAGMA foreign_keys = ON;")
+
+            # ── Pass 1: insert parents first ────────────────
+            with _preserve_auto_fields():
+                for model, records in resolved:
+                    model_key = (
+                        f"{model._meta.app_label}.{model._meta.object_name}"
+                    )
+                    print(
+                        f"  Restoring {model_key}... ({len(records)} records)"
+                    )
+
+                    manager = (
+                        getattr(model, 'all_objects', None) or model.objects
+                    )
+                    valid_names = set()
+                    for field in model._meta.fields:
+                        valid_names.add(field.attname)
+                        valid_names.add(field.name)
+
+                    objs = []
+                    for record in records:
+                        if not isinstance(record, dict):
+                            print(
+                                "    [WARN] Skipping non-dict record: "
+                                f"{type(record).__name__}"
+                            )
+                            continue
+
+                        m2m_fields = {}
+                        record_copy = {}
+                        for key, val in record.items():
+                            if key not in valid_names:
+                                continue
+                            try:
+                                field = model._meta.get_field(key)
+                            except Exception:
+                                field = None
+                            if field is not None and field.many_to_many:
+                                m2m_fields[key] = val
+                            else:
+                                record_copy[key] = val
+
+                        try:
+                            obj = model(**record_copy)
+                        except (TypeError, ValueError) as exc:
+                            print(
+                                f"    [WARN] Skipping invalid record: {exc}"
+                            )
+                            continue
+                        objs.append(obj)
+                        for m2m_name, ids in m2m_fields.items():
+                            m2m_queue.append((model, obj, m2m_name, ids))
+
+                    # Chunked insert keeps memory flat on large ledgers.
+                    for start in range(0, len(objs), 1000):
+                        manager.bulk_create(objs[start:start + 1000])
+                    total_restored += len(objs)
+                    print(f"    [OK] Restored {len(objs)} records")
+
+            # ── Pass 2: M2M relations ───────────────────────
+            print("Restoring M2M relationships...")
+            if m2m_queue:
+                m2m_count = 0
+                for model, obj, field_name, ids in m2m_queue:
+                    if not ids:
+                        continue
+                    try:
+                        field = model._meta.get_field(field_name)
+                        related_model = field.related_model
+                        related_manager = (
+                            getattr(related_model, 'all_objects', None)
+                            or related_model.objects
+                        )
+                        related_objs = related_manager.filter(pk__in=ids)
+                        getattr(obj, field.name).set(related_objs)
+                        m2m_count += related_objs.count()
+                    except Exception as exc:
+                        print(f"    Warning M2M {field_name}: {exc}")
+                print(f"  Restored {m2m_count} M2M relations")
+
+            if connection.vendor == 'postgresql':
+                _reset_postgres_sequences(models)
+    finally:
+        if is_sqlite and fk_disabled:
+            _sqlite_set_foreign_keys(True)
 
     print(f"Restore complete: {total_restored} records restored")
     return total_restored

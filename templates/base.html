@@ -88,9 +88,9 @@
                         <span class="badge bg-danger ms-2"
                             id="sidebar-notif-badge"
                             hx-get="{% url 'accounting:notification_unread_count_text' %}"
-                            hx-trigger="load, every 30s"
+                            hx-trigger="every 60s"
                             hx-swap="innerHTML">
-                            {% if user|unread_count %}{{ user|unread_count }}{% endif %}
+                            {% if unread_notifications %}{{ unread_notifications }}{% endif %}
                         </span>
                     </a>
                 </li>
@@ -99,12 +99,12 @@
                     class="nav-link {% if request.resolver_match.url_name == 'message_list' or 'messages' in request.path %}active{% endif %}">
                         <i class="bi bi-envelope"></i>
                         <span class="link-text">Messages</span>
-                        <span class="badge bg-danger ms-2 {% if user|message_unread_count == 0 %}d-none{% endif %}"
+                        <span class="badge bg-danger ms-2 {% if not unread_messages %}d-none{% endif %}"
                             id="sidebar-msg-badge"
                             hx-get="{% url 'accounting:message_unread_count' %}"
-                            hx-trigger="load, every 30s"
+                            hx-trigger="every 60s"
                             hx-swap="innerHTML">
-                            {{ user|message_unread_count }}
+                            {{ unread_messages|default:0 }}
                         </span>
                     </a>
                 </li>
@@ -334,9 +334,9 @@
                                 <span class="notif-badge"
                                     id="notificationCount"
                                     hx-get="{% url 'accounting:notification_unread_count_text' %}"
-                                    hx-trigger="load, every 30s"
+                                    hx-trigger="every 60s"
                                     hx-swap="innerHTML">
-                                    {% if user|unread_count %}{{ user|unread_count }}{% endif %}
+                                    {% if unread_notifications %}{{ unread_notifications }}{% endif %}
                                 </span>
                             </button>
                             {# Filled on bell click (button below) — no background polling #}

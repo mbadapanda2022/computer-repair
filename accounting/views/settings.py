@@ -68,8 +68,7 @@ def validate_setting_field(request):
 # =============================================================
 @csrf_protect
 @handle_errors(
-    default_redirect='accounting:company_settings',
-    htmx_template='settings/company_settings_form.html'
+    default_redirect='accounting:company_settings'
 )
 def company_settings(request):
     profile = CompanyProfile.get_instance()

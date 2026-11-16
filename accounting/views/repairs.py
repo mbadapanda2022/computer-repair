@@ -735,8 +735,7 @@ def repair_list_print(request):
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:repair_list',
-               htmx_template='repairs/partials/repair_form_modal.html')
+@handle_errors(default_redirect='accounting:repair_list')
 def repair_create(request):
     """Create a new repair job (staff-side)."""
     template_name = (
@@ -810,8 +809,7 @@ def repair_create(request):
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:repair_list',
-               htmx_template='repairs/partials/repair_form_modal.html')
+@handle_errors(default_redirect='accounting:repair_list')
 def repair_update(request, pk):
     """Full-form edit of a repair job."""
     job = get_object_or_404(
@@ -1233,8 +1231,7 @@ def update_repair_status(request, pk):
 # ════════════════════════════════════════════════════════════
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:repair_list',
-               htmx_template='repairs/partials/part_form_modal.html')
+@handle_errors(default_redirect='accounting:repair_list')
 def add_repair_part(request, pk):
     job = get_object_or_404(RepairJob, pk=pk)
 
@@ -1380,8 +1377,7 @@ def remove_repair_part(request, part_pk):
 
 @login_required
 @csrf_protect
-@handle_errors(default_redirect='accounting:repair_list',
-               htmx_template='repairs/partials/service_form_modal.html')
+@handle_errors(default_redirect='accounting:repair_list')
 def add_repair_service(request, pk):
     """Add a service charge to the repair job (no stock impact)."""
     job = get_object_or_404(RepairJob, pk=pk)

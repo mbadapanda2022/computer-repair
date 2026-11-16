@@ -23,6 +23,7 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
+    <div id="htmx-progress-bar" aria-hidden="true"></div>
 
     {% if user.is_authenticated %}
         {% has_purchases user as user_has_purchases %}

@@ -223,19 +223,12 @@ def _recalc_invoices_by_ids(invoice_ids):
         ) + (
             inv.advance_adjustments.aggregate(s=Sum('amount'))['s'] or Decimal('0')
         )
-        balance_due = max(
-            Decimal('0'), inv.grand_total - total_paid
-        ).quantize(TAX_PRECISION)
-        if balance_due <= 0:
-            status = 'paid'
-        elif total_paid > 0 and balance_due < inv.grand_total:
-            status = 'partial'
-        else:
-            status = 'unpaid'
+        inv.paid_amount = total_paid
+        inv.recompute_payment_state(total_paid)
         Invoice.objects.filter(pk=inv.pk).update(
-            paid_amount=total_paid,
-            balance_due=balance_due,
-            payment_status=status,
+            paid_amount=inv.paid_amount,
+            balance_due=inv.balance_due,
+            payment_status=inv.payment_status,
         )
         if inv.customer_id:
             contact_ids.add(inv.customer_id)
@@ -320,15 +313,16 @@ def _get_paginated_payments_context(request, queryset=None):
     page_number = request.GET.get('page', 1)
 
     # ── Totals (computed on filtered queryset) ──
-    # Note: `.distinct()` + `.aggregate()` is safe here because distinct
-    # collapses duplicate rows from JOIN, and SUM runs over the deduped set.
-    total_received = queryset.filter(direction='received').aggregate(
-        t=Sum('amount')
-    )['t'] or Decimal('0')
-    total_paid = queryset.filter(direction='paid').aggregate(
-        t=Sum('amount')
-    )['t'] or Decimal('0')
-    total_amount = queryset.aggregate(t=Sum('amount'))['t'] or Decimal('0')
+    # One aggregate for the three money sums instead of three full-table
+    # scans; count() stays separate so DISTINCT (search joins) is honoured.
+    money = queryset.aggregate(
+        received=Sum('amount', filter=Q(direction='received')),
+        paid=Sum('amount', filter=Q(direction='paid')),
+        total=Sum('amount'),
+    )
+    total_received = money['received'] or Decimal('0')
+    total_paid = money['paid'] or Decimal('0')
+    total_amount = money['total'] or Decimal('0')
     upi_count = queryset.filter(method='upi').count()
     pending_reconciliation = queryset.filter(reconciled=False).count()
 
@@ -743,8 +737,7 @@ def load_unpaid_invoices(request):
 # CREATE
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:payment_list',
-               htmx_template='payments/payment_form.html')
+@handle_errors(default_redirect='accounting:payment_list')
 def payment_create(request, pk=None):
     """
     Create a new payment.
@@ -1082,8 +1075,7 @@ def payment_create(request, pk=None):
 # UPDATE
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:payment_list',
-               htmx_template='payments/payment_form.html')
+@handle_errors(default_redirect='accounting:payment_list')
 def payment_update(request, pk):
     """Update an existing payment (with optional allocation reset)."""
     payment = get_object_or_404(Payment, pk=pk)
@@ -1188,6 +1180,18 @@ def payment_update(request, pk):
                     _assert_discount_matches_allocations(payment)
                     payment.update_invoices()
                     payment.update_purchases()
+
+                    # Moving a receipt/bill to another party drops the old
+                    # party's ledger lines without firing their recalc — do it
+                    # explicitly so their stored balances/statements agree.
+                    if (original_contact_id
+                            and original_contact_id != payment.contact_id):
+                        old_contact = Contact.objects.filter(
+                            pk=original_contact_id
+                        ).first()
+                        if old_contact:
+                            old_contact.recalc_balance()
+                            old_contact.recalc_advance_balance()
             except _PaymentDiscountTooLarge as exc:
                 # Undo the whole edit (fields, dropped rows, ledger) and show
                 # the reason on the bound form with the typed boxes intact.

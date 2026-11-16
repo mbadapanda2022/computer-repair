@@ -17,7 +17,7 @@
                 <i class="bi bi-tags me-1"></i>Categories
             </a>
             <button class="btn btn-primary"
-                    hx-get="{% url 'accounting:product_create' %}"
+                    hx-get="{% url 'accounting:product_create' %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"
                     hx-target="#mainModalContent">
                 <i class="bi bi-plus-circle me-1"></i>New Product
             </button>

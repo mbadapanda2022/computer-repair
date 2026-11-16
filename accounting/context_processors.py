@@ -41,3 +41,28 @@ def company_profile(request):
         'hero_url': hero_url,
         'og_image_url': og_image_url,
     }
+
+
+def navigation_counts(request):
+    """
+    Sidebar/header badge counts, computed once per request (cached 30 s).
+
+    Previously the templates called the filters twice each, adding five
+    COUNT queries to every staff page and two more on the 30-second poll.
+    """
+    user = getattr(request, 'user', None)
+    if not user or not user.is_authenticated or not user.is_staff:
+        return {}
+
+    cache_key = f'nav_counts_{user.pk}'
+    counts = cache.get(cache_key)
+    if counts is None:
+        from .models import ContactMessage
+        counts = {
+            'unread_notifications': user.notifications.filter(
+                is_read=False).count(),
+            'unread_messages': ContactMessage.objects.filter(
+                status='new').count(),
+        }
+        cache.set(cache_key, counts, 30)
+    return counts

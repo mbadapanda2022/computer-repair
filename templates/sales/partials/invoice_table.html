@@ -89,13 +89,15 @@
                                             <i class="bi bi-files me-2 text-secondary"></i>Duplicate
                                         </button>
                                     </li>
-                                    {% if invoice.whatsapp_share_url %}
+                                    {% with wa_url=invoice.whatsapp_share_url %}
+                                    {% if wa_url %}
                                     <li>
-                                        <a class="dropdown-item" href="{{ invoice.whatsapp_share_url }}" target="_blank">
+                                        <a class="dropdown-item" href="{{ wa_url }}" target="_blank">
                                             <i class="bi bi-whatsapp me-2 text-success"></i>WhatsApp
                                         </a>
                                     </li>
                                     {% endif %}
+                                    {% endwith %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
                                         <button class="dropdown-item text-danger"

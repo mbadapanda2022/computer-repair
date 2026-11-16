@@ -328,7 +328,7 @@ def _invoice_create_context(request, form, items_key):
 
 
 @csrf_protect
-@handle_errors(default_redirect='accounting:invoice_list', htmx_template='sales/partials/invoice_form_modal.html')
+@handle_errors(default_redirect='accounting:invoice_list')
 def invoice_create(request):
     # ── Fresh open (GET): always reset session items ──
     # This prevents leaking old items from a previously-cancelled form.
@@ -422,7 +422,7 @@ def invoice_create(request):
 # 4. INVOICE UPDATE
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:invoice_list', htmx_template='sales/partials/invoice_form_modal.html')
+@handle_errors(default_redirect='accounting:invoice_list')
 def invoice_update(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk)
     scope = _invoice_items_scope(invoice)
@@ -1321,7 +1321,6 @@ def credit_note_list(request):
 @csrf_protect
 @handle_errors(
     default_redirect='accounting:invoice_list',
-    htmx_template='sales/partials/credit_note_form.html',
 )
 def credit_note_create(request, invoice_pk):
     invoice = get_object_or_404(

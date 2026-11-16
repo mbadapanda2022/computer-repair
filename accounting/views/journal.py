@@ -4,6 +4,7 @@ import logging
 from decimal import Decimal
 
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.http import HttpResponse
 from django.contrib import messages
 from django.db.models import Q, Sum, Prefetch
@@ -90,35 +91,38 @@ def _choices_for_contact(contact):
 
 
 # ============================================================
-# LIST JOURNALS
+# HELPER: Prefetched journal queryset
 # ============================================================
-@handle_errors(default_redirect='accounting:journal_list')
-def journal_list(request):
-    search = request.GET.get('search', '').strip()
-    entry_type = request.GET.get('entry_type', '')
-    date_from = request.GET.get('date_from', '')
-    date_to = request.GET.get('date_to', '')
-    reset = request.GET.get('reset', '')
-    page_number = request.GET.get('page', 1)
-
-    if reset:
-        return redirect('accounting:journal_list')
-    
-    
+def _journal_queryset():
     lines_prefetch = Prefetch(
         'lines',
         queryset=LedgerLine.objects.select_related('contact', 'account')
     )
-
     contact_lines_prefetch = Prefetch(
         'lines',
         queryset=LedgerLine.objects.filter(contact__isnull=False).select_related('contact'),
         to_attr='contact_lines'
     )
-
-    journals = LedgerEntry.objects.filter(entry_type='journal') \
-        .prefetch_related(lines_prefetch, contact_lines_prefetch) \
+    return (
+        LedgerEntry.objects.filter(entry_type='journal')
+        .prefetch_related(lines_prefetch, contact_lines_prefetch)
         .order_by('-date', '-id')
+    )
+
+
+def _journal_table_context(request, page_number=1):
+    """Build filtered + paginated context for the journal table partial.
+
+    Every HTMX response that swaps `#journal-table-container` goes through
+    this helper, so all rows always carry the `contact_lines` prefetch
+    (without it the Contact column renders as em-dash).
+    """
+    search = request.GET.get('search', '').strip()
+    entry_type = request.GET.get('entry_type', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
+
+    journals = _journal_queryset()
 
     if search:
         journals = journals.filter(
@@ -130,7 +134,6 @@ def journal_list(request):
 
     if entry_type:
         journals = journals.filter(journal_type=entry_type)
-
     if date_from:
         journals = journals.filter(date__gte=date_from)
     if date_to:
@@ -144,7 +147,7 @@ def journal_list(request):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    context = {
+    return {
         'journals': page_obj.object_list,
         'page_obj': page_obj,
         'search': search,
@@ -152,6 +155,26 @@ def journal_list(request):
         'date_from': date_from,
         'date_to': date_to,
     }
+
+
+def _statement_url_for_contact(contact):
+    if contact.contact_type == 'both':
+        return reverse('accounting:combined_statement', args=[contact.pk])
+    if contact.contact_type == 'customer':
+        return reverse('accounting:customer_statement', args=[contact.pk])
+    return reverse('accounting:vendor_statement', args=[contact.pk])
+
+
+# ============================================================
+# LIST JOURNALS
+# ============================================================
+@handle_errors(default_redirect='accounting:journal_list')
+def journal_list(request):
+    reset = request.GET.get('reset', '')
+    if reset:
+        return redirect('accounting:journal_list')
+
+    context = _journal_table_context(request, request.GET.get('page', 1))
 
     if is_htmx(request):
         return render(request, 'journal/partials/journal_table.html', context)
@@ -162,8 +185,7 @@ def journal_list(request):
 # CREATE JOURNAL (general)
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:journal_list',
-               htmx_template='journal/partials/journal_form_modal.html')
+@handle_errors(default_redirect='accounting:journal_list')
 def journal_create(request):
     template_name = (
         'journal/partials/journal_form_modal.html'
@@ -178,41 +200,38 @@ def journal_create(request):
                 amount = form.cleaned_data['amount']
                 entry_type = form.cleaned_data['entry_type']
                 narration = form.cleaned_data['narration']
-                date_val = form.cleaned_data['date'] or timezone.now().date()
+                date_val = form.cleaned_data['date'] or timezone.localdate()
                 bank_account = form.cleaned_data.get('bank_account')
 
-                entry = LedgerEntry.objects.create(
-                    date=date_val,
-                    entry_type='journal',
-                    journal_type=entry_type,
-                    description=narration or f"{entry_type} for {contact.name}",
-                    total_amount=amount,
-                )
-                create_journal_lines(entry, contact, amount, entry_type, bank_account)
+                with transaction.atomic():
+                    entry = LedgerEntry.objects.create(
+                        date=date_val,
+                        entry_type='journal',
+                        journal_type=entry_type,
+                        description=narration or f"{entry_type} for {contact.name}",
+                        total_amount=amount,
+                    )
+                    create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
                 logger.info(f"Journal entry created: {entry.id} by {request.user.username}")
 
                 if is_htmx(request):
-                    # Reload list with pagination context
-                    journals = LedgerEntry.objects.filter(entry_type='journal') \
-                        .select_related().order_by('-date', '-id')
-                    paginator = Paginator(journals, 20)
-                    page_obj = paginator.page(1)
                     return htmx_response(
                         request,
                         'journal/partials/journal_table.html',
-                        context={
-                            'journals': page_obj.object_list,
-                            'page_obj': page_obj,
-                        },
+                        context=_journal_table_context(request),
                         toast={'level': 'success', 'message': 'Journal entry recorded.'},
-                        close_modal=True
+                        close_modal=True,
+                        extra_headers={
+                            'HX-Retarget': '#journal-table-container',
+                            'HX-Reswap': 'innerHTML',
+                        },
                     )
                 messages.success(request, "Journal entry recorded.")
                 return redirect('accounting:journal_list')
             except Exception as e:
                 logger.error(f"Journal create error: {e}", exc_info=True)
-                messages.error(request, f"Failed to create journal entry: {e}")
+                messages.error(request, "Failed to create journal entry.")
                 if is_htmx(request):
                     return render(request, 'journal/partials/journal_form_modal.html', {'form': form})
         else:
@@ -228,8 +247,7 @@ def journal_create(request):
 # CREATE JOURNAL FOR SPECIFIC CONTACT
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:journal_list',
-               htmx_template='journal/partials/journal_form_modal.html')
+@handle_errors(default_redirect='accounting:journal_list')
 def journal_create_for_contact(request, contact_id):
     contact = get_object_or_404(Contact, pk=contact_id)
 
@@ -250,49 +268,41 @@ def journal_create_for_contact(request, contact_id):
                 amount = form.cleaned_data['amount']
                 entry_type = form.cleaned_data['entry_type']
                 narration = form.cleaned_data['narration']
-                date_val = form.cleaned_data['date'] or timezone.now().date()
+                date_val = form.cleaned_data['date'] or timezone.localdate()
                 bank_account = form.cleaned_data.get('bank_account')
 
-                entry = LedgerEntry.objects.create(
-                    date=date_val,
-                    entry_type='journal',
-                    journal_type=entry_type,
-                    description=narration or f"{entry_type} for {contact.name}",
-                    total_amount=amount,
-                    bank_account=bank_account,  
-                )
-                create_journal_lines(entry, contact, amount, entry_type, bank_account)
+                with transaction.atomic():
+                    entry = LedgerEntry.objects.create(
+                        date=date_val,
+                        entry_type='journal',
+                        journal_type=entry_type,
+                        description=narration or f"{entry_type} for {contact.name}",
+                        total_amount=amount,
+                        bank_account=bank_account,
+                    )
+                    create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
                 logger.info(
                     f"Journal entry for contact {contact.id} created: {entry.id} "
                     f"by {request.user.username}"
                 )
+                statement_url = _statement_url_for_contact(contact)
 
                 if is_htmx(request):
-                    journals = LedgerEntry.objects.filter(entry_type='journal') \
-                        .order_by('-date', '-id')
-                    paginator = Paginator(journals, 20)
-                    page_obj = paginator.page(1)
+                    # Opened from a statement/contact page — return there so the
+                    # new transaction is visible in the ledger statement.
+                    messages.success(request, "Transaction recorded.")
                     return htmx_response(
                         request,
-                        'journal/partials/journal_table.html',
-                        context={
-                            'journals': page_obj.object_list,
-                            'page_obj': page_obj,
-                        },
+                        'journal/partials/journal_form_modal.html',
+                        context={'form': form, 'contact': contact},
                         toast={'level': 'success', 'message': 'Transaction recorded.'},
-                        close_modal=True
+                        close_modal=True,
+                        redirect_url=statement_url,
                     )
 
                 messages.success(request, "Transaction recorded.")
-
-                # 'both' type → combined statement
-                if contact.contact_type == 'both':
-                    return redirect('accounting:combined_statement', contact_id=contact.pk)
-                elif contact.contact_type == 'customer':
-                    return redirect('accounting:customer_statement', contact_id=contact.pk)
-                else:
-                    return redirect('accounting:vendor_statement', contact_id=contact.pk)
+                return redirect(statement_url)
 
             except Exception as e:
                 logger.error(f"Journal create for contact error: {e}", exc_info=True)
@@ -307,7 +317,7 @@ def journal_create_for_contact(request, contact_id):
                     'form': form, 'contact': contact
                 })
     else:
-        initial = {'contact': contact, 'date': timezone.now().date()}
+        initial = {'contact': contact, 'date': timezone.localdate()}
         form = JournalForm(initial=initial)
         form.fields['entry_type'].choices = entry_type_choices
         if entry_type_choices:
@@ -320,8 +330,7 @@ def journal_create_for_contact(request, contact_id):
 # UPDATE JOURNAL
 # ============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:journal_list',
-               htmx_template='journal/partials/journal_form_modal.html')
+@handle_errors(default_redirect='accounting:journal_list')
 def journal_update(request, pk):
     entry = get_object_or_404(LedgerEntry, pk=pk, entry_type='journal')
 
@@ -336,10 +345,9 @@ def journal_update(request, pk):
     )
 
     if request.method == 'POST':
+        # Full choice list on POST: the user may have switched the contact
+        # inside the form, and JournalForm.clean() validates the pairing.
         form = JournalForm(request.POST)
-        if contact:
-            entry_type_choices, _ = _choices_for_contact(contact)
-            form.fields['entry_type'].choices = entry_type_choices
 
         if form.is_valid():
             try:
@@ -347,37 +355,33 @@ def journal_update(request, pk):
                 amount = form.cleaned_data['amount']
                 entry_type = form.cleaned_data['entry_type']
                 narration = form.cleaned_data['narration']
-                date_val = form.cleaned_data['date'] or timezone.now().date()
+                date_val = form.cleaned_data['date'] or timezone.localdate()
                 bank_account = form.cleaned_data.get('bank_account')
 
-                entry.date = date_val
-                entry.journal_type = entry_type
-                entry.description = narration or f"{entry_type} for {contact.name}"
-                entry.total_amount = amount
-                entry.bank_account = bank_account   # ← persist selection
-                entry.save()
+                with transaction.atomic():
+                    entry.date = date_val
+                    entry.journal_type = entry_type
+                    entry.description = narration or f"{entry_type} for {contact.name}"
+                    entry.total_amount = amount
+                    entry.save()
 
-                # Delete old lines per-instance (fires LedgerLine signals)
-                for line in list(entry.lines.all()):
-                    line.delete()
-                create_journal_lines(entry, contact, amount, entry_type, bank_account)
+                    # create_journal_lines clears the old lines per-instance
+                    # (fires LedgerLine signals) and re-syncs entry.bank_account.
+                    create_journal_lines(entry, contact, amount, entry_type, bank_account)
 
                 logger.info(f"Journal entry {pk} updated by {request.user.username}")
 
                 if is_htmx(request):
-                    journals = LedgerEntry.objects.filter(entry_type='journal') \
-                        .order_by('-date', '-id')
-                    paginator = Paginator(journals, 20)
-                    page_obj = paginator.page(1)
                     return htmx_response(
                         request,
                         'journal/partials/journal_table.html',
-                        context={
-                            'journals': page_obj.object_list,
-                            'page_obj': page_obj,
-                        },
+                        context=_journal_table_context(request),
                         toast={'level': 'success', 'message': 'Journal updated.'},
-                        close_modal=True
+                        close_modal=True,
+                        extra_headers={
+                            'HX-Retarget': '#journal-table-container',
+                            'HX-Reswap': 'innerHTML',
+                        },
                     )
                 messages.success(request, "Journal updated.")
                 return redirect('accounting:journal_list')
@@ -394,25 +398,24 @@ def journal_update(request, pk):
                     'form': form, 'entry': entry
                 })
     else:
+        # Don't surface the auto-generated fallback description as narration.
+        auto_description = (
+            contact and entry.description == f"{current_type} for {contact.name}"
+        )
+        has_bank_line = entry.bank_account_id or entry.lines.filter(
+            account__code='1010'
+        ).exists()
+
         initial = {
             'contact': contact,
             'amount': entry.total_amount,
             'entry_type': current_type,
             'date': entry.date,
-            'narration': entry.description,
+            'narration': '' if auto_description else entry.description,
+            'money_account': 'bank' if has_bank_line else 'cash',
+            'bank_account': entry.bank_account_id,
         }
         form = JournalForm(initial=initial)
-
-        # Detect money_account from existing lines (bank vs cash)
-        if entry.pk:
-            bank_line = entry.lines.filter(account__code='1010').exists()
-            initial['money_account'] = 'bank' if bank_line else 'cash'
-            form = JournalForm(initial=initial)
-            # Restore bank_account FK if present
-            first_bank_line = entry.lines.filter(account__code='1010').first()
-            if first_bank_line and contact:
-                # bank_account not directly stored on line — best-effort: leave blank
-                pass
 
         if contact:
             entry_type_choices, _ = _choices_for_contact(contact)
@@ -438,26 +441,21 @@ def journal_delete(request, pk):
 
         logger.info(f"Journal entry {pk} deleted by {request.user.username}")
 
-        journals = LedgerEntry.objects.filter(entry_type='journal') \
-            .order_by('-date', '-id')
-        paginator = Paginator(journals, 20)
-        page_obj = paginator.page(1)
-
         return htmx_response(
             request,
             'journal/partials/journal_table.html',
-            context={'journals': page_obj.object_list, 'page_obj': page_obj},
-            toast={'level': 'success', 'message': 'Journal deleted.'}
+            context=_journal_table_context(request),
+            toast={'level': 'success', 'message': 'Journal deleted.'},
+            extra_headers={'HX-Retarget': '#journal-table-container', 'HX-Reswap': 'innerHTML'},
         )
     except Exception as e:
         logger.error(f"Journal delete error: {e}", exc_info=True)
-        journals = LedgerEntry.objects.filter(entry_type='journal') \
-            .order_by('-date', '-id')[:20]
         return htmx_response(
             request,
             'journal/partials/journal_table.html',
-            context={'journals': journals},
-            toast={'level': 'danger', 'message': 'Failed to delete journal entry.'}
+            context=_journal_table_context(request),
+            toast={'level': 'danger', 'message': 'Failed to delete journal entry.'},
+            extra_headers={'HX-Retarget': '#journal-table-container', 'HX-Reswap': 'innerHTML'},
         )
 
 

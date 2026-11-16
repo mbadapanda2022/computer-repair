@@ -74,8 +74,7 @@ def bank_account_list(request):
 # BANK ACCOUNT CREATE
 # =============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:bank_account_list',
-               htmx_template='bank/partials/bank_account_form.html')
+@handle_errors(default_redirect='accounting:bank_account_list')
 def bank_account_add(request):
     if request.method == 'POST':
         form = BankAccountForm(request.POST)
@@ -118,8 +117,7 @@ def bank_account_add(request):
 # BANK ACCOUNT EDIT
 # =============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:bank_account_list',
-               htmx_template='bank/partials/bank_account_form.html')
+@handle_errors(default_redirect='accounting:bank_account_list')
 def bank_account_edit(request, pk):
     account = get_object_or_404(BankAccount, pk=pk)
 
@@ -223,19 +221,16 @@ def bank_statement(request, pk):
     page_number = request.GET.get('page', 1)
     is_print = request.GET.get('print') == '1'
 
+    # Date range first: running/closing balances must always cover the whole
+    # period. txn_type/search only narrow which rows are DISPLAYED — applying
+    # them to the balance computation produced a wrong (often negative)
+    # closing balance for filtered statements.
     transactions_qs = account.transactions.all().order_by('date', 'id')
 
     if date_from:
         transactions_qs = transactions_qs.filter(date__gte=date_from)
     if date_to:
         transactions_qs = transactions_qs.filter(date__lte=date_to)
-    if txn_type in ('deposit', 'withdrawal'):
-        transactions_qs = transactions_qs.filter(transaction_type=txn_type)
-    if search:
-        transactions_qs = transactions_qs.filter(
-            Q(description__icontains=search) |
-            Q(reference__icontains=search)
-        )
 
     # Opening balance with carry-forward
     opening_balance = account.opening_balance
@@ -269,6 +264,7 @@ def bank_statement(request, pk):
             'description': txn.description or txn.get_source_type_display(),
             'source_type': txn.source_type,
             'source_type_display': txn.get_source_type_display(),
+            'transaction_type': txn.transaction_type,
             'deposit': deposit,
             'withdrawal': withdrawal,
             'balance': running_balance,
@@ -278,6 +274,17 @@ def bank_statement(request, pk):
         })
 
     closing_balance = running_balance
+
+    # Display filters (rows only; balances above stay period-accurate).
+    if txn_type in ('deposit', 'withdrawal'):
+        all_rows = [r for r in all_rows if r['transaction_type'] == txn_type]
+    if search:
+        needle = search.lower()
+        all_rows = [
+            r for r in all_rows
+            if needle in (r['description'] or '').lower()
+            or needle in (r['reference'] or '').lower()
+        ]
 
     company = CompanyProfile.get_instance()
 
@@ -504,8 +511,7 @@ def bank_transaction_list(request):
 # ADD BANK TRANSACTION
 # =============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:bank_account_list',
-               htmx_template='bank/partials/bank_transaction_form.html')
+@handle_errors(default_redirect='accounting:bank_account_list')
 def bank_transaction_add(request, account_pk):
     account = get_object_or_404(BankAccount, pk=account_pk)
 
@@ -574,8 +580,7 @@ def bank_transaction_add(request, account_pk):
 # EDIT BANK TRANSACTION
 # =============================================================
 @csrf_protect
-@handle_errors(default_redirect='accounting:bank_account_list',
-               htmx_template='bank/partials/bank_transaction_form.html')
+@handle_errors(default_redirect='accounting:bank_account_list')
 def bank_transaction_edit(request, pk):
     txn = get_object_or_404(BankTransaction, pk=pk)
     account = txn.bank_account
