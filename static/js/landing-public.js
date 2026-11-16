@@ -34,9 +34,23 @@
                 }
             });
         },
-        { threshold: 0.12 }
+        // Reveal a bit BEFORE the element reaches the viewport (30% of the
+        // viewport height below the fold) and at the first visible pixel.
+        // The old 12%-visible threshold kept large sections fully transparent
+        // until the user had scrolled well into them, so the page looked
+        // blank/white while scrolling.
+        { threshold: 0, rootMargin: "0px 0px 30% 0px" }
     );
     revealEls.forEach(function (el) { io.observe(el); });
+
+    // Safety net: never leave content invisible. Any block the observer has
+    // not reached within 4s (very fast scrolling, unusual zoom levels) is
+    // revealed immediately.
+    window.setTimeout(function () {
+        document.querySelectorAll(".reveal:not(.revealed)").forEach(function (el) {
+            el.classList.add("revealed");
+        });
+    }, 4000);
 })();
 
 /* ---- Track Repair widget: digit-only mobile + double-submit guard ---- */

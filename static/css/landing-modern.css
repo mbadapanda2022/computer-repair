@@ -1116,9 +1116,8 @@ main .text-muted {
 /* Scroll-reveal (JS adds .revealed; default state is visible if JS off) */
 .reveal {
     opacity: 0;
-    transform: translateY(26px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
-    will-change: opacity, transform;
+    transform: translateY(14px);
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
 }
 .reveal.revealed {
     opacity: 1;
@@ -1665,7 +1664,7 @@ main section.pb-5 { padding-bottom: 2.4rem !important; }
 }
 /* staggered entrance inside the scroll-reveal system */
 .service-grid .reveal {
-    transition-delay: calc(var(--sd, 0) * 90ms);
+    transition-delay: calc(var(--sd, 0) * 45ms);
 }
 [data-bs-theme="dark"] .service-grid .service-card {
     background: #111a2c;
