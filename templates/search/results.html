@@ -55,6 +55,24 @@
     {% endfor %}
     {% endif %}
 
+    {% if vendor_repairs %}
+    <div class="global-search-section">
+        <i class="bi bi-box-arrow-up-right me-1"></i>Vendor Repairs
+    </div>
+    {% for vr in vendor_repairs %}
+    <a href="{% url 'accounting:vendor_repair_detail' vr.pk %}"
+       class="list-group-item list-group-item-action global-search-item">
+        <div class="d-flex justify-content-between align-items-center">
+            <span>
+                <i class="bi bi-box-arrow-up-right text-danger me-2"></i>
+                <strong>{{ vr.job_number }}</strong>
+            </span>
+            <small class="text-muted text-end">{{ vr.vendor.name }}</small>
+        </div>
+    </a>
+    {% endfor %}
+    {% endif %}
+
     {% if payments %}
     <div class="global-search-section">
         <i class="bi bi-currency-rupee me-1"></i>Payments

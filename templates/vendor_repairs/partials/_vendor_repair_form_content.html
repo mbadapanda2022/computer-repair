@@ -1,0 +1,338 @@
+{% load static %}
+
+{% if is_htmx %}
+<div class="modal-header bg-primary text-white">
+    <h5 class="modal-title">
+        <i class="bi bi-box-arrow-up-right me-2"></i>
+        {% if job %}Edit {{ job.job_number }}{% else %}New Vendor Repair Job{% endif %}
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+</div>
+{% endif %}
+
+<div class="{% if is_htmx %}modal-body{% else %}container py-4{% endif %}">
+    {% if not is_htmx %}
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-box-arrow-up-right me-2"></i>
+                {% if job %}Edit {{ job.job_number }}{% else %}New Vendor Repair Job{% endif %}
+            </h5>
+            <a href="{% url 'accounting:vendor_repair_list' %}" class="btn btn-light btn-sm">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+        <div class="card-body">
+    {% endif %}
+
+            <form method="post"
+                  action="{% if job %}{% url 'accounting:vendor_repair_update' job.pk %}{% else %}{% url 'accounting:vendor_repair_create' %}{% endif %}"
+                  hx-post="{% if job %}{% url 'accounting:vendor_repair_update' job.pk %}{% else %}{% url 'accounting:vendor_repair_create' %}{% endif %}"
+                  hx-target="{% if is_htmx %}#mainModalContent{% else %}#main-content{% endif %}"
+                  hx-swap="innerHTML"
+                  hx-push-url="false"
+                  id="vendorRepairForm"
+                  novalidate>
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger py-2">
+                        {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Parties & purpose -->
+                <h6 class="text-primary border-bottom pb-2 mb-3">
+                    <i class="bi bi-people"></i> Customer, Vendor &amp; Purpose
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="id_customer" class="form-label fw-semibold">Customer <span class="text-danger">*</span></label>
+                        <select name="customer" id="id_customer" class="form-select" required>
+                            <option value="">— Select Customer —</option>
+                            {% for customer in form.fields.customer.queryset %}
+                                <option value="{{ customer.id }}"
+                                        {% if form.customer.value|stringformat:"s" == customer.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ customer.name }}{% if customer.phone %} ({{ customer.phone }}){% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback d-block">{{ form.customer.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_vendor" class="form-label fw-semibold">Vendor / Service Center <span class="text-danger">*</span></label>
+                        <select name="vendor" id="id_vendor" class="form-select" required>
+                            <option value="">— Select Vendor —</option>
+                            {% for vendor in form.fields.vendor.queryset %}
+                                <option value="{{ vendor.id }}"
+                                        {% if form.vendor.value|stringformat:"s" == vendor.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ vendor.name }}{% if vendor.company_name %} — {{ vendor.company_name }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback d-block">{{ form.vendor.errors|join:", " }}</div>
+                        <small class="text-muted">
+                            <a href="{% url 'accounting:contact_create' %}" target="_blank" class="text-decoration-none">
+                                <i class="bi bi-plus-circle"></i> Add a vendor contact
+                            </a>
+                        </small>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-4">
+                        <label for="id_purpose" class="form-label fw-semibold">Purpose of Sending <span class="text-danger">*</span></label>
+                        <select name="purpose" id="id_purpose" class="form-select">
+                            {% for value, label in form.fields.purpose.choices %}
+                                <option value="{{ value }}" {% if form.purpose.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback d-block">{{ form.purpose.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_status" class="form-label fw-semibold">Status</label>
+                        <select name="status" id="id_status" class="form-select">
+                            {% for value, label in form.fields.status.choices %}
+                                <option value="{{ value }}" {% if form.status.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="invalid-feedback d-block">{{ form.status.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_vendor_reference" class="form-label fw-semibold">Vendor Job / Reference No.</label>
+                        <input type="text" name="vendor_reference" id="id_vendor_reference"
+                               class="form-control" value="{{ form.vendor_reference.value|default:'' }}"
+                               placeholder="Vendor's own ticket number">
+                    </div>
+                </div>
+
+                <!-- Warranty panel -->
+                <div id="warranty-fields" class="border rounded-3 bg-light p-3 mt-3 d-none">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <i class="bi bi-shield-check text-warning fs-5"></i>
+                        <strong>Warranty Claim Details</strong>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="id_warranty_claim_number" class="form-label fw-semibold">Claim / Ticket No.</label>
+                            <input type="text" name="warranty_claim_number" id="id_warranty_claim_number"
+                                   class="form-control" value="{{ form.warranty_claim_number.value|default:'' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="id_warranty_claim_status" class="form-label fw-semibold">Claim Status</label>
+                            <select name="warranty_claim_status" id="id_warranty_claim_status" class="form-select">
+                                {% for value, label in form.fields.warranty_claim_status.choices %}
+                                    <option value="{{ value }}" {% if form.warranty_claim_status.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="id_warranty_document_ref" class="form-label fw-semibold">Bill / Warranty Card Ref.</label>
+                            <input type="text" name="warranty_document_ref" id="id_warranty_document_ref"
+                                   class="form-control" value="{{ form.warranty_document_ref.value|default:'' }}"
+                                   placeholder="Original bill no. or card no.">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="id_purchase_date" class="form-label fw-semibold">Original Purchase Date</label>
+                            <input type="date" name="purchase_date" id="id_purchase_date"
+                                   class="form-control" value="{{ form.purchase_date.value|default:''|date:'Y-m-d' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="id_warranty_expiry_date" class="form-label fw-semibold">Warranty Expiry Date</label>
+                            <input type="date" name="warranty_expiry_date" id="id_warranty_expiry_date"
+                                   class="form-control" value="{{ form.warranty_expiry_date.value|default:''|date:'Y-m-d' }}">
+                            <div class="invalid-feedback d-block">{{ form.warranty_expiry_date.errors|join:", " }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-6">
+                        <label for="id_vendor_contact_person" class="form-label fw-semibold">Vendor Contact Person</label>
+                        <input type="text" name="vendor_contact_person" id="id_vendor_contact_person"
+                               class="form-control" value="{{ form.vendor_contact_person.value|default:'' }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_vendor_phone" class="form-label fw-semibold">Vendor Phone</label>
+                        <input type="text" name="vendor_phone" id="id_vendor_phone"
+                               class="form-control" value="{{ form.vendor_phone.value|default:'' }}">
+                    </div>
+                </div>
+
+                <!-- Device -->
+                <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+                    <i class="bi bi-laptop"></i> Device Details
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="id_device_model" class="form-label fw-semibold">Device Model <span class="text-danger">*</span></label>
+                        <input type="text" name="device_model" id="id_device_model" class="form-control"
+                               value="{{ form.device_model.value|default:'' }}" required
+                               placeholder="e.g. HP Pavilion 15, Dell Inspiron 3501">
+                        <div class="invalid-feedback d-block">{{ form.device_model.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_serial_number" class="form-label fw-semibold">Serial Number</label>
+                        <input type="text" name="serial_number" id="id_serial_number" class="form-control"
+                               value="{{ form.serial_number.value|default:'' }}">
+                    </div>
+                    <div class="col-12">
+                        <label for="id_issue_description" class="form-label fw-semibold">Issue Description <span class="text-danger">*</span></label>
+                        <textarea name="issue_description" id="id_issue_description" rows="3"
+                                  class="form-control" required>{{ form.issue_description.value|default:'' }}</textarea>
+                        <div class="invalid-feedback d-block">{{ form.issue_description.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_accessories" class="form-label fw-semibold">Accessories Sent</label>
+                        <textarea name="accessories" id="id_accessories" rows="2" class="form-control"
+                                  placeholder="e.g. Charger, bag, external HDD">{{ form.accessories.value|default:'' }}</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_device_condition" class="form-label fw-semibold">Device Condition at Dispatch</label>
+                        <textarea name="device_condition" id="id_device_condition" rows="2" class="form-control"
+                                  placeholder="e.g. Screen cracked, battery removed">{{ form.device_condition.value|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                <!-- Dispatch -->
+                <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+                    <i class="bi bi-truck"></i> Dispatch Details
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="id_outbound_date" class="form-label fw-semibold">Date Sent <span class="text-danger">*</span></label>
+                        <input type="date" name="outbound_date" id="id_outbound_date" class="form-control"
+                               value="{{ form.outbound_date.value|default:''|date:'Y-m-d' }}" required>
+                        <div class="invalid-feedback d-block">{{ form.outbound_date.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_expected_return_date" class="form-label fw-semibold">Expected Return</label>
+                        <input type="date" name="expected_return_date" id="id_expected_return_date" class="form-control"
+                               value="{{ form.expected_return_date.value|default:''|date:'Y-m-d' }}">
+                        <div class="invalid-feedback d-block">{{ form.expected_return_date.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_dispatched_by" class="form-label fw-semibold">Sent By</label>
+                        <input type="text" name="dispatched_by" id="id_dispatched_by" class="form-control"
+                               value="{{ form.dispatched_by.value|default:'' }}" placeholder="Staff name">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_courier_name" class="form-label fw-semibold">Courier / Transport</label>
+                        <input type="text" name="courier_name" id="id_courier_name" class="form-control"
+                               value="{{ form.courier_name.value|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_tracking_number" class="form-label fw-semibold">Tracking Number</label>
+                        <input type="text" name="tracking_number" id="id_tracking_number" class="form-control"
+                               value="{{ form.tracking_number.value|default:'' }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_dispatch_notes" class="form-label fw-semibold">Dispatch Notes</label>
+                        <input type="text" name="dispatch_notes" id="id_dispatch_notes" class="form-control"
+                               value="{{ form.dispatch_notes.value|default:'' }}">
+                    </div>
+                </div>
+
+                <!-- Return -->
+                <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+                    <i class="bi bi-box-arrow-in-down"></i> Return Details
+                    <small class="text-muted fw-normal">— fill when the device comes back</small>
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="id_received_back_at" class="form-label fw-semibold">Date Returned</label>
+                        <input type="date" name="received_back_at" id="id_received_back_at" class="form-control"
+                               value="{{ form.received_back_at.value|default:''|date:'Y-m-d' }}">
+                        <div class="invalid-feedback d-block">{{ form.received_back_at.errors|join:", " }}</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_received_by" class="form-label fw-semibold">Received By</label>
+                        <input type="text" name="received_by" id="id_received_by" class="form-control"
+                               value="{{ form.received_by.value|default:'' }}" placeholder="Staff name">
+                    </div>
+                    <div class="col-md-4">
+                        <label for="id_return_condition" class="form-label fw-semibold">Return Condition</label>
+                        <input type="text" name="return_condition" id="id_return_condition" class="form-control"
+                               value="{{ form.return_condition.value|default:'' }}">
+                    </div>
+                </div>
+
+                <!-- Amounts -->
+                <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+                    <i class="bi bi-currency-rupee"></i> Vendor Amounts
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="id_estimate_amount" class="form-label fw-semibold">Estimate (₹)</label>
+                        <input type="number" step="0.01" min="0" name="estimate_amount" id="id_estimate_amount"
+                               class="form-control" value="{{ form.estimate_amount.value|default:'' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="id_final_amount" class="form-label fw-semibold">Final Amount (₹)</label>
+                        <input type="number" step="0.01" min="0" name="final_amount" id="id_final_amount"
+                               class="form-control" value="{{ form.final_amount.value|default:'' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="id_vendor_invoice_number" class="form-label fw-semibold">Vendor Invoice No.</label>
+                        <input type="text" name="vendor_invoice_number" id="id_vendor_invoice_number"
+                               class="form-control" value="{{ form.vendor_invoice_number.value|default:'' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="id_vendor_invoice_date" class="form-label fw-semibold">Vendor Invoice Date</label>
+                        <input type="date" name="vendor_invoice_date" id="id_vendor_invoice_date"
+                               class="form-control" value="{{ form.vendor_invoice_date.value|default:''|date:'Y-m-d' }}">
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="row g-3 mt-4">
+                    <div class="col-md-6">
+                        <label for="id_verification_notes" class="form-label fw-semibold">Verification Notes</label>
+                        <textarea name="verification_notes" id="id_verification_notes" rows="2"
+                                  class="form-control">{{ form.verification_notes.value|default:'' }}</textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="id_notes" class="form-label fw-semibold">Internal Notes</label>
+                        <textarea name="notes" id="id_notes" rows="2"
+                                  class="form-control">{{ form.notes.value|default:'' }}</textarea>
+                    </div>
+                </div>
+
+                {% if is_htmx %}
+                <div class="modal-footer px-0 pb-0 mt-4">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i>
+                        {% if job %}Update Job{% else %}Create Job{% endif %}
+                    </button>
+                </div>
+                {% else %}
+                <div class="mt-4 d-flex justify-content-end gap-2">
+                    <a href="{% url 'accounting:vendor_repair_list' %}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-circle"></i>
+                        {% if job %}Update Job{% else %}Create Job{% endif %}
+                    </button>
+                </div>
+                {% endif %}
+            </form>
+
+    {% if not is_htmx %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    (function () {
+        'use strict';
+        const purpose = document.getElementById('id_purpose');
+        const panel = document.getElementById('warranty-fields');
+        if (!purpose || !panel) return;
+        const sync = function () {
+            panel.classList.toggle('d-none', purpose.value !== 'warranty');
+        };
+        purpose.addEventListener('change', sync);
+        sync();
+    })();
+</script>

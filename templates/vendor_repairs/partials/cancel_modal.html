@@ -1,0 +1,53 @@
+<form method="post"
+      action="{% url 'accounting:vendor_repair_cancel' job.pk %}"
+      hx-post="{% url 'accounting:vendor_repair_cancel' job.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      id="vendorCancelForm">
+    {% csrf_token %}
+
+    <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-x-octagon me-2"></i>Cancel — {{ job.job_number }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <p class="text-muted small">
+            {{ job.device_model }} — {{ job.customer.name }}
+            (vendor: {{ job.vendor.name }}).
+            The record and part history stay available; the job is only marked cancelled.
+        </p>
+
+        <div class="mb-3">
+            <label for="id_reason" class="form-label fw-semibold">Reason <span class="text-danger">*</span></label>
+            <textarea name="reason" id="id_reason" rows="3"
+                      class="form-control" required
+                      placeholder="e.g. customer declined, vendor could not repair, device returned unopened">{{ form.reason.value|default:'' }}</textarea>
+            <div class="invalid-feedback d-block">{{ form.reason.errors|join:", " }}</div>
+        </div>
+
+        <div class="form-check">
+            <input type="checkbox" name="confirm" id="id_confirm" class="form-check-input" required>
+            <label for="id_confirm" class="form-check-label fw-semibold">
+                I want to cancel this vendor job
+            </label>
+            <div class="invalid-feedback d-block">{{ form.confirm.errors|join:", " }}</div>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep Job</button>
+        <button type="submit" class="btn btn-danger">
+            <i class="bi bi-x-octagon me-1"></i>Cancel Job
+        </button>
+    </div>
+</form>

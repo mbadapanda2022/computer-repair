@@ -23,6 +23,7 @@ from .views.auth import (
     CustomSignupView,
 )
 from .views.repairs import staff_approve_estimate
+from .views import vendor_repairs as vendor_repair_views
 from .views.utils import health_check
 from .views.demo import demo_guide
 from .views.global_search import global_search
@@ -149,6 +150,24 @@ urlpatterns = [
     path('repairs/<int:pk>/create-invoice/add-item/', repairs.add_repair_invoice_item, name='add_repair_invoice_item'),
     path('repairs/<int:pk>/create-invoice/remove-item/<int:index>/', repairs.remove_repair_invoice_item, name='remove_repair_invoice_item'),
     path('repairs/invoice/product-search/', repairs.repair_invoice_product_search, name='repair_invoice_product_search'),
+
+    # ===== Vendor (Third-Party) Repairs =====
+    path('vendor-repairs/', vendor_repair_views.vendor_repair_list, name='vendor_repair_list'),
+    path('vendor-repairs/create/', vendor_repair_views.vendor_repair_create, name='vendor_repair_create'),
+    path('vendor-repairs/print-list/', vendor_repair_views.vendor_repair_list_print, name='vendor_repair_list_print'),
+    path('vendor-repairs/export/excel/', vendor_repair_views.export_vendor_repairs_excel, name='export_vendor_repairs_excel'),
+    path('vendor-repairs/<int:pk>/', vendor_repair_views.vendor_repair_detail, name='vendor_repair_detail'),
+    path('vendor-repairs/<int:pk>/edit/', vendor_repair_views.vendor_repair_update, name='vendor_repair_update'),
+    path('vendor-repairs/<int:pk>/delete/', vendor_repair_views.vendor_repair_delete, name='vendor_repair_delete'),
+    path('vendor-repairs/<int:pk>/print/', vendor_repair_views.vendor_repair_print, name='vendor_repair_print'),
+    path('vendor-repairs/<int:pk>/mark-returned/', vendor_repair_views.vendor_repair_mark_returned, name='vendor_repair_mark_returned'),
+    path('vendor-repairs/<int:pk>/mark-completed/', vendor_repair_views.vendor_repair_mark_completed, name='vendor_repair_mark_completed'),
+    path('vendor-repairs/<int:pk>/cancel/', vendor_repair_views.vendor_repair_cancel, name='vendor_repair_cancel'),
+    path('vendor-repairs/<int:pk>/parts/add/', vendor_repair_views.vendor_repair_add_part, name='vendor_repair_add_part'),
+    path('vendor-repairs/<int:pk>/parts/verify-all/', vendor_repair_views.vendor_repair_verify_all_parts, name='vendor_repair_verify_all_parts'),
+    path('vendor-repairs/parts/<int:part_pk>/edit/', vendor_repair_views.vendor_repair_edit_part, name='vendor_repair_edit_part'),
+    path('vendor-repairs/parts/<int:part_pk>/verify/', vendor_repair_views.vendor_repair_verify_part, name='vendor_repair_verify_part'),
+    path('vendor-repairs/parts/<int:part_pk>/delete/', vendor_repair_views.vendor_repair_delete_part, name='vendor_repair_delete_part'),
 
     # ===== Reports =====
     path('reports/sales/', sales_report, name='sales_report'),

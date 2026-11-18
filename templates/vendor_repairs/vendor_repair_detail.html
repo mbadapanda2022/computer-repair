@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-start mb-4 gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <div class="bg-primary bg-opacity-10 p-3 rounded-3">
+                <i class="bi bi-box-arrow-up-right fs-2 text-primary"></i>
+            </div>
+            <div>
+                <h3 class="fw-bold mb-1 d-flex align-items-center flex-wrap gap-2">
+                    {{ job.job_number }}
+                    <span class="badge
+                        {% if job.status == 'sent' %}bg-secondary
+                        {% elif job.status == 'in_repair' %}bg-warning text-dark
+                        {% elif job.status == 'returned' %}bg-info text-dark
+                        {% elif job.status == 'completed' %}bg-success
+                        {% elif job.status == 'cancelled' %}bg-danger
+                        {% endif %}">
+                        {{ job.get_status_display }}
+                    </span>
+                    <span class="badge
+                        {% if job.purpose == 'warranty' %}bg-warning text-dark
+                        {% elif job.purpose == 'replacement' %}bg-info text-dark
+                        {% elif job.purpose == 'inspection' %}bg-primary
+                        {% else %}bg-light text-dark border{% endif %}">
+                        {{ job.get_purpose_display }}
+                    </span>
+                    {% if job.is_overdue %}
+                        <span class="badge bg-danger">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Overdue
+                        </span>
+                    {% endif %}
+                    {% if job.has_parts_discrepancy %}
+                        <span class="badge bg-danger">
+                            <i class="bi bi-exclamation-octagon me-1"></i>
+                            {{ job.parts_discrepancy_count }} part issue{{ job.parts_discrepancy_count|pluralize }}
+                        </span>
+                    {% endif %}
+                </h3>
+                <div class="text-muted small">
+                    <i class="bi bi-person me-1"></i>{{ job.customer.name }}
+                    <span class="mx-2">•</span>
+                    <i class="bi bi-laptop me-1"></i>{{ job.device_model }}
+                    {% if job.serial_number %}
+                        <span class="mx-2">•</span>
+                        <i class="bi bi-upc-scan me-1"></i>{{ job.serial_number }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'accounting:vendor_repair_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            <a href="{% url 'accounting:vendor_repair_print' job.pk %}" target="_blank" class="btn btn-outline-info">
+                <i class="bi bi-printer"></i> Print Job Sheet
+            </a>
+            <a href="{% url 'accounting:vendor_repair_update' job.pk %}"
+               class="btn btn-outline-warning"
+               hx-get="{% url 'accounting:vendor_repair_update' job.pk %}"
+               hx-target="#mainModalContent" hx-swap="innerHTML">
+                <i class="bi bi-pencil"></i> Edit
+            </a>
+            {% if job.status == 'sent' or job.status == 'in_repair' %}
+                <button class="btn btn-info text-dark"
+                        hx-get="{% url 'accounting:vendor_repair_mark_returned' job.pk %}"
+                        hx-target="#mainModalContent" hx-swap="innerHTML">
+                    <i class="bi bi-box-arrow-in-down"></i> Mark Returned
+                </button>
+            {% endif %}
+            {% if job.status == 'returned' %}
+                <button class="btn btn-success"
+                        hx-get="{% url 'accounting:vendor_repair_mark_completed' job.pk %}"
+                        hx-target="#mainModalContent" hx-swap="innerHTML">
+                    <i class="bi bi-check2-circle"></i> Verify &amp; Complete
+                </button>
+            {% endif %}
+            {% if job.is_open %}
+                <button class="btn btn-outline-danger"
+                        hx-get="{% url 'accounting:vendor_repair_cancel' job.pk %}"
+                        hx-target="#mainModalContent" hx-swap="innerHTML">
+                    <i class="bi bi-x-octagon"></i> Cancel
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <!-- Customer & device -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-laptop text-primary me-2"></i>Device & Customer
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <span class="text-muted small">Customer</span><br>
+                        <span class="fw-semibold">{{ job.customer.name }}</span>
+                        {% if job.customer.phone %}
+                            <a href="tel:{{ job.customer.phone }}" class="ms-2 small">{{ job.customer.phone }}</a>
+                        {% endif %}
+                    </div>
+                    <div class="row g-2 small">
+                        <div class="col-6">
+                            <span class="text-muted">Device</span><br>{{ job.device_model }}
+                        </div>
+                        <div class="col-6">
+                            <span class="text-muted">Serial No.</span><br>{{ job.serial_number|default:"—" }}
+                        </div>
+                        <div class="col-12 mt-3">
+                            <span class="text-muted">Issue Reported</span><br>{{ job.issue_description|linebreaksbr }}
+                        </div>
+                        <div class="col-12 mt-3">
+                            <span class="text-muted">Accessories Sent</span><br>{{ job.accessories|default:"—"|linebreaksbr }}
+                        </div>
+                        <div class="col-12 mt-3">
+                            <span class="text-muted">Condition at Dispatch</span><br>{{ job.device_condition|default:"—"|linebreaksbr }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vendor -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-building text-primary me-2"></i>Vendor / Service Center
+                </div>
+                <div class="card-body small">
+                    <div class="fw-semibold fs-6">{{ job.vendor.name }}</div>
+                    {% if job.vendor.company_name %}<div class="text-muted">{{ job.vendor.company_name }}</div>{% endif %}
+                    {% if job.vendor.phone %}
+                        <div class="mt-2"><i class="bi bi-telephone me-1"></i>{{ job.vendor.phone }}</div>
+                    {% endif %}
+                    {% if job.vendor.address %}
+                        <div class="mt-1"><i class="bi bi-geo-alt me-1"></i>{{ job.vendor.address|linebreaksbr }}</div>
+                    {% endif %}
+                    <hr class="my-2">
+                    <div><span class="text-muted">Vendor Ref:</span> {{ job.vendor_reference|default:"—" }}</div>
+                    <div><span class="text-muted">Contact Person:</span> {{ job.vendor_contact_person|default:"—" }}</div>
+                    <div><span class="text-muted">Contact Phone:</span> {{ job.vendor_phone|default:"—" }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Amounts -->
+        <div class="col-lg-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-currency-rupee text-primary me-2"></i>Vendor Amount
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-muted">Estimate</span>
+                        <span>₹{{ job.estimate_amount|default:0|rupee }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1 fw-bold fs-5">
+                        <span>Final</span>
+                        <span>₹{{ job.final_amount|rupee }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between small
+                                {% if job.amount_difference > 0 %}text-danger
+                                {% elif job.amount_difference < 0 %}text-success
+                                {% else %}text-muted{% endif %}">
+                        <span>Difference</span>
+                        <span>₹{{ job.amount_difference|rupee }}</span>
+                    </div>
+                    <hr class="my-2">
+                    <div class="small"><span class="text-muted">Invoice No:</span> {{ job.vendor_invoice_number|default:"—" }}</div>
+                    <div class="small"><span class="text-muted">Invoice Date:</span> {{ job.vendor_invoice_date|date:"d M Y"|default:"—" }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if job.is_warranty_claim %}
+    <div class="card border-0 shadow-sm mb-4 border-start border-4 border-warning">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h6 class="mb-1"><i class="bi bi-shield-check text-warning me-2"></i>Warranty Claim</h6>
+                    <div class="small text-muted">
+                        Claim No: <strong>{{ job.warranty_claim_number|default:"—" }}</strong>
+                        <span class="mx-2">•</span>
+                        Bill / Card Ref: <strong>{{ job.warranty_document_ref|default:"—" }}</strong>
+                        <span class="mx-2">•</span>
+                        Purchased: <strong>{{ job.purchase_date|date:"d M Y"|default:"—" }}</strong>
+                        <span class="mx-2">•</span>
+                        Warranty Expiry: <strong>{{ job.warranty_expiry_date|date:"d M Y"|default:"—" }}</strong>
+                    </div>
+                </div>
+                <span class="badge fs-6
+                    {% if job.warranty_claim_status == 'approved' %}bg-success
+                    {% elif job.warranty_claim_status == 'partial' %}bg-info text-dark
+                    {% elif job.warranty_claim_status == 'rejected' %}bg-danger
+                    {% else %}bg-warning text-dark{% endif %}">
+                    {{ job.get_warranty_claim_status_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Timeline -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body py-3">
+            <div class="row g-3 small">
+                <div class="col-md-3">
+                    <span class="text-muted d-block"><i class="bi bi-box-arrow-up-right me-1"></i>Sent</span>
+                    <strong>{{ job.outbound_date|date:"d M Y" }}</strong>
+                    {% if job.dispatched_by %}<span class="text-muted">by {{ job.dispatched_by }}</span>{% endif %}
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block"><i class="bi bi-calendar-event me-1"></i>Expected Return</span>
+                    <strong>{{ job.expected_return_date|date:"d M Y"|default:"—" }}</strong>
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block"><i class="bi bi-box-arrow-in-down me-1"></i>Returned</span>
+                    <strong>{{ job.received_back_at|date:"d M Y"|default:"—" }}</strong>
+                    {% if job.received_by %}<span class="text-muted">by {{ job.received_by }}</span>{% endif %}
+                </div>
+                <div class="col-md-3">
+                    <span class="text-muted d-block"><i class="bi bi-check2-circle me-1"></i>Verified</span>
+                    {% if job.parts_verified %}
+                        <strong class="text-success">Yes</strong>
+                        <span class="text-muted">{{ job.verified_at|date:"d M Y H:i" }}</span>
+                        {% if job.verified_by %}<span class="text-muted">by {{ job.verified_by.get_full_name|default:job.verified_by.username }}</span>{% endif %}
+                    {% else %}
+                        <strong class="text-warning">Pending</strong>
+                    {% endif %}
+                </div>
+                {% if job.courier_name or job.tracking_number %}
+                <div class="col-12 mt-2">
+                    <span class="text-muted">
+                        <i class="bi bi-truck me-1"></i>
+                        {% if job.courier_name %}Courier: {{ job.courier_name }}{% endif %}
+                        {% if job.tracking_number %} • Tracking: {{ job.tracking_number }}{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                {% if job.cancel_reason %}
+                <div class="col-12 mt-2 text-danger">
+                    <i class="bi bi-x-octagon me-1"></i>
+                    Cancelled: {{ job.cancel_reason }}
+                    {% if job.cancelled_at %}<span class="text-muted">({{ job.cancelled_at|date:"d M Y H:i" }})</span>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if job.status == 'returned' %}
+        {% if job.has_parts_discrepancy %}
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-octagon me-2"></i>
+            <strong>{{ job.parts_discrepancy_count }} part issue(s) found:</strong>
+            {% if job.parts_missing_count %}missing {{ job.parts_missing_count }};{% endif %}
+            {% if job.parts_replaced_count %}replaced {{ job.parts_replaced_count }};{% endif %}
+            {% if job.parts_damaged_count %}damaged {{ job.parts_damaged_count }};{% endif %}
+            please talk to the vendor before closing this job.
+        </div>
+        {% elif job.parts_pending_count %}
+        <div class="alert alert-warning">
+            <i class="bi bi-hourglass-split me-2"></i>
+            {{ job.parts_pending_count }} part(s) still pending verification.
+            Check every part, then use <strong>Verify &amp; Complete</strong>.
+        </div>
+        {% else %}
+        <div class="alert alert-success">
+            <i class="bi bi-patch-check me-2"></i>
+            All parts checked. You can now <strong>Verify &amp; Complete</strong> the job.
+        </div>
+        {% endif %}
+    {% endif %}
+
+    {% include "vendor_repairs/partials/parts_section.html" %}
+
+    <div class="row g-3 mt-1">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-clipboard-check text-primary me-2"></i>Verification Notes
+                </div>
+                <div class="card-body small">
+                    {{ job.verification_notes|default:"—"|linebreaksbr }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white fw-semibold">
+                    <i class="bi bi-journal-text text-primary me-2"></i>Internal Notes
+                </div>
+                <div class="card-body small">
+                    {{ job.notes|default:"—"|linebreaksbr }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <small class="text-muted">
+            Created {{ job.created_at|date:"d M Y H:i" }}
+            {% if job.created_by %} by {{ job.created_by.get_full_name|default:job.created_by.username }}{% endif %}
+        </small>
+        <form method="post" action="{% url 'accounting:vendor_repair_delete' job.pk %}"
+              onsubmit="return confirm('Delete {{ job.job_number }}? The job and its parts will be removed from all lists (kept in the audit trail).');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i> Delete Job
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

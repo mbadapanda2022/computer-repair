@@ -1,0 +1,66 @@
+<form method="post"
+      action="{% url 'accounting:vendor_repair_verify_part' part.pk %}"
+      hx-post="{% url 'accounting:vendor_repair_verify_part' part.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      id="vendorPartVerifyForm">
+    {% csrf_token %}
+
+    <div class="modal-header bg-info text-dark">
+        <h5 class="modal-title">
+            <i class="bi bi-search me-2"></i>Check Part — {{ job.job_number }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        <div class="border rounded-3 p-3 bg-light mb-3">
+            <div class="fw-semibold">{{ part.name }}</div>
+            <div class="small text-muted">
+                Serial / Marking: {{ part.identifier|default:"—" }}
+                <span class="mx-2">•</span>
+                Qty: {{ part.quantity }}
+                <span class="mx-2">•</span>
+                Sent condition: {{ part.condition_sent|default:"—" }}
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_verification_status" class="form-label fw-semibold">
+                    Verification Result <span class="text-danger">*</span>
+                </label>
+                <select name="verification_status" id="id_verification_status" class="form-select" required>
+                    {% for value, label in form.fields.verification_status.choices %}
+                        <option value="{{ value }}" {% if form.verification_status.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label for="id_condition_returned" class="form-label fw-semibold">Condition When Returned</label>
+                <input type="text" name="condition_returned" id="id_condition_returned" class="form-control"
+                       value="{{ form.condition_returned.value|default:'' }}"
+                       placeholder="e.g. same part, scratches, dead">
+            </div>
+            <div class="col-12">
+                <label for="id_remarks" class="form-label fw-semibold">Verification Remarks</label>
+                <textarea name="remarks" id="id_remarks" rows="2"
+                          class="form-control">{{ form.remarks.value|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <div class="alert alert-warning small mt-3 mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            Choose <strong>Missing</strong>, <strong>Replaced / Swapped</strong> or
+            <strong>Damaged</strong> if the returned part does not match what was sent.
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i>Save Verification
+        </button>
+    </div>
+</form>

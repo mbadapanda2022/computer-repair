@@ -3358,6 +3358,366 @@ class RepairService(SoftDeleteModel):
             
             
 # ============================================================
+# VENDOR (THIRD-PARTY) REPAIR JOBS
+# ============================================================
+class VendorRepairJob(SoftDeleteModel):
+    """
+    A customer device that the shop cannot repair in-house and sends to an
+    external repair vendor/company.
+
+    The full set of parts inside the device is recorded BEFORE dispatch.
+    When the vendor returns the device every part is checked again so a
+    missing, swapped or damaged component is caught immediately. Amounts
+    quoted by the vendor (estimate + final) and all dispatch/return dates
+    are stored on the job for audit and reporting.
+    """
+
+    PURPOSE_CHOICES = (
+        ('repair', 'Repair'),
+        ('warranty', 'Warranty Claim'),
+        ('replacement', 'Replacement / Exchange'),
+        ('inspection', 'Inspection / Diagnosis'),
+        ('other', 'Other'),
+    )
+    STATUS_CHOICES = (
+        ('sent', 'Sent to Vendor'),
+        ('in_repair', 'Under Vendor Repair'),
+        ('returned', 'Returned - Verification Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    )
+    WARRANTY_CLAIM_STATUS_CHOICES = (
+        ('pending', 'Claim Pending'),
+        ('approved', 'Claim Approved'),
+        ('partial', 'Partially Approved'),
+        ('rejected', 'Claim Rejected'),
+    )
+    OPEN_STATUSES = ('sent', 'in_repair', 'returned')
+    PARTS_DISCREPANCY_STATUSES = ('missing', 'replaced', 'damaged')
+
+    job_number = models.CharField(max_length=50, unique=True, editable=False)
+    customer = models.ForeignKey(
+        Contact,
+        on_delete=models.PROTECT,
+        related_name='vendor_repair_jobs',
+        limit_choices_to={'contact_type__in': ['customer', 'both']},
+    )
+    vendor = models.ForeignKey(
+        Contact,
+        on_delete=models.PROTECT,
+        related_name='vendor_repair_jobs_sent',
+        limit_choices_to={'contact_type__in': ['vendor', 'both']},
+    )
+    vendor_reference = models.CharField(
+        max_length=100, blank=True,
+        help_text="Vendor's own job / ticket number",
+    )
+    vendor_contact_person = models.CharField(max_length=200, blank=True)
+    vendor_phone = models.CharField(max_length=20, blank=True)
+
+    # ---------- Why the device is with the vendor ----------
+    purpose = models.CharField(
+        max_length=15, choices=PURPOSE_CHOICES, default='repair',
+        help_text="Repair, warranty claim, replacement, etc.",
+    )
+    warranty_claim_number = models.CharField(
+        max_length=100, blank=True,
+        help_text="Claim / ticket number given by the service center",
+    )
+    purchase_date = models.DateField(
+        null=True, blank=True,
+        help_text="Original purchase date (warranty proof)",
+    )
+    warranty_expiry_date = models.DateField(
+        null=True, blank=True,
+        help_text="Warranty expiry date printed on the bill/warranty card",
+    )
+    warranty_document_ref = models.CharField(
+        max_length=150, blank=True,
+        help_text="Original bill no. / warranty card reference",
+    )
+    warranty_claim_status = models.CharField(
+        max_length=15, choices=WARRANTY_CLAIM_STATUS_CHOICES,
+        default='pending', blank=True,
+        help_text="Outcome of a warranty claim (ignored for plain repairs)",
+    )
+
+    @property
+    def is_warranty_claim(self):
+        return self.purpose == 'warranty'
+
+    # ---------- Device as handed to the vendor ----------
+    device_model = models.CharField(max_length=200)
+    serial_number = models.CharField(max_length=100, blank=True)
+    issue_description = models.TextField()
+    accessories = models.TextField(
+        blank=True, null=True,
+        help_text="Accessories sent along (charger, bag, adapter, etc.)",
+    )
+    device_condition = models.TextField(
+        blank=True, null=True,
+        help_text="Cosmetic/functional condition at dispatch",
+    )
+
+    status = models.CharField(
+        max_length=15, choices=STATUS_CHOICES, default='sent',
+    )
+
+    # ---------- Dispatch ----------
+    outbound_date = models.DateField(
+        default=timezone.localdate,
+        help_text="Date the device was sent to the vendor",
+    )
+    expected_return_date = models.DateField(null=True, blank=True)
+    dispatched_by = models.CharField(max_length=100, blank=True)
+    courier_name = models.CharField(max_length=100, blank=True)
+    tracking_number = models.CharField(max_length=100, blank=True)
+    dispatch_notes = models.TextField(blank=True, null=True)
+
+    # ---------- Return ----------
+    received_back_at = models.DateField(
+        null=True, blank=True,
+        help_text="Date the device came back from the vendor",
+    )
+    received_by = models.CharField(max_length=100, blank=True)
+    return_condition = models.TextField(
+        blank=True, null=True,
+        help_text="Condition noted when the device was returned",
+    )
+
+    # ---------- Vendor amounts ----------
+    estimate_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        validators=POSITIVE_VALIDATOR,
+        help_text="Amount quoted by the vendor before repair",
+    )
+    final_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal('0'),
+        validators=POSITIVE_VALIDATOR,
+        help_text="Final amount charged by the vendor",
+    )
+    vendor_invoice_number = models.CharField(max_length=100, blank=True)
+    vendor_invoice_date = models.DateField(null=True, blank=True)
+
+    # ---------- Parts verification ----------
+    parts_verified = models.BooleanField(
+        default=False,
+        help_text="Set when staff has checked every part after return",
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='verified_vendor_repairs',
+    )
+    verification_notes = models.TextField(blank=True, null=True)
+
+    # ---------- Cancellation / audit ----------
+    cancel_reason = models.TextField(blank=True, null=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='created_vendor_repairs',
+    )
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-outbound_date', '-id']
+        indexes = [
+            # job_number is unique and customer is a FK, so both already
+            # have their own index — only list-filter composites are added.
+            models.Index(fields=['status', 'outbound_date']),
+            models.Index(fields=['vendor', 'status']),
+            models.Index(fields=['purpose', 'status']),
+            models.Index(fields=['expected_return_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.job_number} — {self.device_model} ({self.vendor.name})"
+
+    # ---------- Amount helpers ----------
+    @property
+    def amount_difference(self):
+        """Final minus estimate (positive = vendor charged more)."""
+        estimate = self.estimate_amount or Decimal('0')
+        final = self.final_amount or Decimal('0')
+        return (final - estimate).quantize(TAX_PRECISION)
+
+    # ---------- Parts helpers ----------
+    # `_parts()` returns the prefetch cache when the queryset used
+    # prefetch_related('parts'), so templates never issue N+1 queries.
+    def _parts(self):
+        return [p for p in self.parts.all() if not p.is_deleted]
+
+    @property
+    def parts_total_count(self):
+        return sum(p.quantity for p in self._parts())
+
+    @property
+    def parts_line_count(self):
+        return len(self._parts())
+
+    @property
+    def parts_pending_count(self):
+        return sum(1 for p in self._parts() if p.verification_status == 'pending')
+
+    @property
+    def parts_ok_count(self):
+        return sum(1 for p in self._parts() if p.verification_status == 'ok')
+
+    @property
+    def parts_discrepancy_count(self):
+        return sum(
+            1 for p in self._parts()
+            if p.verification_status in self.PARTS_DISCREPANCY_STATUSES
+        )
+
+    @property
+    def parts_missing_count(self):
+        return sum(1 for p in self._parts() if p.verification_status == 'missing')
+
+    @property
+    def parts_replaced_count(self):
+        return sum(1 for p in self._parts() if p.verification_status == 'replaced')
+
+    @property
+    def parts_damaged_count(self):
+        return sum(1 for p in self._parts() if p.verification_status == 'damaged')
+
+    @property
+    def has_parts_discrepancy(self):
+        return self.parts_discrepancy_count > 0
+
+    @property
+    def is_overdue(self):
+        return bool(
+            self.expected_return_date
+            and self.status in ('sent', 'in_repair')
+            and self.expected_return_date < timezone.localdate()
+        )
+
+    @property
+    def is_open(self):
+        return self.status in self.OPEN_STATUSES
+
+    def save(self, *args, **kwargs):
+        if not self.outbound_date:
+            self.outbound_date = timezone.localdate()
+
+        if self.status == 'cancelled':
+            if not self.cancelled_at:
+                self.cancelled_at = timezone.now()
+        else:
+            self.cancelled_at = None
+
+        if self.pk is None:
+            last_error = None
+            for attempt in range(5):
+                next_num = InvoiceCounter.get_next_number('VRP')
+                self.job_number = f"VRP-{next_num:04d}"
+                try:
+                    with transaction.atomic():
+                        super().save(*args, **kwargs)
+                    return
+                except IntegrityError as exc:
+                    last_error = exc
+                    if 'job_number' not in str(exc).lower() or attempt == 4:
+                        raise
+                    logger.warning(
+                        "Vendor repair job_number collision on attempt %s (%s)",
+                        attempt + 1, self.job_number,
+                    )
+            raise last_error
+
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Soft-delete the job and every part (keeps the audit trail)."""
+        with transaction.atomic():
+            for part in self.parts.all():
+                part.delete()
+            super().delete(*args, **kwargs)
+
+
+class VendorRepairPart(SoftDeleteModel):
+    """
+    One physical part recorded inside the device sent to a vendor.
+
+    `verification_status` is filled after the device returns:
+      pending  — not checked yet
+      ok       — same part came back
+      missing  — part did not come back
+      replaced — a different part came back
+      damaged  — part came back damaged
+      extra    — a part was found that was not sent
+    """
+
+    VERIFICATION_CHOICES = (
+        ('pending', 'Pending Check'),
+        ('ok', 'OK / Matched'),
+        ('missing', 'Missing'),
+        ('replaced', 'Replaced / Swapped'),
+        ('damaged', 'Damaged'),
+        ('extra', 'Extra (not sent)'),
+    )
+    DISCREPANCY_STATUSES = ('missing', 'replaced', 'damaged')
+
+    job = models.ForeignKey(
+        VendorRepairJob,
+        on_delete=models.CASCADE,
+        related_name='parts',
+    )
+    name = models.CharField(max_length=200, help_text="e.g. 8GB RAM, 512GB SSD, Motherboard")
+    identifier = models.CharField(
+        max_length=120, blank=True,
+        help_text="Serial number, marking or any unique identifier",
+    )
+    quantity = models.PositiveIntegerField(
+        default=1, validators=[MinValueValidator(1)],
+    )
+    condition_sent = models.CharField(
+        max_length=200, blank=True,
+        help_text="Condition when sent (e.g. working, burnt, loose)",
+    )
+    condition_returned = models.CharField(max_length=200, blank=True)
+    verification_status = models.CharField(
+        max_length=15, choices=VERIFICATION_CHOICES, default='pending',
+    )
+    remarks = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+        indexes = [
+            models.Index(fields=['job', 'verification_status']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} × {self.quantity} ({self.job.job_number})"
+
+    @property
+    def is_discrepancy(self):
+        return self.verification_status in self.DISCREPANCY_STATUSES
+
+    @property
+    def badge_class(self):
+        return {
+            'pending': 'bg-secondary',
+            'ok': 'bg-success',
+            'missing': 'bg-danger',
+            'replaced': 'bg-warning text-dark',
+            'damaged': 'bg-danger',
+            'extra': 'bg-info text-dark',
+        }.get(self.verification_status, 'bg-secondary')
+
+
+# ============================================================
 # BANK TRANSACTION ↔ LEDGER SYNC (Manual entries only)
 # ============================================================
 

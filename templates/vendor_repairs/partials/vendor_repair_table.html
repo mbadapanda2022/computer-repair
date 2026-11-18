@@ -1,0 +1,247 @@
+{% load math_filters %}
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 pp-sticky-last">
+                <thead class="table-light">
+                    <tr>
+                        <th>Job #</th>
+                        <th>Purpose</th>
+                        <th>Vendor</th>
+                        <th>Customer / Device</th>
+                        <th>Sent</th>
+                        <th>Expected</th>
+                        <th>Status</th>
+                        <th class="text-center">Parts</th>
+                        <th class="text-end">Vendor Amount</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr {% if job.is_overdue %}class="table-warning"{% endif %}>
+                        <td>
+                            <a href="{% url 'accounting:vendor_repair_detail' job.pk %}"
+                               class="fw-semibold text-decoration-none">
+                                {{ job.job_number }}
+                            </a>
+                            {% if job.vendor_reference %}
+                                <br><small class="text-muted">Ref: {{ job.vendor_reference }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge
+                                {% if job.purpose == 'warranty' %}bg-warning text-dark
+                                {% elif job.purpose == 'replacement' %}bg-info text-dark
+                                {% elif job.purpose == 'inspection' %}bg-primary
+                                {% elif job.purpose == 'other' %}bg-secondary
+                                {% else %}bg-light text-dark border{% endif %}">
+                                {{ job.get_purpose_display }}
+                            </span>
+                            {% if job.is_warranty_claim and job.warranty_claim_number %}
+                                <br><small class="text-muted">Claim: {{ job.warranty_claim_number }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ job.vendor.name }}
+                            {% if job.vendor.company_name %}
+                                <br><small class="text-muted">{{ job.vendor.company_name }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ job.customer.name }}
+                            <br><small class="text-muted">{{ job.device_model }}{% if job.serial_number %} • {{ job.serial_number }}{% endif %}</small>
+                        </td>
+                        <td>{{ job.outbound_date|date:"d M Y" }}</td>
+                        <td>
+                            {% if job.expected_return_date %}
+                                {{ job.expected_return_date|date:"d M Y" }}
+                                {% if job.is_overdue %}
+                                    <br><span class="badge bg-danger">Overdue</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge
+                                {% if job.status == 'sent' %}bg-secondary
+                                {% elif job.status == 'in_repair' %}bg-warning text-dark
+                                {% elif job.status == 'returned' %}bg-info text-dark
+                                {% elif job.status == 'completed' %}bg-success
+                                {% elif job.status == 'cancelled' %}bg-danger
+                                {% endif %}">
+                                {{ job.get_status_display }}
+                            </span>
+                            {% if job.parts_verified %}
+                                <br><small class="text-success"><i class="bi bi-patch-check"></i> Verified</small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border">{{ job.num_parts }}</span>
+                            {% if job.num_discrepancies %}
+                                <br><span class="badge bg-danger mt-1" title="Missing / replaced / damaged">
+                                    {{ job.num_discrepancies }} issue{{ job.num_discrepancies|pluralize }}
+                                </span>
+                            {% elif job.num_pending and job.status == 'returned' %}
+                                <br><span class="badge bg-warning text-dark mt-1">
+                                    {{ job.num_pending }} to check
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold">
+                            ₹{{ job.final_amount|rupee }}
+                            {% if job.estimate_amount %}
+                                <br><small class="text-muted fw-normal">
+                                    Est. ₹{{ job.estimate_amount|rupee }}
+                                </small>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                        type="button" data-bs-toggle="dropdown"
+                                        data-bs-auto-close="outside"
+                                        data-bs-strategy="fixed"
+                                        data-bs-boundary="viewport">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:vendor_repair_detail' job.pk %}">
+                                            <i class="bi bi-eye me-2 text-primary"></i>View
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           href="{% url 'accounting:vendor_repair_update' job.pk %}"
+                                           hx-get="{% url 'accounting:vendor_repair_update' job.pk %}"
+                                           hx-target="#mainModalContent"
+                                           hx-swap="innerHTML">
+                                            <i class="bi bi-pencil me-2 text-warning"></i>Edit
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'accounting:vendor_repair_print' job.pk %}" target="_blank">
+                                            <i class="bi bi-printer me-2 text-info"></i>Print Job Sheet
+                                        </a>
+                                    </li>
+                                    {% if job.status == 'sent' or job.status == 'in_repair' %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item"
+                                                hx-get="{% url 'accounting:vendor_repair_mark_returned' job.pk %}"
+                                                hx-target="#mainModalContent"
+                                                hx-swap="innerHTML">
+                                            <i class="bi bi-box-arrow-in-down me-2 text-info"></i>Mark Returned
+                                        </button>
+                                    </li>
+                                    {% endif %}
+                                    {% if job.status == 'returned' %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item text-success"
+                                                hx-get="{% url 'accounting:vendor_repair_mark_completed' job.pk %}"
+                                                hx-target="#mainModalContent"
+                                                hx-swap="innerHTML">
+                                            <i class="bi bi-check2-circle me-2"></i>Verify &amp; Complete
+                                        </button>
+                                    </li>
+                                    {% endif %}
+                                    {% if job.is_open %}
+                                    <li>
+                                        <button class="dropdown-item text-danger"
+                                                hx-get="{% url 'accounting:vendor_repair_cancel' job.pk %}"
+                                                hx-target="#mainModalContent"
+                                                hx-swap="innerHTML">
+                                            <i class="bi bi-x-octagon me-2"></i>Cancel Job
+                                        </button>
+                                    </li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <button class="dropdown-item text-danger"
+                                                hx-post="{% url 'accounting:vendor_repair_delete' job.pk %}"
+                                                hx-target="#vendor-repair-table-container"
+                                                hx-swap="innerHTML"
+                                                hx-confirm="Delete {{ job.job_number }}? The job and its parts will be removed from all lists (kept in the audit trail).">
+                                            <i class="bi bi-trash me-2"></i>Delete
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-5">
+                            <i class="bi bi-box-arrow-up-right display-6 d-block mb-3 text-muted"></i>
+                            <h5 class="text-muted">No vendor repair jobs found</h5>
+                            <p class="text-muted mb-2">
+                                Send a device to a vendor or service center, or adjust the filters.
+                            </p>
+                            <a href="{% url 'accounting:vendor_repair_create' %}" class="btn btn-primary mt-1">
+                                <i class="bi bi-plus-circle"></i> New Vendor Job
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <th colspan="8" class="text-end">Total (excl. cancelled)</th>
+                        <th class="text-end fw-bold">₹{{ filtered_total|rupee }}</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0">
+        <nav aria-label="Vendor repair pagination">
+            <ul class="pagination justify-content-center mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:vendor_repair_list' %}?page=1{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if purpose_filter %}&purpose={{ purpose_filter }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#vendor-repair-table-container" hx-push-url="true">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:vendor_repair_list' %}?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if purpose_filter %}&purpose={{ purpose_filter }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#vendor-repair-table-container" hx-push-url="true">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+
+                <li class="page-item active">
+                    <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+                </li>
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:vendor_repair_list' %}?page={{ page_obj.next_page_number }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if purpose_filter %}&purpose={{ purpose_filter }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#vendor-repair-table-container" hx-push-url="true">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="#"
+                       hx-get="{% url 'accounting:vendor_repair_list' %}?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if purpose_filter %}&purpose={{ purpose_filter }}{% endif %}{% if vendor_id %}&vendor={{ vendor_id }}{% endif %}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}"
+                       hx-target="#vendor-repair-table-container" hx-push-url="true">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+</div>

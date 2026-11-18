@@ -38,6 +38,8 @@ def _has_real_transactions(contact):
         contact.sales_invoices.exists()
         or contact.purchases.exists()
         or contact.repair_jobs.exists()
+        or contact.vendor_repair_jobs.exists()
+        or contact.vendor_repair_jobs_sent.exists()
         or contact.payments.exists()
         or contact.ledger_lines.exclude(
             ledger_entry__entry_type='opening'

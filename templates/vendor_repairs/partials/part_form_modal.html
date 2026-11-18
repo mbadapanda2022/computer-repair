@@ -1,0 +1,68 @@
+<form method="post"
+      action="{% if part %}{% url 'accounting:vendor_repair_edit_part' part.pk %}{% else %}{% url 'accounting:vendor_repair_add_part' job.pk %}{% endif %}"
+      hx-post="{% if part %}{% url 'accounting:vendor_repair_edit_part' part.pk %}{% else %}{% url 'accounting:vendor_repair_add_part' job.pk %}{% endif %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      id="vendorPartForm">
+    {% csrf_token %}
+
+    <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-cpu me-2"></i>
+            {% if part %}Edit Part{% else %}Add Part{% endif %} — {{ job.job_number }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        <div class="alert alert-light border small mb-3">
+            Record the part exactly as it is inside the device. The same row is checked
+            again when the vendor returns the device.
+        </div>
+
+        <div class="mb-3">
+            <label for="id_name" class="form-label fw-semibold">Part Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" id="id_name" class="form-control"
+                   value="{{ form.name.value|default:'' }}" required
+                   placeholder="e.g. 8GB DDR4 RAM, 512GB SSD, Motherboard">
+            <div class="invalid-feedback d-block">{{ form.name.errors|join:", " }}</div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-8">
+                <label for="id_identifier" class="form-label fw-semibold">Serial / Marking</label>
+                <input type="text" name="identifier" id="id_identifier" class="form-control"
+                       value="{{ form.identifier.value|default:'' }}"
+                       placeholder="Serial number, sticker marking, any unique ID">
+            </div>
+            <div class="col-md-4">
+                <label for="id_quantity" class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
+                <input type="number" name="quantity" id="id_quantity" min="1" step="1"
+                       class="form-control" value="{{ form.quantity.value|default:'1' }}" required>
+                <div class="invalid-feedback d-block">{{ form.quantity.errors|join:", " }}</div>
+            </div>
+        </div>
+
+        <div class="mt-3">
+            <label for="id_condition_sent" class="form-label fw-semibold">Condition When Sent</label>
+            <input type="text" name="condition_sent" id="id_condition_sent" class="form-control"
+                   value="{{ form.condition_sent.value|default:'' }}"
+                   placeholder="e.g. working, burnt, loose, physically damaged">
+        </div>
+
+        <div class="mt-3">
+            <label for="id_remarks" class="form-label fw-semibold">Remarks</label>
+            <textarea name="remarks" id="id_remarks" rows="2"
+                      class="form-control">{{ form.remarks.value|default:'' }}</textarea>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-circle me-1"></i>
+            {% if part %}Update Part{% else %}Add Part{% endif %}
+        </button>
+    </div>
+</form>

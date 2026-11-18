@@ -1,0 +1,68 @@
+<form method="post"
+      action="{% url 'accounting:vendor_repair_mark_returned' job.pk %}"
+      hx-post="{% url 'accounting:vendor_repair_mark_returned' job.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      id="vendorReturnForm">
+    {% csrf_token %}
+
+    <div class="modal-header bg-info text-dark">
+        <h5 class="modal-title">
+            <i class="bi bi-box-arrow-in-down me-2"></i>Mark Returned — {{ job.job_number }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="border rounded-3 p-3 bg-light mb-3 small">
+            <div><strong>{{ job.device_model }}</strong> from {{ job.vendor.name }}</div>
+            <div class="text-muted">
+                Sent: {{ job.outbound_date|date:"d M Y" }}
+                {% if job.expected_return_date %}
+                    • Expected: {{ job.expected_return_date|date:"d M Y" }}
+                {% endif %}
+                • Parts recorded: {{ job.parts_line_count }}
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-5">
+                <label for="id_received_back_at" class="form-label fw-semibold">Date Returned <span class="text-danger">*</span></label>
+                <input type="date" name="received_back_at" id="id_received_back_at" class="form-control"
+                       value="{{ form.received_back_at.value|default:''|date:'Y-m-d' }}" required>
+                <div class="invalid-feedback d-block">{{ form.received_back_at.errors|join:", " }}</div>
+            </div>
+            <div class="col-md-7">
+                <label for="id_received_by" class="form-label fw-semibold">Received By <span class="text-danger">*</span></label>
+                <input type="text" name="received_by" id="id_received_by" class="form-control"
+                       value="{{ form.received_by.value|default:'' }}" required
+                       placeholder="Staff name who received the device">
+                <div class="invalid-feedback d-block">{{ form.received_by.errors|join:", " }}</div>
+            </div>
+            <div class="col-12">
+                <label for="id_return_condition" class="form-label fw-semibold">Return Condition</label>
+                <textarea name="return_condition" id="id_return_condition" rows="2"
+                          class="form-control" placeholder="e.g. repaired and working, screen replaced">{{ form.return_condition.value|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <div class="alert alert-warning small mt-3 mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            After marking returned, check every part against what was sent.
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-info text-dark">
+            <i class="bi bi-box-arrow-in-down me-1"></i>Mark Returned
+        </button>
+    </div>
+</form>

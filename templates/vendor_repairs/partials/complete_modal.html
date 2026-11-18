@@ -1,0 +1,72 @@
+<form method="post"
+      action="{% url 'accounting:vendor_repair_mark_completed' job.pk %}"
+      hx-post="{% url 'accounting:vendor_repair_mark_completed' job.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+      id="vendorCompleteForm">
+    {% csrf_token %}
+
+    <div class="modal-header bg-success text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-check2-circle me-2"></i>Verify &amp; Complete — {{ job.job_number }}
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2">
+                {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+            </div>
+        {% endif %}
+
+        {% if pending_parts %}
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-octagon me-1"></i>
+                {{ pending_parts }} part(s) are still <strong>Pending Check</strong>.
+                Open each part and verify it first.
+            </div>
+        {% endif %}
+
+        {% if job.has_parts_discrepancy %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                {{ job.parts_discrepancy_count }} part issue(s) recorded
+                (missing / replaced / damaged). Make sure this is settled with the vendor
+                before closing.
+            </div>
+        {% endif %}
+
+        <div class="border rounded-3 p-3 bg-light mb-3 small">
+            <div><strong>{{ job.device_model }}</strong> — {{ job.customer.name }}</div>
+            <div class="text-muted">
+                Vendor: {{ job.vendor.name }}
+                • Returned: {{ job.received_back_at|date:"d M Y" }}
+                • Parts checked: {{ job.parts_ok_count }}/{{ job.parts_line_count }}
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="id_verification_notes" class="form-label fw-semibold">Verification Notes</label>
+            <textarea name="verification_notes" id="id_verification_notes" rows="3"
+                      class="form-control"
+                      placeholder="Anything found while checking the device / parts">{{ form.verification_notes.value|default:'' }}</textarea>
+        </div>
+
+        <div class="form-check">
+            <input type="checkbox" name="confirm" id="id_confirm" class="form-check-input" required>
+            <label for="id_confirm" class="form-check-label fw-semibold">
+                I have physically checked the device and all parts
+            </label>
+            <div class="invalid-feedback d-block">{{ form.confirm.errors|join:", " }}</div>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-success" {% if pending_parts %}disabled{% endif %}>
+            <i class="bi bi-check2-circle me-1"></i>Complete Job
+        </button>
+    </div>
+</form>

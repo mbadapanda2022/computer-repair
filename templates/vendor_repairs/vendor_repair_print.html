@@ -1,0 +1,269 @@
+{% load static math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Job {{ job.job_number }}</title>
+    <style>
+        @media print {
+            body { font-size: 10.5pt; margin: 1cm; }
+            .no-print { display: none !important; }
+            .table th { background: #e9ecef !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #222; max-width: 980px; margin: 0 auto; padding: 20px; background: #fff; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 18px; }
+        .header h2 { margin: 4px 0; color: #1a1a2e; }
+        .header p { margin: 2px 0; color: #6c757d; font-size: 9.5pt; }
+        .company-logo { max-height: 60px; margin-bottom: 5px; }
+        .doc-title { text-align: center; font-size: 15pt; font-weight: 700; letter-spacing: 1px; margin: 10px 0; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9pt; color: #fff; background: #6c757d; }
+        .badge-success { background: #198754; }
+        .badge-warning { background: #ffc107; color: #000; }
+        .badge-danger { background: #dc3545; }
+        .badge-info { background: #0dcaf0; color: #000; }
+        .meta-table, .parts-table, .money-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+        .meta-table th, .meta-table td,
+        .parts-table th, .parts-table td,
+        .money-table th, .money-table td { border: 1px solid #cfd6dd; padding: 5px 8px; vertical-align: top; }
+        .meta-table th, .parts-table th, .money-table th { background: #eef3f8; text-align: left; font-weight: 600; }
+        .section-title { margin: 16px 0 6px; font-size: 11pt; font-weight: 700; color: #1F4E78; border-bottom: 1px solid #d7e0ea; padding-bottom: 3px; }
+        .label { color: #6c757d; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .3px; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: 700; }
+        .muted { color: #6c757d; }
+        .warranty-box { border: 1px solid #ffc107; background: #fffdf3; padding: 8px 10px; border-radius: 4px; font-size: 9.5pt; }
+        .terms { border-top: 1px solid #d5dbdb; margin-top: 14px; padding-top: 6px; font-size: 8pt; color: #7f8c8d; }
+        .signatures { width: 100%; margin-top: 34px; border-collapse: collapse; }
+        .signatures td { width: 33%; border-top: 1px solid #555; padding-top: 5px; text-align: center; font-size: 8.5pt; color: #555; }
+        .no-print { margin: 18px 0; text-align: center; }
+        .btn { padding: 8px 22px; border: none; border-radius: 6px; font-size: 10.5pt; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        {% if logo_exists %}
+            <img src="{{ company.logo.url }}" alt="Logo" class="company-logo"><br>
+        {% endif %}
+        <h2>{{ company.name|default:"My Company" }}</h2>
+        <p>
+            {{ company.address|default:"" }}{% if company.address %}<br>{% endif %}
+            {% if company.phone %}Phone: {{ company.phone }} | {% endif %}
+            {% if company.email %}Email: {{ company.email }} | {% endif %}
+            {% if company.gstin %}GST: {{ company.gstin }}{% endif %}
+        </p>
+    </div>
+
+    <div class="doc-title">Vendor Repair Job Sheet</div>
+
+    <table class="meta-table">
+        <tr>
+            <th style="width:18%;">Job Number</th>
+            <td style="width:32%;"><strong>{{ job.job_number }}</strong></td>
+            <th style="width:18%;">Status</th>
+            <td style="width:32%;">{{ job.get_status_display }}</td>
+        </tr>
+        <tr>
+            <th>Purpose</th>
+            <td>{{ job.get_purpose_display }}</td>
+            <th>Date Sent</th>
+            <td>{{ job.outbound_date|date:"d M Y" }}</td>
+        </tr>
+        <tr>
+            <th>Vendor</th>
+            <td>
+                {{ job.vendor.name }}
+                {% if job.vendor.company_name %}<br><span class="muted">{{ job.vendor.company_name }}</span>{% endif %}
+            </td>
+            <th>Expected Return</th>
+            <td>{{ job.expected_return_date|date:"d M Y"|default:"—" }}</td>
+        </tr>
+        <tr>
+            <th>Vendor Contact</th>
+            <td>
+                {{ job.vendor_contact_person|default:"—" }}
+                {% if job.vendor_phone %} • {{ job.vendor_phone }}
+                {% elif job.vendor.phone %} • {{ job.vendor.phone }}{% endif %}
+            </td>
+            <th>Vendor Job / Ref</th>
+            <td>{{ job.vendor_reference|default:"—" }}</td>
+        </tr>
+        <tr>
+            <th>Customer</th>
+            <td>
+                {{ job.customer.name }}
+                {% if job.customer.phone %}<br><span class="muted">{{ job.customer.phone }}</span>{% endif %}
+            </td>
+            <th>Date Returned</th>
+            <td>{{ job.received_back_at|date:"d M Y"|default:"—" }}</td>
+        </tr>
+    </table>
+
+    {% if job.is_warranty_claim %}
+    <div class="section-title">Warranty Claim</div>
+    <div class="warranty-box">
+        <strong>Claim No:</strong> {{ job.warranty_claim_number|default:"—" }}
+        &nbsp;•&nbsp; <strong>Claim Status:</strong> {{ job.get_warranty_claim_status_display }}
+        &nbsp;•&nbsp; <strong>Bill / Card Ref:</strong> {{ job.warranty_document_ref|default:"—" }}
+        <br>
+        <strong>Purchase Date:</strong> {{ job.purchase_date|date:"d M Y"|default:"—" }}
+        &nbsp;•&nbsp; <strong>Warranty Expiry:</strong> {{ job.warranty_expiry_date|date:"d M Y"|default:"—" }}
+    </div>
+    {% endif %}
+
+    <div class="section-title">Device Details</div>
+    <table class="meta-table">
+        <tr>
+            <th style="width:18%;">Device Model</th>
+            <td style="width:32%;">{{ job.device_model }}</td>
+            <th style="width:18%;">Serial Number</th>
+            <td style="width:32%;">{{ job.serial_number|default:"—" }}</td>
+        </tr>
+        <tr>
+            <th>Issue Reported</th>
+            <td colspan="3">{{ job.issue_description|linebreaksbr }}</td>
+        </tr>
+        <tr>
+            <th>Accessories Sent</th>
+            <td>{{ job.accessories|default:"—"|linebreaksbr }}</td>
+            <th>Condition at Dispatch</th>
+            <td>{{ job.device_condition|default:"—"|linebreaksbr }}</td>
+        </tr>
+        <tr>
+            <th>Sent By</th>
+            <td>{{ job.dispatched_by|default:"—" }}</td>
+            <th>Courier / Tracking</th>
+            <td>
+                {{ job.courier_name|default:"—" }}
+                {% if job.tracking_number %} • {{ job.tracking_number }}{% endif %}
+            </td>
+        </tr>
+        {% if job.dispatch_notes %}
+        <tr>
+            <th>Dispatch Notes</th>
+            <td colspan="3">{{ job.dispatch_notes|linebreaksbr }}</td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <div class="section-title">Internal Parts (sent / returned)</div>
+    <table class="parts-table">
+        <thead>
+            <tr>
+                <th style="width:4%;">#</th>
+                <th style="width:26%;">Part</th>
+                <th style="width:18%;">Serial / Marking</th>
+                <th style="width:6%;" class="text-center">Qty</th>
+                <th style="width:16%;">Condition Sent</th>
+                <th style="width:16%;">Condition Returned</th>
+                <th style="width:14%;">Verification</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for part in parts %}
+            <tr>
+                <td class="text-center">{{ forloop.counter }}</td>
+                <td>{{ part.name }}</td>
+                <td>{{ part.identifier|default:"—" }}</td>
+                <td class="text-center">{{ part.quantity }}</td>
+                <td>{{ part.condition_sent|default:"—" }}</td>
+                <td>{{ part.condition_returned|default:"—" }}</td>
+                <td>{{ part.get_verification_status_display }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center muted">No parts recorded.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="section-title">Vendor Amounts</div>
+    <table class="money-table">
+        <tr>
+            <th>Estimate</th>
+            <th>Final Amount</th>
+            <th>Difference</th>
+            <th>Vendor Invoice No.</th>
+            <th>Vendor Invoice Date</th>
+        </tr>
+        <tr>
+            <td class="text-end">₹{{ job.estimate_amount|default:0|rupee }}</td>
+            <td class="text-end fw-bold">₹{{ job.final_amount|rupee }}</td>
+            <td class="text-end">₹{{ job.amount_difference|rupee }}</td>
+            <td>{{ job.vendor_invoice_number|default:"—" }}</td>
+            <td>{{ job.vendor_invoice_date|date:"d M Y"|default:"—" }}</td>
+        </tr>
+    </table>
+
+    <div class="section-title">Return &amp; Verification</div>
+    <table class="meta-table">
+        <tr>
+            <th style="width:18%;">Received Back</th>
+            <td style="width:32%;">
+                {{ job.received_back_at|date:"d M Y"|default:"—" }}
+                {% if job.received_by %}<br><span class="muted">by {{ job.received_by }}</span>{% endif %}
+            </td>
+            <th style="width:18%;">Parts Verified</th>
+            <td style="width:32%;">
+                {% if job.parts_verified %}
+                    Yes{% if job.verified_at %} — {{ job.verified_at|date:"d M Y H:i" }}{% endif %}
+                    {% if job.verified_by %}<br><span class="muted">by {{ job.verified_by.get_full_name|default:job.verified_by.username }}</span>{% endif %}
+                {% else %}
+                    Pending
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
+            <th>Return Condition</th>
+            <td colspan="3">{{ job.return_condition|default:"—"|linebreaksbr }}</td>
+        </tr>
+        {% if job.verification_notes %}
+        <tr>
+            <th>Verification Notes</th>
+            <td colspan="3">{{ job.verification_notes|linebreaksbr }}</td>
+        </tr>
+        {% endif %}
+        {% if job.notes %}
+        <tr>
+            <th>Internal Notes</th>
+            <td colspan="3">{{ job.notes|linebreaksbr }}</td>
+        </tr>
+        {% endif %}
+        {% if job.cancel_reason %}
+        <tr>
+            <th>Cancellation</th>
+            <td colspan="3">{{ job.cancel_reason|linebreaksbr }}
+                {% if job.cancelled_at %}<span class="muted">({{ job.cancelled_at|date:"d M Y H:i" }})</span>{% endif %}
+            </td>
+        </tr>
+        {% endif %}
+    </table>
+
+    <table class="signatures">
+        <tr>
+            <td>Sent By (Shop)</td>
+            <td>Received By (Vendor)</td>
+            <td>Verified By (Shop)</td>
+        </tr>
+    </table>
+
+    <div class="terms">
+        This job sheet records the device and every part handed to the vendor.
+        The vendor is expected to return the device with the same parts unless a
+        replacement was agreed in writing. Any missing, swapped or damaged part is
+        noted in the verification column above.
+        Generated on {{ job.updated_at|date:"d M Y H:i" }}.
+    </div>
+
+    <div class="no-print">
+        <button class="btn btn-primary" onclick="window.print()">Print</button>
+        <a class="btn btn-secondary" href="{% url 'accounting:vendor_repair_detail' job.pk %}">Back to Job</a>
+    </div>
+</body>
+</html>

@@ -13,6 +13,7 @@ from django.views.decorators.http import require_http_methods
 
 from ..models import (
     Contact, Invoice, Payment, Product, Purchase, RepairJob,
+    VendorRepairJob,
 )
 
 
@@ -54,6 +55,21 @@ def global_search(request):
         .order_by('-date_in')[:LIMIT_PER_CATEGORY]
     )
 
+    vendor_repairs = (
+        VendorRepairJob.objects
+        .filter(
+            Q(job_number__icontains=q) |
+            Q(device_model__icontains=q) |
+            Q(serial_number__icontains=q) |
+            Q(vendor_reference__icontains=q) |
+            Q(warranty_claim_number__icontains=q) |
+            Q(customer__name__icontains=q) |
+            Q(vendor__name__icontains=q)
+        )
+        .select_related('customer', 'vendor')
+        .order_by('-outbound_date', '-id')[:LIMIT_PER_CATEGORY]
+    )
+
     payments = (
         Payment.objects
         .filter(
@@ -85,7 +101,8 @@ def global_search(request):
 
     total = (
         len(invoices) + len(purchases) + len(repairs) +
-        len(payments) + len(contacts) + len(products)
+        len(vendor_repairs) + len(payments) + len(contacts) +
+        len(products)
     )
 
     return render(request, 'search/results.html', {
@@ -93,6 +110,7 @@ def global_search(request):
         'invoices': invoices,
         'purchases': purchases,
         'repairs': repairs,
+        'vendor_repairs': vendor_repairs,
         'payments': payments,
         'contacts': contacts,
         'products': products,

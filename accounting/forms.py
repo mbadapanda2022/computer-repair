@@ -37,6 +37,8 @@ from .models import (
     RepairPart,
     RepairService,
     Service,
+    VendorRepairJob,
+    VendorRepairPart,
     StockMovement,
     Testimonial,
     UpiPaymentRequest,
@@ -1724,6 +1726,279 @@ class RepairServiceForm(forms.ModelForm):
                 "cannot be added or changed. Deal with the invoice first."
             )
         return cleaned
+
+
+# ============================================================
+# 7b. VENDOR (THIRD-PARTY) REPAIR JOBS
+# ============================================================
+class VendorRepairJobForm(forms.ModelForm):
+    """Create/edit a device sent to an external repair vendor."""
+
+    class Meta:
+        model = VendorRepairJob
+        fields = [
+            'customer', 'vendor', 'vendor_reference',
+            'vendor_contact_person', 'vendor_phone',
+            'purpose', 'warranty_claim_number', 'warranty_claim_status',
+            'purchase_date', 'warranty_expiry_date', 'warranty_document_ref',
+            'device_model', 'serial_number', 'issue_description',
+            'accessories', 'device_condition',
+            'status',
+            'outbound_date', 'expected_return_date',
+            'dispatched_by', 'courier_name', 'tracking_number', 'dispatch_notes',
+            'received_back_at', 'received_by', 'return_condition',
+            'estimate_amount', 'final_amount',
+            'vendor_invoice_number', 'vendor_invoice_date',
+            'verification_notes', 'notes',
+        ]
+        widgets = {
+            'customer': BS_SELECT(),
+            'vendor': BS_SELECT(),
+            'vendor_reference': BS_TEXT(placeholder="Vendor's job / ticket number"),
+            'vendor_contact_person': BS_TEXT(placeholder='Person handling this job at the vendor'),
+            'vendor_phone': BS_TEXT(placeholder='Vendor contact number'),
+            'purpose': BS_SELECT(),
+            'warranty_claim_number': BS_TEXT(placeholder='Service center claim / ticket number'),
+            'warranty_claim_status': BS_SELECT(),
+            'purchase_date': BS_DATE(),
+            'warranty_expiry_date': BS_DATE(),
+            'warranty_document_ref': BS_TEXT(placeholder='Original bill no. / warranty card no.'),
+            'device_model': BS_TEXT(placeholder='e.g. HP Pavilion 15, Dell Inspiron 3501'),
+            'serial_number': BS_TEXT(),
+            'issue_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+            'accessories': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'e.g. Charger, bag, external HDD',
+            }),
+            'device_condition': forms.Textarea(attrs={
+                'class': 'form-control', 'rows': 2,
+                'placeholder': 'e.g. Screen cracked, RAM already opened',
+            }),
+            'status': BS_SELECT(),
+            'outbound_date': BS_DATE(),
+            'expected_return_date': BS_DATE(),
+            'dispatched_by': BS_TEXT(placeholder='Staff name who sent the device'),
+            'courier_name': BS_TEXT(placeholder='Courier / transport name'),
+            'tracking_number': BS_TEXT(),
+            'dispatch_notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'received_back_at': BS_DATE(),
+            'received_by': BS_TEXT(placeholder='Staff name who received it back'),
+            'return_condition': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'estimate_amount': BS_NUMBER(),
+            'final_amount': BS_NUMBER(),
+            'vendor_invoice_number': BS_TEXT(),
+            'vendor_invoice_date': BS_DATE(),
+            'verification_notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+        labels = {
+            'vendor_reference': 'Vendor Job / Reference No.',
+            'vendor_contact_person': 'Vendor Contact Person',
+            'vendor_phone': 'Vendor Phone',
+            'purpose': 'Purpose of Sending',
+            'warranty_claim_number': 'Warranty Claim No.',
+            'warranty_claim_status': 'Warranty Claim Status',
+            'purchase_date': 'Original Purchase Date',
+            'warranty_expiry_date': 'Warranty Expiry Date',
+            'warranty_document_ref': 'Bill / Warranty Card Ref.',
+            'outbound_date': 'Date Sent',
+            'expected_return_date': 'Expected Return',
+            'received_back_at': 'Date Returned',
+            'estimate_amount': 'Vendor Estimate (₹)',
+            'final_amount': 'Vendor Final Amount (₹)',
+            'vendor_invoice_number': 'Vendor Invoice No.',
+            'vendor_invoice_date': 'Vendor Invoice Date',
+        }
+        help_texts = {
+            'status': 'Returned devices must be status "Returned" or "Completed".',
+            'parts_verified': 'Verification is done from the job detail page.',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        active = Contact.objects.filter(is_deleted=False)
+        self.fields['customer'].queryset = active.filter(
+            contact_type__in=['customer', 'both'],
+        ).order_by('name')
+        self.fields['vendor'].queryset = active.filter(
+            contact_type__in=['vendor', 'both'],
+        ).order_by('name')
+        self.fields['customer'].empty_label = '— Select Customer —'
+        self.fields['vendor'].empty_label = '— Select Vendor —'
+        # Completed / cancelled are workflow actions (they need part
+        # verification / a cancel reason), so they are only offered when
+        # the job is already in that state and is being edited.
+        allowed_statuses = ['sent', 'in_repair', 'returned']
+        if self.instance.pk and self.instance.status in ('completed', 'cancelled'):
+            allowed_statuses.append(self.instance.status)
+        self.fields['status'].choices = [
+            choice for choice in VendorRepairJob.STATUS_CHOICES
+            if choice[0] in allowed_statuses
+        ]
+        if not self.instance.pk:
+            self.fields['outbound_date'].initial = timezone.localdate()
+
+    def clean(self):
+        cleaned = super().clean()
+        outbound = cleaned.get('outbound_date')
+        expected = cleaned.get('expected_return_date')
+        returned = cleaned.get('received_back_at')
+        status = cleaned.get('status')
+
+        if outbound and expected and expected < outbound:
+            self.add_error(
+                'expected_return_date',
+                'Expected return date cannot be before the date sent.',
+            )
+        if outbound and returned and returned < outbound:
+            self.add_error(
+                'received_back_at',
+                'Return date cannot be before the date sent.',
+            )
+        if status in ('returned', 'completed') and not returned:
+            self.add_error(
+                'received_back_at',
+                'Enter the return date when the status is Returned or Completed.',
+            )
+        # Completed / cancelled are workflow actions with their own guards
+        # (part verification, cancel reason). Do not let the edit form
+        # bypass those rules on a plain save.
+        if status == 'completed' and (
+            not self.instance.pk or self.instance.status != 'completed'
+        ):
+            self.add_error(
+                'status',
+                'Use "Verify & Complete" on the job page to complete a job.',
+            )
+        if status == 'cancelled' and (
+            not self.instance.pk or self.instance.status != 'cancelled'
+        ):
+            self.add_error(
+                'status',
+                'Use the "Cancel" action on the job page (a reason is required).',
+            )
+        purchase = cleaned.get('purchase_date')
+        expiry = cleaned.get('warranty_expiry_date')
+        if purchase and expiry and expiry < purchase:
+            self.add_error(
+                'warranty_expiry_date',
+                'Warranty expiry cannot be before the purchase date.',
+            )
+        if cleaned.get('vendor') and cleaned.get('customer'):
+            vendor = cleaned['vendor']
+            customer = cleaned['customer']
+            if vendor.pk == customer.pk:
+                self.add_error(
+                    'vendor',
+                    'Vendor and customer cannot be the same party.',
+                )
+        return cleaned
+
+
+class VendorRepairPartForm(forms.ModelForm):
+    """Record one physical part inside the device before dispatch."""
+
+    class Meta:
+        model = VendorRepairPart
+        fields = ['name', 'identifier', 'quantity', 'condition_sent', 'remarks']
+        widgets = {
+            'name': BS_TEXT(placeholder='e.g. 8GB DDR4 RAM, 512GB SSD'),
+            'identifier': BS_TEXT(placeholder='Serial / marking (optional)'),
+            'quantity': forms.NumberInput(attrs={
+                'class': 'form-control', 'min': 1, 'step': 1,
+            }),
+            'condition_sent': BS_TEXT(placeholder='e.g. working, burnt, loose'),
+            'remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+        labels = {
+            'name': 'Part Name',
+            'identifier': 'Serial / Marking',
+            'condition_sent': 'Condition When Sent',
+            'remarks': 'Remarks',
+        }
+
+    def clean_quantity(self):
+        quantity = self.cleaned_data.get('quantity')
+        if not quantity or quantity < 1:
+            raise ValidationError('Quantity must be at least 1.')
+        return quantity
+
+
+class VendorRepairReturnForm(forms.Form):
+    """Record the device coming back from the vendor."""
+
+    received_back_at = forms.DateField(
+        widget=BS_DATE(), label='Date Returned',
+        initial=timezone.localdate,
+    )
+    received_by = forms.CharField(
+        max_length=100, widget=BS_TEXT(placeholder='Staff name who received it'),
+        label='Received By',
+    )
+    return_condition = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        label='Return Condition',
+    )
+
+    def __init__(self, *args, job=None, **kwargs):
+        self.job = job
+        super().__init__(*args, **kwargs)
+
+    def clean_received_back_at(self):
+        value = self.cleaned_data.get('received_back_at')
+        if value and self.job and self.job.outbound_date and value < self.job.outbound_date:
+            raise ValidationError('Return date cannot be before the date sent.')
+        return value
+
+
+class VendorRepairCompleteForm(forms.Form):
+    """Close a returned job after checking every part."""
+
+    verification_notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        label='Verification Notes',
+    )
+    confirm = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label='I have physically checked the device and all parts',
+    )
+
+
+class VendorRepairCancelForm(forms.Form):
+    """Cancel a vendor repair job with a reason."""
+
+    reason = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        label='Reason for Cancellation',
+    )
+    confirm = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label='I want to cancel this job',
+    )
+
+
+class VendorRepairPartVerifyForm(forms.Form):
+    """Verification of one part after the device comes back."""
+
+    verification_status = forms.ChoiceField(
+        choices=VendorRepairPart.VERIFICATION_CHOICES,
+        widget=BS_SELECT(),
+        label='Verification Result',
+    )
+    condition_returned = forms.CharField(
+        required=False, max_length=200,
+        widget=BS_TEXT(placeholder='Condition when returned (optional)'),
+        label='Condition When Returned',
+    )
+    remarks = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        label='Verification Remarks',
+    )
 
 
 # ============================================================

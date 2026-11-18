@@ -74,6 +74,13 @@
                     </a>
                 </li>
                 <li>
+                    <a href="{% url 'accounting:vendor_repair_list' %}"
+                    class="nav-link {% if 'vendor-repairs' in request.path %}active{% endif %}">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                        <span class="link-text">Vendor Repairs</span>
+                    </a>
+                </li>
+                <li>
                     <a href="{% url 'accounting:contact_list' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'contact_list' or 'contacts' in request.path %}active{% endif %}">
                         <i class="bi bi-people"></i>

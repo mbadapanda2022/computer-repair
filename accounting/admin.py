@@ -13,7 +13,7 @@ from .models import (
     CompanyProfile, LedgerEntry, LedgerLine, Contact,
     ProductCategory, Product, Invoice, InvoiceItem,
     Purchase, PurchaseItem, RepairJob, RepairPart,
-    Payment, StockMovement,
+    Payment, StockMovement, VendorRepairJob, VendorRepairPart,
     Notification, NotificationPreference, ContactMessage, 
     FAQ, Testimonial, Service, EmailOTP,
     BankAccount, BankTransaction, PaymentAllocation, AdvanceAdjustment,
@@ -542,6 +542,80 @@ class RepairStatusLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class VendorRepairPartInline(admin.TabularInline):
+    model = VendorRepairPart
+    extra = 1
+    fields = [
+        'name', 'identifier', 'quantity', 'condition_sent',
+        'condition_returned', 'verification_status', 'remarks',
+    ]
+
+
+@admin.register(VendorRepairJob)
+class VendorRepairJobAdmin(admin.ModelAdmin):
+    list_display = [
+        'job_number', 'purpose', 'status', 'vendor', 'customer',
+        'device_model', 'outbound_date', 'expected_return_date',
+        'received_back_at', 'estimate_amount', 'final_amount',
+        'parts_verified', 'warranty_claim_status',
+    ]
+    list_filter = [
+        'purpose', 'status', 'parts_verified', 'warranty_claim_status',
+        'outbound_date',
+    ]
+    search_fields = [
+        'job_number', 'vendor_reference', 'warranty_claim_number',
+        'vendor__name', 'customer__name', 'device_model', 'serial_number',
+    ]
+    readonly_fields = [
+        'job_number', 'created_at', 'updated_at', 'cancelled_at',
+        'verified_at',
+    ]
+    inlines = [VendorRepairPartInline]
+    fieldsets = (
+        ('Job', {
+            'fields': ('job_number', 'purpose', 'status', 'created_by')
+        }),
+        ('Parties', {
+            'fields': ('customer', 'vendor', 'vendor_reference',
+                       'vendor_contact_person', 'vendor_phone')
+        }),
+        ('Device', {
+            'fields': ('device_model', 'serial_number', 'issue_description',
+                       'accessories', 'device_condition')
+        }),
+        ('Warranty Claim', {
+            'fields': ('warranty_claim_number', 'warranty_claim_status',
+                       'purchase_date', 'warranty_expiry_date',
+                       'warranty_document_ref'),
+            'classes': ('collapse',),
+        }),
+        ('Dispatch', {
+            'fields': ('outbound_date', 'expected_return_date',
+                       'dispatched_by', 'courier_name', 'tracking_number',
+                       'dispatch_notes')
+        }),
+        ('Return & Verification', {
+            'fields': ('received_back_at', 'received_by', 'return_condition',
+                       'parts_verified', 'verified_at', 'verified_by',
+                       'verification_notes')
+        }),
+        ('Amounts', {
+            'fields': ('estimate_amount', 'final_amount',
+                       'vendor_invoice_number', 'vendor_invoice_date')
+        }),
+        ('Other', {
+            'fields': ('notes', 'cancel_reason', 'cancelled_at',
+                       'created_at', 'updated_at')
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(RepairJob)

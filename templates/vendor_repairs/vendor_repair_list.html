@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% load static math_filters %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-box-arrow-up-right text-primary me-2"></i>Vendor Repairs
+            </h3>
+            <p class="text-muted small mt-1 mb-0">
+                Devices sent to vendors / service centers for repair or warranty claim
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{% url 'accounting:vendor_repair_create' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> New Vendor Job
+            </a>
+            <button class="btn btn-success" type="button"
+                    onclick="window.location.href='{% url 'accounting:export_vendor_repairs_excel' %}?' + new URLSearchParams(window.location.search).toString()">
+                <i class="bi bi-file-earmark-excel"></i> Export
+            </button>
+            <button class="btn btn-secondary" type="button"
+                    onclick="window.open('{% url 'accounting:vendor_repair_list_print' %}?' + new URLSearchParams(window.location.search).toString(), '_blank')">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-boxes fs-3 text-primary d-block mb-1"></i>
+                    <div class="small text-muted">Total Jobs</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.total_count|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-truck fs-3 text-warning d-block mb-1"></i>
+                    <div class="small text-muted">With Vendor</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.with_vendor_count|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-box-arrow-in-down fs-3 text-info d-block mb-1"></i>
+                    <div class="small text-muted">Returned</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.returned_count|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-shield-check fs-3 text-success d-block mb-1"></i>
+                    <div class="small text-muted">Warranty Claims</div>
+                    <div class="h5 fw-bold mb-0">{{ stats.warranty_count|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-exclamation-triangle fs-3 text-danger d-block mb-1"></i>
+                    <div class="small text-muted">Part Issues</div>
+                    <div class="h5 fw-bold mb-0 text-danger">{{ stats.discrepancy_count|default:0 }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-2 col-md-4 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center p-3">
+                    <i class="bi bi-currency-rupee fs-3 text-dark d-block mb-1"></i>
+                    <div class="small text-muted">Vendor Amount</div>
+                    <div class="h5 fw-bold mb-0">₹{{ stats.total_final|rupee }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form id="vendor-filter-form" class="row g-3">
+                <span id="vendor-filter-spinner"
+                      class="htmx-indicator spinner-border spinner-border-sm text-primary"
+                      role="status" aria-label="Loading"></span>
+                <div class="col-md-3">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control"
+                               placeholder="Search job #, vendor, customer, device..."
+                               name="search" value="{{ search }}"
+                               hx-get="{% url 'accounting:vendor_repair_list' %}"
+                               hx-trigger="keyup changed delay:300ms"
+                               hx-target="#vendor-repair-table-container"
+                               hx-indicator="#vendor-filter-spinner"
+                               hx-include="#vendor-filter-form"
+                               hx-push-url="true">
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="status"
+                            hx-get="{% url 'accounting:vendor_repair_list' %}"
+                            hx-trigger="change"
+                            hx-target="#vendor-repair-table-container"
+                            hx-indicator="#vendor-filter-spinner"
+                            hx-include="#vendor-filter-form"
+                            hx-push-url="true">
+                        <option value="">All Status</option>
+                        <option value="open" {% if status_filter == 'open' %}selected{% endif %}>Open Jobs</option>
+                        {% for value, label in status_choices %}
+                            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="purpose"
+                            hx-get="{% url 'accounting:vendor_repair_list' %}"
+                            hx-trigger="change"
+                            hx-target="#vendor-repair-table-container"
+                            hx-indicator="#vendor-filter-spinner"
+                            hx-include="#vendor-filter-form"
+                            hx-push-url="true">
+                        <option value="">All Purposes</option>
+                        {% for value, label in purpose_choices %}
+                            <option value="{{ value }}" {% if purpose_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="vendor"
+                            hx-get="{% url 'accounting:vendor_repair_list' %}"
+                            hx-trigger="change"
+                            hx-target="#vendor-repair-table-container"
+                            hx-indicator="#vendor-filter-spinner"
+                            hx-include="#vendor-filter-form"
+                            hx-push-url="true">
+                        <option value="">All Vendors</option>
+                        {% for vendor in vendors %}
+                            <option value="{{ vendor.id }}"
+                                    {% if vendor_id == vendor.id|stringformat:"s" %}selected{% endif %}>
+                                {{ vendor.name }}{% if vendor.company_name %} — {{ vendor.company_name }}{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <input type="date" class="form-control" name="date_from" value="{{ date_from }}"
+                           title="Sent from"
+                           hx-get="{% url 'accounting:vendor_repair_list' %}"
+                           hx-trigger="change"
+                           hx-target="#vendor-repair-table-container"
+                           hx-indicator="#vendor-filter-spinner"
+                           hx-include="#vendor-filter-form"
+                           hx-push-url="true">
+                </div>
+                <div class="col-md-1">
+                    <input type="date" class="form-control" name="date_to" value="{{ date_to }}"
+                           title="Sent to"
+                           hx-get="{% url 'accounting:vendor_repair_list' %}"
+                           hx-trigger="change"
+                           hx-target="#vendor-repair-table-container"
+                           hx-indicator="#vendor-filter-spinner"
+                           hx-include="#vendor-filter-form"
+                           hx-push-url="true">
+                </div>
+                <div class="col-md-1">
+                    <button class="btn btn-outline-secondary w-100" type="button"
+                            hx-get="{% url 'accounting:vendor_repair_list' %}"
+                            hx-target="#vendor-repair-table-container"
+                            hx-include="#vendor-filter-form"
+                            hx-vals='{"reset": "true"}'
+                            hx-push-url="true"
+                            title="Reset filters">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="vendor-repair-table-container">
+        {% include "vendor_repairs/partials/vendor_repair_table.html" %}
+    </div>
+</div>
+{% endblock %}

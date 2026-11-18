@@ -1,0 +1,106 @@
+{% load math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vendor Repair Jobs</title>
+    <style>
+        @media print {
+            body { margin: 0.8cm; font-size: 9pt; }
+            .no-print { display: none !important; }
+            thead { display: table-header-group; }
+            tr { page-break-inside: avoid; }
+        }
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #222; max-width: 1200px; margin: 0 auto; padding: 16px; }
+        .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 14px; }
+        .header h2 { margin: 3px 0; }
+        .header p { margin: 1px 0; color: #666; font-size: 9pt; }
+        .company-logo { max-height: 55px; }
+        h4 { margin: 10px 0 8px; color: #1F4E78; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #c8d0d8; padding: 4px 6px; vertical-align: top; }
+        th { background: #eef3f8; text-align: left; font-weight: 600; }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        tfoot th { background: #e8f1e4; }
+        .no-print { text-align: center; margin: 16px 0; }
+        .btn { padding: 7px 20px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; margin: 0 4px; font-size: 10pt; }
+        .btn-primary { background: #0d6efd; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% if logo_exists %}<img src="{{ company.logo.url }}" class="company-logo" alt="Logo"><br>{% endif %}
+        <h2>{{ company.name|default:"My Company" }}</h2>
+        <p>
+            {{ company.address|default:"" }}
+            {% if company.phone %} • Phone: {{ company.phone }}{% endif %}
+            {% if company.email %} • Email: {{ company.email }}{% endif %}
+        </p>
+    </div>
+
+    <h4>Vendor Repair Jobs</h4>
+    <div style="font-size:9pt;color:#666;margin-bottom:6px;">
+        {% if search %}Search: “{{ search }}” • {% endif %}
+        {% if status_filter %}Status: {{ status_filter }} • {% endif %}
+        {% if purpose_filter %}Purpose: {{ purpose_filter }} • {% endif %}
+        {% if date_from %}From: {{ date_from }} • {% endif %}
+        {% if date_to %}To: {{ date_to }} • {% endif %}
+        Total jobs: {{ jobs|length }}
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Job #</th>
+                <th>Purpose</th>
+                <th>Vendor</th>
+                <th>Customer</th>
+                <th>Device</th>
+                <th>Sent</th>
+                <th>Expected</th>
+                <th>Status</th>
+                <th>Parts</th>
+                <th class="text-end">Final (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td>{{ job.job_number }}</td>
+                <td>{{ job.get_purpose_display }}</td>
+                <td>{{ job.vendor.name }}</td>
+                <td>{{ job.customer.name }}</td>
+                <td>{{ job.device_model }}{% if job.serial_number %}<br><small>{{ job.serial_number }}</small>{% endif %}</td>
+                <td>{{ job.outbound_date|date:"d M Y" }}</td>
+                <td>{{ job.expected_return_date|date:"d M Y"|default:"—" }}</td>
+                <td>{{ job.get_status_display }}</td>
+                <td class="text-center">
+                    {{ job.num_parts }}
+                    {% if job.num_discrepancies %}
+                        <br><strong>{{ job.num_discrepancies }} issue{{ job.num_discrepancies|pluralize }}</strong>
+                    {% endif %}
+                </td>
+                <td class="text-end">{{ job.final_amount|rupee }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="11" class="text-center">No vendor repair jobs found.</td></tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="10" class="text-end">Total (excl. cancelled)</th>
+                <th class="text-end">{{ filtered_total|rupee }}</th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="no-print">
+        <button class="btn btn-primary" onclick="window.print()">Print</button>
+        <a class="btn btn-secondary" href="{% url 'accounting:vendor_repair_list' %}">Back</a>
+    </div>
+</body>
+</html>

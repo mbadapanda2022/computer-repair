@@ -1,0 +1,120 @@
+{% load math_filters %}
+
+<div class="card border-0 shadow-sm mb-4" id="vendor-parts-section">
+    <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="fw-semibold">
+            <i class="bi bi-cpu text-primary me-2"></i>Device Parts &amp; Return Verification
+            <span class="badge bg-light text-dark border ms-1">{{ parts|length }} line{{ parts|length|pluralize }}</span>
+            {% if job.parts_pending_count and job.status == 'returned' %}
+                <span class="badge bg-warning text-dark ms-1">{{ job.parts_pending_count }} pending</span>
+            {% endif %}
+            {% if job.has_parts_discrepancy %}
+                <span class="badge bg-danger ms-1">{{ job.parts_discrepancy_count }} issue{{ job.parts_discrepancy_count|pluralize }}</span>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+            {% if can_verify_parts and job.parts_pending_count %}
+                <button class="btn btn-sm btn-outline-success"
+                        hx-post="{% url 'accounting:vendor_repair_verify_all_parts' job.pk %}"
+                        hx-target="#vendor-parts-section"
+                        hx-swap="outerHTML"
+                        hx-confirm="Mark all {{ job.parts_pending_count }} pending part(s) as OK? Only do this after physically checking the device.">
+                    <i class="bi bi-check2-all"></i> Mark All Pending OK
+                </button>
+            {% endif %}
+            {% if can_edit_parts %}
+                <button class="btn btn-sm btn-primary"
+                        hx-get="{% url 'accounting:vendor_repair_add_part' job.pk %}"
+                        hx-target="#mainModalContent" hx-swap="innerHTML">
+                    <i class="bi bi-plus-circle"></i> Add Part
+                </button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>Part</th>
+                        <th>Serial / Marking</th>
+                        <th class="text-center" style="width:60px;">Qty</th>
+                        <th>Condition Sent</th>
+                        <th>Condition Returned</th>
+                        <th class="text-center" style="width:150px;">Verification</th>
+                        <th class="text-center" style="width:130px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for part in parts %}
+                    <tr {% if part.is_discrepancy %}class="table-danger"{% endif %}>
+                        <td class="text-muted">{{ forloop.counter }}</td>
+                        <td>
+                            <span class="fw-semibold">{{ part.name }}</span>
+                            {% if part.remarks %}
+                                <br><small class="text-muted">{{ part.remarks }}</small>
+                            {% endif %}
+                        </td>
+                        <td>{{ part.identifier|default:"—" }}</td>
+                        <td class="text-center">{{ part.quantity }}</td>
+                        <td class="small">{{ part.condition_sent|default:"—" }}</td>
+                        <td class="small">{{ part.condition_returned|default:"—" }}</td>
+                        <td class="text-center">
+                            <span class="badge {{ part.badge_class }}">
+                                {{ part.get_verification_status_display }}
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                {% if can_verify_parts %}
+                                    <button class="btn btn-outline-primary"
+                                            title="Check this part"
+                                            hx-get="{% url 'accounting:vendor_repair_verify_part' part.pk %}"
+                                            hx-target="#mainModalContent" hx-swap="innerHTML">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                {% endif %}
+                                {% if can_edit_parts %}
+                                    <button class="btn btn-outline-warning"
+                                            title="Edit part"
+                                            hx-get="{% url 'accounting:vendor_repair_edit_part' part.pk %}"
+                                            hx-target="#mainModalContent" hx-swap="innerHTML">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger"
+                                            title="Remove part"
+                                            hx-post="{% url 'accounting:vendor_repair_delete_part' part.pk %}"
+                                            hx-target="#vendor-parts-section"
+                                            hx-swap="outerHTML"
+                                            hx-confirm="Remove part '{{ part.name|escapejs }}' from this job?">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <i class="bi bi-cpu display-6 d-block mb-2 text-muted opacity-50"></i>
+                            <div class="fw-semibold mb-1">No parts recorded yet</div>
+                            <p class="text-muted small mb-2">
+                                Record every internal part (RAM, SSD, motherboard, etc.) before sending
+                                the device so nothing goes missing at the vendor.
+                            </p>
+                            {% if can_edit_parts %}
+                                <button class="btn btn-sm btn-primary"
+                                        hx-get="{% url 'accounting:vendor_repair_add_part' job.pk %}"
+                                        hx-target="#mainModalContent" hx-swap="innerHTML">
+                                    <i class="bi bi-plus-circle"></i> Add First Part
+                                </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
