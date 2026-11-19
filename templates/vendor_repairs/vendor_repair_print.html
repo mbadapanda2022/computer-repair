@@ -159,8 +159,9 @@
                 <th style="width:26%;">Part</th>
                 <th style="width:18%;">Serial / Marking</th>
                 <th style="width:6%;" class="text-center">Qty</th>
-                <th style="width:16%;">Condition Sent</th>
-                <th style="width:16%;">Condition Returned</th>
+                <th style="width:11%;">Presence</th>
+                <th style="width:15%;">Condition Sent</th>
+                <th style="width:15%;">Condition Returned</th>
                 <th style="width:14%;">Verification</th>
             </tr>
         </thead>
@@ -171,13 +172,14 @@
                 <td>{{ part.name }}</td>
                 <td>{{ part.identifier|default:"—" }}</td>
                 <td class="text-center">{{ part.quantity }}</td>
+                <td>{{ part.get_presence_display }}</td>
                 <td>{{ part.condition_sent|default:"—" }}</td>
                 <td>{{ part.condition_returned|default:"—" }}</td>
                 <td>{{ part.get_verification_status_display }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" class="text-center muted">No parts recorded.</td>
+                <td colspan="8" class="text-center muted">No parts recorded.</td>
             </tr>
             {% endfor %}
         </tbody>

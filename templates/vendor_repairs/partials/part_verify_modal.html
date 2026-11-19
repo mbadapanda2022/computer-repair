@@ -22,6 +22,8 @@
                 <span class="mx-2">•</span>
                 Qty: {{ part.quantity }}
                 <span class="mx-2">•</span>
+                Presence: {{ part.get_presence_display }}
+                <span class="mx-2">•</span>
                 Sent condition: {{ part.condition_sent|default:"—" }}
             </div>
         </div>

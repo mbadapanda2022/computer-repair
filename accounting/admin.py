@@ -548,7 +548,7 @@ class VendorRepairPartInline(admin.TabularInline):
     model = VendorRepairPart
     extra = 1
     fields = [
-        'name', 'identifier', 'quantity', 'condition_sent',
+        'name', 'identifier', 'presence', 'quantity', 'condition_sent',
         'condition_returned', 'verification_status', 'remarks',
     ]
 

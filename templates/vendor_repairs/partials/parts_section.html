@@ -40,6 +40,7 @@
                         <th>Part</th>
                         <th>Serial / Marking</th>
                         <th class="text-center" style="width:60px;">Qty</th>
+                        <th class="text-center" style="width:110px;">Presence</th>
                         <th>Condition Sent</th>
                         <th>Condition Returned</th>
                         <th class="text-center" style="width:150px;">Verification</th>
@@ -58,6 +59,11 @@
                         </td>
                         <td>{{ part.identifier|default:"—" }}</td>
                         <td class="text-center">{{ part.quantity }}</td>
+                        <td class="text-center">
+                            <span class="badge {{ part.presence_badge_class }}">
+                                {{ part.get_presence_display }}
+                            </span>
+                        </td>
                         <td class="small">{{ part.condition_sent|default:"—" }}</td>
                         <td class="small">{{ part.condition_returned|default:"—" }}</td>
                         <td class="text-center">
@@ -96,12 +102,13 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="text-center py-4">
+                        <td colspan="9" class="text-center py-4">
                             <i class="bi bi-cpu display-6 d-block mb-2 text-muted opacity-50"></i>
                             <div class="fw-semibold mb-1">No parts recorded yet</div>
                             <p class="text-muted small mb-2">
                                 Record every internal part (RAM, SSD, motherboard, etc.) before sending
-                                the device so nothing goes missing at the vendor.
+                                the device so nothing goes missing at the vendor. Mark empty slots as
+                                “Not Installed”.
                             </p>
                             {% if can_edit_parts %}
                                 <button class="btn btn-sm btn-primary"

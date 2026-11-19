@@ -183,7 +183,7 @@
                         <div class="invalid-feedback d-block">{{ form.issue_description.errors|join:", " }}</div>
                     </div>
                     <div class="col-md-6">
-                        <label for="id_accessories" class="form-label fw-semibold">Accessories Sent</label>
+                        <label for="id_accessories" class="form-label fw-semibold">Accessories Sent (external)</label>
                         <textarea name="accessories" id="id_accessories" rows="2" class="form-control"
                                   placeholder="e.g. Charger, bag, external HDD">{{ form.accessories.value|default:'' }}</textarea>
                     </div>
@@ -193,6 +193,97 @@
                                   placeholder="e.g. Screen cracked, battery removed">{{ form.device_condition.value|default:'' }}</textarea>
                     </div>
                 </div>
+
+                <!-- Internal parts inventory -->
+                <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+                    <i class="bi bi-cpu"></i> Internal Parts Inventory
+                    <small class="text-muted fw-normal">— record what is inside the device before dispatch</small>
+                </h6>
+                <div class="alert alert-light border small py-2">
+                    <i class="bi bi-shield-check me-1"></i>
+                    Every line below is checked again when the device comes back. Record parts that are
+                    <strong>not installed</strong> (empty slot) too — this protects you if the vendor
+                    removes or swaps components.
+                </div>
+
+                <div class="mb-2 d-flex flex-wrap gap-1 align-items-center">
+                    <span class="small text-muted me-1">Quick add:</span>
+                    {% for preset in part_presets %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary preset-part"
+                            data-name="{{ preset }}">{{ preset }}</button>
+                    {% endfor %}
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0" id="partsGrid">
+                        <thead class="table-light">
+                            <tr class="small">
+                                <th style="width:36px;">#</th>
+                                <th style="min-width:180px;">Part / Component</th>
+                                <th style="min-width:150px;">Serial / Marking</th>
+                                <th style="width:80px;">Qty</th>
+                                <th style="width:150px;">Presence</th>
+                                <th style="min-width:150px;">Condition when sent</th>
+                                <th style="width:40px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="partsBody">
+                            {% for p in form_parts %}
+                            <tr class="part-row {% if p.remove %}d-none{% endif %}">
+                                <td class="text-center text-muted sr-cell">{{ forloop.counter }}</td>
+                                <td>
+                                    <input type="hidden" name="part_id" value="{{ p.id }}">
+                                    <input type="hidden" name="part_remove" class="row-remove-flag"
+                                           value="{% if p.remove %}1{% else %}0{% endif %}">
+                                    <input type="text" name="part_name" class="form-control form-control-sm part-name"
+                                           value="{{ p.name }}" placeholder="e.g. 8GB DDR4 RAM, 500GB HDD" autocomplete="off">
+                                </td>
+                                <td>
+                                    <input type="text" name="part_identifier" class="form-control form-control-sm"
+                                           value="{{ p.identifier }}" placeholder="Serial / sticker no." autocomplete="off">
+                                </td>
+                                <td>
+                                    <input type="number" inputmode="numeric" min="0" step="1"
+                                           name="part_quantity" class="form-control form-control-sm text-end part-qty"
+                                           value="{{ p.quantity }}" autocomplete="off">
+                                </td>
+                                <td>
+                                    <select name="part_presence" class="form-select form-select-sm part-presence">
+                                        <option value="installed" {% if p.presence != 'not_installed' %}selected{% endif %}>Installed</option>
+                                        <option value="not_installed" {% if p.presence == 'not_installed' %}selected{% endif %}>Not Installed</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="text" name="part_condition" class="form-control form-control-sm"
+                                           value="{{ p.condition }}" placeholder="e.g. working, burnt" autocomplete="off">
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-sm btn-link text-danger p-0 del-part"
+                                            title="Remove line"><i class="bi bi-trash"></i></button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="addPartRow">
+                        <i class="bi bi-plus-lg me-1"></i>Add Part Line
+                    </button>
+                    <small class="text-muted">Leave unused lines blank — only filled rows are saved.</small>
+                </div>
+
+                {% if verified_parts %}
+                <div class="mt-2 small">
+                    <span class="text-muted me-1">Locked (already verified):</span>
+                    {% for part in verified_parts %}
+                    <span class="badge bg-light text-dark border me-1">
+                        {{ part.name }}{% if part.presence == 'not_installed' %} (not installed){% endif %}
+                        — {{ part.get_verification_status_display }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
                 <!-- Dispatch -->
                 <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
@@ -334,5 +425,113 @@
         };
         purpose.addEventListener('change', sync);
         sync();
+    })();
+</script>
+
+<script>
+    (function () {
+        'use strict';
+        const body = document.getElementById('partsBody');
+        if (!body) return;
+        const DEFAULT_QTY = 1;
+
+        function rowHtml() {
+            return (
+                '<td class="text-center text-muted sr-cell"></td>' +
+                '<td><input type="hidden" name="part_id" value="">' +
+                '<input type="hidden" name="part_remove" class="row-remove-flag" value="0">' +
+                '<input type="text" name="part_name" class="form-control form-control-sm part-name" ' +
+                'placeholder="e.g. 8GB DDR4 RAM, 500GB HDD" autocomplete="off"></td>' +
+                '<td><input type="text" name="part_identifier" class="form-control form-control-sm" ' +
+                'placeholder="Serial / sticker no." autocomplete="off"></td>' +
+                '<td><input type="number" inputmode="numeric" min="0" step="1" name="part_quantity" ' +
+                'class="form-control form-control-sm text-end part-qty" value="' + DEFAULT_QTY + '" autocomplete="off"></td>' +
+                '<td><select name="part_presence" class="form-select form-select-sm part-presence">' +
+                '<option value="installed" selected>Installed</option>' +
+                '<option value="not_installed">Not Installed</option></select></td>' +
+                '<td><input type="text" name="part_condition" class="form-control form-control-sm" ' +
+                'placeholder="e.g. working, burnt" autocomplete="off"></td>' +
+                '<td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 del-part" ' +
+                'title="Remove line"><i class="bi bi-trash"></i></button></td>'
+            );
+        }
+
+        function syncRow(tr) {
+            const presence = tr.querySelector('.part-presence');
+            const qty = tr.querySelector('.part-qty');
+            if (!presence || !qty) return;
+            if (presence.value === 'not_installed') {
+                qty.value = 0;
+                qty.readOnly = true;
+                qty.classList.add('bg-light');
+            } else {
+                qty.readOnly = false;
+                qty.classList.remove('bg-light');
+                const n = parseInt(qty.value, 10);
+                if (!n || n < 1) qty.value = DEFAULT_QTY;
+            }
+        }
+
+        function visibleRows() {
+            return Array.from(body.querySelectorAll('tr.part-row'))
+                .filter(function (tr) { return !tr.classList.contains('d-none'); });
+        }
+
+        function renumber() {
+            visibleRows().forEach(function (tr, i) {
+                const cell = tr.querySelector('.sr-cell');
+                if (cell) cell.textContent = i + 1;
+            });
+        }
+
+        function addRow(name) {
+            const tr = document.createElement('tr');
+            tr.className = 'part-row';
+            tr.innerHTML = rowHtml();
+            body.appendChild(tr);
+            if (name) tr.querySelector('.part-name').value = name;
+            syncRow(tr);
+            renumber();
+            return tr;
+        }
+
+        body.addEventListener('change', function (e) {
+            if (e.target.matches('.part-presence')) {
+                syncRow(e.target.closest('tr'));
+            }
+        });
+
+        body.addEventListener('click', function (e) {
+            const btn = e.target.closest('.del-part');
+            if (!btn) return;
+            const tr = btn.closest('tr');
+            const flag = tr.querySelector('.row-remove-flag');
+            if (flag) flag.value = '1';
+            tr.classList.add('d-none');
+            if (!visibleRows().length) addRow('');
+            renumber();
+        });
+
+        document.getElementById('addPartRow').addEventListener('click', function () {
+            const tr = addRow('');
+            tr.querySelector('.part-name').focus();
+        });
+
+        document.querySelectorAll('.preset-part').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                const name = btn.getAttribute('data-name');
+                let target = visibleRows().find(function (tr) {
+                    const input = tr.querySelector('.part-name');
+                    return input && !input.value.trim();
+                });
+                if (!target) target = addRow('');
+                const input = target.querySelector('.part-name');
+                input.value = name;
+                input.focus();
+            });
+        });
+
+        body.querySelectorAll('tr.part-row').forEach(syncRow);
+        renumber();
     })();
 </script>

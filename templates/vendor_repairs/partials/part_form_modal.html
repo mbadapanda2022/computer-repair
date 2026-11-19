@@ -37,11 +37,21 @@
                        placeholder="Serial number, sticker marking, any unique ID">
             </div>
             <div class="col-md-4">
-                <label for="id_quantity" class="form-label fw-semibold">Quantity <span class="text-danger">*</span></label>
-                <input type="number" name="quantity" id="id_quantity" min="1" step="1"
-                       class="form-control" value="{{ form.quantity.value|default:'1' }}" required>
+                <label for="id_quantity" class="form-label fw-semibold">Quantity</label>
+                <input type="number" name="quantity" id="id_quantity" min="0" step="1"
+                       class="form-control" value="{{ form.quantity.value|default:'1' }}">
                 <div class="invalid-feedback d-block">{{ form.quantity.errors|join:", " }}</div>
             </div>
+        </div>
+
+        <div class="mt-3">
+            <label for="id_presence" class="form-label fw-semibold">Presence When Sent</label>
+            <select name="presence" id="id_presence" class="form-select">
+                {% for value, label in form.fields.presence.choices %}
+                <option value="{{ value }}" {% if form.presence.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <small class="text-muted">Choose “Not Installed” when the slot was empty (e.g. no HDD inside).</small>
         </div>
 
         <div class="mt-3">

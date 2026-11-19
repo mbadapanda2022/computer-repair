@@ -241,6 +241,153 @@ def _redirect_to_detail(job, toast_message):
     return response
 
 
+# ============================================================
+# INLINE PARTS GRID ON THE JOB FORM
+# ============================================================
+PART_ROW_BLANKS = 3
+PART_PRESETS = (
+    'HDD', 'SSD', 'RAM', 'WiFi Card', 'Battery', 'Keyboard',
+    'Touchpad', 'Webcam', 'CMOS Battery', 'DVD Drive',
+)
+_PART_POST_FIELDS = (
+    'part_id', 'part_name', 'part_identifier',
+    'part_quantity', 'part_presence', 'part_condition',
+)
+
+
+def _blank_part_row():
+    return {
+        'id': '', 'name': '', 'identifier': '', 'quantity': '',
+        'presence': 'installed', 'condition': '', 'remove': False,
+    }
+
+
+def _part_rows_from_post(request):
+    """Parse the inline parts grid. Returns (rows, errors).
+
+    Checkboxes are parallel hidden inputs (always submitted), so every
+    column list keeps the same indexes and rows never shift.
+    """
+    cols = {name: request.POST.getlist(name) for name in _PART_POST_FIELDS}
+    remove_flags = request.POST.getlist('part_remove')
+    count = max((len(values) for values in cols.values()), default=0)
+
+    rows, errors = [], []
+    for i in range(count):
+        raw = {
+            key: (values[i] if i < len(values) else '').strip()
+            for key, values in cols.items()
+        }
+        remove = (remove_flags[i] if i < len(remove_flags) else '0').strip() == '1'
+        # Quantity is prefilled (1) on blank lines, so only typed text
+        # counts as content — otherwise every untouched row would error.
+        has_content = any(
+            raw[key] for key in
+            ('part_name', 'part_identifier', 'part_condition')
+        )
+        if not has_content and not remove:
+            continue
+
+        presence = (
+            raw['part_presence']
+            if raw['part_presence'] in ('installed', 'not_installed')
+            else 'installed'
+        )
+        quantity = None
+        if raw['part_quantity']:
+            try:
+                quantity = int(raw['part_quantity'])
+            except ValueError:
+                errors.append(
+                    f'Parts row {i + 1}: quantity must be a whole number.')
+        elif presence == 'installed':
+            quantity = 1
+
+        if not remove:
+            if not raw['part_name']:
+                errors.append(
+                    f'Parts row {i + 1}: enter a part name or clear the row.')
+            elif presence == 'installed' and quantity is not None and quantity < 1:
+                quantity = 1
+
+        rows.append({
+            'id': raw['part_id'],
+            'name': raw['part_name'],
+            'identifier': raw['part_identifier'],
+            'quantity': (
+                0 if presence == 'not_installed'
+                else (quantity if quantity is not None else '')
+            ),
+            'presence': presence,
+            'condition': raw['part_condition'],
+            'remove': remove,
+        })
+    return rows, errors
+
+
+def _sync_form_parts(job, rows):
+    """Apply the inline grid to the job's parts.
+
+    Only unverified parts are editable or removable; verified history stays
+    locked so a past check can never be silently rewritten.
+    """
+    existing = {str(part.pk): part for part in job.parts.all()}
+    for raw in rows:
+        part = existing.get(raw['id']) if raw['id'] else None
+        if part and part.verification_status != 'pending':
+            continue
+        if raw['remove']:
+            if part:
+                part.delete()
+            continue
+        if not raw['name']:
+            continue
+
+        data = {
+            'name': raw['name'],
+            'identifier': raw['identifier'],
+            'quantity': raw['quantity'] if raw['quantity'] is not None else 1,
+            'presence': raw['presence'],
+            'condition_sent': raw['condition'],
+        }
+        if part:
+            for field, value in data.items():
+                setattr(part, field, value)
+            part.save()
+        else:
+            VendorRepairPart.objects.create(job=job, **data)
+
+
+def _form_parts_context(request, job):
+    if request.method == 'POST':
+        rows, _ = _part_rows_from_post(request)
+        rows = [row for row in rows if not row['remove']]
+    else:
+        rows = []
+        if job:
+            for part in job.parts.filter(verification_status='pending'):
+                rows.append({
+                    'id': str(part.pk),
+                    'name': part.name,
+                    'identifier': part.identifier,
+                    'quantity': part.quantity,
+                    'presence': part.presence,
+                    'condition': part.condition_sent,
+                    'remove': False,
+                })
+    while len(rows) < PART_ROW_BLANKS:
+        rows.append(_blank_part_row())
+
+    verified_parts = (
+        list(job.parts.exclude(verification_status='pending')) if job else []
+    )
+    return {
+        'form_parts': rows,
+        'verified_parts': verified_parts,
+        'part_presets': PART_PRESETS,
+    }
+
+
 # ════════════════════════════════════════════════════════════
 # LIST / PRINT / EXPORT
 # ════════════════════════════════════════════════════════════
@@ -512,10 +659,12 @@ def vendor_repair_create(request):
 
     if request.method == 'POST':
         form = VendorRepairJobForm(request.POST)
-        if form.is_valid():
+        part_rows, part_errors = _part_rows_from_post(request)
+        if form.is_valid() and not part_errors:
             job = form.save(commit=False)
             job.created_by = request.user
             job.save()
+            _sync_form_parts(job, part_rows)
             if is_htmx(request):
                 return _redirect_to_detail(
                     job, f'Vendor repair {job.job_number} created.',
@@ -524,6 +673,8 @@ def vendor_repair_create(request):
                 request, f'Vendor repair {job.job_number} created.',
             )
             return redirect_to_staff('vendor_repair_detail', pk=job.pk)
+        for error in part_errors:
+            form.add_error(None, error)
     else:
         form = VendorRepairJobForm()
 
@@ -531,6 +682,7 @@ def vendor_repair_create(request):
         'form': form,
         'job': None,
         'is_htmx': is_htmx(request),
+        **_form_parts_context(request, None),
     })
 
 
@@ -546,8 +698,10 @@ def vendor_repair_update(request, pk):
 
     if request.method == 'POST':
         form = VendorRepairJobForm(request.POST, instance=job)
-        if form.is_valid():
+        part_rows, part_errors = _part_rows_from_post(request)
+        if form.is_valid() and not part_errors:
             form.save()
+            _sync_form_parts(job, part_rows)
             if is_htmx(request):
                 return _redirect_to_detail(
                     job, f'Vendor repair {job.job_number} updated.',
@@ -556,6 +710,8 @@ def vendor_repair_update(request, pk):
                 request, f'Vendor repair {job.job_number} updated.',
             )
             return redirect_to_staff('vendor_repair_detail', pk=job.pk)
+        for error in part_errors:
+            form.add_error(None, error)
     else:
         form = VendorRepairJobForm(instance=job)
 
@@ -563,6 +719,7 @@ def vendor_repair_update(request, pk):
         'form': form,
         'job': job,
         'is_htmx': is_htmx(request),
+        **_form_parts_context(request, job),
     })
 
 

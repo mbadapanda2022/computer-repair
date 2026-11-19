@@ -3667,6 +3667,11 @@ class VendorRepairPart(SoftDeleteModel):
     )
     DISCREPANCY_STATUSES = ('missing', 'replaced', 'damaged')
 
+    PRESENCE_CHOICES = (
+        ('installed', 'Installed'),
+        ('not_installed', 'Not Installed'),
+    )
+
     job = models.ForeignKey(
         VendorRepairJob,
         on_delete=models.CASCADE,
@@ -3678,7 +3683,12 @@ class VendorRepairPart(SoftDeleteModel):
         help_text="Serial number, marking or any unique identifier",
     )
     quantity = models.PositiveIntegerField(
-        default=1, validators=[MinValueValidator(1)],
+        default=1, validators=[MinValueValidator(0)],
+        help_text="0 means the slot was empty when the device was sent",
+    )
+    presence = models.CharField(
+        max_length=15, choices=PRESENCE_CHOICES, default='installed',
+        help_text="Was this part actually installed when the device was sent?",
     )
     condition_sent = models.CharField(
         max_length=200, blank=True,
@@ -3704,6 +3714,14 @@ class VendorRepairPart(SoftDeleteModel):
     @property
     def is_discrepancy(self):
         return self.verification_status in self.DISCREPANCY_STATUSES
+
+    @property
+    def is_installed(self):
+        return self.presence == 'installed'
+
+    @property
+    def presence_badge_class(self):
+        return 'bg-secondary' if self.presence == 'not_installed' else 'bg-light text-dark border'
 
     @property
     def badge_class(self):

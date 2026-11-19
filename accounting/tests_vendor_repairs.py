@@ -77,6 +77,21 @@ class VendorRepairTests(TestCase):
             headers=headers,
         )
 
+    def _with_parts(self, data, rows):
+        """Attach inline parts-grid arrays to a job form payload."""
+        def col(key):
+            return [str(row.get(key, '')) for row in rows]
+
+        data = dict(data)
+        data['part_id'] = col('id')
+        data['part_name'] = col('name')
+        data['part_identifier'] = col('identifier')
+        data['part_quantity'] = col('quantity')
+        data['part_presence'] = col('presence')
+        data['part_condition'] = col('condition')
+        data['part_remove'] = [str(row.get('remove', '0')) for row in rows]
+        return data
+
     # ══════════════ 1. NUMBERING & MODEL ══════════════
     def test_job_number_sequence(self):
         first = self._job()
@@ -234,6 +249,122 @@ class VendorRepairTests(TestCase):
         resp = self.client.get(reverse('accounting:vendor_repair_create'))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Purpose of Sending')
+
+    # ══════════════ 3b. INLINE PARTS GRID ON THE FORM ══════════════
+    def test_create_with_inline_parts_grid(self):
+        data = self._with_parts(self._form_data(), [
+            {'name': '500GB HDD', 'identifier': 'HDD-1', 'quantity': '1',
+             'presence': 'installed', 'condition': 'working'},
+            {'name': 'RAM Slot 2', 'quantity': '',
+             'presence': 'not_installed'},
+        ])
+        resp = self._post(
+            'vendor_repair_create', data=data, htmx=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        job = VendorRepairJob.objects.get()
+        parts = list(job.parts.order_by('id'))
+        self.assertEqual(len(parts), 2)
+        self.assertEqual(parts[0].name, '500GB HDD')
+        self.assertEqual(parts[0].presence, 'installed')
+        self.assertEqual(parts[0].quantity, 1)
+        self.assertEqual(parts[0].condition_sent, 'working')
+        self.assertEqual(parts[1].presence, 'not_installed')
+        self.assertEqual(parts[1].quantity, 0)
+
+    def test_create_rejects_parts_row_without_name(self):
+        data = self._with_parts(self._form_data(), [
+            {'name': '', 'identifier': 'X-1', 'quantity': '1',
+             'presence': 'installed'},
+        ])
+        resp = self._post(
+            'vendor_repair_create', data=data, htmx=False,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'enter a part name')
+        self.assertEqual(VendorRepairJob.objects.count(), 0)
+
+    def test_blank_parts_rows_are_ignored(self):
+        data = self._with_parts(self._form_data(), [
+            {'name': '', 'identifier': '', 'quantity': '1',
+             'presence': 'installed', 'condition': ''},
+            {'name': '', 'identifier': '', 'quantity': '1',
+             'presence': 'installed', 'condition': ''},
+        ])
+        resp = self._post(
+            'vendor_repair_create', data=data, htmx=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        job = VendorRepairJob.objects.get()
+        self.assertEqual(job.parts.count(), 0)
+
+    def test_update_edits_unverified_part_from_grid(self):
+        job = self._job()
+        part = self._part(job)
+        data = self._with_parts(self._form_data(), [
+            {'id': part.pk, 'name': '16GB DDR4 RAM', 'identifier': 'RAM-2',
+             'quantity': '2', 'presence': 'installed',
+             'condition': 'working'},
+        ])
+        resp = self._post(
+            'vendor_repair_update', args=[job.pk], data=data, htmx=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        part.refresh_from_db()
+        self.assertEqual(part.name, '16GB DDR4 RAM')
+        self.assertEqual(part.quantity, 2)
+        self.assertEqual(part.identifier, 'RAM-2')
+
+    def test_update_can_remove_unverified_part(self):
+        job = self._job()
+        part = self._part(job)
+        data = self._with_parts(self._form_data(), [
+            {'id': part.pk, 'name': part.name, 'quantity': '1',
+             'presence': 'installed', 'remove': '1'},
+        ])
+        self._post(
+            'vendor_repair_update', args=[job.pk], data=data, htmx=False,
+        )
+        self.assertFalse(VendorRepairPart.objects.filter(pk=part.pk).exists())
+        self.assertTrue(
+            VendorRepairPart.all_objects.filter(pk=part.pk).exists())
+
+    def test_verified_part_is_locked_against_grid_edits(self):
+        job = self._job()
+        part = self._part(job, verification_status='ok')
+        data = self._with_parts(self._form_data(), [
+            {'id': part.pk, 'name': 'Tampered Name', 'quantity': '9',
+             'presence': 'not_installed', 'remove': '1'},
+        ])
+        self._post(
+            'vendor_repair_update', args=[job.pk], data=data, htmx=False,
+        )
+        part.refresh_from_db()
+        self.assertEqual(part.name, '8GB DDR4 RAM')
+        self.assertEqual(part.quantity, 1)
+        self.assertEqual(part.presence, 'installed')
+        self.assertEqual(part.verification_status, 'ok')
+
+    def test_detail_page_shows_not_installed_badge(self):
+        job = self._job()
+        self._part(job, name='HDD Bay', presence='not_installed', quantity=0)
+        resp = self.client.get(
+            reverse('accounting:vendor_repair_detail', args=[job.pk]))
+        self.assertContains(resp, 'HDD Bay')
+        self.assertContains(resp, 'Not Installed')
+
+    def test_add_part_modal_accepts_not_installed(self):
+        job = self._job()
+        self._post('vendor_repair_add_part', args=[job.pk], data={
+            'name': 'HDD Bay',
+            'identifier': '',
+            'quantity': '',
+            'presence': 'not_installed',
+            'condition_sent': '',
+        })
+        part = job.parts.get()
+        self.assertEqual(part.presence, 'not_installed')
+        self.assertEqual(part.quantity, 0)
 
     # ══════════════ 4. PARTS — ADD / EDIT / DELETE ══════════════
     def test_add_part_htmx(self):

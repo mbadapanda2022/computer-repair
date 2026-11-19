@@ -1898,15 +1898,30 @@ class VendorRepairJobForm(forms.ModelForm):
 class VendorRepairPartForm(forms.ModelForm):
     """Record one physical part inside the device before dispatch."""
 
+    presence = forms.ChoiceField(
+        choices=VendorRepairPart.PRESENCE_CHOICES,
+        required=False,
+        initial='installed',
+        label='Presence When Sent',
+        help_text='Choose "Not Installed" for empty slots (e.g. no HDD inside).',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+    quantity = forms.IntegerField(
+        required=False,
+        initial=1,
+        min_value=0,
+        widget=forms.NumberInput(attrs={
+            'class': 'form-control', 'min': 0, 'step': 1,
+        }),
+    )
+
     class Meta:
         model = VendorRepairPart
-        fields = ['name', 'identifier', 'quantity', 'condition_sent', 'remarks']
+        fields = ['name', 'identifier', 'presence', 'quantity',
+                  'condition_sent', 'remarks']
         widgets = {
             'name': BS_TEXT(placeholder='e.g. 8GB DDR4 RAM, 512GB SSD'),
             'identifier': BS_TEXT(placeholder='Serial / marking (optional)'),
-            'quantity': forms.NumberInput(attrs={
-                'class': 'form-control', 'min': 1, 'step': 1,
-            }),
             'condition_sent': BS_TEXT(placeholder='e.g. working, burnt, loose'),
             'remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }
@@ -1917,11 +1932,16 @@ class VendorRepairPartForm(forms.ModelForm):
             'remarks': 'Remarks',
         }
 
-    def clean_quantity(self):
-        quantity = self.cleaned_data.get('quantity')
-        if not quantity or quantity < 1:
-            raise ValidationError('Quantity must be at least 1.')
-        return quantity
+    def clean(self):
+        cleaned = super().clean()
+        presence = cleaned.get('presence') or 'installed'
+        cleaned['presence'] = presence
+        quantity = cleaned.get('quantity')
+        if presence == 'not_installed':
+            cleaned['quantity'] = 0
+        else:
+            cleaned['quantity'] = quantity if quantity and quantity >= 1 else 1
+        return cleaned
 
 
 class VendorRepairReturnForm(forms.Form):
