@@ -117,10 +117,12 @@ urlpatterns = [
     path('purchase/product-search/', purchases.purchase_product_search, name='purchase_product_search'),
     path('purchase/product-quick-add/', purchases.purchase_product_quick_add, name='purchase_product_quick_add'),
 
-    # ===== Temporary Order Note (session-based, no DB) =====
-    path('order-note/', order_note_view.order_note, name='order_note'),
-    path('order-note/clear/', order_note_view.order_note_clear, name='order_note_clear'),
-    path('order-note/export/excel/', order_note_view.order_note_excel, name='order_note_excel'),
+    # ===== Temporary Order Notes (session-based, no DB) =====
+    path('order-note/', order_note_view.order_note_list, name='order_note_list'),
+    path('order-note/create/', order_note_view.order_note_create, name='order_note_create'),
+    path('order-note/<str:note_id>/', order_note_view.order_note_edit, name='order_note_edit'),
+    path('order-note/<str:note_id>/delete/', order_note_view.order_note_delete, name='order_note_delete'),
+    path('order-note/<str:note_id>/excel/', order_note_view.order_note_excel, name='order_note_excel'),
 
     # ===== Repairs =====
     path('repairs/', repairs.repair_list, name='repair_list'),

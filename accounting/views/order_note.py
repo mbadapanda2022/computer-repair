@@ -1,19 +1,25 @@
 # accounting/views/order_note.py
 """
-Temporary supplier Order Note — an Excel-like scratch sheet kept in the
-user's session (never in the DB). Export to .xlsx and send to the supplier
-on WhatsApp so they can fill rates / availability themselves.
+Temporary supplier Order Notes — Excel-like scratch sheets kept in the
+user's session (never in the DB). Every supplier gets its own note, so
+several orders can be prepared in parallel instead of overwriting one
+sheet. Export a note to .xlsx and send it to the supplier on WhatsApp
+so they can fill rates / availability themselves.
 """
 import re
+import uuid
+from datetime import date
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
-from django.http import HttpResponse
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import Http404, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from ..models import CompanyProfile
-from .utils import toast_only_response
+from ..models import CompanyProfile, Contact
+from .utils import htmx_response, is_htmx, toast_only_response
 
 try:
     from openpyxl import Workbook
@@ -22,12 +28,15 @@ try:
 except ImportError:  # pragma: no cover
     Workbook = None
 
-SESSION_KEY = 'order_note'
+SESSION_KEY = 'order_notes'
+LEGACY_SESSION_KEY = 'order_note'
 TWO_PLACES = Decimal('0.01')
 
 
+# ============================================================
+# CELL PARSING (this sheet has no validation — bad input = blank)
+# ============================================================
 def _dec(value):
-    """Loose numeric parse — this sheet has no validation, bad input = blank."""
     if value is None:
         return None
     s = str(value).replace(',', '').strip()
@@ -112,74 +121,269 @@ def _totals(rows):
     }
 
 
-def _get_sheet(request):
-    return request.session.get(SESSION_KEY) or {'supplier': '', 'note': '', 'rows': []}
-
-
-def _store_sheet(request):
-    rows = _rows_from_post(request)
-    request.session[SESSION_KEY] = {
-        'supplier': request.POST.get('supplier', '').strip(),
-        'note': request.POST.get('note', '').strip(),
-        'rows': [{k: _cell(v) for k, v in r.items()} for r in rows],
-    }
-    return rows
-
-
 def _cell(value):
     if value is None or value == Decimal('0'):
         return ''
     return str(value)
 
 
-# ============================================================
-# SHEET PAGE (create / edit / delete rows, all saved at once)
-# ============================================================
-def order_note(request):
-    if request.method == 'POST':
-        _store_sheet(request)
-        return redirect('accounting:order_note')
+def _serialize_rows(rows):
+    return [{k: _cell(v) for k, v in r.items()} for r in rows]
 
-    sheet = _get_sheet(request)
-    rows = [_compute_row(r) for r in sheet['rows']]
-    context = {
-        'supplier': sheet.get('supplier', ''),
-        'note': sheet.get('note', ''),
+
+# ============================================================
+# SESSION STORE (all notes live in one dict, keyed by note id)
+# ============================================================
+def _today():
+    return timezone.localdate().isoformat()
+
+
+def _load_notes(request):
+    """Return the session notes dict, migrating the old single-sheet key."""
+    notes = request.session.get(SESSION_KEY)
+    if not isinstance(notes, dict):
+        notes = {}
+
+    legacy = request.session.pop(LEGACY_SESSION_KEY, None)
+    if isinstance(legacy, dict) and (
+        legacy.get('supplier') or legacy.get('note') or legacy.get('rows')
+    ):
+        note_id = uuid.uuid4().hex[:12]
+        stamped = _today()
+        notes[note_id] = {
+            'id': note_id,
+            'supplier': (legacy.get('supplier') or '').strip(),
+            'note': (legacy.get('note') or '').strip(),
+            'created': stamped,
+            'updated': stamped,
+            'rows': legacy.get('rows') or [],
+        }
+        request.session[SESSION_KEY] = notes
+    return notes
+
+
+def _store_notes(request, notes):
+    request.session[SESSION_KEY] = notes
+
+
+def _get_note(notes, note_id):
+    note = notes.get(note_id)
+    if not isinstance(note, dict):
+        raise Http404('Order note not found')
+    return note
+
+
+def _note_rows(note):
+    return [_compute_row(r) for r in note.get('rows', [])]
+
+
+def _fmt_date(iso):
+    try:
+        return date.fromisoformat(iso).strftime('%d %b %Y')
+    except (TypeError, ValueError):
+        return iso or ''
+
+
+def _summary(note):
+    rows = _note_rows(note)
+    totals = _totals(rows)
+    return {
+        'id': note.get('id'),
+        'supplier': note.get('supplier') or '',
+        'note': note.get('note') or '',
+        'item_count': len(rows),
+        'qty': totals['qty'],
+        'grand': totals['grand'],
+        'created': note.get('created') or '',
+        'updated': note.get('updated') or '',
+        'updated_display': _fmt_date(note.get('updated') or ''),
+    }
+
+
+def _sorted_summaries(notes):
+    summaries = [_summary(note) for note in notes.values()]
+    summaries.sort(key=lambda s: (s['updated'], s['created']), reverse=True)
+    return summaries
+
+
+def _vendor_names():
+    return list(
+        Contact.objects
+        .filter(contact_type__in=('vendor', 'both'))
+        .order_by('name')
+        .values_list('name', flat=True)
+        .distinct()
+    )
+
+
+def _sheet_context(rows, supplier, note_text, is_new, note_id=''):
+    return {
+        'is_new': is_new,
+        'note_id': note_id,
+        'supplier': supplier,
+        'note': note_text,
         'rows': rows,
         'totals': _totals(rows),
         'today': timezone.localdate().isoformat(),
         'company': CompanyProfile.get_instance(),
+        'vendor_names': _vendor_names(),
     }
-    return render(request, 'order_note/sheet.html', context)
 
 
 # ============================================================
-# CLEAR (hard delete — nothing persists anyway)
+# LIST (all draft orders, one row per supplier)
 # ============================================================
+@login_required
+def order_note_list(request):
+    notes = _load_notes(request)
+    return render(request, 'order_note/list.html', {
+        'summaries': _sorted_summaries(notes),
+        'note_count': len(notes),
+        'company': CompanyProfile.get_instance(),
+    })
+
+
+# ============================================================
+# CREATE (new blank sheet)
+# ============================================================
+@login_required
+def order_note_create(request):
+    notes = _load_notes(request)
+
+    if request.method == 'POST':
+        rows = _rows_from_post(request)
+        supplier = (request.POST.get('supplier') or '').strip()
+        note_text = (request.POST.get('note') or '').strip()
+
+        if not rows and not supplier:
+            messages.warning(
+                request,
+                'Add a supplier name or at least one item before saving.')
+            return render(request, 'order_note/sheet.html',
+                          _sheet_context(rows, supplier, note_text, True))
+
+        note_id = uuid.uuid4().hex[:12]
+        stamped = _today()
+        notes[note_id] = {
+            'id': note_id,
+            'supplier': supplier,
+            'note': note_text,
+            'created': stamped,
+            'updated': stamped,
+            'rows': _serialize_rows(rows),
+        }
+        _store_notes(request, notes)
+        messages.success(
+            request,
+            f'Order note for {supplier or "unnamed supplier"} created.')
+        if request.POST.get('after') == 'list':
+            return redirect('accounting:order_note_list')
+        return redirect('accounting:order_note_edit', note_id=note_id)
+
+    return render(request, 'order_note/sheet.html',
+                  _sheet_context([], '', '', True))
+
+
+# ============================================================
+# EDIT (sheet for one supplier's order)
+# ============================================================
+@login_required
+def order_note_edit(request, note_id):
+    notes = _load_notes(request)
+    note = _get_note(notes, note_id)
+
+    if request.method == 'POST':
+        rows = _rows_from_post(request)
+        note['supplier'] = (request.POST.get('supplier') or '').strip()
+        note['note'] = (request.POST.get('note') or '').strip()
+        note['rows'] = _serialize_rows(rows)
+        note['updated'] = _today()
+        _store_notes(request, notes)
+        messages.success(request, 'Order note saved.')
+        if request.POST.get('after') == 'list':
+            return redirect('accounting:order_note_list')
+        return redirect('accounting:order_note_edit', note_id=note_id)
+
+    return render(request, 'order_note/sheet.html', _sheet_context(
+        _note_rows(note), note.get('supplier', ''), note.get('note', ''),
+        False, note_id,
+    ))
+
+
+# ============================================================
+# DELETE (one note; everything else stays)
+# ============================================================
+@login_required
 @require_POST
-def order_note_clear(request):
-    request.session.pop(SESSION_KEY, None)
-    return redirect('accounting:order_note')
+def order_note_delete(request, note_id):
+    notes = _load_notes(request)
+    note = _get_note(notes, note_id)
+    label = note.get('supplier') or 'unnamed supplier'
+    del notes[note_id]
+    _store_notes(request, notes)
+
+    if is_htmx(request):
+        return htmx_response(
+            request, 'order_note/partials/list_table.html',
+            {'summaries': _sorted_summaries(notes), 'note_count': len(notes)},
+            toast={'level': 'success',
+                   'message': f'Order note for {label} deleted.'},
+        )
+
+    messages.success(request, f'Order note for {label} deleted.')
+    return redirect('accounting:order_note_list')
 
 
 # ============================================================
 # EXCEL EXPORT (POST saves the live grid first, then downloads)
 # ============================================================
-def order_note_excel(request):
+@login_required
+def order_note_excel(request, note_id):
+    notes = _load_notes(request)
+    note = _get_note(notes, note_id)
+
     if request.method == 'POST':
-        _store_sheet(request)
-    sheet = _get_sheet(request)
-    rows = [_compute_row(r) for r in sheet['rows']]
+        rows = _rows_from_post(request)
+        note['supplier'] = (request.POST.get('supplier') or '').strip()
+        note['note'] = (request.POST.get('note') or '').strip()
+        note['rows'] = _serialize_rows(rows)
+        note['updated'] = _today()
+        _store_notes(request, notes)
+    else:
+        rows = _note_rows(note)
+
     if not rows:
-        return toast_only_response(
-            {'level': 'warning', 'message': 'Order note is empty — add some items first.'})
+        if is_htmx(request):
+            return toast_only_response(
+                {'level': 'warning',
+                 'message': 'Order note is empty — add some items first.'})
+        messages.warning(request,
+                         'Order note is empty — add some items first.')
+        return redirect('accounting:order_note_edit', note_id=note_id)
+
     if Workbook is None:  # pragma: no cover
-        return toast_only_response(
-            {'level': 'danger', 'message': 'Openpyxl library is not installed.'}, status=400)
+        if is_htmx(request):
+            return toast_only_response(
+                {'level': 'danger',
+                 'message': 'Openpyxl library is not installed.'}, status=400)
+        messages.error(request, 'Openpyxl library is not installed.')
+        return redirect('accounting:order_note_edit', note_id=note_id)
 
-    company = CompanyProfile.get_instance()
-    supplier = sheet.get('supplier', '')
+    wb = _build_workbook(note, rows, CompanyProfile.get_instance())
 
+    supplier = note.get('supplier', '')
+    slug = re.sub(r'[^a-z0-9]+', '-', supplier.lower()).strip('-') or 'supplier'
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = (
+        f'attachment; filename="order-note_{slug}_'
+        f'{timezone.localdate().strftime("%Y%m%d")}.xlsx"'
+    )
+    wb.save(response)
+    return response
+
+
+def _build_workbook(note, rows, company):
     wb = Workbook()
     ws = wb.active
     ws.title = 'Order Note'
@@ -198,13 +402,14 @@ def order_note_excel(request):
     ws['A1'].alignment = center
 
     ws.merge_cells('A2:J2')
-    ws['A2'] = f"Supplier: {supplier or '—'}    Date: {timezone.localdate().strftime('%d-%m-%Y')}"
+    ws['A2'] = (f"Supplier: {note.get('supplier') or '—'}    "
+                f"Date: {timezone.localdate().strftime('%d-%m-%Y')}")
     ws['A2'].font = Font(bold=True, size=11)
     ws['A2'].alignment = center
 
-    if sheet.get('note'):
+    if note.get('note'):
         ws.merge_cells('A3:J3')
-        ws['A3'] = sheet['note']
+        ws['A3'] = note['note']
         ws['A3'].alignment = center
 
     headers = ['Sr', 'Date', 'Product / Item', 'Qty', 'Tax %',
@@ -279,13 +484,4 @@ def order_note_excel(request):
     for idx, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(idx)].width = w
     ws.freeze_panes = 'A6'
-
-    slug = re.sub(r'[^a-z0-9]+', '-', supplier.lower()).strip('-') or 'supplier'
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = (
-        f'attachment; filename="order-note_{slug}_'
-        f'{timezone.localdate().strftime("%Y%m%d")}.xlsx"'
-    )
-    wb.save(response)
-    return response
+    return wb

@@ -1,26 +1,30 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Order Note — {{ company.name|default:"My Company" }}{% endblock %}
+{% block title %}{% if is_new %}New Order Note{% else %}Order Note — {{ supplier|default:"(no supplier)" }}{% endif %} — {{ company.name|default:"My Company" }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-4 py-3">
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
         <div>
-            <h3 class="fw-semibold mb-0">
-                <i class="bi bi-journal-text text-primary me-2"></i>Order Note
+            <a href="{% url 'accounting:order_note_list' %}" class="text-decoration-none small">
+                <i class="bi bi-arrow-left me-1"></i>All Order Notes
+            </a>
+            <h3 class="fw-semibold mb-0 mt-1">
+                <i class="bi bi-journal-text text-primary me-2"></i>
+                {% if is_new %}New Order Note{% else %}Order Note — {{ supplier|default:"(no supplier)" }}{% endif %}
                 <span class="badge bg-warning text-dark align-middle ms-2">Temporary — not saved in accounts</span>
             </h3>
             <p class="text-muted small mt-1 mb-0">
-                Excel-style entry sheet for items to order from a supplier. Fill many rows at once,
-                download as Excel and send it on WhatsApp — the supplier can enter their rate &amp; availability
-                in the highlighted columns.
+                Fill the item rows below. Download the Excel sheet and send it on WhatsApp —
+                the supplier can enter their rate &amp; availability in the highlighted columns.
             </p>
         </div>
     </div>
 
-    <form method="post" id="orderNoteForm" action="{% url 'accounting:order_note' %}">
+    <form method="post" id="orderNoteForm"
+          action="{% if is_new %}{% url 'accounting:order_note_create' %}{% else %}{% url 'accounting:order_note_edit' note_id %}{% endif %}">
         {% csrf_token %}
 
         <!-- Sheet header -->
@@ -29,13 +33,19 @@
                 <div class="row g-3 align-items-end">
                     <div class="col-md-4">
                         <label class="form-label small fw-semibold">Supplier Name (free text)</label>
-                        <input type="text" name="supplier" class="form-control"
+                        <input type="text" name="supplier" class="form-control" list="vendorNameOptions"
                                placeholder="e.g. Luna Mahanta, ABC Distributors…" value="{{ supplier }}" autocomplete="off">
+                        <datalist id="vendorNameOptions">
+                            {% for name in vendor_names %}
+                            <option value="{{ name }}"></option>
+                            {% endfor %}
+                        </datalist>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Note / Message for supplier</label>
                         <input type="text" name="note" class="form-control"
-                               placeholder="e.g. Please fill rate and availability, urgent requirement" value="{{ note }}" autocomplete="off">
+                               placeholder="e.g. Please fill rate and availability, urgent requirement"
+                               value="{{ note }}" autocomplete="off">
                     </div>
                     <div class="col-md-2 text-md-end">
                         <small class="text-muted d-block">Tax % default</small>
@@ -102,23 +112,30 @@
                 <i class="bi bi-plus-lg me-1"></i>Add Row
             </button>
             <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save me-1"></i>Save Sheet
+                <i class="bi bi-save me-1"></i>{% if is_new %}Create Note{% else %}Save Note{% endif %}
             </button>
+            <button type="submit" name="after" value="list" class="btn btn-outline-secondary">
+                <i class="bi bi-check2-circle me-1"></i>Save &amp; Back to List
+            </button>
+            {% if not is_new %}
             <button type="submit" class="btn btn-success"
-                    formaction="{% url 'accounting:order_note_excel' %}">
+                    formaction="{% url 'accounting:order_note_excel' note_id %}">
                 <i class="bi bi-file-earmark-excel me-1"></i>Download Excel (.xlsx)
             </button>
-            <span class="text-muted small ms-2">Excel download also saves the sheet. Rows left fully empty are dropped.</span>
+            {% endif %}
+            <span class="text-muted small ms-2">Rows left fully empty are dropped when saving.</span>
         </div>
     </form>
 
-    <form method="post" action="{% url 'accounting:order_note_clear' %}" class="mt-2"
-          onsubmit="return confirm('Clear the whole order note? This cannot be undone.');">
+    {% if not is_new %}
+    <form method="post" action="{% url 'accounting:order_note_delete' note_id %}" class="mt-2"
+          onsubmit="return confirm('Delete this order note for {{ supplier|default:"(no supplier)"|escapejs }}? This cannot be undone.');">
         {% csrf_token %}
         <button type="submit" class="btn btn-sm btn-outline-danger">
-            <i class="bi bi-x-circle me-1"></i>Clear / Discard Note
+            <i class="bi bi-trash me-1"></i>Delete This Note
         </button>
     </form>
+    {% endif %}
 </div>
 
 <script>
