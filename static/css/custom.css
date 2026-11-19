@@ -1090,3 +1090,10 @@ body.sidebar-resizing {
     padding: 2px 7px;
     font-size: 0.75rem;
 }
+
+/* ── Inline form errors ──────────────────────────────────────────
+   Templates render one error slot per field so client-side JS can fill
+   it on the fly. An empty slot must not reserve vertical space. */
+.invalid-feedback:empty {
+    display: none !important;
+}

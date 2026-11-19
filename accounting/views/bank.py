@@ -532,9 +532,15 @@ def bank_transaction_add(request, account_pk):
                         f'Insufficient balance. Available: ₹{account.current_balance}'
                     )
                     if is_htmx(request):
-                        return render(request, 'bank/partials/bank_transaction_form.html', {
-                            'form': form, 'account': account
-                        })
+                        return htmx_response(
+                            request,
+                            'bank/partials/bank_transaction_form.html',
+                            context={'form': form, 'account': account, 'balance': account.current_balance},
+                            toast={
+                                'level': 'danger',
+                                'message': f'Insufficient balance. Available: ₹{account.current_balance}',
+                            },
+                        )
                     messages.error(request, f'Insufficient balance. Available: ₹{account.current_balance}')
                     return redirect_to_staff('bank_statement', pk=account.pk)
 
@@ -561,16 +567,22 @@ def bank_transaction_add(request, account_pk):
                 return redirect_to_staff('bank_statement', pk=account.pk)
         else:
             if is_htmx(request):
-                return render(request, 'bank/partials/bank_transaction_form.html', {
-                    'form': form, 'account': account
-                })
+                return htmx_response(
+                    request,
+                    'bank/partials/bank_transaction_form.html',
+                    context={'form': form, 'account': account, 'balance': account.current_balance},
+                    toast={
+                        'level': 'danger',
+                        'message': 'Transaction not saved — please fix the highlighted fields.',
+                    },
+                )
     else:
         form = BankTransactionForm(initial={
             'date': timezone.now().date(),
         })
         del form.fields['bank_account']
 
-    context = {'form': form, 'account': account}
+    context = {'form': form, 'account': account, 'balance': account.current_balance}
     if is_htmx(request):
         return render(request, 'bank/partials/bank_transaction_form.html', context)
     return render(request, 'bank/partials/bank_transaction_form.html', context)
@@ -628,14 +640,26 @@ def bank_transaction_edit(request, pk):
             return redirect_to_staff('bank_statement', pk=account.pk)
         else:
             if is_htmx(request):
-                return render(request, 'bank/partials/bank_transaction_form.html', {
-                    'form': form, 'account': account, 'txn': txn
-                })
+                return htmx_response(
+                    request,
+                    'bank/partials/bank_transaction_form.html',
+                    context={
+                        'form': form, 'account': account, 'txn': txn,
+                        'balance': account.current_balance,
+                    },
+                    toast={
+                        'level': 'danger',
+                        'message': 'Transaction not saved — please fix the highlighted fields.',
+                    },
+                )
     else:
         form = BankTransactionForm(instance=txn)
         del form.fields['bank_account']
 
-    context = {'form': form, 'account': account, 'txn': txn}
+    context = {
+        'form': form, 'account': account, 'txn': txn,
+        'balance': account.current_balance,
+    }
     if is_htmx(request):
         return render(request, 'bank/partials/bank_transaction_form.html', context)
     return render(request, 'bank/partials/bank_transaction_form.html', context)

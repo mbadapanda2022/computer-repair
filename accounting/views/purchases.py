@@ -95,6 +95,16 @@ def _safe_decimal(value, default=Decimal('0')):
         return default
 
 
+def _items_subtotal(items):
+    """Pre-tax total of the cart lines — the ceiling for the bill discount."""
+    total = Decimal('0')
+    for item in items:
+        base = _safe_decimal(item.get('quantity'), Decimal('1')) * _safe_decimal(
+            item.get('unit_price'))
+        total += base.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return total
+
+
 # ============================================================
 # HELPER: Session items are scoped PER PURCHASE (scope = pk, or 'new').
 # Earlier one global 'temp_purchase_items' key was shared by every bill:
@@ -496,6 +506,7 @@ def _purchase_create_context(request, form):
         'items': items,
         'items_total': sum(
             (_safe_decimal(i.get('line_total')) for i in items), Decimal('0')),
+        'items_subtotal': _items_subtotal(items),
         'products': Product.objects.filter(
             is_service=False, is_active=True).order_by('name'),
         'purchase': None,
@@ -540,8 +551,15 @@ def purchase_create(request):
                 # Roll the bill back and keep the cart; the discount is the
                 # only thing the user needs to correct.
                 form.add_error(None, str(exc))
-                return render(request, template_name,
-                              _purchase_create_context(request, form))
+                context = _purchase_create_context(request, form)
+                if is_htmx(request):
+                    return htmx_response(
+                        request,
+                        'purchases/partials/purchase_form_partial.html',
+                        context,
+                        toast={'level': 'danger', 'message': str(exc)},
+                    )
+                return render(request, template_name, context)
             _set_session_items(request, 'new', [])
 
             logger.info(
@@ -577,8 +595,14 @@ def purchase_create(request):
         else:
             context = _purchase_create_context(request, form)
             if is_htmx(request):
-                return render(
-                    request, 'purchases/partials/purchase_form_partial.html', context
+                return htmx_response(
+                    request,
+                    'purchases/partials/purchase_form_partial.html',
+                    context,
+                    toast={
+                        'level': 'danger',
+                        'message': 'Purchase not saved — please fix the highlighted fields.',
+                    },
                 )
             return render(request, 'purchases/purchase_form.html', context)
 
@@ -646,11 +670,19 @@ def purchase_update(request, pk):
                         (_safe_decimal(i.get('line_total')) for i in items),
                         Decimal('0')
                     ),
+                    'items_subtotal': _items_subtotal(items),
                     'products': Product.objects.filter(
                         is_service=False, is_active=True
                     ).order_by('name'),
                     'is_htmx': is_htmx(request),
                 }
+                if is_htmx(request):
+                    return htmx_response(
+                        request,
+                        'purchases/partials/purchase_form_partial.html',
+                        context,
+                        toast={'level': 'danger', 'message': str(exc)},
+                    )
                 return render(
                     request,
                     'purchases/partials/purchase_form_partial.html'
@@ -686,14 +718,21 @@ def purchase_update(request, pk):
                 'purchase': purchase,
                 'items': items,
                 'items_total': items_total,
+                'items_subtotal': _items_subtotal(items),
                 'products': Product.objects.filter(
                     is_service=False, is_active=True
                 ).order_by('name'),
                 'is_htmx': is_htmx(request),
             }
             if is_htmx(request):
-                return render(
-                    request, 'purchases/partials/purchase_form_partial.html', context
+                return htmx_response(
+                    request,
+                    'purchases/partials/purchase_form_partial.html',
+                    context,
+                    toast={
+                        'level': 'danger',
+                        'message': 'Purchase not saved — please fix the highlighted fields.',
+                    },
                 )
             return render(request, 'purchases/purchase_form.html', context)
 
@@ -709,6 +748,7 @@ def purchase_update(request, pk):
             'purchase': purchase,
             'items': items,
             'items_total': items_total,
+            'items_subtotal': _items_subtotal(items),
             'products': Product.objects.filter(
                 is_service=False, is_active=True
             ).order_by('name'),
@@ -831,7 +871,8 @@ def add_purchase_item(request):
         )
         return render(
             request, 'purchases/partials/purchase_items.html',
-            {'items': items, 'items_total': items_total}
+            {'items': items, 'items_total': items_total,
+             'items_subtotal': _items_subtotal(items)}
         )
 
     except Exception as e:
@@ -861,7 +902,8 @@ def remove_purchase_item(request, index):
     )
     return render(
         request, 'purchases/partials/purchase_items.html',
-        {'items': items, 'items_total': items_total}
+        {'items': items, 'items_total': items_total,
+         'items_subtotal': _items_subtotal(items)}
     )
 
 

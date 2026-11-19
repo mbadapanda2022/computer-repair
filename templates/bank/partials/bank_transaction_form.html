@@ -1,8 +1,12 @@
+{% load math_filters %}
 <form method="post"
       action="{% if txn %}{% url 'accounting:bank_transaction_edit' txn.pk %}{% else %}{% url 'accounting:bank_transaction_add' account.pk %}{% endif %}"
       hx-post="{% if txn %}{% url 'accounting:bank_transaction_edit' txn.pk %}{% else %}{% url 'accounting:bank_transaction_add' account.pk %}{% endif %}"
       hx-target="#mainModalContent"
-      hx-swap="innerHTML">
+      hx-swap="innerHTML"
+      id="bank-txn-form"
+      data-balance="{{ balance|default:0|stringformat:'f' }}"
+      novalidate>
     {% csrf_token %}
 
     <div class="modal-header">
@@ -20,36 +24,55 @@
             </div>
         {% endif %}
 
+        <div class="alert alert-light border py-2 px-3 small d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-bank me-1"></i>{{ account.name }}</span>
+            <span>Available balance: <strong>₹{{ balance|rupee }}</strong></span>
+        </div>
+
         <div class="row g-3">
             <div class="col-md-6">
-                <label class="form-label fw-semibold">Transaction Type *</label>
+                <label for="id_transaction_type" class="form-label fw-semibold">Transaction Type <span class="text-danger">*</span></label>
                 {{ form.transaction_type }}
-                {% if form.transaction_type.errors %}<div class="invalid-feedback d-block">{{ form.transaction_type.errors|join:", " }}</div>{% endif %}
+                <div id="field-transaction_type" class="invalid-feedback {% if form.transaction_type.errors %}d-block{% endif %}">
+                    {% for err in form.transaction_type.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>{% endfor %}
+                </div>
             </div>
             <div class="col-md-6">
-                <label class="form-label fw-semibold">Amount (₹) *</label>
+                <label for="id_amount" class="form-label fw-semibold">Amount (₹) <span class="text-danger">*</span></label>
                 {{ form.amount }}
-                {% if form.amount.errors %}<div class="invalid-feedback d-block">{{ form.amount.errors|join:", " }}</div>{% endif %}
+                <div id="field-amount" class="invalid-feedback {% if form.amount.errors %}d-block{% endif %}">
+                    {% for err in form.amount.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>{% endfor %}
+                </div>
+                <small id="bank-txn-balance-hint" class="text-muted d-block mt-1"></small>
             </div>
             <div class="col-md-6">
-                <label class="form-label fw-semibold">Date *</label>
+                <label for="id_date" class="form-label fw-semibold">Date <span class="text-danger">*</span></label>
                 {{ form.date }}
-                {% if form.date.errors %}<div class="invalid-feedback d-block">{{ form.date.errors|join:", " }}</div>{% endif %}
+                <div id="field-date" class="invalid-feedback {% if form.date.errors %}d-block{% endif %}">
+                    {% for err in form.date.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>{% endfor %}
+                </div>
             </div>
             <div class="col-md-6">
-                <label class="form-label fw-semibold">Source Type</label>
+                <label for="id_source_type" class="form-label fw-semibold">Source Type</label>
                 {{ form.source_type }}
-                {% if form.source_type.errors %}<div class="invalid-feedback d-block">{{ form.source_type.errors|join:", " }}</div>{% endif %}
+                <div id="field-source_type" class="invalid-feedback {% if form.source_type.errors %}d-block{% endif %}">
+                    {% for err in form.source_type.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ err }}</div>{% endfor %}
+                </div>
+                <small class="text-muted">Only sources that fit the selected type are listed.</small>
             </div>
             <div class="col-md-12">
-                <label class="form-label fw-semibold">Description</label>
+                <label for="id_description" class="form-label fw-semibold">Description</label>
                 {{ form.description }}
-                {% if form.description.errors %}<div class="invalid-feedback d-block">{{ form.description.errors|join:", " }}</div>{% endif %}
+                <div id="field-description" class="invalid-feedback {% if form.description.errors %}d-block{% endif %}">
+                    {% for err in form.description.errors %}<div>{{ err }}</div>{% endfor %}
+                </div>
             </div>
             <div class="col-md-12">
-                <label class="form-label fw-semibold">Reference</label>
+                <label for="id_reference" class="form-label fw-semibold">Reference</label>
                 {{ form.reference }}
-                {% if form.reference.errors %}<div class="invalid-feedback d-block">{{ form.reference.errors|join:", " }}</div>{% endif %}
+                <div id="field-reference" class="invalid-feedback {% if form.reference.errors %}d-block{% endif %}">
+                    {% for err in form.reference.errors %}<div>{{ err }}</div>{% endfor %}
+                </div>
             </div>
         </div>
     </div>
@@ -65,33 +88,160 @@
 </form>
 
 <script>
-    (function () {
-        'use strict';
-        document.body.addEventListener('htmx:beforeRequest', function (evt) {
-            const elt = evt.detail.elt;
-            if (!elt || !elt.closest) return;
-            const form = elt.closest('form');
-            if (!form || !form.querySelector('#bank-txn-submit')) return;
+(function () {
+    'use strict';
 
-            const spinner = document.getElementById('bank-txn-spinner');
-            const text = document.getElementById('bank-txn-text');
-            const btn = document.getElementById('bank-txn-submit');
+    var form = document.getElementById('bank-txn-form');
+    if (!form) return;
+
+    var typeSelect = form.querySelector('[name="transaction_type"]');
+    var sourceSelect = form.querySelector('[name="source_type"]');
+    var amountInput = form.querySelector('[name="amount"]');
+    var dateInput = form.querySelector('[name="date"]');
+    var balanceHint = document.getElementById('bank-txn-balance-hint');
+    var balance = parseFloat(form.dataset.balance) || 0;
+
+    // Sources the backend accepts for each transaction type
+    // (BankTransactionForm.clean enforces this map).
+    var VALID_SOURCES = {
+        deposit: ['payment_received', 'transfer', 'interest', 'manual'],
+        withdrawal: ['payment_made', 'transfer', 'bank_charge', 'manual']
+    };
+    var DEFAULT_SOURCE = {
+        deposit: 'payment_received',
+        withdrawal: 'payment_made'
+    };
+
+    function formatMoney(value) {
+        return '₹' + Number(value).toLocaleString('en-IN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function setError(name, message) {
+        var box = document.getElementById('field-' + name);
+        if (!box) return;
+        if (message) {
+            box.className = 'invalid-feedback d-block';
+            box.innerHTML = '<div><i class="bi bi-exclamation-circle me-1"></i><span></span></div>';
+            box.querySelector('span').textContent = message;
+        } else {
+            box.className = 'invalid-feedback';
+            box.innerHTML = '';
+        }
+    }
+
+    function syncSourceTypes() {
+        if (!typeSelect || !sourceSelect) return;
+        var allowed = VALID_SOURCES[typeSelect.value] || null;
+        var currentOk = true;
+
+        Array.prototype.forEach.call(sourceSelect.options, function (opt) {
+            var ok = !allowed || allowed.indexOf(opt.value) !== -1;
+            opt.disabled = !ok;
+            opt.hidden = !ok;
+            if (!ok && opt.selected) currentOk = false;
+        });
+
+        if (!currentOk) {
+            sourceSelect.value = DEFAULT_SOURCE[typeSelect.value] || 'manual';
+        }
+        setError('source_type', '');
+        updateBalanceHint();
+    }
+
+    function updateBalanceHint() {
+        if (!balanceHint) return;
+        var amount = parseFloat(amountInput && amountInput.value) || 0;
+        var isWithdrawal = typeSelect && typeSelect.value === 'withdrawal';
+
+        if (isWithdrawal && amount > balance) {
+            balanceHint.className = 'text-danger d-block mt-1';
+            balanceHint.textContent = 'Amount exceeds available balance (' +
+                formatMoney(balance) + ').';
+        } else if (isWithdrawal) {
+            balanceHint.className = 'text-muted d-block mt-1';
+            balanceHint.textContent = 'After this withdrawal: ' +
+                formatMoney(Math.max(balance - amount, 0));
+        } else {
+            balanceHint.className = 'text-muted d-block mt-1';
+            balanceHint.textContent = 'After this deposit: ' +
+                formatMoney(balance + amount);
+        }
+    }
+
+    function validateAmount() {
+        var amount = parseFloat(amountInput && amountInput.value);
+        if (isNaN(amount) || amount <= 0) {
+            setError('amount', 'Amount must be greater than zero.');
+            return false;
+        }
+        setError('amount', '');
+        return true;
+    }
+
+    function validateDate() {
+        if (!dateInput || !dateInput.value) {
+            setError('date', 'Date is required.');
+            return false;
+        }
+        setError('date', '');
+        return true;
+    }
+
+    if (typeSelect) typeSelect.addEventListener('change', syncSourceTypes);
+    if (amountInput) {
+        amountInput.addEventListener('input', updateBalanceHint);
+        amountInput.addEventListener('blur', validateAmount);
+    }
+    if (dateInput) dateInput.addEventListener('blur', validateDate);
+
+    form.addEventListener('submit', function (evt) {
+        var ok = validateAmount();
+        ok = validateDate() && ok;
+        if (!ok) {
+            evt.preventDefault();
+            return;
+        }
+        setError('source_type', '');
+    });
+
+    form.addEventListener('htmx:confirm', function (evt) {
+        if (!evt.detail || evt.detail.elt !== form) return;
+        if (!validateAmount() || !validateDate()) evt.preventDefault();
+    });
+
+    syncSourceTypes();
+    updateBalanceHint();
+
+    if (!window._bankTxnSpinnerWired) {
+        window._bankTxnSpinnerWired = true;
+
+        document.body.addEventListener('htmx:beforeRequest', function (evt) {
+            var elt = evt.detail && evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#bank-txn-form')) return;
+            if (evt.detail.verb && evt.detail.verb.toLowerCase() !== 'post') return;
+
+            var spinner = document.getElementById('bank-txn-spinner');
+            var text = document.getElementById('bank-txn-text');
+            var btn = document.getElementById('bank-txn-submit');
             if (spinner) spinner.classList.remove('d-none');
             if (text) text.style.display = 'none';
             if (btn) btn.disabled = true;
         });
-        document.body.addEventListener('htmx:afterRequest', function (evt) {
-            const elt = evt.detail.elt;
-            if (!elt || !elt.closest) return;
-            const form = elt.closest('form');
-            if (!form || !form.querySelector('#bank-txn-submit')) return;
 
-            const spinner = document.getElementById('bank-txn-spinner');
-            const text = document.getElementById('bank-txn-text');
-            const btn = document.getElementById('bank-txn-submit');
+        document.body.addEventListener('htmx:afterRequest', function (evt) {
+            var elt = evt.detail && evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#bank-txn-form')) return;
+
+            var spinner = document.getElementById('bank-txn-spinner');
+            var text = document.getElementById('bank-txn-text');
+            var btn = document.getElementById('bank-txn-submit');
             if (spinner) spinner.classList.add('d-none');
             if (text) text.style.display = 'inline';
             if (btn) btn.disabled = false;
         });
-    })();
+    }
+})();
 </script>

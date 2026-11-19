@@ -6,6 +6,7 @@
                     data-name="{{ product.name }}"
                     data-price="{{ product.selling_price }}"
                     data-tax="{{ product.tax_rate }}"
+                    data-stock="{{ product.current_stock|stringformat:'f' }}"
                     onmousedown="event.preventDefault();">
                 <div class="d-flex justify-content-between align-items-center">
                     <strong>{{ product.name }}</strong>

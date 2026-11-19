@@ -15,6 +15,7 @@
             <div id="product-suggestions" class="position-absolute w-100"
                  style="z-index: 1050;"></div>
             <input type="hidden" id="selected-product-id">
+            <div id="item-stock-hint" class="form-text"></div>
         </div>
     </div>
     <div class="col-md-2">
@@ -174,6 +175,26 @@
         return document.getElementById('invoice-items-container');
     }
 
+    // Live stock hint for the item being added (stock comes from the
+    // suggestion the user clicked; a typed search clears the selection).
+    function updateItemStockHint(container) {
+        var hintEl = container.querySelector('#item-stock-hint');
+        var searchInput = container.querySelector('#product-search');
+        var qtyEl = container.querySelector('#item-quantity');
+        if (!hintEl || !searchInput) return;
+
+        var stock = parseFloat(searchInput.dataset.stock);
+        if (isNaN(stock)) {
+            hintEl.textContent = '';
+            hintEl.className = 'form-text';
+            return;
+        }
+        var qty = parseFloat(qtyEl && qtyEl.value) || 0;
+        hintEl.textContent = 'In stock: ' + stock +
+            (qty > stock ? ' — requested quantity is more than stock' : '');
+        hintEl.className = qty > stock ? 'form-text text-danger' : 'form-text text-muted';
+    }
+
     // ============================================================
     // Product suggestion click → fill search, price, tax
     // ============================================================
@@ -199,11 +220,48 @@
 
         if (id) {
             if (productIdEl) productIdEl.value = id;
-            if (searchInput) searchInput.value = name;
+            if (searchInput) {
+                searchInput.value = name;
+                if (suggestion.dataset.stock !== undefined) {
+                    searchInput.dataset.stock = suggestion.dataset.stock;
+                }
+            }
             if (priceEl && sPrice) priceEl.value = sPrice;
             if (taxEl && taxRate) taxEl.value = taxRate;
             if (suggestions) suggestions.innerHTML = '';
+            updateItemStockHint(container);
         }
+    });
+
+    // Typing a new query invalidates the previously picked product/hint.
+    document.addEventListener('input', function (e) {
+        if (!e.target) return;
+
+        if (e.target.id === 'product-search') {
+            var c = getContainer();
+            if (!c) return;
+            var pid = c.querySelector('#selected-product-id');
+            if (pid) pid.value = '';
+            delete e.target.dataset.stock;
+            var hint = c.querySelector('#item-stock-hint');
+            if (hint) { hint.textContent = ''; hint.className = 'form-text'; }
+            return;
+        }
+
+        if (e.target.id === 'item-quantity') {
+            var container = getContainer();
+            if (container) updateItemStockHint(container);
+        }
+    });
+
+    // After every add/remove swap, put the cursor back on the search box
+    // so the next item can be typed immediately.
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+        if (!e.target || e.target.id !== 'invoice-items-container') return;
+        var container = getContainer();
+        if (!container) return;
+        var search = container.querySelector('#product-search');
+        if (search) search.focus();
     });
 
     // ============================================================

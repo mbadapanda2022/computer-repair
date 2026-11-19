@@ -35,6 +35,15 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # HELPERS
 # ============================================================
+def _form_error_response(response, message, level='danger'):
+    """Re-show the payment form in the modal with a matching toast."""
+    response['HX-Retarget'] = '#mainModalContent'
+    response['HX-Trigger'] = json.dumps({
+        'showToast': {'level': level, 'message': message},
+    })
+    return response
+
+
 def get_unpaid_invoices_for_contact(contact, direction='received'):
     """
     Return unpaid or partially-paid invoices for a customer contact.
@@ -827,8 +836,10 @@ def payment_create(request, pk=None):
                     if is_htmx(request):
                         response = render(
                             request, 'payments/payment_form.html', context)
-                        response['HX-Retarget'] = '#mainModalContent'
-                        return response
+                        return _form_error_response(
+                            response,
+                            'A matching payment is already recorded — review it below.',
+                            level='warning')
                     return render(
                         request, 'payments/payment_form_page.html', context)
 
@@ -936,8 +947,7 @@ def payment_create(request, pk=None):
                 }
                 if is_htmx(request):
                     response = render(request, 'payments/payment_form.html', context)
-                    response['HX-Retarget'] = '#mainModalContent'
-                    return response
+                    return _form_error_response(response, str(exc))
                 return render(request, 'payments/payment_form_page.html', context)
 
             logger.info(
@@ -1026,8 +1036,9 @@ def payment_create(request, pk=None):
                 'unpaid_invoices': pre_unpaid,
                 'unpaid_purchases': pre_unpaid_purchases,
             })
-            response['HX-Retarget'] = '#mainModalContent'
-            return response
+            return _form_error_response(
+                response,
+                'Payment not saved — please fix the highlighted fields.')
 
         # Non-HTMX (native submit from pages without #payment-table-container):
         # bounce back to the caller instead of rendering a bare partial page.
@@ -1213,8 +1224,7 @@ def payment_update(request, pk):
                         'unpaid_purchases': unpaid_purchases,
                         'pre_contact': payment.contact,
                     })
-                    response['HX-Retarget'] = '#mainModalContent'
-                    return response
+                    return _form_error_response(response, str(exc))
                 return render(request, 'payments/payment_form_page.html', {
                     'form': form,
                     'payment': payment,
@@ -1292,8 +1302,9 @@ def payment_update(request, pk):
                 'unpaid_purchases': unpaid_purchases,
                 'pre_contact': payment.contact,
             })
-            response['HX-Retarget'] = '#mainModalContent'
-            return response
+            return _form_error_response(
+                response,
+                'Payment not saved — please fix the highlighted fields.')
 
     else:
         form = PaymentForm(instance=payment)

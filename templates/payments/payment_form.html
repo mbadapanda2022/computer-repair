@@ -82,9 +82,9 @@
                        class="form-control {% if form.amount.errors %}is-invalid{% endif %}"
                        step="0.01" min="0.01" required
                        value="{{ form.amount.value|default:'' }}">
-                {% if form.amount.errors %}
-                    <div class="invalid-feedback">{{ form.amount.errors|join:", " }}</div>
-                {% endif %}
+                <div id="field-amount" class="invalid-feedback {% if form.amount.errors %}d-block{% endif %}">
+                    {{ form.amount.errors|join:", " }}
+                </div>
                 <small class="text-muted d-block mt-1">
                     Only the cash or UPI that actually changed hands. A discount
                     goes in the Discount section below and closes bills on top of this.
@@ -98,9 +98,9 @@
                 <input type="date" name="date" id="id_date"
                        class="form-control {% if form.date.errors %}is-invalid{% endif %}"
                        value="{{ form.date.value|default:''|date:'Y-m-d' }}" required>
-                {% if form.date.errors %}
-                    <div class="invalid-feedback">{{ form.date.errors|join:", " }}</div>
-                {% endif %}
+                <div id="field-date" class="invalid-feedback {% if form.date.errors %}d-block{% endif %}">
+                    {{ form.date.errors|join:", " }}
+                </div>
             </div>
         </div>
 
@@ -125,9 +125,9 @@
                         </option>
                     {% endfor %}
                 </select>
-                {% if form.contact.errors %}
-                    <div class="invalid-feedback d-block">{{ form.contact.errors|join:", " }}</div>
-                {% endif %}
+                <div id="field-contact" class="invalid-feedback {% if form.contact.errors %}d-block{% endif %}">
+                    {{ form.contact.errors|join:", " }}
+                </div>
                 <small class="text-muted d-block mt-1">
                     <i class="bi bi-info-circle me-1"></i>
                     Type name or phone number to search.
@@ -265,9 +265,9 @@
                            class="form-control {% if form.discount_amount.errors %}is-invalid{% endif %}"
                            step="0.01" min="0"
                            value="{{ form.discount_amount.value|default:'0' }}">
-                    {% if form.discount_amount.errors %}
-                        <div class="invalid-feedback">{{ form.discount_amount.errors|join:", " }}</div>
-                    {% endif %}
+                    <div id="field-discount_amount" class="invalid-feedback {% if form.discount_amount.errors %}d-block{% endif %}">
+                        {{ form.discount_amount.errors|join:", " }}
+                    </div>
                     <small class="text-muted d-block mt-1">
                         Waived on top of the amount above. Allocate the payment
                         to the bill this discount is given against.
@@ -468,6 +468,12 @@
         if (value === lastProcessedContact && value) return;
         lastProcessedContact = value;
 
+        var contactError = document.getElementById('field-contact');
+        if (contactError) {
+            contactError.textContent = '';
+            contactError.classList.remove('d-block');
+        }
+
         if (!value) {
             setPlaceholder('Select a customer / vendor above to load their unpaid invoices or bills.');
             return;
@@ -588,7 +594,135 @@
         if (discountInput) discountInput.addEventListener('input', updateSettledAmount);
         updateSettledAmount();
 
-        form.addEventListener('submit', function() {
+        // ============================================================
+        // LIVE VALIDATION — errors appear next to the field as the cashier
+        // types, and the request is cancelled before it leaves the browser.
+        // ============================================================
+        function setError(field, message) {
+            var box = document.getElementById('field-' + field);
+            if (box) {
+                box.textContent = message || '';
+                box.classList.toggle('d-block', !!message);
+            }
+            var input = document.getElementById('id_' + field);
+            if (input) input.classList.toggle('is-invalid', !!message);
+        }
+
+        function allocatedTotal() {
+            var total = 0;
+            var box = document.getElementById('unpaid-invoices-container');
+            if (!box) return 0;
+            var inputs = box.querySelectorAll(
+                'input[name^="allocation_amount_"], input[name^="purchase_alloc_"]');
+            Array.prototype.forEach.call(inputs, function (input) {
+                var v = parseFloat(input.value);
+                if (v > 0) total += v;
+            });
+            return total;
+        }
+
+        function validateAmount() {
+            var value = parseFloat(amountInput ? amountInput.value : 0) || 0;
+            if (value <= 0) {
+                setError('amount', 'Enter the cash or UPI amount that changed hands.');
+                return false;
+            }
+            setError('amount', '');
+            return true;
+        }
+
+        function validateDate() {
+            var dateInput = document.getElementById('id_date');
+            if (!dateInput || !dateInput.value) {
+                setError('date', 'Please pick the payment date.');
+                return false;
+            }
+            setError('date', '');
+            return true;
+        }
+
+        function validateContact() {
+            if (!contactSelect || !contactSelect.value) {
+                setError('contact', 'Select the customer or vendor for this payment.');
+                return false;
+            }
+            setError('contact', '');
+            return true;
+        }
+
+        function validateDiscount() {
+            if (!discountInput) return true;
+            var discount = parseFloat(discountInput.value) || 0;
+            if (discount < 0) {
+                setError('discount_amount', 'Discount cannot be negative.');
+                return false;
+            }
+            if (discount === 0) {
+                setError('discount_amount', '');
+                return true;
+            }
+            if (advanceCheck && advanceCheck.checked) {
+                setError('discount_amount',
+                    'A discount cannot be given on an advance payment.');
+                return false;
+            }
+            if (expenseSelect && expenseSelect.value) {
+                setError('discount_amount',
+                    'A direct expense has no bill to discount.');
+                return false;
+            }
+            var allocated = allocatedTotal();
+            if (allocated <= 0) {
+                // Opened from an invoice ("?invoice=" / add-payment URL): the
+                // server auto-allocates the typed amount+discount to that bill.
+                var autoTarget = (form.getAttribute('action') || '')
+                    .indexOf('/add-payment/') !== -1;
+                if (autoTarget) {
+                    setError('discount_amount', '');
+                    return true;
+                }
+                setError('discount_amount',
+                    'Allocate this payment to a bill before adding a discount.');
+                return false;
+            }
+            if (discount > allocated + 0.005) {
+                setError('discount_amount',
+                    'Discount cannot be more than the ₹' +
+                    allocated.toFixed(2) + ' allocated to bills.');
+                return false;
+            }
+            setError('discount_amount', '');
+            return true;
+        }
+
+        function validateAll(reportToast) {
+            var ok = validateAmount();
+            ok = validateDate() && ok;
+            ok = validateContact() && ok;
+            ok = validateDiscount() && ok;
+            if (!ok && reportToast && window.showToast) {
+                window.showToast('danger',
+                    'Payment not saved — please check the highlighted fields.');
+            }
+            return ok;
+        }
+
+        if (amountInput) amountInput.addEventListener('input', validateAmount);
+        if (discountInput) discountInput.addEventListener('input', validateDiscount);
+        var dateField = document.getElementById('id_date');
+        if (dateField) dateField.addEventListener('change', validateDate);
+        if (contactSelect) contactSelect.addEventListener('change', validateContact);
+        if (expenseSelect) expenseSelect.addEventListener('change', validateDiscount);
+        if (advanceCheck) advanceCheck.addEventListener('change', validateDiscount);
+        if (unpaidContainer) {
+            unpaidContainer.addEventListener('input', validateDiscount);
+        }
+
+        form.addEventListener('submit', function (evt) {
+            if (!validateAll(true)) {
+                evt.preventDefault();
+                return;
+            }
             if (resetAllocFlag) resetAllocFlag.value = '1';
             var btn = document.getElementById('payment-submit');
             var spinner = document.getElementById('payment-spinner');
@@ -596,6 +730,14 @@
             if (spinner) spinner.classList.remove('d-none');
             if (text) text.style.display = 'none';
             if (btn) btn.disabled = true;
+        });
+
+        // htmx asks "confirm?" right before sending — this is the hook that
+        // can actually stop the request (a plain preventDefault on submit
+        // does not, htmx handles the submit itself).
+        form.addEventListener('htmx:confirm', function (evt) {
+            if (!evt.detail || evt.detail.elt !== form) return;
+            if (!validateAll(false)) evt.preventDefault();
         });
 
         // Edit mode: prefill contact → auto load invoices / vendor bills

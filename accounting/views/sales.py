@@ -327,6 +327,21 @@ def _invoice_create_context(request, form, items_key):
     }
 
 
+def _invoice_edit_context(request, form, invoice, scope):
+    temp_items = request.session.get(_invoice_items_key(scope), [])
+    return {
+        'form': form,
+        'invoice': invoice,
+        'items': temp_items,
+        'items_total': _items_total(temp_items),
+        'items_scope': scope,
+        'products': Product.objects.filter(is_active=True).order_by('name'),
+        'customers': Contact.objects.filter(
+            contact_type__in=['customer', 'both']).order_by('name'),
+        'is_htmx': is_htmx(request),
+    }
+
+
 @csrf_protect
 @handle_errors(default_redirect='accounting:invoice_list')
 def invoice_create(request):
@@ -345,6 +360,14 @@ def invoice_create(request):
         form = InvoiceForm(request.POST)
         if form.is_valid():
             temp_items = request.session.get(items_key, [])
+            if not temp_items:
+                form.add_error(
+                    None,
+                    'Add at least one product line before saving the invoice.',
+                )
+                return render(
+                    request, template_name,
+                    _invoice_create_context(request, form, items_key))
             # All DB writes in one transaction: a bad item mid-loop must not
             # leave an orphan invoice with partial items/stock movements.
             try:
@@ -460,24 +483,11 @@ def invoice_update(request, pk):
                 # show the reason instead of leaving an over-paid invoice.
                 invoice.refresh_from_db()
                 form.add_error(None, str(exc))
-                temp_items = request.session.get(items_key, [])
                 return render(
                     request,
                     'sales/partials/invoice_form_modal.html' if is_htmx(request)
                     else 'sales/invoice_form.html',
-                    {
-                        'form': form,
-                        'invoice': invoice,
-                        'items': temp_items,
-                        'items_total': _items_total(temp_items),
-                        'items_scope': scope,
-                        'products': Product.objects.filter(
-                            is_active=True).order_by('name'),
-                        'customers': Contact.objects.filter(
-                            contact_type__in=['customer', 'both']
-                        ).order_by('name'),
-                        'is_htmx': is_htmx(request),
-                    },
+                    _invoice_edit_context(request, form, invoice, scope),
                 )
             request.session[items_key] = []
 
@@ -493,34 +503,14 @@ def invoice_update(request, pk):
             return redirect_to_staff('invoice_detail', pk=invoice.pk)
 
         else:
-            temp_items = request.session.get(items_key, [])
-            context = {
-                'form': form,
-                'invoice': invoice,
-                'items': temp_items,
-                'items_total': _items_total(temp_items),
-                'items_scope': scope,
-                'products': Product.objects.filter(is_active=True).order_by('name'),
-                'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
-                'is_htmx': is_htmx(request),
-            }
+            context = _invoice_edit_context(request, form, invoice, scope)
             if is_htmx(request):
                 return render(request, 'sales/partials/invoice_form_modal.html', context)
             return render(request, 'sales/invoice_form.html', context)
 
     else:
         form = InvoiceForm(instance=invoice)
-        temp_items = request.session.get(items_key, [])
-        context = {
-            'form': form,
-            'invoice': invoice,
-            'items': temp_items,
-            'items_total': _items_total(temp_items),
-            'items_scope': scope,
-            'products': Product.objects.filter(is_active=True).order_by('name'),
-            'customers': Contact.objects.filter(contact_type__in=['customer', 'both']).order_by('name'),
-            'is_htmx': is_htmx(request),
-        }
+        context = _invoice_edit_context(request, form, invoice, scope)
         return render(request, template_name, context)
 
 
@@ -1317,6 +1307,34 @@ def credit_note_list(request):
 # ============================================================
 # 13. CREDIT NOTES — CREATE (from Invoice)
 # ============================================================
+def _credit_note_form_context(invoice, posted=None, error=None):
+    """Form context that survives a rejected POST with the typed boxes intact."""
+    rows = []
+    for item in invoice.items.all():
+        checked = False
+        qty = item.quantity
+        if posted is not None:
+            checked = posted.get(f'item_{item.pk}') == 'on'
+            qty = posted.get(f'qty_{item.pk}') or item.quantity
+        rows.append({'item': item, 'checked': checked, 'qty': qty})
+
+    context = {
+        'invoice': invoice,
+        'item_rows': rows,
+        'posted_date': (posted.get('date') if posted else '')
+                       or invoice.date.isoformat(),
+        'posted_reason': (posted.get('reason') if posted else '') or 'sales_return',
+        'posted_refund_method': (posted.get('refund_method') if posted else '')
+                                or 'credit',
+        'posted_notes': (posted.get('notes') if posted else '') or '',
+        'posted_stock_return': True if posted is None
+                               else posted.get('is_stock_return') == 'on',
+    }
+    if error:
+        context['error'] = error
+    return context
+
+
 @login_required
 @csrf_protect
 @handle_errors(
@@ -1337,36 +1355,42 @@ def credit_note_create(request, invoice_pk):
 
         # items: item_<id>=on  qty_<id>=N
         selections = []
+        selection_error = ''
         for item in invoice.items.all():
             checked = request.POST.get(f'item_{item.pk}') == 'on'
             if not checked:
                 continue
             qty_str = request.POST.get(f'qty_{item.pk}', '').strip()
             if not qty_str:
+                selection_error = (
+                    f'Enter a return quantity for {item.product.name}.')
                 continue
             try:
                 qty = Decimal(qty_str)
             except (ValueError, TypeError, InvalidOperation):
+                selection_error = (
+                    f'Invalid quantity for {item.product.name}.')
                 continue
             if qty <= 0:
+                selection_error = (
+                    f'Quantity for {item.product.name} must be greater than zero.')
                 continue
             if qty > item.quantity:
-                messages.error(
-                    request,
-                    f'Quantity for {item.product.name} cannot exceed {item.quantity}.'
-                )
-                # fall-through to render error form
-                break
+                selection_error = (
+                    f'Quantity for {item.product.name} cannot exceed '
+                    f'{item.quantity}.')
+                continue
             selections.append((item, qty))
 
-        if not selections:
+        if selection_error or not selections:
+            error = selection_error or (
+                'Please select at least one item with quantity > 0.')
             return htmx_response(
                 request,
                 'sales/partials/credit_note_form.html',
-                context={
-                    'invoice': invoice,
-                    'error': 'Please select at least one item with quantity > 0.',
-                },
+                context=_credit_note_form_context(
+                    invoice, posted=request.POST, error=error),
+                toast={'level': 'danger', 'message': error},
                 extra_headers={'HX-Retarget': '#mainModalContent'},
                 status=400,
             )
@@ -1420,6 +1444,11 @@ def credit_note_create(request, invoice_pk):
             logger.error(f"CN notification failed: {notif_err}")
 
         if is_htmx(request):
+            messages.success(
+                request,
+                f'Credit note {cn.credit_note_number} created '
+                f'against {invoice.invoice_number}.'
+            )
             response = HttpResponse()
             response['HX-Redirect'] = reverse(
                 'accounting:credit_note_detail', args=[cn.pk]
@@ -1431,7 +1460,7 @@ def credit_note_create(request, invoice_pk):
     return render(
         request,
         'sales/partials/credit_note_form.html',
-        {'invoice': invoice},
+        _credit_note_form_context(invoice),
     )
 
 

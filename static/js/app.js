@@ -79,6 +79,58 @@
 
 
     // ================================================================
+    // SEARCHABLE SELECT UPGRADE
+    // ================================================================
+    // Inline form partials can run before this file on a full page load, so
+    // callers poll for this helper and call it once the DOM is ready. If
+    // TomSelect never arrives, a native filter box keeps long lists usable.
+    window.mdSearchableSelect = function (select, options) {
+        if (!select || select.tomselect) return;
+
+        function upgrade() {
+            if (select.tomselect) return;
+            new window.TomSelect(select, options || {});
+        }
+
+        function fallback() {
+            if (select.tomselect) return;
+            var id = (select.id || 'md-select') + '-native-search';
+            if (document.getElementById(id)) return;
+            var search = document.createElement('input');
+            search.type = 'search';
+            search.id = id;
+            search.className = 'form-control form-control-sm mb-2';
+            search.placeholder = 'Type to filter the list…';
+            search.setAttribute('autocomplete', 'off');
+            select.parentNode.insertBefore(search, select);
+            search.addEventListener('input', function () {
+                var q = search.value.trim().toLowerCase();
+                Array.prototype.forEach.call(select.options, function (opt) {
+                    if (!opt.value) return;
+                    var text = (opt.textContent || '').toLowerCase();
+                    opt.hidden = q.length > 0 && text.indexOf(q) === -1;
+                });
+            });
+        }
+
+        if (typeof window.TomSelect !== 'undefined') {
+            upgrade();
+            return;
+        }
+        var attempts = 0;
+        var iv = setInterval(function () {
+            if (typeof window.TomSelect !== 'undefined') {
+                clearInterval(iv);
+                upgrade();
+            } else if (++attempts >= 60) {
+                clearInterval(iv);
+                fallback();
+            }
+        }, 100);
+    };
+
+
+    // ================================================================
     // GLOBAL HTMX PROGRESS BAR
     // ================================================================
     // One slim bar at the top for every HTMX round-trip, so long-running

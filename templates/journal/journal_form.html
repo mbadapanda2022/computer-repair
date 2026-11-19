@@ -17,30 +17,59 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-body p-4 p-md-5">
-            <form method="post" action="{% if entry %}{% url 'accounting:journal_update' entry.id %}{% elif contact %}{% url 'accounting:journal_create_for_contact' contact.id %}{% else %}{% url 'accounting:journal_create' %}{% endif %}">
+            <form method="post"
+                  id="journal-page-form"
+                  action="{% if entry %}{% url 'accounting:journal_update' entry.id %}{% elif contact %}{% url 'accounting:journal_create_for_contact' contact.id %}{% else %}{% url 'accounting:journal_create' %}{% endif %}"
+                  novalidate>
                 {% csrf_token %}
-                
+
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger">
-                        {% for error in form.non_field_errors %}<span>{{ error }}</span>{% endfor %}
+                        {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
                     </div>
                 {% endif %}
-                
+
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label for="{{ form.contact.id_for_label }}" class="form-label fw-semibold">Contact</label>
-                        {{ form.contact }}
-                        {% if form.contact.errors %}<div class="invalid-feedback d-block">{% for error in form.contact.errors %}{{ error }}{% endfor %}</div>{% endif %}
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <label for="{{ form.entry_type.id_for_label }}" class="form-label fw-semibold">Transaction Type</label>
-                        {{ form.entry_type }}
-                        {% if form.entry_type.errors %}<div class="invalid-feedback d-block">{% for error in form.entry_type.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        <label for="id_contact" class="form-label fw-semibold">Contact <span class="text-danger">*</span></label>
+                        {% if contact %}
+                            <input type="hidden" name="contact" value="{{ contact.pk }}">
+                            <div class="form-control bg-light d-flex flex-wrap align-items-center gap-2">
+                                <i class="bi bi-person-check text-success"></i>
+                                <strong>{{ contact.name }}</strong>
+                                <span class="badge text-bg-light border">{{ contact.get_contact_type_display }}</span>
+                                {% if contact.phone %}<span class="text-muted small">{{ contact.phone }}</span>{% endif %}
+                            </div>
+                        {% else %}
+                            <select name="contact" id="id_contact" class="form-select">
+                                <option value="">— Select contact —</option>
+                                {% for c in form.fields.contact.queryset %}
+                                    <option value="{{ c.pk }}"
+                                            data-type="{{ c.contact_type }}"
+                                            data-phone="{{ c.phone|default:'' }}"
+                                            {% if form.contact.value|stringformat:"s" == c.pk|stringformat:"s" %}selected{% endif %}>
+                                        {{ c.name }}{% if c.phone %} — {{ c.phone }}{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        {% endif %}
+                        <div id="field-contact" class="invalid-feedback {% if form.contact.errors %}d-block{% endif %}">
+                            {% for error in form.contact.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                        </div>
+                        <div id="journal-contact-hint" class="form-text"></div>
                     </div>
 
-                    <div class="col-md-12">
-                        <label class="form-label fw-semibold d-block">Money Account</label>
+                    <div class="col-md-6">
+                        <label for="{{ form.entry_type.id_for_label }}" class="form-label fw-semibold">Transaction Type <span class="text-danger">*</span></label>
+                        {{ form.entry_type }}
+                        <div id="entry-type-hint" class="form-text"></div>
+                        <div id="field-entry_type" class="invalid-feedback {% if form.entry_type.errors %}d-block{% endif %}">
+                            {% for error in form.entry_type.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold d-block">Money Account <span class="text-danger">*</span></label>
                         <div class="d-flex gap-3">
                             {% for radio in form.money_account %}
                                 <div class="form-check">
@@ -49,38 +78,50 @@
                                 </div>
                             {% endfor %}
                         </div>
-                        {% if form.money_account.errors %}<div class="invalid-feedback d-block">{% for error in form.money_account.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        <div id="field-money_account" class="invalid-feedback {% if form.money_account.errors %}d-block{% endif %}">
+                            {% for error in form.money_account.errors %}<div>{{ error }}</div>{% endfor %}
+                        </div>
                     </div>
 
-                    <div class="col-md-12" id="bank-account-wrapper">
+                    <div class="col-12" id="bank-account-wrapper" style="display:none;">
                         <label for="{{ form.bank_account.id_for_label }}" class="form-label fw-semibold">Bank Account</label>
                         {{ form.bank_account }}
                         {% if form.bank_account.help_text %}<small class="text-muted d-block">{{ form.bank_account.help_text }}</small>{% endif %}
-                        {% if form.bank_account.errors %}<div class="invalid-feedback d-block">{% for error in form.bank_account.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        <div id="field-bank_account" class="invalid-feedback {% if form.bank_account.errors %}d-block{% endif %}">
+                            {% for error in form.bank_account.errors %}<div>{{ error }}</div>{% endfor %}
+                        </div>
                     </div>
-                    
-                    <div class="col-md-6">
-                        <label for="{{ form.amount.id_for_label }}" class="form-label fw-semibold">Amount (₹)</label>
+
+                    <div class="col-md-4">
+                        <label for="{{ form.amount.id_for_label }}" class="form-label fw-semibold">Amount (₹) <span class="text-danger">*</span></label>
                         {{ form.amount }}
-                        {% if form.amount.errors %}<div class="invalid-feedback d-block">{% for error in form.amount.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        <div id="field-amount" class="invalid-feedback {% if form.amount.errors %}d-block{% endif %}">
+                            {% for error in form.amount.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                        </div>
                     </div>
-                    
-                    <div class="col-md-6">
+
+                    <div class="col-md-4">
                         <label for="{{ form.date.id_for_label }}" class="form-label fw-semibold">Date</label>
                         {{ form.date }}
-                        {% if form.date.errors %}<div class="invalid-feedback d-block">{% for error in form.date.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        <div id="field-date" class="invalid-feedback {% if form.date.errors %}d-block{% endif %}">
+                            {% for error in form.date.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                        </div>
                     </div>
-                    
-                    <div class="col-md-12">
+
+                    <div class="col-md-4">
                         <label for="{{ form.narration.id_for_label }}" class="form-label fw-semibold">Narration</label>
                         {{ form.narration }}
-                        {% if form.narration.errors %}<div class="invalid-feedback d-block">{% for error in form.narration.errors %}{{ error }}{% endfor %}</div>{% endif %}
+                        <div id="field-narration" class="invalid-feedback {% if form.narration.errors %}d-block{% endif %}">
+                            {% for error in form.narration.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                        </div>
+                        <small class="text-muted">Left blank? Entry is saved as "&lt;type&gt; for &lt;contact&gt;".</small>
                     </div>
                 </div>
-                
+
                 <div class="mt-4">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle"></i> {% if entry %}Update{% else %}Create{% endif %} Entry
+                    <button type="submit" class="btn btn-primary" id="journal-page-submit">
+                        <span id="journal-page-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                        <i class="bi bi-check-circle me-1"></i>{% if entry %}Update{% else %}Create{% endif %} Entry
                     </button>
                     <a href="{% url 'accounting:journal_list' %}" class="btn btn-secondary">Cancel</a>
                 </div>
@@ -90,14 +131,198 @@
 </div>
 
 <script>
-(function() {
-    const wrapper = document.getElementById('bank-account-wrapper');
-    const radios = document.querySelectorAll('input[name="money_account"]');
-    function toggleBank() {
-        const val = document.querySelector('input[name="money_account"]:checked')?.value;
-        if (wrapper) wrapper.style.display = (val === 'bank') ? 'block' : 'none';
+(function () {
+    'use strict';
+
+    var form = document.getElementById('journal-page-form');
+    if (!form) return;
+
+    var validateUrl = '{% url "accounting:validate_journal_field" %}';
+    var contactSelect = form.querySelector('select[name="contact"]');
+    var entrySelect = document.getElementById('id_entry_type');
+    var contactHint = document.getElementById('journal-contact-hint');
+    var typeHint = document.getElementById('entry-type-hint');
+    var bankWrapper = document.getElementById('bank-account-wrapper');
+
+    var TYPE_LABELS = {
+        customer: 'Customer',
+        vendor: 'Vendor',
+        both: 'Customer + Vendor'
+    };
+
+    var ALLOWED_TYPES = {
+        customer: ['discount_allowed', 'advance_received', 'general'],
+        vendor: ['discount_received', 'advance_paid', 'general'],
+        both: null
+    };
+
+    var DEFAULT_TYPES = {
+        customer: 'discount_allowed',
+        vendor: 'discount_received',
+        both: 'discount_allowed'
+    };
+
+    var TYPE_HINTS = {
+        discount_allowed: 'We waived part of what this customer owes.',
+        discount_received: 'This vendor waived part of what we owe them.',
+        advance_received: 'Customer paid in advance, not against any bill.',
+        advance_paid: 'We paid this vendor in advance, not against any bill.',
+        general: 'Manual correction or adjustment entry.'
+    };
+
+    function collectValues() {
+        var values = {};
+        form.querySelectorAll('input[name], select[name], textarea[name]').forEach(function (el) {
+            if (el.type === 'radio') {
+                if (el.checked) values[el.name] = el.value;
+                return;
+            }
+            if (el.name === 'csrfmiddlewaretoken') return;
+            values[el.name] = el.value;
+        });
+        return values;
     }
-    radios.forEach(r => r.addEventListener('change', toggleBank));
+
+    function clearErrorBox(name) {
+        var box = document.getElementById('field-' + name);
+        if (!box) return;
+        box.className = 'invalid-feedback';
+        box.innerHTML = '';
+    }
+
+    function validateField(name) {
+        if (!name) return;
+        var box = document.getElementById('field-' + name);
+        if (!box) return;
+
+        var values = collectValues();
+        if (!values[name]) {
+            clearErrorBox(name);
+            return;
+        }
+        values.field = name;
+        htmx.ajax('GET', validateUrl, {
+            target: '#field-' + name,
+            swap: 'outerHTML',
+            values: values
+        });
+    }
+
+    function selectedContactType() {
+        if (!contactSelect) return '';
+        var opt = contactSelect.options[contactSelect.selectedIndex];
+        return opt ? (opt.dataset.type || '') : '';
+    }
+
+    function updateContactHint() {
+        if (!contactSelect || !contactHint) return;
+        var opt = contactSelect.options[contactSelect.selectedIndex];
+        if (!opt || !opt.value) {
+            contactHint.textContent = '';
+            return;
+        }
+        var parts = [TYPE_LABELS[opt.dataset.type] || 'Contact'];
+        if (opt.dataset.phone) parts.push(opt.dataset.phone);
+        contactHint.textContent = parts.join(' · ');
+    }
+
+    function updateTypeHint() {
+        if (!entrySelect || !typeHint) return;
+        typeHint.textContent = TYPE_HINTS[entrySelect.value] || '';
+    }
+
+    function syncEntryTypeChoices() {
+        if (!entrySelect || !contactSelect) return;
+        var allowed = ALLOWED_TYPES[selectedContactType()];
+        var currentAllowed = true;
+
+        Array.prototype.forEach.call(entrySelect.options, function (opt) {
+            var ok = !allowed || allowed.indexOf(opt.value) !== -1;
+            opt.disabled = !ok;
+            opt.hidden = !ok;
+            if (!ok && opt.selected) currentAllowed = false;
+        });
+
+        if (!currentAllowed) {
+            var fallback = DEFAULT_TYPES[selectedContactType()];
+            if (fallback) entrySelect.value = fallback;
+        }
+        updateTypeHint();
+    }
+
+    function toggleBank() {
+        if (!bankWrapper) return;
+        var checked = form.querySelector('input[name="money_account"]:checked');
+        var isBank = checked && checked.value === 'bank';
+        bankWrapper.style.display = isBank ? 'block' : 'none';
+        if (!isBank) clearErrorBox('bank_account');
+    }
+
+    form.querySelectorAll('[required]').forEach(function (el) {
+        el.removeAttribute('required');
+    });
+
+    form.querySelectorAll('input[name]:not([type="hidden"]):not([type="radio"]), select[name], textarea[name]').forEach(function (el) {
+        el.addEventListener('blur', function () { validateField(el.name); });
+    });
+
+    form.querySelectorAll('select[name]').forEach(function (el) {
+        el.addEventListener('change', function () {
+            if (el.name === 'contact') {
+                updateContactHint();
+                syncEntryTypeChoices();
+                validateField('entry_type');
+            }
+            validateField(el.name);
+        });
+    });
+
+    form.querySelectorAll('input[type="radio"][name="money_account"]').forEach(function (el) {
+        el.addEventListener('change', function () {
+            toggleBank();
+            validateField('money_account');
+            validateField('bank_account');
+        });
+    });
+
+    if (entrySelect) {
+        entrySelect.addEventListener('change', function () {
+            updateTypeHint();
+            validateField('entry_type');
+            validateField('contact');
+        });
+    }
+
+    form.addEventListener('submit', function () {
+        var btn = document.getElementById('journal-page-submit');
+        var spinner = document.getElementById('journal-page-spinner');
+        if (spinner) spinner.classList.remove('d-none');
+        if (btn) btn.disabled = true;
+    });
+
+    // Contact list is long — searchable picker once the library is ready
+    // (app.js loads after this inline script on a full page load).
+    (function upgradeContactPicker() {
+        if (!contactSelect) return;
+        function run() {
+            if (!window.mdSearchableSelect) return false;
+            window.mdSearchableSelect(contactSelect, {
+                placeholder: 'Search by name or phone...',
+                allowEmptyOption: true,
+                openOnFocus: true,
+                maxOptions: 1000
+            });
+            return true;
+        }
+        if (run()) return;
+        var tries = 0;
+        var iv = setInterval(function () {
+            if (run() || ++tries >= 50) clearInterval(iv);
+        }, 100);
+    })();
+
+    updateContactHint();
+    syncEntryTypeChoices();
     toggleBank();
 })();
 </script>

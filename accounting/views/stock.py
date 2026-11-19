@@ -209,7 +209,15 @@ def stock_adjustment_add(request):
         else:
             # Invalid form – keep in modal
             if is_htmx(request):
-                return render(request, 'stock/partials/stock_adjustment_form.html', {'form': form})
+                return htmx_response(
+                    request,
+                    'stock/partials/stock_adjustment_form.html',
+                    context={'form': form},
+                    toast={
+                        'level': 'danger',
+                        'message': 'Adjustment not saved — please fix the highlighted fields.',
+                    },
+                )
     else:
         initial = {
             'date': timezone.now(),

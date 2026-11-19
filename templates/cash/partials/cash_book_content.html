@@ -1,0 +1,314 @@
+{% load math_filters %}
+<div id="cash-book-content">
+
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-semibold mb-0">
+                <i class="bi bi-cash-stack text-success me-2"></i>Cash Book
+            </h3>
+            <p class="text-muted small mt-1 mb-0">
+                Every rupee that comes into or goes out of the shop cash box, with running balance
+            </p>
+        </div>
+        <div class="text-end">
+            <small class="text-muted d-block text-uppercase fw-semibold">Cash in Hand Right Now</small>
+            <h4 class="fw-bold text-success mb-0" id="cash-in-hand-now">₹{{ cash_in_hand_now|rupee }}</h4>
+        </div>
+    </div>
+
+    <!-- Summary Tiles -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-secondary">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Opening Balance</small>
+                    <h5 class="mb-0 fw-bold">₹{{ opening_balance|rupee }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-success">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Cash In</small>
+                    <h5 class="mb-0 fw-bold text-success">₹{{ total_in|rupee }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-danger">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Cash Out</small>
+                    <h5 class="mb-0 fw-bold text-danger">₹{{ total_out|rupee }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-4 border-primary">
+                <div class="card-body">
+                    <small class="text-muted d-block text-uppercase fw-semibold">Closing Balance</small>
+                    <h5 class="mb-0 fw-bold text-primary">₹{{ closing_balance|rupee }}</h5>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Register -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <form method="get" class="row g-2 align-items-end mb-3">
+                        <div class="col-auto">
+                            <label class="form-label small mb-1">From</label>
+                            <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}">
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label small mb-1">To</label>
+                            <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-sm btn-primary">
+                                <i class="bi bi-funnel me-1"></i>Apply
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Particulars</th>
+                                    <th>Type</th>
+                                    <th class="text-end">Cash In (₹)</th>
+                                    <th class="text-end">Cash Out (₹)</th>
+                                    <th class="text-end">Balance (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in rows %}
+                                <tr>
+                                    <td class="text-nowrap">{{ row.date|date:"d M Y" }}</td>
+                                    <td>{{ row.particulars }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ row.label }}</span></td>
+                                    <td class="text-end text-success">{% if row.cash_in %}{{ row.cash_in|floatformat:2 }}{% endif %}</td>
+                                    <td class="text-end text-danger">{% if row.cash_out %}{{ row.cash_out|floatformat:2 }}{% endif %}</td>
+                                    <td class="text-end fw-semibold">{{ row.balance|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        No cash movements in this period.
+                                        Cash received/paid via Payments (method = Cash) appears here automatically.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            {% if page_obj.paginator.count %}
+                            <tfoot class="table-light fw-bold">
+                                <tr>
+                                    <td colspan="3">Total</td>
+                                    <td class="text-end">{{ total_in|floatformat:2 }}</td>
+                                    <td class="text-end">{{ total_out|floatformat:2 }}</td>
+                                    <td class="text-end">{{ closing_balance|floatformat:2 }}</td>
+                                </tr>
+                            </tfoot>
+                            {% endif %}
+                        </table>
+                    </div>
+
+                    {% if page_obj.has_other_pages %}
+                    <nav class="mt-3">
+                        <ul class="pagination pagination-sm justify-content-end mb-0">
+                            {% if page_obj.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?date_from={{ date_from }}&date_to={{ date_to }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+                            {% endif %}
+                            <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+                            {% if page_obj.has_next %}
+                            <li class="page-item"><a class="page-link" href="?date_from={{ date_from }}&date_to={{ date_to }}&page={{ page_obj.next_page_number }}">Next</a></li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Contra form -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white pt-3">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-arrow-left-right text-primary me-2"></i>Cash ⇄ Bank Movement</h6>
+                    <p class="text-muted small mt-2 mb-0">
+                        Deposit shop cash into a bank account, or bring cash from bank to the counter.
+                    </p>
+                </div>
+                <div class="card-body">
+                    <form method="post"
+                          action="{% url 'accounting:contra_create' %}"
+                          id="contra-form"
+                          hx-post="{% url 'accounting:contra_create' %}"
+                          hx-target="#cash-book-content"
+                          hx-swap="outerHTML"
+                          data-cash-in-hand="{{ cash_in_hand_now|stringformat:'f' }}"
+                          novalidate>
+                        {% csrf_token %}
+                        <input type="hidden" name="date_from" value="{{ date_from }}">
+                        <input type="hidden" name="date_to" value="{{ date_to }}">
+                        <input type="hidden" name="page" value="{{ page_obj.number }}">
+
+                        <div class="mb-3">
+                            <label for="id_direction" class="form-label small fw-semibold">{{ contra_form.direction.label }}</label>
+                            {{ contra_form.direction }}
+                            <div id="field-direction" class="invalid-feedback {% if contra_form.direction.errors %}d-block{% endif %}">
+                                {% for error in contra_form.direction.errors %}<div>{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_bank_account" class="form-label small fw-semibold">{{ contra_form.bank_account.label }}</label>
+                            <select name="bank_account" id="id_bank_account" class="form-select">
+                                <option value="">— Select bank account —</option>
+                                {% for b in bank_accounts %}
+                                    <option value="{{ b.pk }}"
+                                            data-balance="{{ b.current_balance|stringformat:'f' }}"
+                                            {% if contra_form.bank_account.value|stringformat:"s" == b.pk|stringformat:"s" %}selected{% endif %}>
+                                        {{ b.name }} — ₹{{ b.current_balance|rupee }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div id="field-bank_account" class="invalid-feedback {% if contra_form.bank_account.errors %}d-block{% endif %}">
+                                {% for error in contra_form.bank_account.errors %}<div>{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_amount" class="form-label small fw-semibold">{{ contra_form.amount.label }}</label>
+                            {{ contra_form.amount }}
+                            <div id="field-amount" class="invalid-feedback {% if contra_form.amount.errors %}d-block{% endif %}">
+                                {% for error in contra_form.amount.errors %}<div>{{ error }}</div>{% endfor %}
+                            </div>
+                            <small id="contra-available" class="text-muted d-block mt-1"></small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_date" class="form-label small fw-semibold">{{ contra_form.date.label }}</label>
+                            {{ contra_form.date }}
+                            <div id="field-date" class="invalid-feedback {% if contra_form.date.errors %}d-block{% endif %}">
+                                {% for error in contra_form.date.errors %}<div>{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="id_notes" class="form-label small fw-semibold">{{ contra_form.notes.label }}</label>
+                            {{ contra_form.notes }}
+                            <div id="field-notes" class="invalid-feedback {% if contra_form.notes.errors %}d-block{% endif %}">
+                                {% for error in contra_form.notes.errors %}<div>{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" id="contra-submit">
+                            <span id="contra-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                            <i class="bi bi-check2-circle me-1"></i>Record Movement
+                        </button>
+                    </form>
+                    <div class="alert alert-info small mt-3 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        This does <b>not</b> change any customer or vendor due — it only moves money
+                        between your cash box and bank.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+
+        var form = document.getElementById('contra-form');
+        if (!form) return;
+
+        var directionEl = form.querySelector('[name="direction"]');
+        var bankEl = form.querySelector('[name="bank_account"]');
+        var amountEl = form.querySelector('[name="amount"]');
+        var hintEl = document.getElementById('contra-available');
+        var cashInHand = parseFloat(form.dataset.cashInHand) || 0;
+
+        function formatMoney(value) {
+            return '₹' + Number(value).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        function currentBankOption() {
+            return bankEl && bankEl.selectedIndex >= 0 ? bankEl.options[bankEl.selectedIndex] : null;
+        }
+
+        function updateAvailability() {
+            if (!hintEl) return;
+            var direction = directionEl ? directionEl.value : 'deposit';
+            var amount = parseFloat(amountEl && amountEl.value) || 0;
+            var available;
+            var label;
+
+            if (direction === 'deposit') {
+                available = cashInHand;
+                label = 'Cash in hand';
+            } else {
+                var opt = currentBankOption();
+                if (!opt || !opt.value) {
+                    hintEl.className = 'text-muted d-block mt-1';
+                    hintEl.textContent = 'Select a bank account to see its available balance.';
+                    return;
+                }
+                available = parseFloat(opt.dataset.balance) || 0;
+                label = opt.text.split(' — ')[0].trim() + ' balance';
+            }
+
+            var text = label + ': ' + formatMoney(available);
+            var over = amount > available;
+
+            if (over) {
+                text += ' — amount exceeds the available ' +
+                    (direction === 'deposit' ? 'cash in hand.' : 'bank balance.');
+            }
+            hintEl.className = (over ? 'text-danger' : 'text-muted') + ' d-block mt-1';
+            hintEl.textContent = text;
+        }
+
+        if (directionEl) directionEl.addEventListener('change', updateAvailability);
+        if (bankEl) bankEl.addEventListener('change', updateAvailability);
+        if (amountEl) amountEl.addEventListener('input', updateAvailability);
+
+        updateAvailability();
+
+        if (!window._contraSpinnerWired) {
+            window._contraSpinnerWired = true;
+
+            document.body.addEventListener('htmx:beforeRequest', function (evt) {
+                var elt = evt.detail && evt.detail.elt;
+                if (!elt || !elt.closest || !elt.closest('#contra-form')) return;
+                if (evt.detail.verb && evt.detail.verb.toLowerCase() !== 'post') return;
+
+                var spinner = document.getElementById('contra-spinner');
+                var btn = document.getElementById('contra-submit');
+                if (spinner) spinner.classList.remove('d-none');
+                if (btn) btn.disabled = true;
+            });
+
+            document.body.addEventListener('htmx:afterRequest', function (evt) {
+                var elt = evt.detail && evt.detail.elt;
+                if (!elt || !elt.closest || !elt.closest('#contra-form')) return;
+
+                var spinner = document.getElementById('contra-spinner');
+                var btn = document.getElementById('contra-submit');
+                if (spinner) spinner.classList.add('d-none');
+                if (btn) btn.disabled = false;
+            });
+        }
+    })();
+    </script>
+</div>

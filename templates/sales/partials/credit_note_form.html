@@ -1,5 +1,6 @@
 {% load static %}
 <form method="post"
+      action="{% url 'accounting:credit_note_create' invoice.pk %}"
       hx-post="{% url 'accounting:credit_note_create' invoice.pk %}"
       hx-target="#mainModalContent"
       hx-swap="innerHTML"
@@ -20,6 +21,7 @@
                 <i class="bi bi-exclamation-triangle me-1"></i>{{ error }}
             </div>
         {% endif %}
+        <div id="credit-note-error" class="alert alert-danger d-none"></div>
 
         <!-- Context Banner -->
         <div class="alert alert-light border mb-3">
@@ -40,7 +42,7 @@
             <label class="form-label fw-semibold">Return Type</label>
             <div class="form-check form-switch">
                 <input type="checkbox" class="form-check-input" id="is_stock_return"
-                       name="is_stock_return" checked>
+                       name="is_stock_return" {% if posted_stock_return %}checked{% endif %}>
                 <label class="form-check-label" for="is_stock_return">
                     <strong>Physical Return</strong>
                     <small class="text-muted">— Stock will be added back. Uncheck for value-only credit (rate diff / discount).</small>
@@ -53,27 +55,27 @@
             <div class="col-md-4">
                 <label class="form-label fw-semibold">Date</label>
                 <input type="date" name="date" class="form-control"
-                       value="{{ invoice.date|date:'Y-m-d' }}" required>
+                       value="{{ posted_date }}" required>
             </div>
             <div class="col-md-4">
                 <label class="form-label fw-semibold">Reason <span class="text-danger">*</span></label>
                 <select name="reason" class="form-select" required>
-                    <option value="sales_return">Sales Return (Defective/Damaged)</option>
-                    <option value="rate_difference">Rate Difference</option>
-                    <option value="excess_quantity">Excess Quantity Supplied</option>
-                    <option value="post_sale_discount">Post-Sale Discount</option>
-                    <option value="order_cancelled">Order Cancelled</option>
-                    <option value="gst_correction">GST / Invoice Correction</option>
-                    <option value="other">Other</option>
+                    <option value="sales_return" {% if posted_reason == 'sales_return' %}selected{% endif %}>Sales Return (Defective/Damaged)</option>
+                    <option value="rate_difference" {% if posted_reason == 'rate_difference' %}selected{% endif %}>Rate Difference</option>
+                    <option value="excess_quantity" {% if posted_reason == 'excess_quantity' %}selected{% endif %}>Excess Quantity Supplied</option>
+                    <option value="post_sale_discount" {% if posted_reason == 'post_sale_discount' %}selected{% endif %}>Post-Sale Discount</option>
+                    <option value="order_cancelled" {% if posted_reason == 'order_cancelled' %}selected{% endif %}>Order Cancelled</option>
+                    <option value="gst_correction" {% if posted_reason == 'gst_correction' %}selected{% endif %}>GST / Invoice Correction</option>
+                    <option value="other" {% if posted_reason == 'other' %}selected{% endif %}>Other</option>
                 </select>
             </div>
             <div class="col-md-4">
                 <label class="form-label fw-semibold">Refund Method</label>
                 <select name="refund_method" class="form-select">
-                    <option value="credit">Credit to Account</option>
-                    <option value="cash">Cash Refund</option>
-                    <option value="bank">Bank Refund</option>
-                    <option value="none">No Refund (Stock Only)</option>
+                    <option value="credit" {% if posted_refund_method == 'credit' %}selected{% endif %}>Credit to Account</option>
+                    <option value="cash" {% if posted_refund_method == 'cash' %}selected{% endif %}>Cash Refund</option>
+                    <option value="bank" {% if posted_refund_method == 'bank' %}selected{% endif %}>Bank Refund</option>
+                    <option value="none" {% if posted_refund_method == 'none' %}selected{% endif %}>No Refund (Stock Only)</option>
                 </select>
             </div>
         </div>
@@ -81,7 +83,7 @@
         <!-- Items -->
         <label class="form-label fw-semibold">Select Items to Return</label>
         <div class="table-responsive mb-3">
-            <table class="table table-sm table-bordered align-middle">
+            <table class="table table-sm table-bordered align-middle" id="creditNoteItems">
                 <thead class="table-light">
                     <tr>
                         <th style="width:40px;">
@@ -89,54 +91,65 @@
                         </th>
                         <th>Product</th>
                         <th class="text-center" style="width:90px;">Invoiced Qty</th>
-                        <th class="text-center" style="width:110px;">Return Qty</th>
+                        <th class="text-center" style="width:140px;">Return Qty</th>
                         <th class="text-end" style="width:110px;">Rate</th>
                         <th class="text-end" style="width:110px;">Tax %</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for item in invoice.items.all %}
+                    {% for row in item_rows %}
                     <tr>
                         <td>
                             <input type="checkbox" class="form-check-input cn-item-check"
-                                   name="item_{{ item.pk }}" id="cn_item_{{ item.pk }}">
+                                   name="item_{{ row.item.pk }}" id="cn_item_{{ row.item.pk }}"
+                                   {% if row.checked %}checked{% endif %}>
                         </td>
                         <td>
-                            <label for="cn_item_{{ item.pk }}" class="mb-0">
-                                {{ item.product.name }}
+                            <label for="cn_item_{{ row.item.pk }}" class="mb-0">
+                                {{ row.item.product.name }}
                             </label>
-                            {% if item.description %}
-                                <br><small class="text-muted">{{ item.description }}</small>
+                            {% if row.item.description %}
+                                <br><small class="text-muted">{{ row.item.description }}</small>
                             {% endif %}
                         </td>
-                        <td class="text-center">{{ item.quantity|floatformat:2 }}</td>
+                        <td class="text-center">{{ row.item.quantity|floatformat:2 }}</td>
                         <td>
                             <input type="number" class="form-control form-control-sm cn-qty"
-                                   name="qty_{{ item.pk }}"
-                                   min="0.01" max="{{ item.quantity }}" step="any"
-                                   value="{{ item.quantity }}"
-                                   data-max="{{ item.quantity }}"
-                                   disabled>
+                                   name="qty_{{ row.item.pk }}"
+                                   min="0.01" max="{{ row.item.quantity }}" step="any"
+                                   value="{{ row.qty }}"
+                                   data-max="{{ row.item.quantity }}"
+                                   data-price="{{ row.item.unit_price }}"
+                                   data-tax="{{ row.item.tax_rate }}"
+                                   {% if not row.checked %}disabled{% endif %}>
+                            <div class="invalid-feedback" id="cn-qty-error-{{ row.item.pk }}"></div>
                         </td>
-                        <td class="text-end">₹{{ item.unit_price|rupee }}</td>
-                        <td class="text-end">{{ item.tax_rate|floatformat:2 }}%</td>
+                        <td class="text-end">₹{{ row.item.unit_price|rupee }}</td>
+                        <td class="text-end">{{ row.item.tax_rate|floatformat:2 }}%</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
+        <div class="d-flex justify-content-end align-items-center gap-2 mb-3">
+            <span class="text-muted small">Estimated credit:</span>
+            <span class="fw-bold" id="cn-estimated-total">₹0.00</span>
+        </div>
+
         <!-- Notes -->
         <div class="mb-3">
             <label class="form-label fw-semibold">Notes / Remarks</label>
             <textarea name="notes" rows="2" class="form-control"
-                      placeholder="Optional notes (e.g., customer complaint reference)"></textarea>
+                      placeholder="Optional notes (e.g., customer complaint reference)">{{ posted_notes }}</textarea>
         </div>
     </div>
 
     <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-warning">
+        <button type="submit" class="btn btn-warning" id="credit-note-submit">
+            <span id="credit-note-spinner"
+                  class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
             <i class="bi bi-check-circle me-1"></i>Create Credit Note
         </button>
     </div>
@@ -146,32 +159,167 @@
 (function() {
     'use strict';
 
+    var form = document.getElementById('creditNoteForm');
+    if (!form) return;
+    var errorBox = document.getElementById('credit-note-error');
+    var totalEl = document.getElementById('cn-estimated-total');
+    var submitBtn = document.getElementById('credit-note-submit');
+    var spinner = document.getElementById('credit-note-spinner');
+
+    function qtyInputFor(cb) {
+        return document.querySelector(
+            'input[name="qty_' + cb.id.replace('cn_item_', '') + '"]');
+    }
+
+    function rowError(cb, message) {
+        var input = qtyInputFor(cb);
+        var box = document.getElementById('cn-qty-error-' +
+            cb.id.replace('cn_item_', ''));
+        if (input) input.classList.toggle('is-invalid', !!message);
+        if (box) {
+            box.textContent = message || '';
+            box.classList.toggle('d-block', !!message);
+        }
+    }
+
+    function checkedBoxes() {
+        return Array.prototype.filter.call(
+            document.querySelectorAll('.cn-item-check'),
+            function (cb) { return cb.checked; });
+    }
+
+    function money(value) {
+        return '₹' + value.toLocaleString('en-IN', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
+    }
+
+    function recalc() {
+        var total = 0;
+        checkedBoxes().forEach(function (cb) {
+            var input = qtyInputFor(cb);
+            if (!input) return;
+            var qty = parseFloat(input.value) || 0;
+            var price = parseFloat(input.dataset.price) || 0;
+            var tax = parseFloat(input.dataset.tax) || 0;
+            total += qty * price * (1 + tax / 100);
+        });
+        if (totalEl) totalEl.textContent = money(total);
+    }
+
+    function validateQty(cb) {
+        var input = qtyInputFor(cb);
+        if (!input || !cb.checked) {
+            rowError(cb, '');
+            return true;
+        }
+        var qty = parseFloat(input.value);
+        var max = parseFloat(input.dataset.max);
+        if (!qty || qty <= 0) {
+            rowError(cb, 'Enter a quantity greater than zero.');
+            return false;
+        }
+        if (qty > max) {
+            rowError(cb, 'Cannot exceed the invoiced quantity of ' + max + '.');
+            return false;
+        }
+        rowError(cb, '');
+        return true;
+    }
+
+    function validateAll(reportToast) {
+        var boxes = checkedBoxes();
+        var message = '';
+        if (!boxes.length) {
+            message = 'Select at least one item to return.';
+        } else {
+            boxes.forEach(function (cb) {
+                if (!validateQty(cb) && !message) {
+                    message = 'Fix the highlighted return quantities.';
+                }
+            });
+        }
+        if (errorBox) {
+            errorBox.textContent = message;
+            errorBox.classList.toggle('d-none', !message);
+        }
+        if (message && reportToast && window.showToast) {
+            window.showToast('danger', message);
+        }
+        return !message;
+    }
+
     // Select-all toggle
-    const selectAll = document.getElementById('cn-select-all');
+    var selectAll = document.getElementById('cn-select-all');
     if (selectAll) {
         selectAll.addEventListener('change', function() {
             document.querySelectorAll('.cn-item-check').forEach(function(cb) {
-                cb.checked = this.checked;
-                const qtyInput = document.querySelector(
-                    'input[name="qty_' + cb.id.replace('cn_item_', '') + '"]'
-                );
-                if (qtyInput) qtyInput.disabled = !this.checked;
-            }, this);
+                cb.checked = selectAll.checked;
+                var qtyInput = qtyInputFor(cb);
+                if (qtyInput) {
+                    qtyInput.disabled = !cb.checked;
+                    if (cb.checked && (!qtyInput.value || parseFloat(qtyInput.value) <= 0)) {
+                        qtyInput.value = qtyInput.dataset.max;
+                    }
+                }
+                validateQty(cb);
+            });
+            recalc();
+            validateAll(false);
         });
     }
 
     // Individual checkbox → enable/disable qty input
     document.querySelectorAll('.cn-item-check').forEach(function(cb) {
         cb.addEventListener('change', function() {
-            const id = this.id.replace('cn_item_', '');
-            const qtyInput = document.querySelector('input[name="qty_' + id + '"]');
+            var qtyInput = qtyInputFor(cb);
             if (qtyInput) {
-                qtyInput.disabled = !this.checked;
-                if (this.checked && (!qtyInput.value || parseFloat(qtyInput.value) <= 0)) {
+                qtyInput.disabled = !cb.checked;
+                if (cb.checked && (!qtyInput.value || parseFloat(qtyInput.value) <= 0)) {
                     qtyInput.value = qtyInput.dataset.max;
                 }
             }
+            validateQty(cb);
+            recalc();
+            validateAll(false);
         });
     });
+
+    document.querySelectorAll('.cn-qty').forEach(function(input) {
+        input.addEventListener('input', function() {
+            var cb = document.getElementById(
+                'cn_item_' + input.name.replace('qty_', ''));
+            if (cb) validateQty(cb);
+            recalc();
+        });
+    });
+
+    form.addEventListener('submit', function (evt) {
+        if (!validateAll(true)) {
+            evt.preventDefault();
+            return;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+        if (spinner) spinner.classList.remove('d-none');
+    });
+
+    form.addEventListener('htmx:confirm', function (evt) {
+        if (!evt.detail || evt.detail.elt !== form) return;
+        if (!validateAll(false)) evt.preventDefault();
+    });
+
+    if (!window.__creditNoteBodyWired) {
+        window.__creditNoteBodyWired = true;
+        document.body.addEventListener('htmx:afterRequest', function (e) {
+            var f = document.getElementById('creditNoteForm');
+            if (!f || !e.detail || e.detail.elt !== f) return;
+            var b = document.getElementById('credit-note-submit');
+            var s = document.getElementById('credit-note-spinner');
+            if (b) b.disabled = false;
+            if (s) s.classList.add('d-none');
+        });
+    }
+
+    recalc();
 })();
 </script>

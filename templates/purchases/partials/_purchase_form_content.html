@@ -58,7 +58,7 @@
                                         </option>
                                     {% endfor %}
                                 </select>
-                                <div id="field-vendor" class="invalid-feedback d-block">
+                                <div id="field-vendor" class="invalid-feedback {% if form.vendor.errors %}d-block{% endif %}">
                                     {{ form.vendor.errors|join:", " }}
                                 </div>
                             </div>
@@ -69,7 +69,7 @@
                                 <input type="date" name="date" id="id_date"
                                        class="form-control"
                                        value="{% if form.is_bound %}{{ form.date.value }}{% else %}{{ form.date.value|date:'Y-m-d' }}{% endif %}">
-                                <div id="field-date" class="invalid-feedback d-block">
+                                <div id="field-date" class="invalid-feedback {% if form.date.errors %}d-block{% endif %}">
                                     {{ form.date.errors|join:", " }}
                                 </div>
                             </div>
@@ -88,11 +88,11 @@
                             <div class="col-md-4">
                                 <label for="id_freight_charge" class="form-label fw-semibold">Freight / Transport (₹)</label>
                                 <input type="number" name="freight_charge" id="id_freight_charge"
-                                       step="0.01" class="form-control"
+                                       step="0.01" min="0" class="form-control"
                                        value="{{ form.freight_charge.value|default:'0' }}">
-                                {% if form.freight_charge.errors %}
-                                    <div class="invalid-feedback d-block">{{ form.freight_charge.errors|join:", " }}</div>
-                                {% endif %}
+                                <div id="field-freight_charge" class="invalid-feedback {% if form.freight_charge.errors %}d-block{% endif %}">
+                                    {{ form.freight_charge.errors|join:", " }}
+                                </div>
                             </div>
                             <div class="col-md-8">
                                 <label for="id_notes" class="form-label fw-semibold">Notes</label>
@@ -119,9 +119,9 @@
                                                    step="0.01" min="0" class="form-control"
                                                    value="{{ form.discount_amount.value|default:'0' }}">
                                             <div class="form-text">Applied to the items subtotal (before tax) and cannot exceed it.</div>
-                                            {% if form.discount_amount.errors %}
-                                                <div class="invalid-feedback d-block">{{ form.discount_amount.errors|join:", " }}</div>
-                                            {% endif %}
+                                            <div id="field-discount_amount" class="invalid-feedback {% if form.discount_amount.errors %}d-block{% endif %}">
+                                                {{ form.discount_amount.errors|join:", " }}
+                                            </div>
                                         </div>
                                         <div class="col-md-3">
                                             <label for="id_discount_type" class="form-label small fw-semibold">Discount Type</label>
@@ -173,7 +173,9 @@
                             {% else %}
                                 <a href="{% url 'accounting:purchase_list' %}" class="btn btn-secondary">Cancel</a>
                             {% endif %}
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" id="purchase-submit" class="btn btn-primary">
+                                <span class="spinner-border spinner-border-sm me-1 d-none"
+                                      id="purchase-submit-spinner" role="status" aria-hidden="true"></span>
                                 <i class="bi bi-check-circle me-1"></i>
                                 {% if purchase %}Update Purchase{% else %}Create Purchase{% endif %}
                             </button>
@@ -184,3 +186,149 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    'use strict';
+
+    var form = document.getElementById('purchaseForm');
+    if (!form || form.dataset.liveBound === '1') return;
+    form.dataset.liveBound = '1';
+
+    var vendorSelect = document.getElementById('id_vendor');
+    var dateInput = document.getElementById('id_date');
+    var discountInput = document.getElementById('id_discount_amount');
+    var submitBtn = document.getElementById('purchase-submit');
+    var submitSpinner = document.getElementById('purchase-submit-spinner');
+
+    function setError(field, message) {
+        var box = document.getElementById('field-' + field);
+        if (box) {
+            box.textContent = message || '';
+            box.classList.toggle('d-block', !!message);
+        }
+        var input = document.getElementById('id_' + field);
+        if (input) input.classList.toggle('is-invalid', !!message);
+    }
+
+    function itemsSubtotal() {
+        var foot = document.querySelector(
+            '#purchase-items-container tfoot[data-items-subtotal]');
+        return foot ? (parseFloat(foot.dataset.itemsSubtotal) || 0) : 0;
+    }
+
+    function validateVendor() {
+        var bad = !vendorSelect || !vendorSelect.value;
+        setError('vendor', bad ? 'Please select a vendor.' : '');
+        return !bad;
+    }
+
+    function validateDate() {
+        var bad = !dateInput || !dateInput.value;
+        setError('date', bad ? 'Please pick a purchase date.' : '');
+        return !bad;
+    }
+
+    function validateDiscount() {
+        if (!discountInput) return true;
+        var discount = parseFloat(discountInput.value) || 0;
+        if (discount < 0) {
+            setError('discount_amount', 'Discount cannot be negative.');
+            return false;
+        }
+        // No lines yet: the empty-cart check below reports it more clearly.
+        if (!document.querySelector('#purchase-items-container tfoot')) {
+            setError('discount_amount', '');
+            return true;
+        }
+        var ceiling = itemsSubtotal();
+        if (discount > ceiling + 0.005) {
+            setError('discount_amount',
+                'Discount cannot be more than the items subtotal (₹' +
+                ceiling.toLocaleString('en-IN', {
+                    minimumFractionDigits: 2, maximumFractionDigits: 2
+                }) + ').');
+            return false;
+        }
+        setError('discount_amount', '');
+        return true;
+    }
+
+    if (vendorSelect) vendorSelect.addEventListener('change', validateVendor);
+    if (dateInput) dateInput.addEventListener('change', validateDate);
+    if (discountInput) discountInput.addEventListener('input', validateDiscount);
+
+    // Body-level listeners survive modal swaps, so bind them once.
+    if (!window.__purchaseFormBodyWired) {
+        window.__purchaseFormBodyWired = true;
+        document.body.addEventListener('htmx:afterSwap', function (e) {
+            if (!e.target || e.target.id !== 'purchase-items-container') return;
+            var d = document.getElementById('id_discount_amount');
+            if (d) d.dispatchEvent(new Event('input'));
+        });
+        document.body.addEventListener('htmx:afterRequest', function (e) {
+            var f = document.getElementById('purchaseForm');
+            if (!f || !e.detail || e.detail.elt !== f) return;
+            var b = document.getElementById('purchase-submit');
+            var s = document.getElementById('purchase-submit-spinner');
+            if (b) b.disabled = false;
+            if (s) s.classList.add('d-none');
+        });
+    }
+
+    form.addEventListener('submit', function (evt) {
+        var ok = validateVendor();
+        ok = validateDate() && ok;
+        ok = validateDiscount() && ok;
+
+        var hasItems = !!document.querySelector(
+            '#purchase-items-container tfoot[data-items-subtotal]');
+        if (!hasItems && !{{ purchase|yesno:'true,false' }}) {
+            if (window.showToast) {
+                window.showToast('warning',
+                    'Add at least one product line before saving the purchase.');
+            }
+            ok = false;
+        }
+
+        if (!ok) {
+            evt.preventDefault();
+            return;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+        if (submitSpinner) submitSpinner.classList.remove('d-none');
+    });
+
+    // htmx issues the request itself; only htmx:confirm can veto it.
+    form.addEventListener('htmx:confirm', function (evt) {
+        if (!evt.detail || evt.detail.elt !== form) return;
+        var ok = validateVendor();
+        ok = validateDate() && ok;
+        ok = validateDiscount() && ok;
+        var hasItems = !!document.querySelector(
+            '#purchase-items-container tfoot[data-items-subtotal]');
+        if (!hasItems && !{{ purchase|yesno:'true,false' }}) ok = false;
+        if (!ok) evt.preventDefault();
+    });
+
+    // Vendor list is long — searchable select instead of scrolling.
+    // app.js may load after this inline script on a full page load, so wait.
+    (function upgradeVendorPicker() {
+        function run() {
+            if (!window.mdSearchableSelect) return false;
+            window.mdSearchableSelect(vendorSelect, {
+                placeholder: 'Search vendor by name or phone...',
+                allowEmptyOption: true,
+                openOnFocus: true,
+                maxOptions: 1000
+            });
+            return true;
+        }
+        if (run() || !vendorSelect) return;
+        var tries = 0;
+        var iv = setInterval(function () {
+            if (run() || ++tries >= 50) clearInterval(iv);
+        }, 100);
+    })();
+})();
+</script>

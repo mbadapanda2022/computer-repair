@@ -52,8 +52,8 @@
                                         </option>
                                     {% endfor %}
                                 </select>
-                                <div id="field-customer" class="invalid-feedback d-block">
-                                    {{ form.customer.errors|join:", " }}
+                                <div id="field-customer" class="invalid-feedback {% if form.customer.errors %}d-block{% endif %}">
+                                    {% for error in form.customer.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
                                 </div>
                             </div>
                             <div class="col-md-3">
@@ -63,14 +63,18 @@
                                 <input type="date" name="date" id="id_date"
                                        class="form-control"
                                        value="{{ form.date.value|default:''|date:'Y-m-d' }}">
-                                {% if form.date.errors %}<div class="invalid-feedback d-block">{{ form.date.errors|join:", " }}</div>{% endif %}
+                                <div id="field-date" class="invalid-feedback {% if form.date.errors %}d-block{% endif %}">
+                                    {% for error in form.date.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                                </div>
                             </div>
                             <div class="col-md-3">
                                 <label for="id_due_date" class="form-label fw-semibold">Due Date</label>
                                 <input type="date" name="due_date" id="id_due_date"
                                        class="form-control"
                                        value="{{ form.due_date.value|default:''|date:'Y-m-d' }}">
-                                {% if form.due_date.errors %}<div class="invalid-feedback d-block">{{ form.due_date.errors|join:", " }}</div>{% endif %}
+                                <div id="field-due_date" class="invalid-feedback {% if form.due_date.errors %}d-block{% endif %}">
+                                    {% for error in form.due_date.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                                </div>
                             </div>
                         </div>
 
@@ -109,7 +113,9 @@
                                                    step="0.01" min="0" class="form-control"
                                                    value="{{ form.discount_amount.value|default:'0' }}">
                                             <div class="form-text">Applied to the items subtotal (before tax) and cannot exceed it.</div>
-                                            {% if form.discount_amount.errors %}<div class="invalid-feedback d-block">{{ form.discount_amount.errors|join:", " }}</div>{% endif %}
+                                            <div id="field-discount_amount" class="invalid-feedback {% if form.discount_amount.errors %}d-block{% endif %}">
+                                                {% for error in form.discount_amount.errors %}<div><i class="bi bi-exclamation-circle me-1"></i>{{ error }}</div>{% endfor %}
+                                            </div>
                                         </div>
                                         <div class="col-md-3">
                                             <label for="id_discount_type" class="form-label small fw-semibold">Discount Type</label>
@@ -159,7 +165,8 @@
                             {% else %}
                                 <a href="{% url 'accounting:invoice_list' %}" class="btn btn-secondary">Cancel</a>
                             {% endif %}
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="invoice-submit">
+                                <span id="invoice-submit-spinner" class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
                                 <i class="bi bi-check-circle me-1"></i>
                                 {% if invoice %}Update Invoice{% else %}Create Invoice{% endif %}
                             </button>
@@ -170,3 +177,161 @@
         </div>
     </div>
 </div>
+
+<script>
+(function () {
+    'use strict';
+
+    var form = document.getElementById('invoiceForm');
+    if (!form) return;
+
+    var customerSelect = document.getElementById('id_customer');
+    var dateInput = document.getElementById('id_date');
+    var discountInput = document.getElementById('id_discount_amount');
+
+    function setError(name, message) {
+        var box = document.getElementById('field-' + name);
+        if (!box) return;
+        if (message) {
+            box.className = 'invalid-feedback d-block';
+            box.innerHTML = '<div><i class="bi bi-exclamation-circle me-1"></i><span></span></div>';
+            box.querySelector('span').textContent = message;
+        } else {
+            box.className = 'invalid-feedback';
+            box.innerHTML = '';
+        }
+    }
+
+    function validateCustomer() {
+        if (!customerSelect || !customerSelect.value) {
+            setError('customer', 'Please select a customer.');
+            return false;
+        }
+        setError('customer', '');
+        return true;
+    }
+
+    function validateDate() {
+        if (!dateInput || !dateInput.value) {
+            setError('date', 'Invoice date is required.');
+            return false;
+        }
+        setError('date', '');
+        return true;
+    }
+
+    function validateDiscount() {
+        if (!discountInput) return true;
+        var discount = parseFloat(discountInput.value) || 0;
+        if (discount < 0) {
+            setError('discount_amount', 'Discount cannot be negative.');
+            return false;
+        }
+        var foot = document.querySelector(
+            '#invoice-items-container tfoot[data-items-total]');
+        if (foot) {
+            var gross = parseFloat(foot.dataset.itemsTotal) || 0;
+            if (discount > gross) {
+                setError(
+                    'discount_amount',
+                    'Discount cannot exceed the items total (₹' +
+                    gross.toFixed(2) + ').'
+                );
+                return false;
+            }
+        }
+        setError('discount_amount', '');
+        return true;
+    }
+
+    if (customerSelect) customerSelect.addEventListener('change', validateCustomer);
+    if (dateInput) dateInput.addEventListener('blur', validateDate);
+    if (discountInput) {
+        discountInput.addEventListener('input', validateDiscount);
+        discountInput.addEventListener('blur', validateDiscount);
+    }
+
+    form.addEventListener('submit', function (evt) {
+        var ok = validateCustomer();
+        ok = validateDate() && ok;
+        ok = validateDiscount() && ok;
+
+        var itemCount = document.querySelectorAll(
+            '#invoice-items-container .remove-item-btn').length;
+        // On an edit, removing every line is a deliberate way to clear the
+        // invoice (server keeps the header and zeroes the ledger), so only
+        // block an empty cart while creating.
+        if (itemCount === 0 && !{{ invoice|yesno:'true,false' }}) {
+            if (window.showToast) {
+                window.showToast('warning', 'Add at least one item before saving the invoice.');
+            }
+            ok = false;
+        }
+
+        if (!ok) evt.preventDefault();
+    });
+
+    // htmx issues the request itself; only htmx:confirm can veto it.
+    form.addEventListener('htmx:confirm', function (evt) {
+        // Item add/remove requests bubble through here too — gate the cart
+        // only when the invoice form itself is being submitted.
+        if (!evt.detail || evt.detail.elt !== form) return;
+        var ok = validateCustomer();
+        ok = validateDate() && ok;
+        ok = validateDiscount() && ok;
+        var itemCount = document.querySelectorAll(
+            '#invoice-items-container .remove-item-btn').length;
+        if (itemCount === 0 && !{{ invoice|yesno:'true,false' }}) ok = false;
+        if (!ok) evt.preventDefault();
+    });
+
+    // Customer search (TomSelect) — the list is large enough that scanning
+    // a plain dropdown is slow.
+    function upgradeCustomerPicker() {
+        if (!window.mdSearchableSelect) return;
+        window.mdSearchableSelect(customerSelect, {
+            placeholder: 'Search customer by name or phone...',
+            allowEmptyOption: true,
+            openOnFocus: true,
+            maxOptions: 1000,
+            render: {
+                no_results: function (data, escape) {
+                    return '<div class="no-results p-3 text-center text-muted">' +
+                        '<i class="bi bi-search me-1"></i>No customers found for "' +
+                        escape(data.input) + '"</div>';
+                }
+            }
+        });
+    }
+    if (window.mdSearchableSelect) {
+        upgradeCustomerPicker();
+    } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', upgradeCustomerPicker, { once: true });
+    }
+
+    if (!window.__invoiceSpinnerWired) {
+        window.__invoiceSpinnerWired = true;
+
+        document.body.addEventListener('htmx:beforeRequest', function (evt) {
+            var elt = evt.detail && evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#invoiceForm')) return;
+            if (evt.detail.verb && evt.detail.verb.toLowerCase() !== 'post') return;
+
+            var spinner = document.getElementById('invoice-submit-spinner');
+            var btn = document.getElementById('invoice-submit');
+            if (spinner) spinner.classList.remove('d-none');
+            if (btn) btn.disabled = true;
+        });
+
+        document.body.addEventListener('htmx:afterRequest', function (evt) {
+            var elt = evt.detail && evt.detail.elt;
+            if (!elt || !elt.closest || !elt.closest('#invoiceForm')) return;
+
+            var spinner = document.getElementById('invoice-submit-spinner');
+            var btn = document.getElementById('invoice-submit');
+            if (spinner) spinner.classList.add('d-none');
+            if (btn) btn.disabled = false;
+        });
+    }
+})();
+</script>

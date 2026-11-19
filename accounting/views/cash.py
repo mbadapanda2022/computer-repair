@@ -19,6 +19,7 @@ from django.utils import timezone
 from ..models import BankAccount, BankTransaction, LedgerLine, get_cash_in_hand
 from ..forms import ContraForm
 from ..decorators import handle_errors
+from .utils import is_htmx, htmx_response
 
 logger = logging.getLogger(__name__)
 
@@ -32,15 +33,18 @@ def _parse_date(value):
         return None
 
 
-@login_required
-def cash_book(request):
-    """Register of every cash in / cash out movement with running balance."""
+def _resolve_range(source):
+    """Read date_from/date_to from GET or POST and normalise the range."""
     today = timezone.localdate()
-    date_from = _parse_date(request.GET.get('date_from')) or today.replace(day=1)
-    date_to = _parse_date(request.GET.get('date_to')) or today
+    date_from = _parse_date(source.get('date_from')) or today.replace(day=1)
+    date_to = _parse_date(source.get('date_to')) or today
     if date_from > date_to:
         date_from, date_to = date_to, date_from
+    return date_from, date_to
 
+
+def _cash_book_context(request, date_from, date_to, page_number=None, contra_form=None):
+    """Build the full register context, shared by the page and HTMX swaps."""
     opening = get_cash_in_hand(up_to=date_from - timedelta(days=1))
 
     lines = (
@@ -81,9 +85,15 @@ def cash_book(request):
         })
 
     paginator = Paginator(rows, 100)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    page_obj = paginator.get_page(page_number)
 
-    context = {
+    bank_accounts = list(BankAccount.objects.filter(is_active=True))
+    bank_balances = {b.pk: b.current_balance for b in bank_accounts}
+
+    if contra_form is None:
+        contra_form = ContraForm(initial={'date': timezone.localdate()})
+
+    return {
         'date_from': date_from.strftime('%Y-%m-%d'),
         'date_to': date_to.strftime('%Y-%m-%d'),
         'opening_balance': opening,
@@ -93,9 +103,19 @@ def cash_book(request):
         'cash_in_hand_now': get_cash_in_hand(),
         'rows': page_obj,
         'page_obj': page_obj,
-        'contra_form': ContraForm(initial={'date': today}),
-        'bank_accounts': BankAccount.objects.filter(is_active=True),
+        'contra_form': contra_form,
+        'bank_accounts': bank_accounts,
+        'bank_balances': bank_balances,
     }
+
+
+@login_required
+def cash_book(request):
+    """Register of every cash in / cash out movement with running balance."""
+    date_from, date_to = _resolve_range(request.GET)
+    context = _cash_book_context(
+        request, date_from, date_to, page_number=request.GET.get('page'),
+    )
     return render(request, 'cash/cash_book.html', context)
 
 
@@ -105,17 +125,31 @@ def cash_book(request):
 @handle_errors(default_redirect='accounting:cash_book')
 def contra_create(request):
     """Record a cash ⇄ bank movement (contra entry)."""
-    # Keep the register on the same date range the user was viewing.
+    date_from, date_to = _resolve_range(request.POST)
+    page_number = request.POST.get('page')
+
     back_params = urlencode({
-        k: request.POST.get(k) for k in ('date_from', 'date_to')
-        if request.POST.get(k)
+        'date_from': date_from.strftime('%Y-%m-%d'),
+        'date_to': date_to.strftime('%Y-%m-%d'),
     })
-    cash_book_url = reverse('accounting:cash_book')
-    if back_params:
-        cash_book_url = f'{cash_book_url}?{back_params}'
+    cash_book_url = f"{reverse('accounting:cash_book')}?{back_params}"
 
     form = ContraForm(request.POST)
     if not form.is_valid():
+        if is_htmx(request):
+            context = _cash_book_context(
+                request, date_from, date_to,
+                page_number=page_number, contra_form=form,
+            )
+            return htmx_response(
+                request,
+                'cash/partials/cash_book_content.html',
+                context=context,
+                toast={
+                    'level': 'danger',
+                    'message': 'Movement not recorded — please fix the highlighted fields.',
+                },
+            )
         for field, error in form.errors.items():
             messages.error(request, str(error[0]))
         return redirect(cash_book_url)
@@ -137,9 +171,28 @@ def contra_create(request):
             description=description,
         )
 
-    messages.success(
-        request,
+    message = (
         f"₹{cd['amount']} {'deposited into' if is_deposit else 'withdrawn from'} "
         f"{cd['bank_account'].name} recorded in the Cash Book."
     )
+
+    if is_htmx(request):
+        # Keep the new movement visible even if it falls outside the
+        # date range the user was viewing.
+        if cd['date'] < date_from:
+            date_from = cd['date']
+        if cd['date'] > date_to:
+            date_to = cd['date']
+        context = _cash_book_context(
+            request, date_from, date_to, page_number=page_number,
+            contra_form=ContraForm(initial={'date': cd['date']}),
+        )
+        return htmx_response(
+            request,
+            'cash/partials/cash_book_content.html',
+            context=context,
+            toast={'level': 'success', 'message': message},
+        )
+
+    messages.success(request, message)
     return redirect(cash_book_url)

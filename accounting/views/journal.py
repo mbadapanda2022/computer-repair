@@ -462,24 +462,35 @@ def journal_delete(request, pk):
 # ============================================================
 # REAL-TIME FIELD VALIDATION
 # ============================================================
+JOURNAL_VALIDATED_FIELDS = (
+    'contact', 'entry_type', 'money_account', 'bank_account',
+    'amount', 'date', 'narration',
+)
+
+
 @require_http_methods(["GET"])
 def validate_journal_field(request):
+    """Validate one field live, but with the whole form's values.
+
+    The client sends every field value, so cross-field rules in
+    JournalForm.clean() (contact type vs entry type, bank account vs
+    money account) also fire while the user fills the form.
+    """
     field_name = request.GET.get('field')
-    if not field_name:
+    if not field_name or field_name not in JOURNAL_VALIDATED_FIELDS:
         return HttpResponse("")
 
-    value = request.GET.get(field_name, '')
+    data = {name: request.GET.get(name, '') for name in JOURNAL_VALIDATED_FIELDS}
 
     if field_name == 'contact':
         try:
-            Contact.objects.get(pk=value)
-        except (Contact.DoesNotExist, ValueError):
+            Contact.objects.get(pk=data['contact'])
+        except (Contact.DoesNotExist, ValueError, TypeError):
             return htmx_field_error_response(
                 field_name, ['Please select a valid contact.'],
             )
-        return HttpResponse("")
 
-    form = JournalForm(data={field_name: value})
+    form = JournalForm(data=data)
     form.is_valid()
     errors = form.errors.get(field_name, [])
 

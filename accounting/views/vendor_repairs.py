@@ -678,6 +678,19 @@ def vendor_repair_create(request):
     else:
         form = VendorRepairJobForm()
 
+    if is_htmx(request) and form.errors:
+        return htmx_response(
+            request, template, {
+                'form': form,
+                'job': None,
+                'is_htmx': True,
+                **_form_parts_context(request, None),
+            },
+            toast={
+                'level': 'danger',
+                'message': 'Vendor repair not saved — please fix the highlighted fields.',
+            },
+        )
     return render(request, template, {
         'form': form,
         'job': None,
@@ -715,6 +728,19 @@ def vendor_repair_update(request, pk):
     else:
         form = VendorRepairJobForm(instance=job)
 
+    if is_htmx(request) and form.errors:
+        return htmx_response(
+            request, template, {
+                'form': form,
+                'job': job,
+                'is_htmx': True,
+                **_form_parts_context(request, job),
+            },
+            toast={
+                'level': 'danger',
+                'message': 'Vendor repair not saved — please fix the highlighted fields.',
+            },
+        )
     return render(request, template, {
         'form': form,
         'job': job,

@@ -104,7 +104,8 @@
         </tbody>
         {% if items %}
         <tfoot class="table-light fw-bold"
-               data-items-total="{% localize off %}{{ items_total }}{% endlocalize %}">
+               data-items-total="{% localize off %}{{ items_total }}{% endlocalize %}"
+               data-items-subtotal="{% localize off %}{{ items_subtotal|default:0 }}{% endlocalize %}">
             <tr>
                 <td colspan="4" class="text-end">Items Total (incl. tax)</td>
                 <td class="text-end">₹{{ items_total|rupee }}</td>
@@ -276,7 +277,9 @@
 
         const pid = productIdEl ? productIdEl.value : '';
         if (!pid) {
-            alert('Please select a product from the suggestions.');
+            if (window.showToast) {
+                window.showToast('warning', 'Select a product from the suggestions first.');
+            }
             if (searchInput) searchInput.focus();
             return;
         }
@@ -304,7 +307,7 @@
                 const np = c.querySelector('#selected-product-id');
                 const nq = c.querySelector('#item-quantity');
                 const no = c.querySelector('#item-office-use');
-                if (ns) ns.value = '';
+                if (ns) { ns.value = ''; ns.focus(); }
                 if (np) np.value = '';
                 if (nq) nq.value = '1';
                 if (no) no.checked = false;

@@ -57,7 +57,7 @@
                                 </option>
                             {% endfor %}
                         </select>
-                        <div class="invalid-feedback d-block">{{ form.customer.errors|join:", " }}</div>
+                        <div id="field-customer" class="invalid-feedback d-block">{{ form.customer.errors|join:", " }}</div>
                     </div>
                     <div class="col-md-6">
                         <label for="id_vendor" class="form-label fw-semibold">Vendor / Service Center <span class="text-danger">*</span></label>
@@ -70,7 +70,7 @@
                                 </option>
                             {% endfor %}
                         </select>
-                        <div class="invalid-feedback d-block">{{ form.vendor.errors|join:", " }}</div>
+                        <div id="field-vendor" class="invalid-feedback d-block">{{ form.vendor.errors|join:", " }}</div>
                         <small class="text-muted">
                             <a href="{% url 'accounting:contact_create' %}" target="_blank" class="text-decoration-none">
                                 <i class="bi bi-plus-circle"></i> Add a vendor contact
@@ -169,7 +169,7 @@
                         <input type="text" name="device_model" id="id_device_model" class="form-control"
                                value="{{ form.device_model.value|default:'' }}" required
                                placeholder="e.g. HP Pavilion 15, Dell Inspiron 3501">
-                        <div class="invalid-feedback d-block">{{ form.device_model.errors|join:", " }}</div>
+                        <div id="field-device_model" class="invalid-feedback d-block">{{ form.device_model.errors|join:", " }}</div>
                     </div>
                     <div class="col-md-6">
                         <label for="id_serial_number" class="form-label fw-semibold">Serial Number</label>
@@ -180,7 +180,7 @@
                         <label for="id_issue_description" class="form-label fw-semibold">Issue Description <span class="text-danger">*</span></label>
                         <textarea name="issue_description" id="id_issue_description" rows="3"
                                   class="form-control" required>{{ form.issue_description.value|default:'' }}</textarea>
-                        <div class="invalid-feedback d-block">{{ form.issue_description.errors|join:", " }}</div>
+                        <div id="field-issue_description" class="invalid-feedback d-block">{{ form.issue_description.errors|join:", " }}</div>
                     </div>
                     <div class="col-md-6">
                         <label for="id_accessories" class="form-label fw-semibold">Accessories Sent (external)</label>
@@ -272,6 +272,7 @@
                     </button>
                     <small class="text-muted">Leave unused lines blank — only filled rows are saved.</small>
                 </div>
+                <div id="field-parts" class="invalid-feedback d-block"></div>
 
                 {% if verified_parts %}
                 <div class="mt-2 small">
@@ -294,7 +295,7 @@
                         <label for="id_outbound_date" class="form-label fw-semibold">Date Sent <span class="text-danger">*</span></label>
                         <input type="date" name="outbound_date" id="id_outbound_date" class="form-control"
                                value="{{ form.outbound_date.value|default:''|date:'Y-m-d' }}" required>
-                        <div class="invalid-feedback d-block">{{ form.outbound_date.errors|join:", " }}</div>
+                        <div id="field-outbound_date" class="invalid-feedback d-block">{{ form.outbound_date.errors|join:", " }}</div>
                     </div>
                     <div class="col-md-4">
                         <label for="id_expected_return_date" class="form-label fw-semibold">Expected Return</label>
@@ -392,7 +393,9 @@
                 {% if is_htmx %}
                 <div class="modal-footer px-0 pb-0 mt-4">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="vendor-repair-submit">
+                        <span id="vendor-repair-spinner"
+                              class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
                         <i class="bi bi-check-circle"></i>
                         {% if job %}Update Job{% else %}Create Job{% endif %}
                     </button>
@@ -400,7 +403,9 @@
                 {% else %}
                 <div class="mt-4 d-flex justify-content-end gap-2">
                     <a href="{% url 'accounting:vendor_repair_list' %}" class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary" id="vendor-repair-submit">
+                        <span id="vendor-repair-spinner"
+                              class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
                         <i class="bi bi-check-circle"></i>
                         {% if job %}Update Job{% else %}Create Job{% endif %}
                     </button>
@@ -534,4 +539,148 @@
         body.querySelectorAll('tr.part-row').forEach(syncRow);
         renumber();
     })();
+</script>
+
+<script>
+(function () {
+    'use strict';
+
+    var form = document.getElementById('vendorRepairForm');
+    if (!form || form.dataset.liveBound === '1') return;
+    form.dataset.liveBound = '1';
+
+    var submitBtn = document.getElementById('vendor-repair-submit');
+    var spinner = document.getElementById('vendor-repair-spinner');
+
+    function setError(field, message) {
+        var box = document.getElementById('field-' + field);
+        if (box) {
+            box.textContent = message || '';
+            box.classList.toggle('d-block', !!message);
+        }
+        var input = document.getElementById('id_' + field);
+        if (input) input.classList.toggle('is-invalid', !!message);
+    }
+
+    function requireSelect(id, field, message) {
+        var el = document.getElementById(id);
+        var bad = !el || !el.value;
+        setError(field, bad ? message : '');
+        return !bad;
+    }
+
+    function requireText(id, field, message) {
+        var el = document.getElementById(id);
+        var bad = !el || !el.value.trim();
+        setError(field, bad ? message : '');
+        return !bad;
+    }
+
+    function validateParts() {
+        var problem = '';
+        var rows = document.querySelectorAll(
+            '#partsBody tr.part-row:not(.d-none)');
+        Array.prototype.forEach.call(rows, function (tr, i) {
+            var name = tr.querySelector('.part-name');
+            var qty = tr.querySelector('.part-qty');
+            var presence = tr.querySelector('.part-presence');
+            if (!name || !name.value.trim()) return;
+            if (presence && presence.value === 'not_installed') return;
+            var n = parseInt(qty ? qty.value : '', 10);
+            if (!n || n < 1) {
+                problem = 'Line ' + (i + 1) + ' (' + name.value.trim() +
+                    '): quantity must be at least 1.';
+            }
+        });
+        setError('parts', problem);
+        return !problem;
+    }
+
+    function validateAll(reportToast) {
+        var ok = requireSelect('id_customer', 'customer',
+            'Select the customer whose device this is.');
+        ok = requireSelect('id_vendor', 'vendor',
+            'Select the vendor / service center.') && ok;
+        ok = requireText('id_device_model', 'device_model',
+            'Enter the device model.') && ok;
+        ok = requireText('id_issue_description', 'issue_description',
+            'Describe the issue briefly.') && ok;
+        ok = requireText('id_outbound_date', 'outbound_date',
+            'Pick the date the device was sent.') && ok;
+        ok = validateParts() && ok;
+        if (!ok && reportToast && window.showToast) {
+            window.showToast('danger',
+                'Vendor repair not saved — please check the highlighted fields.');
+        }
+        return ok;
+    }
+
+    ['id_customer', 'id_vendor'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', function () { validateAll(false); });
+    });
+    ['id_device_model', 'id_issue_description', 'id_outbound_date'].forEach(
+        function (id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('input', function () { validateAll(false); });
+        });
+    var partsBody = document.getElementById('partsBody');
+    if (partsBody) partsBody.addEventListener('input', validateParts);
+
+    form.addEventListener('submit', function (evt) {
+        if (!validateAll(true)) {
+            evt.preventDefault();
+            return;
+        }
+        if (submitBtn) submitBtn.disabled = true;
+        if (spinner) spinner.classList.remove('d-none');
+    });
+
+    form.addEventListener('htmx:confirm', function (evt) {
+        if (!evt.detail || evt.detail.elt !== form) return;
+        if (!validateAll(false)) evt.preventDefault();
+    });
+
+    if (!window.__vendorRepairBodyWired) {
+        window.__vendorRepairBodyWired = true;
+        document.body.addEventListener('htmx:afterRequest', function (e) {
+            var f = document.getElementById('vendorRepairForm');
+            if (!f || !e.detail || e.detail.elt !== f) return;
+            var b = document.getElementById('vendor-repair-submit');
+            var s = document.getElementById('vendor-repair-spinner');
+            if (b) b.disabled = false;
+            if (s) s.classList.add('d-none');
+        });
+    }
+
+    // Searchable picks — customer/vendor lists are long.
+    function upgradePartyPickers() {
+        if (!window.mdSearchableSelect) return;
+        var customerSelect = document.getElementById('id_customer');
+        if (customerSelect && !customerSelect.tomselect) {
+            window.mdSearchableSelect(customerSelect, {
+                placeholder: 'Search customer by name or phone...',
+                allowEmptyOption: true,
+                openOnFocus: true,
+                maxOptions: 1000,
+                onChange: function () { validateAll(false); }
+            });
+        }
+        var vendorSelect = document.getElementById('id_vendor');
+        if (vendorSelect && !vendorSelect.tomselect) {
+            window.mdSearchableSelect(vendorSelect, {
+                placeholder: 'Search vendor by name or company...',
+                allowEmptyOption: true,
+                openOnFocus: true,
+                maxOptions: 1000,
+                onChange: function () { validateAll(false); }
+            });
+        }
+    }
+    if (window.mdSearchableSelect) {
+        upgradePartyPickers();
+    } else if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', upgradePartyPickers, { once: true });
+    }
+})();
 </script>
