@@ -164,6 +164,87 @@ class VisitorAnalyticsPageTests(TestCase):
         self.assertEqual(resp.context['days'], 30)
 
 
+class VisitorCleanupTests(TestCase):
+    """Staff can delete visitor analytics from the Visitors page itself."""
+
+    def setUp(self):
+        self.client = Client()
+        self.staff = User.objects.create_user(
+            username='cleanup_staff', password='TestPass123!',
+            is_staff=True, is_active=True)
+        self.client.force_login(self.staff)
+        self.recent = VisitorSession.objects.create(
+            visitor_id=uuid.uuid4(), last_seen_at=timezone.now(),
+            entry_path='/')
+        PageView.objects.create(session=self.recent, path='/')
+        self.old = VisitorSession.objects.create(
+            visitor_id=uuid.uuid4(), last_seen_at=timezone.now(),
+            entry_path='/')
+        VisitorSession.objects.filter(pk=self.old.pk).update(
+            started_at=timezone.now() - timedelta(days=100),
+            last_seen_at=timezone.now() - timedelta(days=100))
+        PageView.objects.create(session=self.old, path='/')
+
+    def _cleanup(self, **data):
+        data.setdefault('days', '30')
+        return self.client.post('/analytics/visitors/cleanup/', data)
+
+    def test_delete_selected_removes_row_and_pageviews(self):
+        resp = self._cleanup(action='delete_selected', ids=[self.recent.pk])
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('/analytics/visitors/', resp['Location'])
+        self.assertFalse(
+            VisitorSession.objects.filter(pk=self.recent.pk).exists())
+        self.assertEqual(PageView.objects.filter(session=self.recent).count(), 0)
+        self.assertTrue(VisitorSession.objects.filter(pk=self.old.pk).exists())
+
+    def test_delete_selected_without_ids_deletes_nothing(self):
+        resp = self._cleanup(action='delete_selected')
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(VisitorSession.objects.count(), 2)
+
+    def test_delete_older_only_removes_old_rows(self):
+        resp = self._cleanup(action='delete_older', older_days='90')
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(VisitorSession.objects.filter(pk=self.old.pk).exists())
+        self.assertTrue(VisitorSession.objects.filter(pk=self.recent.pk).exists())
+
+    def test_delete_older_rejects_unknown_age(self):
+        resp = self._cleanup(action='delete_older', older_days='5')
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(VisitorSession.objects.count(), 2)
+
+    def test_delete_all_requires_typed_confirmation(self):
+        resp = self._cleanup(action='delete_all')
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(VisitorSession.objects.count(), 2)
+
+        resp = self._cleanup(action='delete_all', confirm_text='nope')
+        self.assertEqual(VisitorSession.objects.count(), 2)
+
+        resp = self._cleanup(action='delete_all', confirm_text='DELETE')
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(VisitorSession.objects.count(), 0)
+        self.assertEqual(PageView.objects.count(), 0)
+
+    def test_cleanup_requires_post(self):
+        resp = self.client.get('/analytics/visitors/cleanup/')
+        self.assertEqual(resp.status_code, 405)
+
+    def test_page_paginates_fifty_rows(self):
+        for _ in range(51):
+            VisitorSession.objects.create(
+                visitor_id=uuid.uuid4(), last_seen_at=timezone.now(),
+                entry_path='/')
+        resp = self.client.get('/analytics/visitors/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['session_rows']), 50)
+        # The 100-day-old session is outside the 30-day window.
+        self.assertEqual(resp.context['session_total'], 52)
+        resp2 = self.client.get('/analytics/visitors/?page=2')
+        self.assertEqual(len(resp2.context['session_rows']), 2)
+
+
 class SourceDisplayTests(TestCase):
     def _session(self, **kw):
         defaults = dict(visitor_id=uuid.uuid4(),

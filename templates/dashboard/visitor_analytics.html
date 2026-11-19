@@ -118,14 +118,71 @@
 
     <!-- ══════════ VISITS TABLE ══════════ -->
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white fw-semibold">
-            All visits — last {{ days }} days {% if session_rows|length >= 500 %}(showing latest 500){% endif %}
+        <div class="card-header bg-white">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="fw-semibold">
+                    All visits — last {{ days }} days
+                    <span class="text-muted fw-normal small">({{ session_total }} total, {{ page_obj.paginator.per_page }} per page)</span>
+                </div>
+                <form method="post"
+                      action="{% url 'accounting:visitor_cleanup' %}"
+                      id="visitor-cleanup-form"
+                      class="d-flex flex-wrap align-items-center gap-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="days" value="{{ days }}">
+                    <input type="hidden" name="page" value="{{ page_obj.number }}">
+                    <input type="hidden" name="confirm_text" id="visitor-confirm-text" value="">
+
+                    <button type="submit" name="action" value="delete_selected"
+                            id="visitor-delete-selected"
+                            class="btn btn-sm btn-outline-danger"
+                            data-confirm="Delete the selected visit(s) and their page views? This cannot be undone."
+                            disabled>
+                        <i class="bi bi-trash me-1"></i>Delete selected (<span id="visitor-selected-count">0</span>)
+                    </button>
+
+                    <span class="vr d-none d-lg-inline"></span>
+
+                    <div class="d-flex align-items-center gap-1">
+                        <span class="small text-muted">Delete older than</span>
+                        <select name="older_days" class="form-select form-select-sm" style="width:auto;">
+                            {% for opt in clear_older_choices %}
+                            <option value="{{ opt }}">{{ opt }} days</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" name="action" value="delete_older"
+                                class="btn btn-sm btn-outline-danger"
+                                data-confirm="Delete every visit that started before this cut-off, with their page views? This cannot be undone.">
+                            <i class="bi bi-clock-history me-1"></i>Delete older
+                        </button>
+                    </div>
+
+                    <button type="submit" name="action" value="delete_all"
+                            class="btn btn-sm btn-danger"
+                            data-confirm-type="delete-all">
+                        <i class="bi bi-eraser me-1"></i>Clear all history
+                    </button>
+                </form>
+            </div>
+            <div class="small text-muted mt-2">
+                <i class="bi bi-shield-lock me-1"></i>
+                Deleting visits only removes anonymous analytics rows — invoices, payments,
+                repairs and contacts are never touched.
+                {% if cleanup_total %}
+                    Full history: {{ cleanup_total }} visit{{ cleanup_total|pluralize }}
+                    {% if oldest_visit %}since {{ oldest_visit|date:"d M Y" }}{% endif %}.
+                {% endif %}
+            </div>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
+                            <th class="ps-3" style="width:36px;">
+                                <input type="checkbox" class="form-check-input" id="visitor-select-all"
+                                       aria-label="Select all visits on this page">
+                            </th>
                             <th>Visitor<br><span class="text-muted fw-normal small">(anonymous code)</span></th>
                             <th>Came at</th>
                             <th>Left at</th>
@@ -134,11 +191,18 @@
                             <th>First page → last page</th>
                             <th>How they found us</th>
                             <th>Device</th>
+                            <th style="width:44px;"></th>
                         </tr>
                     </thead>
                     <tbody>
                     {% for row in session_rows %}
                         <tr>
+                            <td class="ps-3">
+                                <input type="checkbox" class="form-check-input visitor-select"
+                                       name="ids" value="{{ row.s.pk }}"
+                                       form="visitor-cleanup-form"
+                                       aria-label="Select this visit">
+                            </td>
                             <td><code class="small text-muted">{{ row.s.visitor_id|slice:":8" }}</code></td>
                             <td class="small text-nowrap">{{ row.s.started_at|date:"d M Y, h:i A" }}</td>
                             <td class="small text-nowrap">{{ row.s.last_seen_at|date:"d M Y, h:i A" }}</td>
@@ -158,13 +222,52 @@
                                 <i class="bi {% if row.s.device_type == 'mobile' %}bi-phone{% elif row.s.device_type == 'tablet' %}bi-tablet{% else %}bi-laptop{% endif %} me-1"></i>
                                 {{ row.s.browser }}{% if row.s.os_name %} · {{ row.s.os_name }}{% endif %}
                             </td>
+                            <td class="pe-3 text-end">
+                                <form method="post"
+                                      action="{% url 'accounting:visitor_cleanup' %}"
+                                      class="d-inline"
+                                      onsubmit="return confirm('Delete this visit and its page views? This cannot be undone.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete_selected">
+                                    <input type="hidden" name="days" value="{{ days }}">
+                                    <input type="hidden" name="page" value="{{ page_obj.number }}">
+                                    <input type="hidden" name="ids" value="{{ row.s.pk }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger border-0"
+                                            title="Delete this visit" aria-label="Delete this visit">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="8" class="text-muted p-4 text-center">No visits yet in this period — they will appear here as people browse the site.</td></tr>
+                        <tr><td colspan="10" class="text-muted p-4 text-center">No visits yet in this period — they will appear here as people browse the site.</td></tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-top">
+                <span class="small text-muted">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                    — visits {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ session_total }}
+                </span>
+                <div class="btn-group btn-group-sm">
+                    {% if page_obj.has_previous %}
+                        <a class="btn btn-outline-secondary"
+                           href="?days={{ days }}&page={{ page_obj.previous_page_number }}">
+                            <i class="bi bi-chevron-left"></i> Newer
+                        </a>
+                    {% endif %}
+                    {% if page_obj.has_next %}
+                        <a class="btn btn-outline-secondary"
+                           href="?days={{ days }}&page={{ page_obj.next_page_number }}">
+                            Older <i class="bi bi-chevron-right"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 
@@ -176,6 +279,75 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    var form = document.getElementById('visitor-cleanup-form');
+    if (!form) return;
+
+    var selectAll = document.getElementById('visitor-select-all');
+    var deleteBtn = document.getElementById('visitor-delete-selected');
+    var countEl = document.getElementById('visitor-selected-count');
+    var confirmInput = document.getElementById('visitor-confirm-text');
+
+    function boxes() {
+        return Array.prototype.slice.call(
+            document.querySelectorAll('.visitor-select'));
+    }
+
+    function syncSelection() {
+        var total = boxes().length;
+        var checked = boxes().filter(function (b) { return b.checked; }).length;
+        if (countEl) countEl.textContent = String(checked);
+        if (deleteBtn) deleteBtn.disabled = checked === 0;
+        if (selectAll) {
+            selectAll.checked = total > 0 && checked === total;
+            selectAll.indeterminate = checked > 0 && checked < total;
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            boxes().forEach(function (b) { b.checked = selectAll.checked; });
+            syncSelection();
+        });
+    }
+    boxes().forEach(function (b) {
+        b.addEventListener('change', syncSelection);
+    });
+    syncSelection();
+
+    form.addEventListener('submit', function (evt) {
+        var btn = evt.submitter || form.querySelector('button[type="submit"]');
+        var action = btn ? btn.value : '';
+        confirmInput.value = '';
+
+        if (action === 'delete_all') {
+            var typed = window.prompt(
+                'This deletes the ENTIRE visitor history (all visits and page views).\n' +
+                'Books, invoices, payments and customers are not touched.\n\n' +
+                'Type DELETE to confirm:');
+            if (typed === null) {
+                evt.preventDefault();
+                return;
+            }
+            if (typed.trim().toUpperCase() !== 'DELETE') {
+                window.alert('Nothing was deleted — you must type DELETE exactly.');
+                evt.preventDefault();
+                return;
+            }
+            confirmInput.value = typed.trim();
+            return;
+        }
+
+        var message = btn && btn.dataset ? btn.dataset.confirm : '';
+        if (message && !window.confirm(message)) {
+            evt.preventDefault();
+        }
+    });
+})();
+</script>
 {% if daily %}
 <script>
 (function () {

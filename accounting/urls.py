@@ -34,6 +34,7 @@ urlpatterns = [
     # ===== Dashboard =====
     path('dashboard/', dashboard, name='dashboard'),
     path('analytics/visitors/', analytics_views.visitor_analytics, name='visitor_analytics'),
+    path('analytics/visitors/cleanup/', analytics_views.visitor_cleanup, name='visitor_cleanup'),
     path('analytics/ping/', analytics_views.visitor_ping, name='analytics_ping'),
     path('db-health/', storage_views.storage_health, name='storage_health'),
     path('db-health/cleanup/', storage_views.storage_cleanup, name='storage_cleanup'),
