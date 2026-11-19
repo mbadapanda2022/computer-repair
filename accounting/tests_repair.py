@@ -450,6 +450,8 @@ class AdminJourneyTests(TestCase):
             'estimate_status': 'pending',
             'parts-TOTAL_FORMS': '0',
             'parts-INITIAL_FORMS': '0',
+            'device_parts-TOTAL_FORMS': '0',
+            'device_parts-INITIAL_FORMS': '0',
             'status_history-TOTAL_FORMS': '0',
             'status_history-INITIAL_FORMS': '0',
         })

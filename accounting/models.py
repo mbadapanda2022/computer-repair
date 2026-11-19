@@ -3281,6 +3281,72 @@ class RepairPart(SoftDeleteModel):
 
 
 # ============================================================
+# REPAIR JOB DEVICE PARTS (internal snapshot — no billing, no stock)
+# ============================================================
+
+class RepairJobDevicePart(SoftDeleteModel):
+    """
+    One physical part recorded INSIDE the customer's device at reception.
+
+    Purely a custody record: these rows never affect billing, inventory or
+    final_amount. They exist so staff can prove what was inside the device
+    when it was handed over (e.g. a 500GB HDD) and catch missing/swapped
+    components at delivery.
+    """
+    PRESENCE_CHOICES = (
+        ('installed', 'Installed'),
+        ('not_installed', 'Not Installed'),
+    )
+
+    repair_job = models.ForeignKey(
+        RepairJob,
+        on_delete=models.CASCADE,
+        related_name='device_parts',
+    )
+    name = models.CharField(
+        max_length=200,
+        help_text="Part name, e.g. '500GB HDD', '8GB DDR4 RAM', 'RAM Slot 2'.",
+    )
+    identifier = models.CharField(
+        max_length=100, blank=True,
+        help_text="Serial number or sticker marking (optional).",
+    )
+    quantity = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(0)],
+        help_text="0 means the slot was empty when the device was received",
+    )
+    presence = models.CharField(
+        max_length=15, choices=PRESENCE_CHOICES, default='installed',
+        help_text="Was this part actually installed when the device arrived?",
+    )
+    condition_sent = models.CharField(
+        max_length=200, blank=True,
+        help_text="Condition noted at reception (e.g. working, burnt, noisy).",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['id']
+        indexes = [
+            models.Index(fields=['repair_job']),
+        ]
+
+    def __str__(self):
+        suffix = ' (not installed)' if self.presence == 'not_installed' else ''
+        return f"{self.name}{suffix} — Job {self.repair_job_id}"
+
+    @property
+    def is_installed(self):
+        return self.presence == 'installed'
+
+    @property
+    def presence_badge_class(self):
+        return 'bg-secondary' if self.presence == 'not_installed' else 'bg-light text-dark border'
+
+
+# ============================================================
 # REPAIR SERVICE (No quantity, no stock — flat charge)
 # ============================================================
 

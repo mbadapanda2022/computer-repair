@@ -486,6 +486,65 @@
                 </div>
             </div>
 
+            <!-- Internal Parts Recorded at Reception -->
+            <div class="card border-0 shadow-sm mb-4" id="device-parts-card">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-cpu text-primary me-2"></i>Internal Parts Recorded
+                        <span class="badge bg-secondary ms-2">{{ device_parts|length }}</span>
+                    </h5>
+                    <a href="{% url 'accounting:repair_update' job.pk %}"
+                       class="btn btn-sm btn-outline-primary"
+                       hx-get="{% url 'accounting:repair_update' job.pk %}"
+                       hx-target="#mainModalContent"
+                       hx-swap="innerHTML">
+                        <i class="bi bi-pencil"></i> Record / Edit Parts
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    {% if device_parts %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead class="table-light">
+                                <tr class="small">
+                                    <th style="width:40px;">#</th>
+                                    <th>Part / Component</th>
+                                    <th>Serial / Marking</th>
+                                    <th class="text-center" style="width:70px;">Qty</th>
+                                    <th style="width:140px;">Presence</th>
+                                    <th>Condition at Reception</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for part in device_parts %}
+                                <tr>
+                                    <td class="text-muted">{{ forloop.counter }}</td>
+                                    <td class="fw-semibold">{{ part.name }}</td>
+                                    <td class="text-muted">{{ part.identifier|default:"—" }}</td>
+                                    <td class="text-center">{{ part.quantity }}</td>
+                                    <td>
+                                        <span class="badge {{ part.presence_badge_class }}">
+                                            {{ part.get_presence_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-muted">{{ part.condition_sent|default:"—" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-cpu fs-2"></i>
+                        <p class="mt-2 mb-0 small">
+                            No internal parts recorded yet — use <strong>Record / Edit Parts</strong>
+                            to note what is inside the device (HDD, RAM, WiFi card, etc.).
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
             <!-- Activity Timeline -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white py-3">

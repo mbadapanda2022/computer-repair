@@ -12,7 +12,7 @@ from django.contrib.auth.admin import UserAdmin
 from .models import (
     CompanyProfile, LedgerEntry, LedgerLine, Contact,
     ProductCategory, Product, Invoice, InvoiceItem,
-    Purchase, PurchaseItem, RepairJob, RepairPart,
+    Purchase, PurchaseItem, RepairJob, RepairJobDevicePart, RepairPart,
     Payment, StockMovement, VendorRepairJob, VendorRepairPart,
     Notification, NotificationPreference, ContactMessage, 
     FAQ, Testimonial, Service, EmailOTP,
@@ -498,6 +498,12 @@ class RepairPartInline(admin.TabularInline):
     fields = ['product', 'quantity', 'unit_price', 'line_total']
 
 
+class RepairJobDevicePartInline(admin.TabularInline):
+    model = RepairJobDevicePart
+    extra = 1
+    fields = ['name', 'identifier', 'presence', 'quantity', 'condition_sent']
+
+
 # ============================================================
 # REPAIR STATUS HISTORY (immutable audit trail)
 # ============================================================
@@ -631,7 +637,7 @@ class RepairJobAdmin(admin.ModelAdmin):
         'job_number', 'final_amount', 'created_at', 'updated_at',
         'estimate_approved_at', 'estimate_approved_by',
     ]
-    inlines = [RepairPartInline, RepairStatusLogInline]
+    inlines = [RepairPartInline, RepairJobDevicePartInline, RepairStatusLogInline]
     actions = ['advance_status', 'mark_ready_action', 'mark_delivered_action']
     fieldsets = (
         ('Job Information', {

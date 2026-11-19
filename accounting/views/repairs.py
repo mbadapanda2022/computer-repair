@@ -39,7 +39,7 @@ from ..decorators import handle_errors
 from ..forms import RepairJobForm, RepairPartForm, RepairServiceForm
 from ..models import (
     CompanyProfile, Contact, Invoice, InvoiceItem, Product, RepairJob,
-    RepairPart, RepairService, sync_invoice_ledger,
+    RepairJobDevicePart, RepairPart, RepairService, sync_invoice_ledger,
 )
 from ..utils.notification_helpers import send_notification_to_contact
 from .utils import htmx_field_error_response, htmx_response, is_htmx, redirect_to_staff, toast_only_response
@@ -731,6 +731,143 @@ def repair_list_print(request):
 
 
 # ════════════════════════════════════════════════════════════
+# INLINE DEVICE-PARTS GRID ON THE JOB FORM
+# ════════════════════════════════════════════════════════════
+DEVICE_PART_ROW_BLANKS = 3
+DEVICE_PART_PRESETS = (
+    'HDD', 'SSD', 'RAM', 'WiFi Card', 'Battery', 'Keyboard',
+    'Touchpad', 'Webcam', 'CMOS Battery', 'DVD Drive',
+)
+_DEVICE_PART_POST_FIELDS = (
+    'device_part_id', 'device_part_name', 'device_part_identifier',
+    'device_part_quantity', 'device_part_presence', 'device_part_condition',
+)
+
+
+def _blank_device_part_row():
+    return {
+        'id': '', 'name': '', 'identifier': '', 'quantity': '',
+        'presence': 'installed', 'condition': '', 'remove': False,
+    }
+
+
+def _device_part_rows_from_post(request):
+    """Parse the inline device-parts grid. Returns (rows, errors).
+
+    Remove flags are parallel hidden inputs (always submitted), so every
+    column list keeps the same indexes and rows never shift.
+    """
+    cols = {name: request.POST.getlist(name) for name in _DEVICE_PART_POST_FIELDS}
+    remove_flags = request.POST.getlist('device_part_remove')
+    count = max((len(values) for values in cols.values()), default=0)
+
+    rows, errors = [], []
+    for i in range(count):
+        raw = {
+            key: (values[i] if i < len(values) else '').strip()
+            for key, values in cols.items()
+        }
+        remove = (remove_flags[i] if i < len(remove_flags) else '0').strip() == '1'
+        # Quantity is prefilled (1) on blank lines, so only typed text
+        # counts as content — otherwise untouched rows would error.
+        has_content = any(
+            raw[key] for key in
+            ('device_part_name', 'device_part_identifier', 'device_part_condition')
+        )
+        if not has_content and not remove:
+            continue
+
+        presence = (
+            raw['device_part_presence']
+            if raw['device_part_presence'] in ('installed', 'not_installed')
+            else 'installed'
+        )
+        quantity = None
+        if raw['device_part_quantity']:
+            try:
+                quantity = int(raw['device_part_quantity'])
+            except ValueError:
+                errors.append(
+                    f'Device parts row {i + 1}: quantity must be a whole number.')
+        elif presence == 'installed':
+            quantity = 1
+
+        if not remove:
+            if not raw['device_part_name']:
+                errors.append(
+                    f'Device parts row {i + 1}: enter a part name or clear the row.')
+            elif presence == 'installed' and quantity is not None and quantity < 1:
+                quantity = 1
+
+        rows.append({
+            'id': raw['device_part_id'],
+            'name': raw['device_part_name'],
+            'identifier': raw['device_part_identifier'],
+            'quantity': (
+                0 if presence == 'not_installed'
+                else (quantity if quantity is not None else '')
+            ),
+            'presence': presence,
+            'condition': raw['device_part_condition'],
+            'remove': remove,
+        })
+    return rows, errors
+
+
+def _sync_device_parts(job, rows):
+    """Apply the inline grid to the job's device-part snapshot."""
+    existing = {str(part.pk): part for part in job.device_parts.all()}
+    for raw in rows:
+        part = existing.get(raw['id']) if raw['id'] else None
+        if raw['remove']:
+            if part:
+                part.delete()
+            continue
+        if not raw['name']:
+            continue
+
+        data = {
+            'name': raw['name'],
+            'identifier': raw['identifier'],
+            'quantity': raw['quantity'] if raw['quantity'] is not None else 1,
+            'presence': raw['presence'],
+            'condition_sent': raw['condition'],
+        }
+        if part:
+            for field, value in data.items():
+                setattr(part, field, value)
+            part.save()
+        else:
+            RepairJobDevicePart.objects.create(repair_job=job, **data)
+
+
+def _device_parts_context(request, job):
+    if request.method == 'POST':
+        rows, _ = _device_part_rows_from_post(request)
+        rows = [row for row in rows if not row['remove']]
+    else:
+        rows = []
+        if job:
+            for part in job.device_parts.all():
+                rows.append({
+                    'id': str(part.pk),
+                    'name': part.name,
+                    'identifier': part.identifier,
+                    'quantity': part.quantity,
+                    'presence': part.presence,
+                    'condition': part.condition_sent,
+                    'remove': False,
+                })
+    while len(rows) < DEVICE_PART_ROW_BLANKS:
+        rows.append(_blank_device_part_row())
+
+    return {
+        'device_part_rows': rows,
+        'device_part_presets': DEVICE_PART_PRESETS,
+    }
+
+
+# ════════════════════════════════════════════════════════════
 # 4. REPAIR CREATE
 # ════════════════════════════════════════════════════════════
 @login_required
@@ -745,7 +882,8 @@ def repair_create(request):
 
     if request.method == 'POST':
         form = RepairJobForm(request.POST)
-        if form.is_valid():
+        device_part_rows, device_part_errors = _device_part_rows_from_post(request)
+        if form.is_valid() and not device_part_errors:
             # ── 1. Save atomically ──
             with transaction.atomic():
                 job = form.save(commit=False)
@@ -760,6 +898,7 @@ def repair_create(request):
                     job.received_at = now.date()
 
                 job.save()
+                _sync_device_parts(job, device_part_rows)
 
             # ── 2. Notify AFTER commit ──
             _safe_notify(
@@ -787,9 +926,12 @@ def repair_create(request):
             return redirect_to_staff('repair_detail', pk=job.pk)
 
         else:
+            for error in device_part_errors:
+                form.add_error(None, error)
             if is_htmx(request):
                 return render(request, 'repairs/partials/repair_form_modal.html',
-                              {'form': form, 'is_htmx': True})
+                              {'form': form, 'is_htmx': True,
+                               **_device_parts_context(request, None)})
     else:
         form = RepairJobForm()
         # Staff-created jobs are coerced to 'received' on save (device is
@@ -801,6 +943,7 @@ def repair_create(request):
     return render(request, template_name, {
         'form': form,
         'is_htmx': is_htmx(request),
+        **_device_parts_context(request, None),
     })
 
 
@@ -823,8 +966,9 @@ def repair_update(request, pk):
     if request.method == 'POST':
         old_status = job.status
         form = RepairJobForm(request.POST, instance=job, actor=request.user)
+        device_part_rows, device_part_errors = _device_part_rows_from_post(request)
 
-        if form.is_valid():
+        if form.is_valid() and not device_part_errors:
             # ── 1. Save atomically ──
             # form.save(commit=True) routes status through the state machine
             # (change_status) — guards + timeline dates + history + notify.
@@ -833,6 +977,7 @@ def repair_update(request, pk):
                 form.cleaned_data['delivery_date'] = timezone.now().date()
             with transaction.atomic():
                 job = form.save()
+                _sync_device_parts(job, device_part_rows)
 
             # ── 2. Notify only for non-status edits ──
             # (Status changes are already notified by RepairJob.save().)
@@ -862,17 +1007,22 @@ def repair_update(request, pk):
             return redirect_to_staff('repair_detail', pk=job.pk)
 
         else:
+            for error in device_part_errors:
+                form.add_error(None, error)
             if is_htmx(request):
                 return render(request, 'repairs/partials/repair_form_modal.html',
-                              {'form': form, 'job': job, 'is_htmx': True})
+                              {'form': form, 'job': job, 'is_htmx': True,
+                               **_device_parts_context(request, job)})
             return render(request, template_name, {
                 'form': form, 'job': job, 'is_htmx': False,
+                **_device_parts_context(request, job),
             })
 
     else:
         form = RepairJobForm(instance=job)
         return render(request, template_name, {
             'form': form, 'job': job, 'is_htmx': is_htmx(request),
+            **_device_parts_context(request, job),
         })
 
 
@@ -923,6 +1073,7 @@ def repair_detail(request, pk):
         'parts_total': parts_total,
         'services': services,
         'services_total': services_total,
+        'device_parts': job.device_parts.all(),
         'part_form': RepairPartForm(),
         'status_choices': RepairJob.STATUS_CHOICES,
         # ── State machine context (UI) ──
@@ -2065,6 +2216,7 @@ def repair_print(request, pk):
         'job': job,
         'parts': parts,
         'services': services,
+        'device_parts': job.device_parts.all(),
         'company': company,
         'logo_exists': logo_exists,
         'invoice': job.invoice if job.invoice else None,

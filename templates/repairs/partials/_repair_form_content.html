@@ -154,6 +154,204 @@
                             </div>
                         </div>
 
+                        <!-- ===== SECTION 3.2: INTERNAL PARTS (OPTIONAL) ===== -->
+                        <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
+                            <i class="bi bi-cpu"></i> Internal Parts Inside the Device
+                            <small class="text-muted fw-normal">— optional</small>
+                        </h6>
+                        <div class="alert alert-light border small py-2">
+                            <i class="bi bi-shield-check me-1"></i>
+                            Record what is actually inside the device when it is received — including
+                            parts that are <strong>not installed</strong> (empty slots). At delivery this
+                            list proves whether any part went missing or was swapped.
+                        </div>
+
+                        <div class="mb-2 d-flex flex-wrap gap-1 align-items-center">
+                            <span class="small text-muted me-1">Quick add:</span>
+                            {% for preset in device_part_presets %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary preset-device-part"
+                                    data-name="{{ preset }}">{{ preset }}</button>
+                            {% endfor %}
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0" id="devicePartsGrid">
+                                <thead class="table-light">
+                                    <tr class="small">
+                                        <th style="width:36px;">#</th>
+                                        <th style="min-width:180px;">Part / Component</th>
+                                        <th style="min-width:150px;">Serial / Marking</th>
+                                        <th style="width:80px;">Qty</th>
+                                        <th style="width:150px;">Presence</th>
+                                        <th style="min-width:150px;">Condition at Reception</th>
+                                        <th style="width:40px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="devicePartsBody">
+                                    {% for p in device_part_rows %}
+                                    <tr class="device-part-row {% if p.remove %}d-none{% endif %}">
+                                        <td class="text-center text-muted dev-sr-cell">{{ forloop.counter }}</td>
+                                        <td>
+                                            <input type="hidden" name="device_part_id" value="{{ p.id }}">
+                                            <input type="hidden" name="device_part_remove" class="row-remove-flag"
+                                                   value="{% if p.remove %}1{% else %}0{% endif %}">
+                                            <input type="text" name="device_part_name"
+                                                   class="form-control form-control-sm dev-part-name"
+                                                   value="{{ p.name }}" placeholder="e.g. 8GB DDR4 RAM, 500GB HDD"
+                                                   autocomplete="off">
+                                        </td>
+                                        <td>
+                                            <input type="text" name="device_part_identifier"
+                                                   class="form-control form-control-sm"
+                                                   value="{{ p.identifier }}" placeholder="Serial / sticker no."
+                                                   autocomplete="off">
+                                        </td>
+                                        <td>
+                                            <input type="number" inputmode="numeric" min="0" step="1"
+                                                   name="device_part_quantity"
+                                                   class="form-control form-control-sm text-end dev-part-qty"
+                                                   value="{{ p.quantity }}" autocomplete="off">
+                                        </td>
+                                        <td>
+                                            <select name="device_part_presence"
+                                                    class="form-select form-select-sm dev-part-presence">
+                                                <option value="installed" {% if p.presence != 'not_installed' %}selected{% endif %}>Installed</option>
+                                                <option value="not_installed" {% if p.presence == 'not_installed' %}selected{% endif %}>Not Installed</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="text" name="device_part_condition"
+                                                   class="form-control form-control-sm"
+                                                   value="{{ p.condition }}" placeholder="e.g. working, burnt"
+                                                   autocomplete="off">
+                                        </td>
+                                        <td class="text-center">
+                                            <button type="button" class="btn btn-sm btn-link text-danger p-0 del-device-part"
+                                                    title="Remove line"><i class="bi bi-trash"></i></button>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="addDevicePartRow">
+                                <i class="bi bi-plus-lg me-1"></i>Add Part Line
+                            </button>
+                            <small class="text-muted">Leave unused lines blank — only filled rows are saved.</small>
+                        </div>
+
+                        <script>
+                            (function () {
+                                'use strict';
+                                const body = document.getElementById('devicePartsBody');
+                                if (!body) return;
+                                const DEFAULT_QTY = 1;
+
+                                function rowHtml() {
+                                    return (
+                                        '<td class="text-center text-muted dev-sr-cell"></td>' +
+                                        '<td><input type="hidden" name="device_part_id" value="">' +
+                                        '<input type="hidden" name="device_part_remove" class="row-remove-flag" value="0">' +
+                                        '<input type="text" name="device_part_name" class="form-control form-control-sm dev-part-name" ' +
+                                        'placeholder="e.g. 8GB DDR4 RAM, 500GB HDD" autocomplete="off"></td>' +
+                                        '<td><input type="text" name="device_part_identifier" class="form-control form-control-sm" ' +
+                                        'placeholder="Serial / sticker no." autocomplete="off"></td>' +
+                                        '<td><input type="number" inputmode="numeric" min="0" step="1" name="device_part_quantity" ' +
+                                        'class="form-control form-control-sm text-end dev-part-qty" value="' + DEFAULT_QTY + '" autocomplete="off"></td>' +
+                                        '<td><select name="device_part_presence" class="form-select form-select-sm dev-part-presence">' +
+                                        '<option value="installed" selected>Installed</option>' +
+                                        '<option value="not_installed">Not Installed</option></select></td>' +
+                                        '<td><input type="text" name="device_part_condition" class="form-control form-control-sm" ' +
+                                        'placeholder="e.g. working, burnt" autocomplete="off"></td>' +
+                                        '<td class="text-center"><button type="button" class="btn btn-sm btn-link text-danger p-0 del-device-part" ' +
+                                        'title="Remove line"><i class="bi bi-trash"></i></button></td>'
+                                    );
+                                }
+
+                                function syncRow(tr) {
+                                    const presence = tr.querySelector('.dev-part-presence');
+                                    const qty = tr.querySelector('.dev-part-qty');
+                                    if (!presence || !qty) return;
+                                    if (presence.value === 'not_installed') {
+                                        qty.value = 0;
+                                        qty.readOnly = true;
+                                        qty.classList.add('bg-light');
+                                    } else {
+                                        qty.readOnly = false;
+                                        qty.classList.remove('bg-light');
+                                        const n = parseInt(qty.value, 10);
+                                        if (!n || n < 1) qty.value = DEFAULT_QTY;
+                                    }
+                                }
+
+                                function visibleRows() {
+                                    return Array.from(body.querySelectorAll('tr.device-part-row'))
+                                        .filter(function (tr) { return !tr.classList.contains('d-none'); });
+                                }
+
+                                function renumber() {
+                                    visibleRows().forEach(function (tr, i) {
+                                        const cell = tr.querySelector('.dev-sr-cell');
+                                        if (cell) cell.textContent = i + 1;
+                                    });
+                                }
+
+                                function addRow(name) {
+                                    const tr = document.createElement('tr');
+                                    tr.className = 'device-part-row';
+                                    tr.innerHTML = rowHtml();
+                                    body.appendChild(tr);
+                                    if (name) tr.querySelector('.dev-part-name').value = name;
+                                    syncRow(tr);
+                                    renumber();
+                                    return tr;
+                                }
+
+                                body.addEventListener('change', function (e) {
+                                    if (e.target.matches('.dev-part-presence')) {
+                                        syncRow(e.target.closest('tr'));
+                                    }
+                                });
+
+                                body.addEventListener('click', function (e) {
+                                    const btn = e.target.closest('.del-device-part');
+                                    if (!btn) return;
+                                    const tr = btn.closest('tr');
+                                    const flag = tr.querySelector('.row-remove-flag');
+                                    if (flag) flag.value = '1';
+                                    tr.classList.add('d-none');
+                                    if (!visibleRows().length) addRow('');
+                                    renumber();
+                                });
+
+                                const addBtn = document.getElementById('addDevicePartRow');
+                                if (addBtn) {
+                                    addBtn.addEventListener('click', function () {
+                                        const tr = addRow('');
+                                        tr.querySelector('.dev-part-name').focus();
+                                    });
+                                }
+
+                                document.querySelectorAll('.preset-device-part').forEach(function (btn) {
+                                    btn.addEventListener('click', function () {
+                                        const name = btn.getAttribute('data-name');
+                                        let target = visibleRows().find(function (tr) {
+                                            const input = tr.querySelector('.dev-part-name');
+                                            return input && !input.value.trim();
+                                        });
+                                        if (!target) target = addRow('');
+                                        const input = target.querySelector('.dev-part-name');
+                                        input.value = name;
+                                        input.focus();
+                                    });
+                                });
+
+                                body.querySelectorAll('tr.device-part-row').forEach(syncRow);
+                                renumber();
+                            })();
+                        </script>
+
                         <!-- ===== SECTION 3.5: WHERE THE REPAIR HAPPENS ===== -->
                         <h6 class="text-primary border-bottom pb-2 mb-3 mt-4">
                             <i class="bi bi-geo-alt"></i> Where the Repair Happens

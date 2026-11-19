@@ -231,6 +231,41 @@
         {% endif %}
     </table>
 
+    <!-- ===== INTERNAL PARTS RECORDED AT RECEPTION ===== -->
+    {% if device_parts %}
+    <h4 style="margin-top:20px;">Internal Parts at Reception</h4>
+    <table class="table">
+        <thead>
+            <tr>
+                <th style="width:40px;">#</th>
+                <th>Part / Component</th>
+                <th>Serial / Marking</th>
+                <th class="text-center" style="width:60px;">Qty</th>
+                <th class="text-center" style="width:120px;">Presence</th>
+                <th>Condition</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for part in device_parts %}
+            <tr>
+                <td class="text-center text-muted">{{ forloop.counter }}</td>
+                <td class="fw-bold">{{ part.name }}</td>
+                <td>{{ part.identifier|default:"—" }}</td>
+                <td class="text-center">{{ part.quantity }}</td>
+                <td class="text-center">
+                    {% if part.presence == 'not_installed' %}
+                        <span class="badge badge-received">Not Installed</span>
+                    {% else %}
+                        Installed
+                    {% endif %}
+                </td>
+                <td>{{ part.condition_sent|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
     <!-- ===== PARTS USED ===== -->
     {% if parts %}
     <h4 style="margin-top:20px;">Parts Used</h4>
