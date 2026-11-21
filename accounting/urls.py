@@ -7,6 +7,7 @@ from .views import order_note as order_note_view
 from .views import analytics as analytics_views
 from .views import storage as storage_views
 from .views import upi_claims
+from .views import users as user_views
 from .views.auth import (
     unified_login_view,
     register_view,
@@ -43,6 +44,13 @@ urlpatterns = [
     path('dashboard/refresh-stats/', refresh_stats, name='refresh_stats'),
     path('dashboard/recent-transactions/', recent_transactions, name='recent_transactions'),
     path('dashboard/export/', dashboard_export, name='dashboard_export'),
+
+    # ===== Users & Staff =====
+    path('dashboard/users/', user_views.user_list, name='user_list'),
+    path('dashboard/users/create/', user_views.user_create, name='user_create'),
+    path('dashboard/users/<int:pk>/edit/', user_views.user_edit, name='user_edit'),
+    path('dashboard/users/<int:pk>/password/', user_views.user_set_password, name='user_set_password'),
+    path('dashboard/users/<int:pk>/toggle-active/', user_views.user_toggle_active, name='user_toggle_active'),
 
     # ===== Contacts =====
     path('contacts/', contacts.contact_list, name='contact_list'),

@@ -1,0 +1,192 @@
+{% if is_htmx %}
+<h5 class="mb-0 fw-bold" id="stat-total-users" hx-swap-oob="outerHTML">{{ total_users }}</h5>
+<h5 class="mb-0 fw-bold" id="stat-staff-users" hx-swap-oob="outerHTML">{{ staff_users }}</h5>
+<h5 class="mb-0 fw-bold" id="stat-customer-users" hx-swap-oob="outerHTML">{{ customer_users }}</h5>
+<h5 class="mb-0 fw-bold" id="stat-inactive-users" hx-swap-oob="outerHTML">{{ inactive_users }}</h5>
+{% endif %}
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="min-width: 200px;">Login</th>
+                <th style="width: 130px;">Role</th>
+                <th style="min-width: 180px;">Contact</th>
+                <th style="width: 110px;">Status</th>
+                <th style="min-width: 140px;">Last Login</th>
+                <th style="min-width: 110px;">Joined</th>
+                <th class="text-center" style="width: 90px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for account in users %}
+            <tr>
+                <td>
+                    <div class="fw-semibold">
+                        {{ account.get_full_name|default:account.username }}
+                        {% if account.pk == user.pk %}
+                            <span class="badge bg-primary ms-1">You</span>
+                        {% endif %}
+                    </div>
+                    <div class="small text-muted">@{{ account.username }}</div>
+                </td>
+                <td>
+                    {% if account.is_superuser %}
+                        <span class="badge bg-dark">Administrator</span>
+                    {% elif account.is_staff %}
+                        <span class="badge bg-primary">Staff</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Customer</span>
+                    {% endif %}
+                </td>
+                <td class="small">
+                    {% if account.email %}
+                        <div class="text-truncate" style="max-width: 220px;">
+                            <i class="bi bi-envelope text-muted me-1"></i>{{ account.email }}
+                        </div>
+                    {% endif %}
+                    {% if account.customer_contact %}
+                        {% if account.customer_contact.phone %}
+                        <div class="text-nowrap">
+                            <i class="bi bi-phone text-muted me-1"></i>{{ account.customer_contact.phone }}
+                        </div>
+                        {% endif %}
+                        <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                hx-get="{% url 'accounting:contact_detail_modal' account.customer_contact.pk %}"
+                                hx-target="#mainModalContent"
+                                title="Open the linked shop record">
+                            View contact: {{ account.customer_contact.name }}
+                        </button>
+                    {% elif not account.is_staff %}
+                        <span class="text-warning small">
+                            <i class="bi bi-exclamation-triangle me-1"></i>No shop record linked
+                        </span>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if account.is_active %}
+                        <span class="badge bg-success">Active</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Deactivated</span>
+                    {% endif %}
+                </td>
+                <td class="small text-muted">
+                    {{ account.last_login|date:"d M Y, h:i A"|default:"Never" }}
+                </td>
+                <td class="small text-muted">{{ account.date_joined|date:"d M Y" }}</td>
+                <td class="text-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                type="button" data-bs-toggle="dropdown"
+                                data-bs-auto-close="outside" aria-expanded="false">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
+                            <li>
+                                <button class="dropdown-item"
+                                        hx-get="{% url 'accounting:user_edit' account.pk %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"
+                                        hx-target="#mainModalContent">
+                                    <i class="bi bi-pencil me-2 text-warning"></i>Edit login
+                                </button>
+                            </li>
+                            <li>
+                                <button class="dropdown-item"
+                                        hx-get="{% url 'accounting:user_set_password' account.pk %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"
+                                        hx-target="#mainModalContent">
+                                    <i class="bi bi-key me-2 text-info"></i>Set password
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                {% if account.pk == user.pk %}
+                                <span class="dropdown-item-text small text-muted">
+                                    <i class="bi bi-lock me-1"></i>This is your own login
+                                </span>
+                                {% else %}
+                                <button class="dropdown-item {% if account.is_active %}text-danger{% else %}text-success{% endif %}"
+                                        hx-post="{% url 'accounting:user_toggle_active' account.pk %}?{{ filters_qs }}&page={{ page_obj.number }}"
+                                        hx-target="#user-table-container"
+                                        hx-confirm="{% if account.is_active %}Deactivate &quot;{{ account.username }}&quot;? They will not be able to log in until you activate the account again.{% else %}Activate &quot;{{ account.username }}&quot; and allow login again?{% endif %}">
+                                    {% if account.is_active %}
+                                        <i class="bi bi-person-x me-2"></i>Deactivate
+                                    {% else %}
+                                        <i class="bi bi-person-check me-2"></i>Activate
+                                    {% endif %}
+                                </button>
+                                {% endif %}
+                            </li>
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center py-5">
+                    <i class="bi bi-person-x display-6 d-block mb-3 text-muted"></i>
+                    <h5 class="text-muted">No logins found</h5>
+                    <p class="text-muted mb-3">Try clearing the filters, or create a new login.</p>
+                    <button class="btn btn-primary"
+                            hx-get="{% url 'accounting:user_create' %}"
+                            hx-target="#mainModalContent">
+                        <i class="bi bi-person-plus me-1"></i>New Login
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="card-footer bg-white border-0 pt-3">
+    <nav aria-label="User pagination">
+        <ul class="pagination justify-content-center mb-0">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="#"
+                   hx-get="{% url 'accounting:user_list' %}?page=1{% if filters_qs %}&{{ filters_qs }}{% endif %}"
+                   hx-target="#user-table-container">
+                    <i class="bi bi-chevron-double-left"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="#"
+                   hx-get="{% url 'accounting:user_list' %}?page={{ page_obj.previous_page_number }}{% if filters_qs %}&{{ filters_qs }}{% endif %}"
+                   hx-target="#user-table-container">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-left"></i></span></li>
+            <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
+            {% endif %}
+
+            <li class="page-item active">
+                <span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+            </li>
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="#"
+                   hx-get="{% url 'accounting:user_list' %}?page={{ page_obj.next_page_number }}{% if filters_qs %}&{{ filters_qs }}{% endif %}"
+                   hx-target="#user-table-container">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="#"
+                   hx-get="{% url 'accounting:user_list' %}?page={{ page_obj.paginator.num_pages }}{% if filters_qs %}&{{ filters_qs }}{% endif %}"
+                   hx-target="#user-table-container">
+                    <i class="bi bi-chevron-double-right"></i>
+                </a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+            <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-double-right"></i></span></li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endif %}

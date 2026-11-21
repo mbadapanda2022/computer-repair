@@ -8,7 +8,9 @@ from django.contrib.auth.forms import (
     PasswordChangeForm,
     PasswordResetForm,
 )
+from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Sum
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -353,6 +355,298 @@ class CustomPasswordChangeForm(PasswordChangeForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.update({'class': 'form-control'})
+
+
+# ============================================================
+# STAFF USER MANAGEMENT (dashboard > Users & Staff)
+# ============================================================
+ROLE_CHOICES = (
+    ('staff', 'Staff — dashboard access'),
+    ('customer', 'Customer — portal login only'),
+)
+ROLE_CHOICES_ADMIN = ROLE_CHOICES + (
+    ('admin', 'Administrator — full access (superuser)'),
+)
+
+
+def _clean_mobile(value):
+    """Normalize an optional Indian mobile number to 10 digits."""
+    value = (value or '').strip()
+    if not value:
+        return ''
+    digits = ''.join(filter(str.isdigit, value))
+    if len(digits) < 10:
+        raise ValidationError('Enter a valid 10-digit mobile number.')
+    digits = digits[-10:]
+    if not digits.startswith(('6', '7', '8', '9')):
+        raise ValidationError(
+            'Enter a valid Indian mobile number starting with 6-9.')
+    return digits
+
+
+class StaffUserCreateForm(forms.Form):
+    """Create a staff or customer login from the dashboard."""
+
+    username = forms.CharField(max_length=150, widget=BS_TEXT(
+        placeholder='Login username'))
+    full_name = forms.CharField(max_length=150, widget=BS_TEXT(
+        placeholder='Full name'))
+    email = forms.EmailField(widget=BS_EMAIL(
+        placeholder='Email address'))
+    phone = forms.CharField(required=False, widget=BS_TEXT(
+        placeholder='Mobile (optional, customer portal)'))
+    role = forms.ChoiceField(choices=ROLE_CHOICES, widget=BS_SELECT())
+    password1 = forms.CharField(
+        label='Password', widget=BS_PASSWORD(placeholder='Min 8 characters'))
+    password2 = forms.CharField(
+        label='Confirm password', widget=BS_PASSWORD(
+            placeholder='Re-enter password'))
+
+    def __init__(self, *args, allow_admin=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.allow_admin = allow_admin
+        if allow_admin:
+            self.fields['role'].choices = ROLE_CHOICES_ADMIN
+
+    def clean_username(self):
+        username = (self.cleaned_data.get('username') or '').strip()
+        if len(username) < 3:
+            raise ValidationError('Username must be at least 3 characters long.')
+        if not re.match(r'^[\w.@+-]+$', username):
+            raise ValidationError(
+                'Use only letters, digits and @/./+/-/_ in the username.')
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValidationError('This username is already taken.')
+        return username
+
+    def clean_full_name(self):
+        name = (self.cleaned_data.get('full_name') or '').strip()
+        if len(name) < 2:
+            raise ValidationError('Full name is required.')
+        return name
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError('This email is already used by another login.')
+        return email
+
+    def clean_phone(self):
+        return _clean_mobile(self.cleaned_data.get('phone'))
+
+    def clean_password1(self):
+        password = self.cleaned_data.get('password1') or ''
+        probe = User(
+            username=self.cleaned_data.get('username', ''),
+            email=self.cleaned_data.get('email', ''),
+            first_name=self.cleaned_data.get('full_name', ''),
+        )
+        try:
+            validate_password(password, user=probe)
+        except ValidationError as exc:
+            raise ValidationError(exc.messages)
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        p1 = cleaned.get('password1')
+        p2 = cleaned.get('password2')
+        if p1 and p2 and p1 != p2:
+            self.add_error('password2', 'Passwords do not match.')
+        phone = cleaned.get('phone')
+        if cleaned.get('role') == 'customer' and phone:
+            clash = Contact.objects.filter(phone=phone).first()
+            if clash is not None:
+                self.add_error(
+                    'phone',
+                    f'This mobile is already on contact "{clash.name}". '
+                    'Open that contact and use Portal Login Account to link '
+                    'the person instead of creating a new login.')
+        return cleaned
+
+    def save(self, commit=True):
+        data = self.cleaned_data
+        role = data['role']
+        with transaction.atomic():
+            user = User(
+                username=data['username'],
+                email=data['email'],
+                first_name=data['full_name'],
+                is_active=True,
+                is_staff=role in ('staff', 'admin'),
+                is_superuser=role == 'admin',
+            )
+            user.set_password(data['password1'])
+            user.save()
+            if role == 'customer':
+                Contact.objects.create(
+                    user=user,
+                    name=data['full_name'],
+                    email=data['email'],
+                    phone=data['phone'] or '',
+                    contact_type='customer',
+                )
+        return user
+
+
+class StaffUserEditForm(forms.ModelForm):
+    """Edit an existing login; keeps staff-maintained contact data intact."""
+
+    full_name = forms.CharField(max_length=150, widget=BS_TEXT())
+    phone = forms.CharField(required=False, widget=BS_TEXT(
+        placeholder='Customer portal mobile (optional)'))
+    role = forms.ChoiceField(choices=ROLE_CHOICES, widget=BS_SELECT())
+
+    class Meta:
+        model = User
+        fields = ['username', 'email']
+        widgets = {
+            'username': BS_TEXT(),
+            'email': BS_EMAIL(),
+        }
+
+    def __init__(self, *args, allow_admin=False, acting_user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.allow_admin = allow_admin
+        self.acting_user = acting_user
+        if allow_admin:
+            self.fields['role'].choices = ROLE_CHOICES_ADMIN
+
+        role = 'customer'
+        if self.instance.is_superuser:
+            role = 'admin'
+        elif self.instance.is_staff:
+            role = 'staff'
+        self.initial.setdefault('role', role)
+        self.initial.setdefault('full_name', self.instance.first_name)
+        contact = Contact.objects.filter(user=self.instance).first()
+        if contact is not None:
+            self.initial.setdefault('phone', contact.phone or '')
+
+    def clean_username(self):
+        username = (self.cleaned_data.get('username') or '').strip()
+        if len(username) < 3:
+            raise ValidationError('Username must be at least 3 characters long.')
+        if not re.match(r'^[\w.@+-]+$', username):
+            raise ValidationError(
+                'Use only letters, digits and @/./+/-/_ in the username.')
+        if User.objects.filter(username__iexact=username).exclude(
+                pk=self.instance.pk).exists():
+            raise ValidationError('This username is already taken.')
+        return username
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if User.objects.filter(email__iexact=email).exclude(
+                pk=self.instance.pk).exists():
+            raise ValidationError('This email is already used by another login.')
+        return email
+
+    def clean_full_name(self):
+        name = (self.cleaned_data.get('full_name') or '').strip()
+        if len(name) < 2:
+            raise ValidationError('Full name is required.')
+        return name
+
+    def clean_phone(self):
+        return _clean_mobile(self.cleaned_data.get('phone'))
+
+    def clean(self):
+        cleaned = super().clean()
+        role = cleaned.get('role')
+        if role == 'admin' and not self.allow_admin:
+            self.add_error('role', 'Only an administrator can grant this role.')
+        if (self.acting_user is not None
+                and self.instance.pk == self.acting_user.pk
+                and role != ('admin' if self.instance.is_superuser else 'staff')):
+            self.add_error('role', 'You cannot change your own role.')
+        if (self.instance.is_superuser and role != 'admin'
+                and User.objects.filter(
+                    is_superuser=True, is_active=True).count() <= 1):
+            self.add_error(
+                'role', 'At least one active administrator must stay.')
+        phone = cleaned.get('phone')
+        if role == 'customer' and phone:
+            clash = Contact.objects.filter(phone=phone).exclude(
+                user=self.instance).first()
+            if clash is not None:
+                self.add_error(
+                    'phone',
+                    f'This mobile is already on contact "{clash.name}".')
+        return cleaned
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        data = self.cleaned_data
+        role = data['role']
+        user.first_name = data['full_name']
+        user.is_staff = role in ('staff', 'admin')
+        user.is_superuser = role == 'admin'
+        if commit:
+            with transaction.atomic():
+                user.save()
+                self._sync_contact(user, role, data)
+        return user
+
+    def _sync_contact(self, user, role, data):
+        if role != 'customer':
+            return
+        contact = Contact.objects.filter(user=user).first()
+        phone = data.get('phone') or ''
+        if contact is None:
+            Contact.objects.create(
+                user=user,
+                name=data['full_name'],
+                email=data['email'],
+                phone=phone,
+                contact_type='customer',
+            )
+            return
+        updates = []
+        if (contact.phone or '') != phone:
+            contact.phone = phone or None
+            updates.append('phone')
+        if not (contact.email or '').strip() and data['email']:
+            contact.email = data['email']
+            updates.append('email')
+        if updates:
+            contact.save(update_fields=updates)
+
+
+class StaffUserPasswordForm(forms.Form):
+    """Staff sets a new password for a login (no email round-trip)."""
+
+    new_password1 = forms.CharField(
+        label='New password', widget=BS_PASSWORD(
+            placeholder='Min 8 characters'))
+    new_password2 = forms.CharField(
+        label='Confirm password', widget=BS_PASSWORD(
+            placeholder='Re-enter password'))
+
+    def __init__(self, *args, user, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_new_password1(self):
+        password = self.cleaned_data.get('new_password1') or ''
+        try:
+            validate_password(password, user=self.user)
+        except ValidationError as exc:
+            raise ValidationError(exc.messages)
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        p1 = cleaned.get('new_password1')
+        p2 = cleaned.get('new_password2')
+        if p1 and p2 and p1 != p2:
+            self.add_error('new_password2', 'Passwords do not match.')
+        return cleaned
+
+    def save(self):
+        self.user.set_password(self.cleaned_data['new_password1'])
+        self.user.save(update_fields=['password'])
+        return self.user
 
 
 # ============================================================

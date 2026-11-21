@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">
+                <span class="title-chip"><i class="bi bi-person-gear" aria-hidden="true"></i></span>
+                Users &amp; Staff
+            </h1>
+            <p class="page-sub">
+                Portal logins for this shop. Staff can open this dashboard; customers
+                only see their own record in the portal. Accounts are deactivated,
+                never deleted, so contacts and ledgers stay safe.
+            </p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'accounting:portal_claims' %}" class="btn btn-outline-primary position-relative">
+                <i class="bi bi-person-check me-1"></i>Portal Requests
+                {% if pending_portal_claims %}
+                <span class="badge bg-danger rounded-pill ms-1">{{ pending_portal_claims }}</span>
+                {% endif %}
+            </a>
+            <button class="btn btn-primary"
+                    hx-get="{% url 'accounting:user_create' %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"
+                    hx-target="#mainModalContent">
+                <i class="bi bi-person-plus me-1"></i>New Login
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-people fs-4 text-primary"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Total Logins</div>
+                        <h5 class="mb-0 fw-bold" id="stat-total-users">{{ total_users }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-person-badge fs-4 text-success"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Staff</div>
+                        <h5 class="mb-0 fw-bold" id="stat-staff-users">{{ staff_users }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-person fs-4 text-info"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Customers</div>
+                        <h5 class="mb-0 fw-bold" id="stat-customer-users">{{ customer_users }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-secondary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-person-x fs-4 text-secondary"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Deactivated</div>
+                        <h5 class="mb-0 fw-bold" id="stat-inactive-users">{{ inactive_users }}</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-5">
+                    <input type="text" name="search" class="form-control"
+                           placeholder="Search name, username, email or mobile..."
+                           hx-get="{% url 'accounting:user_list' %}"
+                           hx-trigger="keyup changed delay:500ms"
+                           hx-target="#user-table-container"
+                           hx-push-url="true"
+                           hx-include="[name='search'],[name='role'],[name='status']"
+                           value="{{ search }}">
+                </div>
+                <div class="col-md-3">
+                    <select name="role" class="form-select"
+                            hx-get="{% url 'accounting:user_list' %}"
+                            hx-trigger="change"
+                            hx-target="#user-table-container"
+                            hx-push-url="true"
+                            hx-include="[name='search'],[name='role'],[name='status']">
+                        <option value="">All Roles</option>
+                        {% if allow_admin_role %}
+                        <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Administrator</option>
+                        {% endif %}
+                        <option value="staff" {% if role_filter == 'staff' %}selected{% endif %}>Staff</option>
+                        <option value="customer" {% if role_filter == 'customer' %}selected{% endif %}>Customer</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="status" class="form-select"
+                            hx-get="{% url 'accounting:user_list' %}"
+                            hx-trigger="change"
+                            hx-target="#user-table-container"
+                            hx-push-url="true"
+                            hx-include="[name='search'],[name='role'],[name='status']">
+                        <option value="">All Status</option>
+                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Deactivated</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <a href="{% url 'accounting:user_list' %}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-arrow-clockwise"></i> Reset
+                    </a>
+                </div>
+            </div>
+
+            <div id="user-table-container">
+                {% include "users/partials/user_table.html" %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

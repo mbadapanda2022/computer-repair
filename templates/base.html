@@ -263,6 +263,13 @@
 
                 <li class="nav-section-label">System</li>
                 <li>
+                    <a href="{% url 'accounting:user_list' %}"
+                    class="nav-link {% if 'dashboard/users' in request.path %}active{% endif %}">
+                        <i class="bi bi-person-gear"></i>
+                        <span class="link-text">Users &amp; Staff</span>
+                    </a>
+                </li>
+                <li>
                     <a href="{% url 'accounting:company_settings' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'company_settings' or 'settings' in request.path %}active{% endif %}">
                         <i class="bi bi-gear"></i>
@@ -362,8 +369,11 @@
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="{% url 'accounting:company_settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                                {% if user.is_superuser %}
+                                <li><a class="dropdown-item" href="{% url 'accounting:user_list' %}"><i class="bi bi-person-gear me-2"></i>Users &amp; Staff</a></li>
+                                <li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Django Admin (advanced)</a></li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{% url 'admin:index' %}"><i class="bi bi-shield-lock me-2"></i>Admin Panel</a></li>
                                 <li>
                                     <form action="{% url 'accounting:logout' %}" method="post" class="d-inline">
                                         {% csrf_token %}
