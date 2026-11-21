@@ -69,6 +69,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django_htmx.middleware.HtmxMiddleware',
     'accounting.middleware.AccessControlMiddleware',
+    'accounting.middleware.CustomerPortalGateMiddleware',
     'accounting.analytics_middleware.AnalyticsRecordingMiddleware',
 ]
 

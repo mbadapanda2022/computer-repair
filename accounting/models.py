@@ -919,6 +919,75 @@ class Contact(SoftDeleteModel):
 
         super().save(*args, **kwargs)
 
+
+class PortalClaimRequest(models.Model):
+    """A portal signup that looks like an existing (unlinked) contact.
+
+    Staff must approve before the contact is linked: nothing is merged
+    automatically, so a wrong phone number can never expose another
+    customer's invoices. While pending, the user's portal is gated.
+    """
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+    MATCH_REASONS = (
+        ('email', 'Email match'),
+        ('phone', 'Phone match'),
+        ('both', 'Email and phone match'),
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='portal_claims',
+    )
+    contact = models.ForeignKey(
+        Contact, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='portal_claims_primary',
+        help_text='Best suggested existing contact (email match preferred).',
+    )
+    alternate_contact = models.ForeignKey(
+        Contact, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='portal_claims_alternate',
+        help_text='Second suggestion when email and phone match different rows.',
+    )
+    status = models.CharField(
+        max_length=10, choices=STATUS_CHOICES, default='pending',
+    )
+    matched_by = models.CharField(max_length=10, choices=MATCH_REASONS)
+    submitted_name = models.CharField(max_length=200)
+    submitted_email = models.EmailField(blank=True)
+    submitted_phone = models.CharField(max_length=20, blank=True)
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='resolved_portal_claims',
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=Q(status='pending'),
+                name='one_pending_portal_claim_per_user',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Claim #{self.pk} — {self.submitted_email or self.submitted_phone}"
+
+    @property
+    def submitted_phone_display(self):
+        return self.submitted_phone or '—'
+
+
 # ============================================================
 # 7. INVENTORY & STOCK
 # ============================================================

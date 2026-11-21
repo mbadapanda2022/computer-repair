@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+
+    <div class="page-head">
+        <div>
+            <h1 class="page-title">
+                <span class="title-chip"><i class="bi bi-person-check" aria-hidden="true"></i></span>
+                Portal Linking Requests
+            </h1>
+            <p class="page-sub">
+                People who signed up on the website and look like an existing contact
+                (same email or mobile). Nothing is linked automatically — approve the
+                right record, or reject to give them a brand-new profile.
+            </p>
+        </div>
+        <div class="page-actions">
+            <a href="{% url 'accounting:contact_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to Contacts
+            </a>
+        </div>
+    </div>
+
+    <div class="alert border-0 shadow-sm mb-3" style="background:#eef5ff">
+        <div class="fw-semibold mb-1"><i class="bi bi-shield-check me-1"></i>How to decide</div>
+        <div class="small">
+            <strong>Approve</strong> when the signup is the same person as the suggested record —
+            they immediately see that record's older invoices, repairs and payments in the portal.
+            The old record keeps everything; only empty fields (email, phone) are filled.
+            <strong>Reject</strong> when it is a different person (for example a recycled phone
+            number) — the customer gets a separate, empty profile.
+        </div>
+    </div>
+
+    {% include "contacts/partials/portal_claim_table.html" %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmClaimAction(evt) {
+    var btn = evt.submitter;
+    if (btn && btn.value === 'reject') {
+        return window.confirm(
+            'Reject this match and create a NEW separate profile for the customer? ' +
+            'The suggested record will not be linked.');
+    }
+    return true;
+}
+</script>
+{% endblock %}

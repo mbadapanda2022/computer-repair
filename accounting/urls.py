@@ -53,6 +53,9 @@ urlpatterns = [
     path('contacts/search/', contacts.contact_search, name='contact_search'),
     path('contacts/export/excel/', contacts.export_contacts_excel, name='export_contacts_excel'),
     path('contacts/<int:pk>/detail-modal/', contacts.contact_detail_modal, name='contact_detail_modal'),
+    path('contacts/claims/', contacts.portal_claim_list, name='portal_claims'),
+    path('contacts/claims/<int:pk>/resolve/', contacts.portal_claim_resolve, name='portal_claim_resolve'),
+    path('contacts/<int:pk>/portal-link/', contacts.contact_portal_link, name='contact_portal_link'),
 
     # ===== Products =====
     path('products/', products.product_list, name='product_list'),

@@ -12,17 +12,8 @@
             <p>Join us to track your repairs and invoices</p>
         </div>
         <div class="auth-body">
-            <div id="register-form-container"
-                 hx-get="{% url 'accounting:register' %}"
-                 hx-trigger="load"
-                 hx-swap="innerHTML"
-                 hx-target="this">
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2 text-muted small">Loading registration form...</p>
-                </div>
+            <div id="register-form-container">
+                {% include "auth/partials/_register_form.html" %}
             </div>
         </div>
         <div class="auth-foot">

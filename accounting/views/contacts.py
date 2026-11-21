@@ -4,12 +4,13 @@ import logging
 from decimal import Decimal
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
 from django.db.models import Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_protect
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side, numbers
@@ -17,7 +18,12 @@ from openpyxl.utils import get_column_letter
 
 from ..decorators import handle_errors
 from ..forms import ContactForm
-from ..models import Contact, Invoice, LedgerLine, Payment, RepairJob
+from ..models import Contact, Invoice, LedgerLine, Payment, PortalClaimRequest, RepairJob
+from ..utils.portal_linking import (
+    approve_claim,
+    link_contact_to_user,
+    reject_claim,
+)
 from .utils import htmx_field_error_response, is_htmx, redirect_to_staff
 
 logger = logging.getLogger(__name__)
@@ -240,6 +246,8 @@ def validate_contact_field(request):
 @handle_errors(default_redirect='accounting:contact_list')
 def contact_list(request):
     context = get_paginated_contacts_context(request)
+    context['pending_claim_count'] = PortalClaimRequest.objects.filter(
+        status='pending').count()
     if is_htmx(request):
         return render(request, 'contacts/partials/contact_table.html', context)
     return render(request, 'contacts/contact_list.html', context)
@@ -524,6 +532,11 @@ def contact_detail_modal(request, pk):
 
     repairs = RepairJob.objects.filter(customer=contact)
 
+    pending_claim = PortalClaimRequest.objects.filter(
+        Q(contact=contact) | Q(alternate_contact=contact),
+        status='pending',
+    ).select_related('user').first()
+
     payments_received = Payment.objects.filter(contact=contact, direction='received')
     payments_paid = Payment.objects.filter(contact=contact, direction='paid')
     total_received = payments_received.aggregate(t=Sum('amount'))['t'] or Decimal('0')
@@ -531,6 +544,7 @@ def contact_detail_modal(request, pk):
 
     context = {
         'contact': contact,
+        'pending_claim': pending_claim,
         'invoice_count': invoices.count(),
         'total_invoiced': total_invoiced,
         'total_due': total_due,
@@ -571,3 +585,139 @@ def contact_search(request):
         } for c in contacts]
 
     return JsonResponse({'results': results})
+
+# ============================================================
+# PORTAL ACCOUNT LINKING (staff-approved signup claims)
+# ============================================================
+
+def _decorate_claim(claim):
+    for c in (claim.contact, claim.alternate_contact):
+        if c is not None:
+            c.invoice_count = Invoice.objects.filter(customer=c).count()
+            c.repair_count = RepairJob.objects.filter(customer=c).count()
+    return claim
+
+
+def _claims_context(show_resolved=15):
+    pending = [
+        _decorate_claim(c) for c in PortalClaimRequest.objects
+        .filter(status='pending')
+        .select_related('user', 'contact', 'alternate_contact')
+    ]
+    resolved = list(
+        PortalClaimRequest.objects.exclude(status='pending')
+        .select_related('user', 'contact', 'resolved_by')[:show_resolved]
+    )
+    return {'pending_claims': pending, 'resolved_claims': resolved}
+
+
+def portal_claim_list(request):
+    context = _claims_context()
+    if is_htmx(request):
+        return render(
+            request, 'contacts/partials/portal_claim_table.html', context)
+    return render(request, 'contacts/portal_claims.html', context)
+
+
+@csrf_protect
+@require_POST
+@handle_errors(default_redirect='accounting:portal_claims')
+def portal_claim_resolve(request, pk):
+    claim = get_object_or_404(PortalClaimRequest, pk=pk)
+    action = request.POST.get('action')
+    note = (request.POST.get('note') or '').strip()
+    level, message = 'success', ''
+
+    try:
+        if action == 'approve':
+            chosen = None
+            contact_id = (request.POST.get('contact_id') or '').strip()
+            if contact_id:
+                allowed = [pk for pk in (
+                    claim.contact_id, claim.alternate_contact_id) if pk]
+                chosen = Contact.objects.filter(
+                    pk=contact_id, pk__in=allowed).first()
+                if chosen is None:
+                    raise ValueError('Choose one of the suggested records.')
+            contact = approve_claim(
+                claim, request.user, contact=chosen, note=note)
+            message = (
+                f'Linked to "{contact.name}". Previous invoices and repairs '
+                'are now visible in the customer portal.'
+            )
+        elif action == 'reject':
+            contact = reject_claim(claim, request.user, note=note)
+            message = (
+                f'Request rejected. A new profile "{contact.name}" was '
+                'created for this customer.'
+            )
+        else:
+            raise ValueError('Unknown action.')
+    except ValueError as exc:
+        level, message = 'danger', str(exc)
+
+    if level == 'success':
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
+
+    if is_htmx(request):
+        response = render(
+            request, 'contacts/partials/portal_claim_table.html',
+            _claims_context())
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': level, 'message': message},
+        })
+        return response
+    return redirect_to_staff('portal_claims')
+
+
+@csrf_protect
+@require_POST
+@handle_errors(default_redirect='accounting:contact_list')
+def contact_portal_link(request, pk):
+    """Manually attach an existing portal account to this contact."""
+    contact = get_object_or_404(Contact, pk=pk)
+    identifier = (request.POST.get('identifier') or '').strip()
+    level, message = 'success', ''
+
+    if not identifier:
+        level = 'warning'
+        message = 'Enter the email or username of the portal account.'
+    else:
+        User = get_user_model()
+        user = (
+            User.objects.filter(username__iexact=identifier).first()
+            or User.objects.filter(email__iexact=identifier).first()
+        )
+        if user is None:
+            level = 'danger'
+            message = 'No portal account found with that email or username.'
+        elif user.is_staff:
+            level = 'danger'
+            message = 'Staff accounts cannot be linked to a customer contact.'
+        else:
+            try:
+                link_contact_to_user(contact, user, request.user)
+                message = (
+                    f'Portal account "{user.get_username()}" is now linked '
+                    f'to "{contact.name}".'
+                )
+            except ValueError as exc:
+                level = 'danger'
+                message = str(exc)
+
+    if level == 'success':
+        messages.success(request, message)
+    elif level == 'warning':
+        messages.warning(request, message)
+    else:
+        messages.error(request, message)
+
+    if is_htmx(request):
+        response = contact_detail_modal(request, contact.pk)
+        response['HX-Trigger'] = json.dumps({
+            'showToast': {'level': level, 'message': message},
+        })
+        return response
+    return redirect_to_staff('contact_list')

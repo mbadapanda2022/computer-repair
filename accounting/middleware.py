@@ -24,7 +24,7 @@ import time
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.shortcuts import redirect
-from django.urls import Resolver404, resolve
+from django.urls import Resolver404, resolve, reverse
 from django.http import HttpResponse
 from django.utils import timezone
 from .audit import clear_current_request, set_current_request
@@ -183,6 +183,39 @@ class AccessControlMiddleware:
             return redirect('customer:customer_dashboard')
         except Exception:
             return redirect('home')
+
+
+class CustomerPortalGateMiddleware:
+    """Hold portal users at a status page while staff review their linking.
+
+    Runs after AccessControlMiddleware: only authenticated, non-staff
+    requests under /customer/ (except the status page itself) are gated.
+    One cheap indexed lookup for linked users; the claim lookup only runs
+    when the user has no contact.
+    """
+
+    STATUS_PATH = '/customer/account-pending'
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        user = getattr(request, 'user', None)
+        path = request.path
+        if (user is not None and user.is_authenticated and not user.is_staff
+                and path.startswith('/customer/')
+                and not path.startswith(self.STATUS_PATH)):
+            from .models import Contact, PortalClaimRequest
+            if (not Contact.objects.filter(user_id=user.pk).exists()
+                    and PortalClaimRequest.objects.filter(
+                        user_id=user.pk, status='pending').exists()):
+                target = reverse('customer:account_pending')
+                if request.headers.get('HX-Request') == 'true':
+                    response = HttpResponse(status=204)
+                    response['HX-Redirect'] = target
+                    return response
+                return redirect(target)
+        return self.get_response(request)
 
 class DemoTrialMiddleware:
     """DEMO_MODE only: 6-month trial enforcement for the demo package.

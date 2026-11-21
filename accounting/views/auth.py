@@ -34,6 +34,7 @@ from django.contrib.auth.views import (
 )
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
@@ -47,7 +48,7 @@ from ..forms import (
     CustomPasswordChangeForm,
     CustomPasswordResetForm,
 )
-from ..models import Contact, EmailOTP
+from ..models import EmailOTP
 from ..utils.otp_helpers import (
     OTP_EXPIRY_MINUTES,
     OTP_MAX_ATTEMPTS,
@@ -55,6 +56,7 @@ from ..utils.otp_helpers import (
     create_and_send_otp,
     verify_otp,
 )
+from ..utils.portal_linking import attach_portal_identity
 from .utils import is_htmx, redirect_to_customer, redirect_to_staff
 
 logger = logging.getLogger(__name__)
@@ -295,17 +297,17 @@ def register_view(request):
 
         form = CustomerRegistrationForm(request.POST)
         if form.is_valid():
-            user = form.save(commit=False)
-            user.is_active = False
-            user.save()
+            with transaction.atomic():
+                user = form.save(commit=False)
+                user.is_active = False
+                user.save()
 
-            Contact.objects.create(
-                user=user,
-                name=form.cleaned_data['full_name'],
-                email=form.cleaned_data['email'],
-                phone=form.cleaned_data.get('phone', ''),
-                contact_type='customer',
-            )
+                _contact, claim = attach_portal_identity(
+                    user,
+                    name=form.cleaned_data['full_name'],
+                    email=form.cleaned_data['email'],
+                    phone=form.cleaned_data.get('phone', ''),
+                )
 
             # Try sending OTP (never crash registration on email failure)
             try:
@@ -319,14 +321,21 @@ def register_view(request):
             request.session[SK_PENDING_EMAIL] = user.email
             request.session[SK_OTP_PURPOSE] = 'signup'
 
+            pending_note = (
+                ' The shop will verify your account against existing records '
+                'before portal access is opened.' if claim else ''
+            )
+
             if otp_sent:
                 messages.success(
                     request,
-                    f"Welcome {user.first_name}! OTP sent to your email.",
+                    f"Welcome {user.first_name}! OTP sent to your email."
+                    + pending_note,
                 )
                 return _registration_success_response(
                     request, htmx, user=user,
-                    message=f'🎉 Welcome {user.first_name}! Check your email for OTP.',
+                    message='🎉 Welcome ' + user.first_name
+                            + '! Check your email for OTP.' + pending_note,
                     title='Registration Successful',
                     level='success',
                 )
@@ -334,12 +343,12 @@ def register_view(request):
                 messages.warning(
                     request,
                     "Registration successful, but OTP could not be sent. "
-                    "Please try resending OTP.",
+                    "Please try resending OTP." + pending_note,
                 )
                 return _registration_success_response(
                     request, htmx, user=user,
                     message='Account created, but OTP email failed. '
-                            'Please click "Resend OTP".',
+                            'Please click "Resend OTP".' + pending_note,
                     title='Registration Partial',
                     level='warning',
                 )
@@ -857,17 +866,17 @@ class CustomSignupView(SignupView):
     success_url = reverse_lazy('accounting:verify_otp')
 
     def form_valid(self, form):
-        user = form.save(commit=False)
-        user.is_active = False
-        user.save()
+        with transaction.atomic():
+            user = form.save(commit=False)
+            user.is_active = False
+            user.save()
 
-        Contact.objects.create(
-            user=user,
-            name=form.cleaned_data.get('full_name', user.username),
-            email=form.cleaned_data.get('email', ''),
-            phone=form.cleaned_data.get('phone', ''),
-            contact_type='customer',
-        )
+            attach_portal_identity(
+                user,
+                name=form.cleaned_data.get('full_name', user.username),
+                email=form.cleaned_data.get('email', ''),
+                phone=form.cleaned_data.get('phone', ''),
+            )
 
         try:
             create_and_send_otp(user, user.email, 'signup')

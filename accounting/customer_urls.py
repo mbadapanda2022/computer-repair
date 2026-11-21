@@ -8,6 +8,7 @@ app_name = 'customer'
 urlpatterns = [
     # ── Dashboard ──────────────────────────────────────
     path('', customer_views.dashboard, name='customer_dashboard'),
+    path('account-pending/', customer_views.account_pending, name='account_pending'),
     path('dashboard/refresh/', customer_views.refresh_dashboard_stats, name='refresh_dashboard_stats'),
     path('dashboard/stats.json', customer_views.dashboard_stats_json, name='customer_dashboard_stats_json'),
 

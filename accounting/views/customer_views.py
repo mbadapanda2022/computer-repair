@@ -64,6 +64,7 @@ from ..models import (
     LedgerLine,
     Notification,
     Payment,
+    PortalClaimRequest,
     Purchase,
     RepairJob,
     UpiPaymentRequest,
@@ -179,6 +180,18 @@ def validate_customer_profile_field(request):
 # ════════════════════════════════════════════════════════════
 # 2. DASHBOARD
 # ════════════════════════════════════════════════════════════
+
+@login_required
+def account_pending(request):
+    """Status page shown while staff review the contact link request."""
+    claim = PortalClaimRequest.objects.filter(
+        user=request.user, status='pending',
+    ).select_related('contact', 'alternate_contact').first()
+    if claim is None:
+        return redirect('customer:customer_dashboard')
+    return render(request, 'customer/account_pending.html', {'claim': claim})
+
+
 @login_required
 @handle_errors(default_redirect='customer:customer_dashboard')
 def dashboard(request):
@@ -187,6 +200,10 @@ def dashboard(request):
 
     Automatically creates Contact if missing (defensive).
     """
+    if PortalClaimRequest.objects.filter(
+            user=request.user, status='pending').exists():
+        return redirect('customer:account_pending')
+
     contact, _ = Contact.objects.get_or_create(
         user=request.user,
         defaults={

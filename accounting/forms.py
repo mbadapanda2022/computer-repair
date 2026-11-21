@@ -9,7 +9,6 @@ from django.contrib.auth.forms import (
     PasswordResetForm,
 )
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.db.models import Sum
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -292,8 +291,16 @@ class CustomerRegistrationForm(forms.ModelForm):
                 "Enter a valid Indian mobile number starting with 6-9."
             )
 
-        if Contact.objects.filter(phone=phone_clean).exists():
-            raise ValidationError("This phone number is already registered.")
+        # An unlinked contact is the shop's own record — allowed; the
+        # signup becomes a staff-approved claim. Only a number that is
+        # already tied to a portal account must stop the signup.
+        linked = Contact.objects.filter(
+            phone=phone_clean).exclude(user__isnull=True).first()
+        if linked is not None:
+            raise ValidationError(
+                "This mobile number is linked to an existing account. "
+                "Please log in instead, or use Forgot Password."
+            )
 
         return phone_clean
 
@@ -319,15 +326,9 @@ class CustomerRegistrationForm(forms.ModelForm):
         user.set_password(self.cleaned_data['password1'])
         user.first_name = self.cleaned_data['full_name']
         if commit:
-            with transaction.atomic():
-                user.save()
-                Contact.objects.create(
-                    user=user,
-                    name=self.cleaned_data['full_name'],
-                    email=self.cleaned_data['email'],
-                    phone=self.cleaned_data.get('phone') or '',
-                    contact_type='customer',
-                )
+            # Contact linking is handled by the registration view/service
+            # (attach_portal_identity) — never create a second profile here.
+            user.save()
         return user
 
 
@@ -2502,8 +2503,14 @@ class CustomerProfileForm(forms.ModelForm):
         qs = Contact.objects.filter(phone=phone_clean)
         if self.instance and self.instance.pk:
             qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise ValidationError("This phone number is already registered by another user.")
+        clash = qs.first()
+        if clash is not None:
+            if clash.user_id:
+                raise ValidationError(
+                    "This phone number is already linked to another account.")
+            raise ValidationError(
+                "This mobile number is on an existing shop record. "
+                "Please contact the shop to link it to your account.")
 
         return phone_clean
 

@@ -1,0 +1,180 @@
+<div id="portal-claim-results">
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">
+                Waiting for review
+                <span class="badge bg-warning text-dark ms-1">{{ pending_claims|length }}</span>
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">New signup</th>
+                            <th>Matched shop record</th>
+                            <th>Matched on</th>
+                            <th>Approve / reject</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for claim in pending_claims %}
+                        <tr>
+                            <td class="ps-3">
+                                <div class="fw-semibold">{{ claim.submitted_name }}</div>
+                                <div class="small text-muted">{{ claim.submitted_email|default:"no email" }}</div>
+                                <div class="small text-muted">{{ claim.submitted_phone_display }}</div>
+                                <div class="small text-muted">
+                                    user: <code>{{ claim.user.username }}</code>
+                                    · {{ claim.created_at|date:"d M Y, h:i A" }}
+                                    {% if not claim.user.is_active %}
+                                        <span class="badge bg-secondary ms-1">email not verified yet</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if claim.contact or claim.alternate_contact %}
+                                    <div class="d-flex flex-column gap-2">
+                                        {% if claim.contact %}
+                                        <label class="d-flex gap-2 align-items-start small mb-0">
+                                            <input type="radio" name="contact_id" class="mt-1"
+                                                   form="claim-form-{{ claim.pk }}"
+                                                   value="{{ claim.contact.pk }}"
+                                                   {% if not claim.alternate_contact %}checked{% endif %}>
+                                            <span>
+                                                <span class="fw-semibold">{{ claim.contact.name }}</span>
+                                                <span class="badge bg-secondary ms-1">{{ claim.contact.get_contact_type_display }}</span><br>
+                                                <span class="text-muted">
+                                                    {{ claim.contact.phone|default:"no phone" }}
+                                                    · {{ claim.contact.email|default:"no email" }}<br>
+                                                    {{ claim.contact.invoice_count }} invoice{{ claim.contact.invoice_count|pluralize }},
+                                                    {{ claim.contact.repair_count }} repair{{ claim.contact.repair_count|pluralize }}
+                                                </span>
+                                            </span>
+                                        </label>
+                                        {% endif %}
+                                        {% if claim.alternate_contact %}
+                                        <label class="d-flex gap-2 align-items-start small mb-0">
+                                            <input type="radio" name="contact_id" class="mt-1"
+                                                   form="claim-form-{{ claim.pk }}"
+                                                   value="{{ claim.alternate_contact.pk }}">
+                                            <span>
+                                                <span class="fw-semibold">{{ claim.alternate_contact.name }}</span>
+                                                <span class="badge bg-secondary ms-1">{{ claim.alternate_contact.get_contact_type_display }}</span><br>
+                                                <span class="text-muted">
+                                                    {{ claim.alternate_contact.phone|default:"no phone" }}
+                                                    · {{ claim.alternate_contact.email|default:"no email" }}<br>
+                                                    {{ claim.alternate_contact.invoice_count }} invoice{{ claim.alternate_contact.invoice_count|pluralize }},
+                                                    {{ claim.alternate_contact.repair_count }} repair{{ claim.alternate_contact.repair_count|pluralize }}
+                                                </span>
+                                            </span>
+                                        </label>
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <div class="text-danger small">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>
+                                        The matched record no longer exists — reject to create a new profile.
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if claim.matched_by == 'email' %}
+                                    <span class="badge bg-primary">Email</span>
+                                {% elif claim.matched_by == 'phone' %}
+                                    <span class="badge bg-info text-dark">Mobile</span>
+                                {% else %}
+                                    <span class="badge bg-primary">Email</span>
+                                    <span class="badge bg-info text-dark">Mobile</span>
+                                {% endif %}
+                            </td>
+                            <td style="min-width:240px;">
+                                <form id="claim-form-{{ claim.pk }}"
+                                      method="post"
+                                      action="{% url 'accounting:portal_claim_resolve' claim.pk %}"
+                                      hx-post="{% url 'accounting:portal_claim_resolve' claim.pk %}"
+                                      hx-target="#portal-claim-results"
+                                      hx-swap="outerHTML"
+                                      onsubmit="return confirmClaimAction(event);">
+                                    {% csrf_token %}
+                                    <input type="text" name="note" class="form-control form-control-sm mb-2"
+                                           maxlength="300" placeholder="Optional note (recorded on the request)">
+                                    <div class="d-flex gap-1">
+                                        <button type="submit" name="action" value="approve"
+                                                class="btn btn-sm btn-success"
+                                                {% if not claim.contact and not claim.alternate_contact %}disabled{% endif %}>
+                                            <i class="bi bi-link-45deg me-1"></i>Approve &amp; link
+                                        </button>
+                                        <button type="submit" name="action" value="reject"
+                                                class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-x-circle me-1"></i>Reject
+                                        </button>
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted p-4">
+                                <i class="bi bi-check2-circle me-1"></i>
+                                No linking requests waiting. New signups that match a shop record will appear here.
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {% if resolved_claims %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white fw-semibold">Recently resolved</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Signup</th>
+                            <th>Linked record</th>
+                            <th>Decision</th>
+                            <th>Resolved by</th>
+                            <th class="pe-3">When</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for claim in resolved_claims %}
+                        <tr>
+                            <td class="ps-3">
+                                <div class="small fw-semibold">{{ claim.submitted_name }}</div>
+                                <div class="small text-muted">{{ claim.submitted_email|default:claim.submitted_phone_display }}</div>
+                            </td>
+                            <td class="small">
+                                {% if claim.status == 'approved' %}
+                                    {{ claim.contact.name|default:"—" }}
+                                {% else %}
+                                    <span class="text-muted">New profile</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if claim.status == 'approved' %}
+                                    <span class="badge bg-success">Approved</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Rejected</span>
+                                {% endif %}
+                                {% if claim.note %}
+                                    <div class="small text-muted mt-1">{{ claim.note|linebreaksbr }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="small">{{ claim.resolved_by.get_username|default:"—" }}</td>
+                            <td class="small pe-3">{{ claim.resolved_at|date:"d M Y, h:i A"|default:"—" }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
