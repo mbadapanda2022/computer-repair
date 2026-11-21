@@ -285,7 +285,7 @@ CKEDITOR_5_CONFIGS = {
             'link', 'bulletedList', 'numberedList', 'todoList',
             'insertTable', 'blockQuote', 'codeBlock', '|',
             'imageUpload', 'mediaEmbed', '|',
-            'undo', 'redo',
+            'undo', 'redo', 'sourceEditing',
         ],
         'image': {
             'toolbar': ['imageTextAlternative', 'imageStyle:inline',
