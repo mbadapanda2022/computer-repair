@@ -6,6 +6,7 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db import transaction
 from django.db.models import Q, Sum
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -17,7 +18,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side, numbers
 from openpyxl.utils import get_column_letter
 
 from ..decorators import handle_errors
-from ..forms import ContactForm
+from ..forms import ContactForm, ContactPortalAccountForm
 from ..models import Contact, Invoice, LedgerLine, Payment, PortalClaimRequest, RepairJob
 from ..utils.portal_linking import (
     approve_claim,
@@ -572,7 +573,10 @@ def contact_search(request):
             Q(phone__icontains=q) |
             Q(email__icontains=q) |
             Q(company_name__icontains=q)
-        )[:20]
+        )
+        if request.GET.get('unlinked') == '1':
+            contacts = contacts.filter(user__isnull=True)
+        contacts = contacts[:20]
 
         results = [{
             'id': c.id,
@@ -721,3 +725,56 @@ def contact_portal_link(request, pk):
         })
         return response
     return redirect_to_staff('contact_list')
+
+
+@csrf_protect
+@handle_errors(default_redirect='accounting:contact_list')
+def contact_create_portal_login(request, pk):
+    """Create a portal login for a contact — for customers who cannot
+    register themselves. The new login opens directly on this record."""
+    contact = get_object_or_404(Contact, pk=pk)
+
+    if contact.user_id:
+        message = (
+            f'This contact is already linked to "{contact.user.get_username()}".')
+        if is_htmx(request):
+            response = contact_detail_modal(request, contact.pk)
+            response['HX-Trigger'] = json.dumps({
+                'showToast': {'level': 'danger', 'message': message},
+            })
+            return response
+        messages.error(request, message)
+        return redirect_to_staff('contact_list')
+
+    form = None
+    if request.method == 'POST':
+        form = ContactPortalAccountForm(request.POST, contact=contact)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    user = form.save()
+                    link_contact_to_user(contact, user, request.user)
+            except ValueError as exc:
+                form.add_error(None, str(exc))
+            else:
+                message = (
+                    f'Login "{user.get_username()}" created and linked to '
+                    f'"{contact.name}". Share the password with the customer.')
+                logger.info(
+                    "Portal login created from contact | staff=%s | user=%s | contact=%s",
+                    request.user.username, user.pk, contact.pk)
+                if is_htmx(request):
+                    response = contact_detail_modal(request, contact.pk)
+                    response['HX-Trigger'] = json.dumps({
+                        'showToast': {'level': 'success', 'message': message},
+                    })
+                    return response
+                messages.success(request, message)
+                return redirect_to_staff('contact_list')
+    else:
+        form = ContactPortalAccountForm(contact=contact)
+
+    return render(request, 'contacts/contact_portal_account_form.html', {
+        'form': form,
+        'contact': contact,
+    })

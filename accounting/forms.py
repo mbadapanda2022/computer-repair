@@ -649,6 +649,75 @@ class StaffUserPasswordForm(forms.Form):
         return self.user
 
 
+class ContactPortalAccountForm(forms.Form):
+    """Create a portal login for a contact whose customer cannot sign up."""
+
+    username = forms.CharField(max_length=150, widget=BS_TEXT(
+        placeholder='Login username for the customer'))
+    email = forms.EmailField(required=False, widget=BS_EMAIL(
+        placeholder='Email (optional)'))
+    password1 = forms.CharField(
+        label='Password', widget=BS_PASSWORD(placeholder='Min 8 characters'))
+    password2 = forms.CharField(
+        label='Confirm password', widget=BS_PASSWORD(
+            placeholder='Re-enter password'))
+
+    def __init__(self, *args, contact, **kwargs):
+        self.contact = contact
+        super().__init__(*args, **kwargs)
+        self.fields['email'].initial = contact.email or ''
+
+    def clean_username(self):
+        username = (self.cleaned_data.get('username') or '').strip()
+        if len(username) < 3:
+            raise ValidationError('Username must be at least 3 characters long.')
+        if not re.match(r'^[\w.@+-]+$', username):
+            raise ValidationError(
+                'Use only letters, digits and @/./+/-/_ in the username.')
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValidationError('This username is already taken.')
+        return username
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip().lower()
+        if email and User.objects.filter(email__iexact=email).exists():
+            raise ValidationError('This email is already used by another login.')
+        return email
+
+    def clean_password1(self):
+        password = self.cleaned_data.get('password1') or ''
+        probe = User(
+            username=self.cleaned_data.get('username', ''),
+            email=self.cleaned_data.get('email', ''),
+            first_name=self.contact.name,
+        )
+        try:
+            validate_password(password, user=probe)
+        except ValidationError as exc:
+            raise ValidationError(exc.messages)
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        p1 = cleaned.get('password1')
+        p2 = cleaned.get('password2')
+        if p1 and p2 and p1 != p2:
+            self.add_error('password2', 'Passwords do not match.')
+        return cleaned
+
+    def save(self):
+        data = self.cleaned_data
+        user = User(
+            username=data['username'],
+            email=data['email'],
+            first_name=self.contact.name,
+            is_active=True,
+        )
+        user.set_password(data['password1'])
+        user.save()
+        return user
+
+
 # ============================================================
 # CONTACT MESSAGE FORM
 # ============================================================

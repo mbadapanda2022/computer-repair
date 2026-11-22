@@ -4,8 +4,9 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from .models import Contact
+from .models import Contact, Invoice
 
 User = get_user_model()
 
@@ -198,3 +199,131 @@ class UserManagementTests(TestCase):
         self.assertEqual(resp.status_code, 403)
         self.superuser.refresh_from_db()
         self.assertTrue(self.superuser.check_password('OwnerPass123!'))
+
+    # ── link login to an old shop record ─────────────────────
+    def _unlinked_user(self):
+        return User.objects.create_user(
+            username='shopcust', email='shopcust@example.com',
+            password='CustPass123!')
+
+    def test_link_login_to_old_contact_shows_old_invoice(self):
+        registered = self._unlinked_user()
+        old_contact = Contact.objects.create(
+            name='Old Shop Entry', phone='9988776655',
+            contact_type='customer')
+        invoice = Invoice.objects.create(
+            customer=old_contact, date=timezone.localdate())
+
+        self._staff_login()
+        resp = self.client.post(
+            reverse('accounting:user_link_contact', args=[registered.pk]),
+            {'contact_id': str(old_contact.pk)})
+        self.assertEqual(resp.status_code, 302)
+
+        old_contact.refresh_from_db()
+        self.assertEqual(old_contact.user_id, registered.pk)
+
+        self.client.force_login(registered)
+        resp = self.client.get(reverse('customer:customer_invoices'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, invoice.invoice_number)
+
+    def test_link_requires_a_contact_choice(self):
+        registered = self._unlinked_user()
+        self._staff_login()
+        resp = self.client.post(
+            reverse('accounting:user_link_contact', args=[registered.pk]), {})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Choose a shop contact')
+        self.assertFalse(
+            Contact.objects.filter(user=registered).exists())
+
+    def test_link_refuses_contact_already_on_another_login(self):
+        registered = self._unlinked_user()
+        self._staff_login()
+        resp = self.client.post(
+            reverse('accounting:user_link_contact', args=[registered.pk]),
+            {'contact_id': str(self.contact.pk)})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'already linked to another login')
+        self.contact.refresh_from_db()
+        self.assertEqual(self.contact.user_id, self.customer.pk)
+
+    def test_link_refuses_staff_login(self):
+        self._staff_login()
+        resp = self.client.post(
+            reverse('accounting:user_link_contact', args=[self.staff.pk]),
+            {'contact_id': '1'})
+        self.assertEqual(resp.status_code, 302)
+
+    def test_link_refuses_replacing_profile_with_transactions(self):
+        Invoice.objects.create(
+            customer=self.contact, date=timezone.localdate())
+        old_contact = Contact.objects.create(
+            name='Old Shop Entry', phone='9988776655',
+            contact_type='customer')
+
+        self._staff_login()
+        resp = self.client.post(
+            reverse('accounting:user_link_contact', args=[self.customer.pk]),
+            {'contact_id': str(old_contact.pk)})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Merge the two contacts first')
+        self.contact.refresh_from_db()
+        old_contact.refresh_from_db()
+        self.assertEqual(self.contact.user_id, self.customer.pk)
+        self.assertIsNone(old_contact.user_id)
+
+    def test_link_drops_empty_auto_profile(self):
+        registered = self._unlinked_user()
+        placeholder = Contact.objects.create(
+            user=registered, name='Shopcust', contact_type='customer')
+        old_contact = Contact.objects.create(
+            name='Real Record', phone='9988776655', contact_type='customer')
+
+        self._staff_login()
+        resp = self.client.post(
+            reverse('accounting:user_link_contact', args=[registered.pk]),
+            {'contact_id': str(old_contact.pk)})
+        self.assertEqual(resp.status_code, 302)
+
+        old_contact.refresh_from_db()
+        self.assertEqual(old_contact.user_id, registered.pk)
+        self.assertFalse(
+            Contact.all_objects.filter(pk=placeholder.pk).exists())
+
+    def test_non_superuser_cannot_link_superuser(self):
+        self._staff_login()
+        resp = self.client.post(
+            reverse('accounting:user_link_contact', args=[self.superuser.pk]),
+            {'contact_id': '1'})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_link_modal_opens_with_recent_unlinked_contacts(self):
+        old_contact = Contact.objects.create(
+            name='Old Shop Entry', phone='9988776655',
+            contact_type='customer')
+        registered = self._unlinked_user()
+        self._staff_login()
+
+        resp = self.client.get(
+            reverse('accounting:user_link_contact', args=[registered.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Old Shop Entry')
+        self.assertContains(resp, f'data-id="{old_contact.pk}"')
+
+    def test_link_search_only_lists_unlinked_contacts(self):
+        Contact.objects.create(name='Old Shop Entry', phone='9988776655')
+        self._staff_login()
+
+        resp = self.client.get(
+            reverse('accounting:contact_search'),
+            {'unlinked': '1', 'q': 'Ramesh'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['results'], [])
+
+        resp = self.client.get(
+            reverse('accounting:contact_search'),
+            {'unlinked': '1', 'q': 'Old Shop'})
+        names = [row['name'] for row in resp.json()['results']]
+        self.assertEqual(names, ['Old Shop Entry'])

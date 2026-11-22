@@ -84,6 +84,16 @@
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end" style="z-index: 9999;">
+                            {% if not account.is_staff %}
+                            <li>
+                                <button class="dropdown-item"
+                                        hx-get="{% url 'accounting:user_link_contact' account.pk %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"
+                                        hx-target="#mainModalContent">
+                                    <i class="bi bi-link-45deg me-2 text-success"></i>
+                                    {% if account.customer_contact %}Link to another shop record{% else %}Link to shop record{% endif %}
+                                </button>
+                            </li>
+                            {% endif %}
                             <li>
                                 <button class="dropdown-item"
                                         hx-get="{% url 'accounting:user_edit' account.pk %}{% if filters_qs %}?{{ filters_qs }}{% endif %}"

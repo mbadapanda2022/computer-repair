@@ -1,0 +1,121 @@
+{% load static %}
+
+<form method="post"
+      action="{% url 'accounting:contact_create_portal_login' contact.pk %}"
+      id="contactPortalAccountForm"
+      hx-post="{% url 'accounting:contact_create_portal_login' contact.pk %}"
+      hx-target="#mainModalContent"
+      hx-swap="innerHTML"
+      novalidate>
+    {% csrf_token %}
+
+    <div class="modal-header bg-success text-white">
+        <h5 class="modal-title">
+            <i class="bi bi-person-plus me-2"></i>Create Portal Login
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+    </div>
+
+    <div class="modal-body">
+        <div class="alert alert-light border small mb-3">
+            <i class="bi bi-link-45deg me-1"></i>
+            This login will open directly on the shop record
+            <strong>{{ contact.name }}</strong>
+            ({{ contact.phone|default:"no mobile" }}). All older invoices, repairs
+            and payments become visible to the customer after they log in.
+        </div>
+
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger py-2">
+            {% for error in form.non_field_errors %}
+            <div><i class="bi bi-exclamation-triangle me-1"></i>{{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="id_username" class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+                <input type="text" name="username" id="id_username"
+                       class="form-control {% if form.username.errors %}is-invalid{% endif %}"
+                       value="{{ form.username.value|default:'' }}"
+                       maxlength="150" autocomplete="off" required>
+                {% if form.username.errors %}
+                    <div class="invalid-feedback d-block">{{ form.username.errors|join:", " }}</div>
+                {% else %}
+                    <div class="form-text">The customer logs in with this username.</div>
+                {% endif %}
+            </div>
+
+            <div class="col-md-6">
+                <label for="id_email" class="form-label fw-semibold">Email (optional)</label>
+                <input type="email" name="email" id="id_email"
+                       class="form-control {% if form.email.errors %}is-invalid{% endif %}"
+                       value="{{ form.email.value|default:'' }}">
+                {% if form.email.errors %}
+                    <div class="invalid-feedback d-block">{{ form.email.errors|join:", " }}</div>
+                {% else %}
+                    <div class="form-text">Can be left blank; the customer can add it later.</div>
+                {% endif %}
+            </div>
+
+            <div class="col-md-6">
+                <label for="id_password1" class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <input type="password" name="password1" id="id_password1"
+                           class="form-control {% if form.password1.errors %}is-invalid{% endif %}"
+                           placeholder="Min 8 characters" autocomplete="new-password" required>
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="toggleContactPassword('id_password1', 'cp-eye-1')">
+                        <i class="bi bi-eye-slash" id="cp-eye-1"></i>
+                    </button>
+                </div>
+                {% if form.password1.errors %}
+                    <div class="text-danger small mt-1">{{ form.password1.errors|join:" " }}</div>
+                {% endif %}
+            </div>
+
+            <div class="col-md-6">
+                <label for="id_password2" class="form-label fw-semibold">Confirm Password <span class="text-danger">*</span></label>
+                <div class="input-group">
+                    <input type="password" name="password2" id="id_password2"
+                           class="form-control {% if form.password2.errors %}is-invalid{% endif %}"
+                           placeholder="Re-enter password" autocomplete="new-password" required>
+                    <button class="btn btn-outline-secondary" type="button"
+                            onclick="toggleContactPassword('id_password2', 'cp-eye-2')">
+                        <i class="bi bi-eye-slash" id="cp-eye-2"></i>
+                    </button>
+                </div>
+                {% if form.password2.errors %}
+                    <div class="text-danger small mt-1">{{ form.password2.errors|join:" " }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check2-circle me-1"></i>Create &amp; Link Login
+        </button>
+    </div>
+</form>
+
+<script>
+if (typeof toggleContactPassword !== 'function') {
+    function toggleContactPassword(fieldId, iconId) {
+        var input = document.getElementById(fieldId);
+        var icon = document.getElementById(iconId);
+        if (!input || !icon) return;
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('bi-eye-slash');
+            icon.classList.add('bi-eye');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('bi-eye');
+            icon.classList.add('bi-eye-slash');
+        }
+    }
+}
+</script>

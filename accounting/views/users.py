@@ -15,6 +15,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.csrf import csrf_protect
@@ -27,6 +28,7 @@ from ..forms import (
     StaffUserPasswordForm,
 )
 from ..models import Contact, PortalClaimRequest
+from ..utils.portal_linking import link_contact_to_user
 from .utils import htmx_response, is_htmx, redirect_to_staff
 
 logger = logging.getLogger(__name__)
@@ -303,3 +305,86 @@ def user_toggle_active(request, pk):
             toast={'level': level, 'message': message},
         )
     return redirect_to_staff('user_list')
+
+
+# ============================================================
+# 6. LINK CUSTOMER LOGIN TO AN OLD SHOP CONTACT
+# ============================================================
+def _contact_suggestions(target):
+    """Unlinked contacts that probably belong to this login."""
+    base = Contact.objects.filter(user__isnull=True)
+    if target.email or target.first_name:
+        cond = Q()
+        if target.email:
+            cond |= Q(email__iexact=target.email)
+        if target.first_name:
+            cond |= Q(name__icontains=target.first_name)
+        matches = list(base.filter(cond).order_by('name')[:50])
+        if matches:
+            return matches
+    return list(base.order_by('-id')[:50])
+
+
+@login_required
+@csrf_protect
+@handle_errors(default_redirect='accounting:user_list')
+def user_link_contact(request, pk):
+    target = _manageable_user(request, pk)
+    if target.is_staff:
+        messages.error(
+            request, 'Staff logins do not use a customer contact.')
+        return redirect_to_staff('user_list')
+
+    linked = Contact.all_objects.filter(user=target).first()
+    if linked is not None and linked.is_deleted:
+        messages.error(
+            request,
+            f'"{target.username}" is still attached to deleted contact '
+            f'"{linked.name}". Restore that contact first.')
+        return redirect_to_staff('user_list')
+
+    error = None
+    if request.method == 'POST':
+        raw_id = (request.POST.get('contact_id') or '').strip()
+        contact = (Contact.objects.filter(pk=raw_id).first()
+                   if raw_id.isdigit() else None)
+        if contact is None:
+            error = 'Choose a shop contact to link.'
+        elif contact.user_id == target.pk:
+            error = 'This login is already linked to that contact.'
+        elif contact.user_id:
+            error = ('That contact is already linked to another login. '
+                     'Unlink it first.')
+        else:
+            try:
+                with transaction.atomic():
+                    link_contact_to_user(contact, target, request.user)
+            except ValueError as exc:
+                error = str(exc)
+            else:
+                return _success_response(
+                    request,
+                    f'"{target.username}" now uses contact '
+                    f'"{contact.name}". Old work is visible in the portal.',
+                    f'User linked to contact target={target.pk} '
+                    f'contact={contact.pk}',
+                )
+
+    pending_claim = PortalClaimRequest.objects.filter(
+        user=target, status='pending').first()
+    context = {
+        'target': target,
+        'suggestions': _contact_suggestions(target),
+        'error': error,
+        'existing_profile': linked,
+        'pending_claim': pending_claim,
+        'filters_qs': _filters_qs(request),
+    }
+    if error and is_htmx(request):
+        return htmx_response(
+            request,
+            'users/user_link_contact_form.html',
+            context=context,
+            extra_headers={'HX-Retarget': '#mainModalContent'},
+        )
+    return render(request, 'users/user_link_contact_form.html', context)

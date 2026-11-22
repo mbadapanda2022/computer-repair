@@ -195,6 +195,16 @@
                         </button>
                     </div>
                 </form>
+                <hr class="my-2">
+                <div class="small text-muted mb-2">
+                    Customer cannot register on their own? Create the login here —
+                    it opens directly on this record.
+                </div>
+                <button class="btn btn-sm btn-success w-100"
+                        hx-get="{% url 'accounting:contact_create_portal_login' contact.pk %}"
+                        hx-target="#mainModalContent">
+                    <i class="bi bi-person-plus me-1"></i>Create login for this customer
+                </button>
             </div>
         </div>
         {% endif %}

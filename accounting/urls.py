@@ -51,6 +51,7 @@ urlpatterns = [
     path('dashboard/users/<int:pk>/edit/', user_views.user_edit, name='user_edit'),
     path('dashboard/users/<int:pk>/password/', user_views.user_set_password, name='user_set_password'),
     path('dashboard/users/<int:pk>/toggle-active/', user_views.user_toggle_active, name='user_toggle_active'),
+    path('dashboard/users/<int:pk>/link-contact/', user_views.user_link_contact, name='user_link_contact'),
 
     # ===== Contacts =====
     path('contacts/', contacts.contact_list, name='contact_list'),
@@ -64,6 +65,7 @@ urlpatterns = [
     path('contacts/claims/', contacts.portal_claim_list, name='portal_claims'),
     path('contacts/claims/<int:pk>/resolve/', contacts.portal_claim_resolve, name='portal_claim_resolve'),
     path('contacts/<int:pk>/portal-link/', contacts.contact_portal_link, name='contact_portal_link'),
+    path('contacts/<int:pk>/portal-account/', contacts.contact_create_portal_login, name='contact_create_portal_login'),
 
     # ===== Products =====
     path('products/', products.product_list, name='product_list'),
