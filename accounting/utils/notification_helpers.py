@@ -28,7 +28,7 @@ import re
 from django.apps import apps
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.core.mail import send_mail
+from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.urls import resolve
@@ -130,7 +130,7 @@ def send_notification(
 
 
 def _send_notification_email(
-    user, title, message, link, company=None, recipient=None,
+    user, title, message, link, company=None, recipient=None, reply_to=None,
 ):
     """Fail-safe email dispatch."""
     try:
@@ -153,17 +153,15 @@ def _send_notification_email(
         html_message = render_to_string(
             'notifications/email_notification.html', context,
         )
-        send_mail(
+        email = EmailMultiAlternatives(
             subject=subject,
-            message=message,
+            body=message,
             from_email=get_from_email(),
-            recipient_list=[recipient or user.email],
-            html_message=html_message,
-            # fail_silently=True would DROP the email with no log line when
-            # creds are missing/SMTP is down. Raise instead: the except below
-            # logs it and the request still completes.
-            fail_silently=False,
+            to=[recipient or user.email],
+            reply_to=[reply_to] if reply_to else None,
         )
+        email.attach_alternative(html_message, 'text/html')
+        email.send(fail_silently=False)
     except Exception:
         logger.exception(
             "Notification email failed | user_id=%s",
@@ -177,7 +175,7 @@ def _send_notification_email(
 
 def send_notification_to_staff(
     title, message, link=None,
-    notif_type='info', category='general', send_email=False,
+    notif_type='info', category='general', send_email=False, reply_to=None,
 ):
     """Bulk-create staff notifications and guarantee a support inbox copy."""
     staff_users = list(
@@ -231,7 +229,7 @@ def send_notification_to_staff(
         for user, email in targets:
             _send_notification_email(
                 user, title, message, link,
-                company=company, recipient=email,
+                company=company, recipient=email, reply_to=reply_to,
             )
 
     return created

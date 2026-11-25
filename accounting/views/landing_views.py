@@ -129,7 +129,8 @@ def contact_message(request):
                 link=reverse('accounting:message_list'),
                 notif_type='info',
                 category='general',
-                send_email=True  
+                send_email=True,
+                reply_to=message.email,
             )
             
             html = CONTACT_SUCCESS_HTML

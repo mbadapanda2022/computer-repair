@@ -207,6 +207,33 @@ class StaffNotificationDeliveryTests(TestCase):
                 message.alternatives[0][0],
             )
 
+    def test_reply_to_is_set_on_staff_and_support_emails(self):
+        User.objects.create_user(
+            'staff_one', email='staff@test.example', is_staff=True)
+
+        self.send(reply_to='visitor@test.example')
+
+        self.assertEqual(len(mail.outbox), 2)
+        for message in mail.outbox:
+            self.assertEqual(message.reply_to, ['visitor@test.example'])
+
+    def test_contact_form_sets_visitor_reply_to(self):
+        from django.core.cache import cache
+        cache.clear()
+
+        response = self.client.post('/contact-message/', {
+            'name': 'Website Visitor',
+            'email': 'visitor@test.example',
+            'phone': '9876500015',
+            'subject': 'Please contact me',
+            'message': 'I need help with my printer.',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['support@test.example'])
+        self.assertEqual(mail.outbox[0].reply_to, ['visitor@test.example'])
+
     def test_support_is_not_emailed_twice_when_already_staff(self):
         User.objects.create_user(
             'support_staff', email='SUPPORT@test.example', is_staff=True)
@@ -255,7 +282,7 @@ class StaffNotificationDeliveryTests(TestCase):
             'staff_one', email='staff@test.example', is_staff=True)
 
         with patch(
-            'accounting.utils.notification_helpers.send_mail',
+            'accounting.utils.notification_helpers.EmailMultiAlternatives.send',
             side_effect=ConnectionError('SMTP unavailable'),
         ):
             created = self.send()
