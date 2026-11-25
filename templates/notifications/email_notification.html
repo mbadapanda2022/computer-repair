@@ -3,11 +3,11 @@
 <html>
 <head><meta charset="UTF-8"></head>
 <body>
-    <p>Dear {{ user.get_full_name|default:user.username }},</p>
+    {% if user %}<p>Dear {{ user.get_full_name|default:user.username }},</p>{% else %}<p>Dear Team,</p>{% endif %}
     <p><strong>{{ title }}</strong></p>
     <p>{{ message }}</p>
-    {% if link %}
-        <p><a href="{{ link }}">View Details</a></p>
+    {% if email_link %}
+        <p><a href="{{ email_link }}">View Details</a></p>
     {% endif %}
     <p>Regards,<br>{{ company.name|default:"My Company" }}</p>
 </body>

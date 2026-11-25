@@ -129,16 +129,27 @@ def send_notification(
     return notif
 
 
-def _send_notification_email(user, title, message, link):
+def _send_notification_email(
+    user, title, message, link, company=None, recipient=None,
+):
     """Fail-safe email dispatch."""
     try:
         from ..models import CompanyProfile
-        company = CompanyProfile.objects.first()
+        if company is None:
+            company = CompanyProfile.objects.first()
         company_name = (company.name if company and company.name
                         else 'My Company')
+        email_link = link
+        if (
+            email_link
+            and email_link.startswith('/')
+            and company
+            and company.website_url
+        ):
+            email_link = f"{company.website_url.rstrip('/')}{email_link}"
         subject = f"[{company_name}] {title}"
         context = {'user': user, 'title': title, 'message': message,
-                   'link': link, 'company': company}
+                   'email_link': email_link, 'link': link, 'company': company}
         html_message = render_to_string(
             'notifications/email_notification.html', context,
         )
@@ -146,7 +157,7 @@ def _send_notification_email(user, title, message, link):
             subject=subject,
             message=message,
             from_email=get_from_email(),
-            recipient_list=[user.email],
+            recipient_list=[recipient or user.email],
             html_message=html_message,
             # fail_silently=True would DROP the email with no log line when
             # creds are missing/SMTP is down. Raise instead: the except below
@@ -168,41 +179,60 @@ def send_notification_to_staff(
     title, message, link=None,
     notif_type='info', category='general', send_email=False,
 ):
-    """Bulk-create notifications for all active staff."""
+    """Bulk-create staff notifications and guarantee a support inbox copy."""
     staff_users = list(
         User.objects.filter(is_staff=True, is_active=True)
-        .only('id', 'email', 'first_name')
+        .only('id', 'email', 'first_name', 'last_name', 'username')
     )
-    if not staff_users:
-        return []
 
-    content_type, object_id = _extract_content_type_and_id(link)
-
-    notifications = [
-        Notification(
-            recipient=user,
-            title=title,
-            message=message,
-            link=link or None,
-            notification_type=notif_type,
-            category=category,
-            content_type=content_type,
-            object_id=object_id,
-        )
-        for user in staff_users
-    ]
-
-    try:
-        with transaction.atomic():
-            created = Notification.objects.bulk_create(notifications)
-    except Exception:
-        logger.exception("Bulk staff notification failed | title=%s", title)
-        return []
+    created = []
+    if staff_users:
+        content_type, object_id = _extract_content_type_and_id(link)
+        notifications = [
+            Notification(
+                recipient=user,
+                title=title,
+                message=message,
+                link=link or None,
+                notification_type=notif_type,
+                category=category,
+                content_type=content_type,
+                object_id=object_id,
+            )
+            for user in staff_users
+        ]
+        try:
+            with transaction.atomic():
+                created = Notification.objects.bulk_create(notifications)
+        except Exception:
+            logger.exception("Bulk staff notification failed | title=%s", title)
+            return []
 
     if send_email:
+        from ..models import CompanyProfile
+        company = CompanyProfile.objects.first()
+        targets = []
+        seen = set()
         for user in staff_users:
-            if user.email:
-                _send_notification_email(user, title, message, link)
+            email = (user.email or '').strip()
+            key = email.casefold()
+            if email and key not in seen:
+                targets.append((user, email))
+                seen.add(key)
+
+        support_email = (company.email or '').strip() if company else ''
+        if support_email and support_email.casefold() not in seen:
+            targets.append((None, support_email))
+
+        if not targets:
+            logger.error(
+                "No staff notification email recipients | title=%s", title,
+            )
+        for user, email in targets:
+            _send_notification_email(
+                user, title, message, link,
+                company=company, recipient=email,
+            )
 
     return created
 

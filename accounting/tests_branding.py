@@ -177,6 +177,93 @@ class NotificationEmailBrandingTests(TestCase):
         self.assertIn(BRAND, mail.outbox[0].alternatives[0][0])
 
 
+class StaffNotificationDeliveryTests(TestCase):
+    def setUp(self):
+        self.company = _company(email='support@test.example')
+
+    def send(self, **kwargs):
+        from .utils.notification_helpers import send_notification_to_staff
+        return send_notification_to_staff(
+            'New contact message', 'A customer needs help.',
+            link='/messages/', send_email=True, **kwargs,
+        )
+
+    def test_staff_and_support_receive_deduplicated_emails(self):
+        User.objects.create_user(
+            'staff_one', email='Staff@test.example', is_staff=True)
+        User.objects.create_user(
+            'staff_two', email='staff@test.example', is_staff=True)
+
+        created = self.send()
+
+        self.assertEqual(len(created), 2)
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertEqual(mail.outbox[0].to, ['Staff@test.example'])
+        self.assertEqual(mail.outbox[1].to, ['support@test.example'])
+        self.assertIn('Dear Team,', mail.outbox[1].alternatives[0][0])
+        for message in mail.outbox:
+            self.assertIn(
+                'https://test.example/messages/',
+                message.alternatives[0][0],
+            )
+
+    def test_support_is_not_emailed_twice_when_already_staff(self):
+        User.objects.create_user(
+            'support_staff', email='SUPPORT@test.example', is_staff=True)
+
+        self.send()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['SUPPORT@test.example'])
+
+    def test_support_receives_alert_when_staff_have_no_email(self):
+        User.objects.create_user('blank_staff', email='', is_staff=True)
+
+        self.send()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['support@test.example'])
+
+    def test_support_receives_alert_when_no_active_staff_exist(self):
+        User.objects.create_user(
+            'inactive_staff', email='inactive@test.example',
+            is_staff=True, is_active=False,
+        )
+
+        created = self.send()
+
+        self.assertEqual(created, [])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['support@test.example'])
+
+    def test_missing_all_recipients_is_safe_and_logged(self):
+        self.company.email = ''
+        self.company.save()
+        User.objects.create_user('blank_staff', email='', is_staff=True)
+
+        with self.assertLogs(
+            'accounting.utils.notification_helpers', level='ERROR',
+        ):
+            created = self.send()
+
+        self.assertEqual(len(created), 1)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_smtp_failure_does_not_undo_notification(self):
+        from unittest.mock import patch
+        User.objects.create_user(
+            'staff_one', email='staff@test.example', is_staff=True)
+
+        with patch(
+            'accounting.utils.notification_helpers.send_mail',
+            side_effect=ConnectionError('SMTP unavailable'),
+        ):
+            created = self.send()
+
+        self.assertEqual(len(created), 1)
+        self.assertEqual(created[0].title, 'New contact message')
+
+
 class WhatsappMessageBrandingTests(TestCase):
     def setUp(self):
         _company()
